@@ -23,6 +23,7 @@ const CLIPS := {
 	"wide_arm_spell": ["wide_arm_spell_casting.fbx", false, true],
 	"magic_attack_2h": ["standing_2h_magic_attack_01.fbx", false, true],
 	"magic_attack_1h": ["standing_1h_magic_attack_03.fbx", false, true],
+	"sit": ["sitting_idle.fbx", false, true],
 }
 
 @export var character_id := "mika"

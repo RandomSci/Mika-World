@@ -12,7 +12,7 @@ Every external asset in this project, where it came from, and its license. Machi
 
 | Asset | Source | Terms |
 |---|---|---|
-| `assets/animations/mixamo/*.fbx` (12) | user's Mixamo downloads in `~/Downloads` | Usable in projects; raw files must not be redistributed → git-ignored; `tools/setup_local_assets.sh` re-copies them. |
+| `assets/animations/mixamo/*.fbx` (13, incl. Sitting Idle for seats) | user's Mixamo downloads in `~/Downloads` | Usable in projects; raw files must not be redistributed → git-ignored; `tools/setup_local_assets.sh` re-copies them. |
 | `assets/animations/mixamo_sword/*.fbx` (51 + 3) | `~/Downloads/Great Sword Pack.zip` and standalone Great Sword files | same; git-ignored. Selection/analysis: `docs/SWORD_ANIMATIONS.md`. |
 
 ## Plugins
@@ -115,3 +115,10 @@ Every external asset in this project, where it came from, and its license. Machi
 * Godot demo projects (MIT) — patterns only (visibility ranges/HLOD, volumetric fog, graphics settings). GDQuest demos: code MIT, **art CC-BY-NC-SA** → no GDQuest art used.
 
 No paid assets, no assets extracted from commercial games, no generated images.
+
+### Arcane Sanctuary mini-region (2026-10 pass)
+No new downloads. The sub-areas reuse the CC0 Poly Haven models/textures listed above (flowers, shrub_03, vases,
+candle holders, stool, lantern, book set, mossy rocks) plus procedural geometry (masonry, lathe columns, stairs, pond,
+rune targets, light shafts, birds/butterflies/fireflies) written in `scripts/world/sanctuary_expansion.gd`,
+`scripts/world/ambient_life.gd`, `shaders/light_shaft.gdshader`, `shaders/ambient_creature.gdshader`.
+The only new animation is Mixamo "Sitting Idle" (local only, git-ignored, re-copied by `tools/setup_local_assets.sh`).

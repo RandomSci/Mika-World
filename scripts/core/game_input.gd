@@ -18,6 +18,8 @@ const BINDINGS := {
 	"sword_attack": [KEY_F],
 	"sword_power": [KEY_G],
 	"sword_element": [KEY_T],
+	"camera_director": [KEY_V],
+	"brain_toggle": [KEY_B],
 }
 
 

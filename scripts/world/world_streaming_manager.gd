@@ -296,8 +296,9 @@ static func _layout_hash(area: Node) -> String:
 	ctx.start(HashingContext.HASH_MD5)
 	var positions := []
 	for n in area.find_children("*", "GeometryInstance3D", true, false):
-		if String(area.get_path_to(n)).contains("AltarCrystal"):
-			continue  # deliberately animated (bobbing), not layout
+		var rel := String(area.get_path_to(n))
+		if rel.contains("AltarCrystal") or rel.contains("Animated"):
+			continue  # deliberately animated (bobbing crystals, ambient creatures), not layout
 		if n is MeshInstance3D:
 			ctx.update(var_to_bytes((n as Node3D).global_transform.origin.snapped(Vector3.ONE * 0.001)))
 		elif n is MultiMeshInstance3D and (n as MultiMeshInstance3D).multimesh:

@@ -24,6 +24,14 @@ const RESOURCES := [
 	"res://assets/polyhaven/models/fern_02/fern_02_1k.gltf",
 	"res://assets/polyhaven/models/shrub_02/shrub_02_1k.gltf",
 	"res://assets/polyhaven/hdris/nature_reserve_forest/nature_reserve_forest_2k.hdr",
+	# sub-area expansion (garden planting, chamber offerings, journal desk)
+	"res://assets/polyhaven/models/flower_empodium/flower_empodium_1k.gltf",
+	"res://assets/polyhaven/models/flower_gazania/flower_gazania_1k.gltf",
+	"res://assets/polyhaven/models/flower_ursinia/flower_ursinia_1k.gltf",
+	"res://assets/polyhaven/models/shrub_03/shrub_03_1k.gltf",
+	"res://assets/polyhaven/models/brass_vase_01/brass_vase_01_1k.gltf",
+	"res://assets/polyhaven/models/ceramic_vase_01/ceramic_vase_01_1k.gltf",
+	"res://assets/polyhaven/models/folding_wooden_stool/folding_wooden_stool_1k.gltf",
 ]
 
 var mats: SanctuaryMaterials
@@ -35,12 +43,41 @@ var altar_crystal: Node3D
 var _scene_cache := {}
 var _shape_cache := {}
 var _group := "misc"  # perf category for nodes created by the helpers
+var expansion: SanctuaryExpansion   # sub-areas of the mini-region (garden, chamber, watchpoint...)
 
 
 func build_steps() -> Array:
 	# The original build order, split into steps the streaming manager runs within a frame budget.
+	if RenderProfile.options.has("no-expansion"):  # A/B measurement of the mini-region expansion only
+		return [_step_init, _build_terrain, _build_architecture, _step_rocks, _build_trees, _step_grass, _step_ferns_shrubs,
+			_step_deadwood, _step_props, _build_fires_and_lights, _register_points_of_interest, _build_world_links]
 	return [_step_init, _build_terrain, _build_architecture, _step_rocks, _build_trees, _step_grass, _step_ferns_shrubs,
-		_step_deadwood, _step_props, _build_fires_and_lights, _register_points_of_interest, _build_world_links]
+		_step_deadwood, _step_props, _build_fires_and_lights, _step_expansion_ritual_gate, _step_expansion_garden,
+		_step_expansion_chamber, _step_expansion_watch, _step_expansion_finish, _register_points_of_interest, _build_world_links]
+
+
+func _step_expansion_ritual_gate() -> void:
+	_group = "expansion"
+	expansion = SanctuaryExpansion.new(self)
+	expansion.build_ritual_and_gate()
+	expansion.build_training_targets()
+
+
+func _step_expansion_garden() -> void:
+	expansion.build_garden()
+
+
+func _step_expansion_chamber() -> void:
+	expansion.build_chamber()
+
+
+func _step_expansion_watch() -> void:
+	expansion.build_watchpoint()
+
+
+func _step_expansion_finish() -> void:
+	expansion.finish()
+	expansion.set_night(night)
 
 
 func _step_init() -> void:
@@ -48,7 +85,7 @@ func _step_init() -> void:
 	mats = SanctuaryMaterials.new()
 	magic_receivers = mats.magic_receivers()
 	terrain = SanctuaryTerrain.new()
-	nav_aabb = AABB(Vector3(-36, -2, -36), Vector3(90, 12, 66))
+	nav_aabb = AABB(Vector3(-36, -2, -36), Vector3(90, 12, 82))  # z to +46: includes the Watchpoint
 
 
 func _step_rocks() -> void:
@@ -174,6 +211,8 @@ func set_night(v: bool) -> void:
 		l.light_energy = l.get_meta("base_energy") * (1.7 if night else 1.0)
 	for n in _night_nodes:
 		n.visible = night
+	if expansion:
+		expansion.set_night(night)
 	RenderProfile.apply_to_environment(env)
 	if env.volumetric_fog_enabled and not night:
 		env.volumetric_fog_density = 0.0012  # daytime: just enough for sun shafts, no milky wash
@@ -292,9 +331,9 @@ func _build_rocks() -> void:
 	place_mesh(_part_mesh(r1, "rock_moss_set_01_rock05"), _ground(-22.5, -2.0), 2.2, Vector3.ONE * 1.5, true, 0.3)
 	place_mesh(_part_mesh(r2, "rock_moss_set_02_rock07"), _ground(-16.5, 9.0), 0.9, Vector3.ONE * 1.3, true, 0.1)
 	# Gateway boulders
-	place_mesh(_part_mesh("boulder_01"), _ground(-7.2, -19.5), 0.4, Vector3.ONE * 1.4, true, 0.25)
+	place_mesh(_part_mesh("boulder_01"), _ground(-9.0, -26.5), 0.4, Vector3.ONE * 1.4, true, 0.25)
 	place_mesh(_part_mesh("namaqualand_boulder_02"), _ground(7.8, -20.5), 2.6, Vector3.ONE * 1.2, true, 0.2)
-	place_mesh(_part_mesh(r2, "rock_moss_set_02_rock12"), _ground(-4.6, -21.0), 1.1, Vector3.ONE * 1.1, true, 0.1)
+	place_mesh(_part_mesh(r2, "rock_moss_set_02_rock12"), _ground(-4.0, -26.0), 1.1, Vector3.ONE * 1.1, true, 0.1)
 	# South path edge
 	place_mesh(_part_mesh(r1, "rock_moss_set_01_rock02"), _ground(5.5, 17.0), 1.3, Vector3.ONE * 1.2, true, 0.3)
 	place_mesh(_part_mesh(r2, "rock_moss_set_02_rock10"), _ground(-5.0, 21.0), 2.9, Vector3.ONE * 1.2, true, 0.1)
@@ -313,7 +352,7 @@ func _build_rocks() -> void:
 		var a := rng.randf() * TAU
 		var d := rng.randf_range(16.0, 30.0)
 		var p := Vector2(cos(a), sin(a)) * d
-		if SanctuaryTerrain.dist_to_paths(p) < 2.5 or absf(d - 14.5) < 1.5:
+		if SanctuaryTerrain.dist_to_paths(p) < 2.5 or absf(d - 14.5) < 1.5 or _blocked(p, 1.5):
 			continue
 		var set_id := r1 if rng.randf() < 0.5 else r2
 		var part := "%s_rock%02d" % [set_id, rng.randi_range(1, 6) if set_id == r1 else rng.randi_range(7, 13)]
@@ -326,7 +365,7 @@ func _build_trees() -> void:
 	# Far LOD doubles as the shadow caster for trees close to the clearing.
 	var lods := {"near": _tree_meshes("res://assets/trees/broadleaf_tree_near.glb"), "far": _tree_meshes("res://assets/trees/broadleaf_tree_far.glb")}
 	var spots: Array[Vector2] = []
-	for p in [Vector2(-12.5, -22.0), Vector2(13.5, -25.0), Vector2(-25.0, 13.0), Vector2(25.0, 20.0),
+	for p in [Vector2(-12.5, -28.5), Vector2(13.5, -25.0), Vector2(-25.0, 13.0), Vector2(25.0, 20.0),
 			Vector2(-28.0, -12.0), Vector2(30.0, -9.0), Vector2(10.0, 29.0), Vector2(-12.0, 32.0)]:
 		spots.append(p)
 	var count := int(18 * RenderProfile.get_setting("foliage_density"))
@@ -334,7 +373,7 @@ func _build_trees() -> void:
 	while spots.size() < 8 + count and tries < 400:
 		tries += 1
 		var p := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(31.0, 58.0)
-		if SanctuaryTerrain.dist_to_paths(p) < 5.0 or p.distance_to(SanctuaryTerrain.TRAINING_CENTER) < 13.0:
+		if SanctuaryTerrain.dist_to_paths(p) < 5.0 or p.distance_to(SanctuaryTerrain.TRAINING_CENTER) < 13.0 or _blocked(p, 4.0):
 			continue
 		var ok := true
 		for q in spots:
@@ -421,6 +460,9 @@ func _blocked(p: Vector2, margin := 0.0) -> bool:
 	if absf(d - 14.5) < 0.9 + margin and absf(p.x) > 8.0: return true  # ruin walls
 	if absf(p.x) < 6.5 and absf(p.y + 17.0) < 1.6 + margin: return true # arch
 	if SanctuaryTerrain.dist_to_paths(p) < 1.3 + margin: return true
+	if p.distance_to(SanctuaryTerrain.GARDEN) < 7.5 + margin: return true   # garden keeps its own planting
+	if p.distance_to(SanctuaryTerrain.CHAMBER) < 6.5 + margin: return true
+	if p.distance_to(SanctuaryTerrain.WATCH) < 5.0 + margin: return true
 	return false
 
 
@@ -725,6 +767,24 @@ func _register_points_of_interest() -> void:
 	]
 
 
+## Which Sanctuary sub-area (data/sanctuary.json) contains p — nearest centre within its radius, else "".
+func sub_area_at(p: Vector3) -> String:
+	var best := ""
+	var best_d := 1e9
+	var subs: Dictionary = WorldState.sanctuary.get("sub_areas", {})
+	for id in subs:
+		var c: Array = subs[id].center
+		var d := Vector2(p.x - c[0], p.z - c[2]).length()
+		if d <= float(subs[id].radius) and d / float(subs[id].radius) < best_d:
+			best_d = d / float(subs[id].radius)
+			best = id
+	return best
+
+
+func ground_at(x: float, z: float) -> float:
+	return terrain.fast_height(x, z)
+
+
 func area_at(p: Vector3) -> String:
 	for a in areas:
 		if Vector2(p.x, p.z).distance_to(Vector2(a.center.x, a.center.z)) <= a.radius:
@@ -761,6 +821,8 @@ func _process(_delta: float) -> void:
 		var l := fire_lights[i]
 		var base: float = l.get_meta("base_energy") * (1.7 if night else 1.0)
 		l.light_energy = base * (0.86 + 0.1 * sin(t * 11.0 + i * 1.7) + 0.06 * sin(t * 23.0 + i))
+	if expansion:
+		expansion.process(t)
 	if altar_crystal:
 		altar_crystal.rotation.y = t * 0.4
 		altar_crystal.position.y = DAIS_TOP + 0.44 + 0.74 + 0.19 + 0.62 + sin(t * 1.3) * 0.04
@@ -828,9 +890,15 @@ func _build_world_links() -> void:
 	var tome := add_interactable(Interactable.make("altar_spellbook", "Study the spellbook on the altar", "study", "ritual_sanctuary",
 		Vector3(0, DAIS_TOP, -1.9), {"knowledge": {"lore:arcane_orb_theory": 1}, "skills": {"arcane_orb": 0.1}}, "", 4.0))
 	tome.radius = 1.6
+	tome.kind = "study"
 	add_interactable(Interactable.make("ritual_circle_attune", "Attune to the ritual circle", "meditate", "ritual_sanctuary",
 		Vector3(0, DAIS_TOP, 0.5), {"skills": {"arcane_orb": 0.15}, "knowledge": {"attuned:ritual_circle": 1}}, "spell_casting", 4.2)).radius = 2.6
+	interactables.ritual_circle_attune.kind = "practice"
+	interactables.ritual_circle_attune.lore_id = "scroll_first_circle"
 	add_interactable(Interactable.make("training_stones_practice", "Practice strikes at the standing stones", "practice", "mage_training_grounds",
 		Vector3(tc.x, h.call(tc.x, tc.y), tc.y), {"skills": {"arcane_orb": 0.25}}, "magic_attack_1h", 2.3)).radius = 3.5
+	interactables.training_stones_practice.kind = "practice"
+	interactables.training_stones_practice.lore_id = "training_ledger"
 	add_interactable(Interactable.make("statue_inspect", "Inspect the weathered gate statue", "inspect", "ritual_sanctuary",
 		Vector3(-4.4, h.call(-4.4, -14.0), -14.0), {"knowledge": {"lore:gate_guardian": 1}}, "look_around", 3.0)).radius = 2.0
+	interactables.statue_inspect.kind = "inspect"

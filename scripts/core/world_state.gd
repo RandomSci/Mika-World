@@ -7,6 +7,10 @@ extends Node
 signal location_entered(location_id: String)
 signal discovered(kind: String, id: String)
 signal state_changed(change: Dictionary)
+signal trial_completed(trial: Dictionary)
+signal rank_changed(rank: String)
+signal interaction_started(interactable: Node, character: Node)
+signal interaction_finished(interactable: Node, character: Node, result: Dictionary)
 
 var registry := {}
 var regions := {}
@@ -26,6 +30,9 @@ var knowledge := {}              # e.g. {"spell:arcane_orb": 1.0, "lore:...": tr
 var inventory := {}              # item -> count
 var skills := {"arcane_orb": 1}  # known spells and their practice level
 var current_goal := ""
+var sanctuary := {}              # data/sanctuary.json: sub-areas, lore, trials, ranks, actions, thoughts
+var trials_done := {}            # trial id -> true
+var _prefix_counts := {}         # activity prefix -> distinct activity ids done
 
 
 func _init() -> void:
@@ -41,6 +48,9 @@ func _init() -> void:
 	for a in areas:
 		adjacency.get_or_add(a, {})
 	discovered_locations[registry.start_location] = true
+	var sf := FileAccess.open("res://data/sanctuary.json", FileAccess.READ)
+	if sf:
+		sanctuary = JSON.parse_string(sf.get_as_text())
 
 
 func area_of(location_id: String) -> String:
@@ -115,6 +125,12 @@ func record_activity(activity: Dictionary, effects: Dictionary) -> Dictionary:
 		if not discovered_locations.has(loc):
 			discover("location", loc)
 			changes["discovered." + loc] = [false, true]
+	var rank_before := mage_rank()
+	for tr in _update_trials(String(activity.get("id", ""))):
+		changes["trial." + tr.id] = [false, true]
+	if mage_rank() != rank_before:
+		changes["rank"] = [rank_before, mage_rank()]
+		rank_changed.emit(mage_rank())
 	var entry := {"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.01), "location": current_location, "activity": activity, "changes": changes}
 	activity_log.append(entry)
 	state_changed.emit(entry)
@@ -132,4 +148,48 @@ func snapshot() -> Dictionary:
 	return {"current_area": current_area, "current_location": current_location, "night": night,
 		"skills": skills, "knowledge": knowledge, "inventory": inventory, "goal": current_goal,
 		"discovered": discovered_locations.keys(), "visited": visited_locations, "landmarks_seen": seen_landmarks.keys(),
-		"activities_done": activity_log.size()}
+		"activities_done": activity_log.size(), "rank": mage_rank(), "trials_done": trials_done.keys()}
+
+
+# ------------------------------------------------------------------ Sanctuary mission (Path of the Mage)
+func _update_trials(activity_id: String) -> Array:
+	var newly := []
+	for tr in sanctuary.get("trials", []):
+		if trials_done.has(tr.id):
+			continue
+		var done := false
+		if tr.has("activity") and tr.activity == activity_id:
+			done = true
+		elif tr.has("activity_prefix") and activity_id.begins_with(tr.activity_prefix):
+			var seen: Dictionary = _prefix_counts.get_or_add(tr.activity_prefix, {})
+			seen[activity_id] = true
+			done = seen.size() >= int(tr.count)
+		if done:
+			trials_done[tr.id] = true
+			newly.append(tr)
+			trial_completed.emit(tr)
+	return newly
+
+
+func mage_rank() -> String:
+	var rank := "Novice"
+	for r in sanctuary.get("ranks", []):
+		if trials_done.size() >= int(r.trials) and float(skills.get("arcane_orb", 0.0)) >= float(r.get("min_skill", 0.0)):
+			rank = r.name
+	return rank
+
+
+func mission_state() -> Dictionary:
+	var trials := []
+	for tr in sanctuary.get("trials", []):
+		var t := {"id": tr.id, "name": tr.name, "done": trials_done.has(tr.id)}
+		if tr.has("activity_prefix"):
+			t["progress"] = "%d/%d" % [_prefix_counts.get(tr.activity_prefix, {}).size(), int(tr.count)]
+		trials.append(t)
+	var next_rank := ""
+	for r in sanctuary.get("ranks", []):
+		if trials_done.size() < int(r.trials):
+			next_rank = "%s (%d trials)" % [r.name, int(r.trials)]
+			break
+	return {"mission": sanctuary.get("story", {}).get("mission", ""), "rank": mage_rank(), "next_rank": next_rank,
+		"trials_done": trials_done.size(), "trials_total": sanctuary.get("trials", []).size(), "trials": trials}

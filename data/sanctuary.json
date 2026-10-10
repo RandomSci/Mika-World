@@ -1,0 +1,486 @@
+{
+ "region": "arcane_sanctuary",
+ "story": {
+  "title": "The Arcane Sanctuary — Mika's home base",
+  "premise": "Long ago the mages of the First Circle raised this sanctuary where three ley-lines cross. The circle fell silent for centuries until Mika found it, woke the runes with her first spell, and made the ruins her home. Here she trains to become a true mage — from Novice toward the higher circles — while slowly uncovering why the First Circle disappeared.",
+  "mission": "Path of the Mage: complete the Apprentice Trials of the Sanctuary and rise in rank."
+ },
+ "sub_areas": {
+  "ritual_circle": {
+   "name": "Ritual Circle",
+   "center": [
+    0,
+    0,
+    0
+   ],
+   "radius": 9.5,
+   "purpose": "Casting and attunement on the engraved dais; heart of the sanctuary.",
+   "camera": {
+    "pos": [
+     9.5,
+     4.2,
+     12.5
+    ],
+    "look": [
+     0,
+     1.2,
+     -1
+    ]
+   }
+  },
+  "ancient_spell_library": {
+   "name": "Ancient Spell Library",
+   "center": [
+    -10.5,
+    0,
+    12.5
+   ],
+   "radius": 3.5,
+   "purpose": "Stairway down to the vaulted library: study spells, scrolls and history.",
+   "area": "arcane_library",
+   "camera": {
+    "pos": [
+     -5.5,
+     3.0,
+     19.0
+    ],
+    "look": [
+     -10.5,
+     1.5,
+     12.0
+    ]
+   }
+  },
+  "meditation_garden": {
+   "name": "Meditation Garden",
+   "center": [
+    15,
+    0,
+    17
+   ],
+   "radius": 8.0,
+   "purpose": "Quiet pond, stone seat and lantern: rest, meditate and restore focus.",
+   "camera": {
+    "pos": [
+     8.5,
+     2.6,
+     26.0
+    ],
+    "look": [
+     16.0,
+     0.6,
+     18.0
+    ]
+   }
+  },
+  "training_grounds": {
+   "name": "Training Grounds",
+   "center": [
+    26,
+    0,
+    4
+   ],
+   "radius": 10.0,
+   "purpose": "Standing stones and rune targets: practise strikes and spells.",
+   "camera": {
+    "pos": [
+     16.0,
+     3.2,
+     14.0
+    ],
+    "look": [
+     27.0,
+     1.0,
+     2.0
+    ]
+   }
+  },
+  "ruined_forest_gate": {
+   "name": "Ruined Forest Gate",
+   "center": [
+    0,
+    0,
+    -18
+   ],
+   "radius": 7.0,
+   "purpose": "The voussoir archway where the forest path leaves the sanctuary; fallen stones and an old inscription.",
+   "camera": {
+    "pos": [
+     6.5,
+     2.4,
+     -7.5
+    ],
+    "look": [
+     0,
+     3.2,
+     -18
+    ]
+   }
+  },
+  "altar_chamber": {
+   "name": "Shrine / Altar Chamber",
+   "center": [
+    -21,
+    0,
+    -21
+   ],
+   "radius": 7.0,
+   "purpose": "A roofless chamber holding the Heartstone relic, offering bowls and a lore tablet.",
+   "camera": {
+    "pos": [
+     -12.5,
+     4.8,
+     -15.0
+    ],
+    "look": [
+     -22.5,
+     1.2,
+     -21.5
+    ]
+   }
+  },
+  "watchpoint": {
+   "name": "Scenic Watchpoint",
+   "center": [
+    -18,
+    0,
+    38
+   ],
+   "radius": 5.5,
+   "purpose": "A raised ruin on the southern rise overlooking the whole sanctuary and the far landmarks.",
+   "camera": {
+    "pos": [
+     -5.5,
+     3.4,
+     45.5
+    ],
+    "look": [
+     -17.5,
+     2.6,
+     37.5
+    ]
+   },
+   "vista": {
+    "pos": [
+     -19.6,
+     4.2,
+     41.6
+    ],
+    "look": [
+     2.0,
+     1.0,
+     -6.0
+    ]
+   }
+  }
+ },
+ "lore": {
+  "scroll_first_circle": {
+   "title": "Scroll of the First Circle",
+   "text": "Where three ley-lines cross, a circle was cut into the living stone. Speak to it gently and it will answer; force it and it will sleep. — Inscribed by the First Circle"
+  },
+  "altar_spellbook": {
+   "title": "The Altar Spellbook",
+   "text": "The Arcane Orb is the first true spell: gather, shape, release. An apprentice who can hold the orb steady has learned to listen to the circle."
+  },
+  "statue_inspect": {
+   "title": "The Gate Guardian",
+   "text": "A weathered guardian statue. Its plinth reads: 'I keep the threshold for those who return.' The face has been worn smooth by centuries of rain."
+  },
+  "gate_inscription": {
+   "title": "Inscription on the Forest Gate",
+   "text": "'Leave the noise of the world beyond this arch. Within, the stones remember.' Several later lines have been deliberately chiselled away."
+  },
+  "chamber_tablet": {
+   "title": "Tablet of the Heartstone",
+   "text": "The Heartstone was the sanctuary's first relic — a crystal that drinks moonlight and remembers every spell cast within the circle. When the First Circle left, they bound it to sleep."
+  },
+  "mika_journal": {
+   "title": "Mika's Training Journal",
+   "text": "Day one: the runes lit up when I cast. Day twelve: the orb held for nine heartbeats. I think the sanctuary is teaching me as much as I am learning from it."
+  },
+  "training_ledger": {
+   "title": "Practice Ledger",
+   "text": "Tally marks by many hands, the oldest almost erased. The newest column is Mika's."
+  },
+  "garden_stone": {
+   "title": "The Still Stone",
+   "text": "A smooth seat facing the pond. Someone carved a single word into its side: 'Breathe.'"
+  },
+  "watchpoint_plaque": {
+   "title": "Watchpoint Plaque",
+   "text": "From here the First Circle watched the roads to the village, the academy and the far temple above the clouds."
+  }
+ },
+ "trials": [
+  {
+   "id": "read_first_circle",
+   "name": "Read the Scroll of the First Circle",
+   "activity": "scroll_first_circle"
+  },
+  {
+   "id": "attune_circle",
+   "name": "Attune to the Ritual Circle",
+   "activity": "ritual_circle_attune"
+  },
+  {
+   "id": "strike_targets",
+   "name": "Strike all four rune targets",
+   "activity_prefix": "rune_target_",
+   "count": 4
+  },
+  {
+   "id": "garden_meditation",
+   "name": "Meditate on the Still Stone",
+   "activity": "garden_meditate"
+  },
+  {
+   "id": "warding_glyph",
+   "name": "Study the Warding Glyph in the library",
+   "activity": "lectern_warding_glyph"
+  },
+  {
+   "id": "read_gate",
+   "name": "Read the inscription on the forest gate",
+   "activity": "gate_inscription"
+  },
+  {
+   "id": "heartstone",
+   "name": "Attune the Heartstone relic",
+   "activity": "heartstone_attune"
+  },
+  {
+   "id": "watch",
+   "name": "Survey the realm from the Watchpoint",
+   "activity": "watchpoint_survey"
+  }
+ ],
+ "ranks": [
+  {
+   "name": "Novice",
+   "trials": 0
+  },
+  {
+   "name": "Apprentice",
+   "trials": 3
+  },
+  {
+   "name": "Initiate of the First Circle",
+   "trials": 6
+  },
+  {
+   "name": "Sanctuary Adept",
+   "trials": 8,
+   "min_skill": 2.0
+  }
+ ],
+ "actions": [
+  {
+   "id": "study_first_scroll",
+   "kind": "study",
+   "sub_area": "ritual_circle",
+   "target": "scroll_first_circle",
+   "base": 0.45,
+   "needs": {
+    "curiosity": -0.3,
+    "energy": -0.05
+   }
+  },
+  {
+   "id": "study_altar_book",
+   "kind": "study",
+   "sub_area": "ritual_circle",
+   "target": "altar_spellbook",
+   "base": 0.4,
+   "needs": {
+    "curiosity": -0.2,
+    "energy": -0.05
+   }
+  },
+  {
+   "id": "attune_circle",
+   "kind": "practice",
+   "sub_area": "ritual_circle",
+   "target": "ritual_circle_attune",
+   "base": 0.5,
+   "needs": {
+    "energy": -0.15
+   }
+  },
+  {
+   "id": "cast_in_circle",
+   "kind": "practice",
+   "sub_area": "ritual_circle",
+   "target": "@cast",
+   "base": 0.35,
+   "needs": {
+    "energy": -0.2
+   }
+  },
+  {
+   "id": "practice_targets",
+   "kind": "practice",
+   "sub_area": "training_grounds",
+   "target": "@next_rune_target",
+   "base": 0.5,
+   "needs": {
+    "energy": -0.2
+   }
+  },
+  {
+   "id": "practice_stones",
+   "kind": "practice",
+   "sub_area": "training_grounds",
+   "target": "training_stones_practice",
+   "base": 0.35,
+   "needs": {
+    "energy": -0.2
+   }
+  },
+  {
+   "id": "meditate_garden",
+   "kind": "meditate",
+   "sub_area": "meditation_garden",
+   "target": "garden_meditate",
+   "base": 0.35,
+   "needs": {
+    "energy": 0.45,
+    "curiosity": -0.05
+   }
+  },
+  {
+   "id": "watch_pond",
+   "kind": "rest",
+   "sub_area": "meditation_garden",
+   "target": "pond_reflect",
+   "base": 0.25,
+   "needs": {
+    "energy": 0.25
+   }
+  },
+  {
+   "id": "read_gate",
+   "kind": "inspect",
+   "sub_area": "ruined_forest_gate",
+   "target": "gate_inscription",
+   "base": 0.35,
+   "needs": {
+    "curiosity": -0.35
+   }
+  },
+  {
+   "id": "inspect_statue",
+   "kind": "inspect",
+   "sub_area": "ruined_forest_gate",
+   "target": "statue_inspect",
+   "base": 0.25,
+   "needs": {
+    "curiosity": -0.25
+   }
+  },
+  {
+   "id": "read_tablet",
+   "kind": "study",
+   "sub_area": "altar_chamber",
+   "target": "chamber_tablet",
+   "base": 0.4,
+   "needs": {
+    "curiosity": -0.35
+   }
+  },
+  {
+   "id": "attune_heartstone",
+   "kind": "practice",
+   "sub_area": "altar_chamber",
+   "target": "heartstone_attune",
+   "base": 0.45,
+   "needs": {
+    "energy": -0.2
+   }
+  },
+  {
+   "id": "survey_watchpoint",
+   "kind": "explore",
+   "sub_area": "watchpoint",
+   "target": "watchpoint_survey",
+   "base": 0.35,
+   "needs": {
+    "curiosity": -0.4,
+    "energy": -0.1
+   }
+  },
+  {
+   "id": "rest_watchpoint",
+   "kind": "rest",
+   "sub_area": "watchpoint",
+   "target": "watchpoint_rest",
+   "base": 0.2,
+   "needs": {
+    "energy": 0.35
+   }
+  },
+  {
+   "id": "study_library",
+   "kind": "study",
+   "sub_area": "ancient_spell_library",
+   "target": "library:lectern_warding_glyph",
+   "base": 0.4,
+   "needs": {
+    "curiosity": -0.3,
+    "energy": -0.05
+   }
+  },
+  {
+   "id": "write_journal",
+   "kind": "rest",
+   "sub_area": "ritual_circle",
+   "target": "mika_journal",
+   "base": 0.2,
+   "needs": {
+    "energy": 0.1,
+    "curiosity": -0.1
+   }
+  }
+ ],
+ "thoughts": {
+  "ritual_circle": [
+   "The runes answer a little faster every day.",
+   "If I hold the orb steady, the whole circle hums with it.",
+   "Someone stood exactly here centuries ago, casting the same first spell."
+  ],
+  "meditation_garden": [
+   "The pond is so still it looks like a second sky.",
+   "Breathe. The magic doesn't like to be rushed.",
+   "I can hear the ley-lines when the wind stops."
+  ],
+  "training_grounds": [
+   "Again. Cleaner this time.",
+   "The targets glow brighter when I stop forcing it.",
+   "My strikes are getting faster — my focus isn't yet."
+  ],
+  "ruined_forest_gate": [
+   "Why would anyone chisel lines off an inscription?",
+   "Beyond the arch, the forest goes on for days.",
+   "This gate wasn't broken by time alone."
+  ],
+  "altar_chamber": [
+   "The Heartstone feels warm, like it's dreaming.",
+   "They didn't destroy the relic. They put it to sleep. Why?",
+   "Moonlight falls through the broken roof right onto the altar. That can't be an accident."
+  ],
+  "watchpoint": [
+   "From up here the sanctuary looks like a single rune.",
+   "The temple above the clouds... one day I'll climb there.",
+   "Village lights, the academy spires — the whole realm is waiting."
+  ],
+  "ancient_spell_library": [
+   "So many spells nobody has cast in centuries.",
+   "The Warding Glyph is harder than it looks."
+  ],
+  "curious": [
+   "What's that over there?",
+   "I've walked past this a hundred times and never really looked.",
+   "There's always one more detail in these ruins."
+  ]
+ }
+}

@@ -27,6 +27,8 @@ var _mock_wait := ""
 var _mock_wait_until := 0.0
 var _mock_sleep_until := 0.0
 var _training := {}
+var brain: SanctuaryBrain
+var director: CameraDirector
 
 var world: AreaBase:
 	get: return main.world
@@ -56,6 +58,16 @@ func setup(m: Node) -> void:
 		if f:
 			_mock_queue = JSON.parse_string(f.get_as_text())
 			print("[bridge] loaded %d mock commands from %s" % [_mock_queue.size(), RenderProfile.mock_commands])
+
+
+func attach_brain(b: SanctuaryBrain, d: CameraDirector) -> void:
+	brain = b
+	director = d
+	b.thought.connect(func(text, sub): _emit_event({"event": "thought", "character": "mika", "text": text, "sub_area": sub}))
+	b.decided.connect(func(dec): _emit_event({"event": "brain_decision", "character": "mika", "decision": dec}))
+	d.shot_changed.connect(func(m): _emit_event({"event": "camera_shot", "mode": m, "sub_area": d.current_sub}))
+	WorldState.trial_completed.connect(func(tr): _emit_event({"event": "trial_completed", "trial": tr}))
+	WorldState.rank_changed.connect(func(r): _emit_event({"event": "rank_changed", "rank": r}))
 
 
 func _on_journey_event(ev: Dictionary) -> void:
@@ -90,7 +102,7 @@ func _poll_network() -> void:
 		var p := server.take_connection()
 		peers.append(p)
 		_buffers[p] = ""
-		_send(p, {"event": "hello", "protocol": "mika-world-bridge/0.2", "characters": characters.keys(), "area": main.streaming.current_id})
+		_send(p, {"event": "hello", "protocol": "mika-world-bridge/0.3", "characters": characters.keys(), "area": main.streaming.current_id})
 	for p in peers.duplicate():
 		p.poll()
 		if p.get_status() != StreamPeerTCP.STATUS_CONNECTED:
@@ -287,6 +299,33 @@ func handle(req: Dictionary) -> Dictionary:
 				"agent_map_is_world_map": c.nav_agent.get_navigation_map() == c.get_world_3d().navigation_map,
 				"area_region_rid_in_map": world.nav_region != null and NavigationServer3D.map_get_regions(c.get_world_3d().navigation_map).has(world.nav_region.get_rid()),
 				"closest_point_to_target": _v(NavigationServer3D.map_get_closest_point(c.get_world_3d().navigation_map, Vector3(2, 0, 6)))})
+		"region_context":
+			if brain == null:
+				reply.merge({"ok": false, "status": "error", "error": "no region brain"})
+			else:
+				reply.merge({"ok": true, "status": "done", "context": brain.region_context()})
+		"brain":
+			if req.has("on"):
+				main.set_brain(bool(req.on))
+			reply.merge({"ok": true, "status": "done", "brain": brain.status(), "camera": director.status()})
+		"perform_action":
+			if brain.busy:
+				reply.merge({"ok": false, "status": "error", "error": "Mika's own brain is driving her (send brain{on:false} first)"})
+			else:
+				var r2 := await brain.perform_action(String(req.get("action", "")))
+				reply.merge(r2)
+				reply["status"] = "done" if r2.get("ok", false) else "error"
+				reply["mission"] = WorldState.mission_state()
+		"camera":
+			var m := String(req.get("mode", "auto"))
+			if m == "off":
+				director.enabled = false
+			elif m == "conversation" and characters.has(String(req.get("with", ""))):
+				director.enabled = true
+				director.focus_conversation(characters[String(req.with)], float(req.get("seconds", 8.0)))
+			else:
+				director.enabled = true
+			reply.merge({"ok": true, "status": "done", "camera": director.status()})
 		"set_time":
 			WorldState.night = bool(req.get("night", false))
 			world.set_night(WorldState.night)
@@ -298,10 +337,10 @@ func handle(req: Dictionary) -> Dictionary:
 
 
 func _resolve_target(t) -> Variant:
+	if typeof(t) == TYPE_STRING and world.interactables.has(t):
+		return world.interactables[t].approach_point()  # where to stand, not the object itself
 	if typeof(t) == TYPE_STRING and world.points_of_interest.has(t):
 		return world.points_of_interest[t].position
-	if typeof(t) == TYPE_STRING and world.interactables.has(t):
-		return world.interactables[t].approach_point()
 	if typeof(t) == TYPE_STRING and characters.has(t):
 		return (characters[t] as WorldCharacter).global_position
 	if typeof(t) == TYPE_STRING:
@@ -327,6 +366,13 @@ func observe(cid: String) -> Dictionary:
 	obs["area_loaded"] = main.streaming.current_id
 	obs["location"] = loc
 	obs["area"] = world.area_at(pos)
+	if WorldState.areas[world.area_id].region == SanctuaryBrain.REGION:
+		var sid := SanctuaryBrain.sub_area(world, pos)
+		obs["sub_area"] = sid
+		obs["sub_area_purpose"] = WorldState.sanctuary.sub_areas.get(sid, {}).get("purpose", "")
+	obs["rank"] = WorldState.mage_rank()
+	if director:
+		obs["camera"] = director.status()
 	var nearby := []
 	var visible := []
 	var head := pos + Vector3(0, 1.45, 0)

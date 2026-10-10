@@ -16,6 +16,7 @@ cd ~/Downloads/Mika-Godot-Dev
 ./run.sh                      # CINEMATIC
 ./run.sh compat               # OpenGL Compatibility fallback
 ./run.sh live --start=village_square     # start at any of the 24 location ids (see data/world.json)
+./run.sh live --brain         # Mika decides for herself in the Arcane Sanctuary; the camera director frames her
 ```
 Exact command: `~/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64 --path ~/Downloads/Mika-Godot-Dev -- --profile=live`
 
@@ -30,6 +31,8 @@ Fresh clone: run `tools/setup_local_assets.sh` (re-copies git-ignored Mixamo fil
 | Space | cast Arcane Orb |
 | E | perform the nearby activity shown on screen |
 | R / F / G / T | sword: draw-sheathe / 3-hit combo / elemental charge / next element |
+| B | let Mika decide for herself in her home region (SanctuaryBrain) / take control back |
+| V | camera director (automatic cinematography) on/off |
 | walk into a route (path end, crypt stair, bridge road, cave mouth, portal…) | travel to the neighbouring area |
 | N · P · H · F12 | day-night · profile · HUD · screenshot |
 
@@ -64,6 +67,27 @@ observatory dome) in their **true world-map direction** from the current area. T
 (with its playable location), `scenic` (Dragon Peaks, Floating Sky Spire — never reachable) or `unfinished`
 (Sunken Citadel — visible, planned, refused by `travel_to`).
 
+## The Arcane Sanctuary — Mika's home base
+
+The first region is a connected mini-region of seven sub-areas around the original ritual circle: **Ritual Circle**,
+**Ancient Spell Library** (streamed interior below the crypt), **Meditation Garden** (pond, the Still Stone, stone
+lantern), **Training Grounds** (standing stones + four rune targets that light up when struck), **Ruined Forest Gate**
+(fallen voussoirs, the chiselled inscription), **Shrine / Altar Chamber** (roofless masonry chamber, the Heartstone
+relic, offerings, lore tablet, sun shaft) and the **Scenic Watchpoint** (raised ruin with stairs, bench and plaque).
+Story, sub-area purposes, lore texts, the Apprentice Trials, ranks, region actions and Mika's thoughts are data:
+`data/sanctuary.json`. Ambient life: birds circling high, butterflies over the garden by day, fireflies at night
+(no deer/fox: no suitable CC0 rigged animal is in the project, so none is faked). Details and measurements:
+**docs/SANCTUARY_REPORT.md**.
+
+* `scripts/world/sanctuary_expansion.gd` — sub-area geometry + activities (stand/face points, seats, lore ids)
+* `scripts/world/ambient_life.gd` — MultiMesh birds/butterflies (vertex-shader wings) + GPU-particle fireflies
+* `scripts/brain/sanctuary_brain.gd` — Mika's local utility-based decisions (needs, trials, repetition, distance,
+  failure memory), real execution, curiosity pauses, templated thoughts (no network / LLM calls)
+* `scripts/camera/camera_director.gd` — establishing shots on sub-area entry, chase, spell, reading/inspect
+  over-the-shoulder, meditation, side-on practice, Watchpoint vista, conversation two-shot; min shot length, 180° rule,
+  line-of-sight correction
+* `scripts/sanctuary_tour.gd` — `--sanctuarytour[=shots|activities|full]` screenshots + measurements (`--tag=`, `--no-expansion` for A/B)
+
 ## Architecture
 
 ```
@@ -88,9 +112,13 @@ scripts/world_tour.gd, face_test.gd, tools/anim_preview.gd   verification tools
 
 Commands: `observe`, `list_regions`, `list_locations{filter}`, `travel_to{location, mode: walk|fast}`, `transition_state`,
 `navigate_to{target, run}`, `look_at|face{target}`, `nearby_interactables{radius}`, `interact{object}`, `cast_spell`,
-`start_training`, `sword{action, element}`, `landmarks`, `world_state`, `set_time{night}`, `stop`, `probe_space` (debug).
+`start_training`, `sword{action, element}`, `landmarks`, `world_state`, `set_time{night}`, `stop`, `probe_space` (debug),
+and for the Sanctuary (protocol 0.3): `region_context` (story, mission/trials/rank, current sub-area and purpose, all
+sub-areas with distances, nearby objects with kind + lore title, every region action with its utility and reasons,
+Mika's needs), `brain{on}`, `perform_action{action}`, `camera{mode: auto|off|conversation, with}`; `observe` adds
+`sub_area`, `rank`, `camera`.
 Events: `journey_started/progress/finished`, `area_activated` (with transition metrics), `action_started/finished`,
-`cast_phase`, `activity_done`, `player_crossed`.
+`cast_phase`, `activity_done`, `player_crossed`, `thought`, `brain_decision`, `camera_shot`, `trial_completed`, `rank_changed`.
 Every result comes from the engine: refused actions say why (unknown/unfinished location, unreachable, too far,
 requirements unmet, transition in progress, not enough space to cast).
 

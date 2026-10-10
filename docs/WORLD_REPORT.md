@@ -138,7 +138,7 @@ Transition total: median 2729 ms, max 4151 ms. Instantiated areas after every tr
 
 ## Autonomous traversal (tools/mock_brain.py over the bridge, headless)
 
-Journeys succeeded: 23/23; locations visited: 24/24; activities succeeded: 22; casts: 5 (all finished: True); elapsed 710.4 s.
+Journeys succeeded: 23/23; locations visited: 24/24; activities succeeded: 23; casts: 5 (all finished: False); elapsed 713.8 s.
 
 Honesty checks (scenic / unfinished landmarks must not be travelable):
 
@@ -147,5 +147,5 @@ Honesty checks (scenic / unfinished landmarks must not be travelable):
 * `sunken_citadel` (unfinished): reachable flag = False, travel_to → unknown location 'sunken_citadel'
 * `sunken_citadel (by id)` (): reachable flag = —, travel_to → unknown location 'sunken_citadel'
 
-Final world state: skills {'arcane_orb': 2.22}, inventory {'crystal_shard': 0, 'herbs': 2, 'luminous_water': 1, 'well_water': 1}, 16 knowledge entries.
+Final world state: skills {'arcane_orb': 2.32}, inventory {'crystal_shard': 0, 'herbs': 2, 'luminous_water': 1, 'well_water': 1}, 17 knowledge entries.
 

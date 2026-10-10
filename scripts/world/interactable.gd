@@ -19,11 +19,18 @@ var times_done := 0
 var requires := {}            # {"items": {"crystal_shard": 1}} etc. checked against WorldState
 var on_done: Callable         # optional visual change (e.g. light a lantern)
 var busy := false
+var lore_id := ""             # key into data/sanctuary.json "lore" → readable title/text
+var kind := ""                # study | practice | meditate | inspect | explore | rest (brain/camera hints)
+var stand_point = null         # optional exact spot (local to the area) to stand at, e.g. in front of a seat
+var face_point = null          # optional point to face while performing (default: the object itself)
+var on_begin: Callable         # optional visual cue when the gesture starts (e.g. a target lights up)
 var _approach = null           # closest walkable point (computed once navigation exists)
 
 
 ## Where a character should stand to use this: the navmesh point closest to the object.
 func approach_point() -> Vector3:
+	if stand_point != null and is_inside_tree():
+		return get_parent().to_global(stand_point)
 	if _approach == null:
 		var map := get_world_3d().navigation_map
 		if NavigationServer3D.map_get_iteration_id(map) > 0:
@@ -76,10 +83,18 @@ func perform(c: WorldCharacter) -> Dictionary:
 	if not _requirements_met():
 		return {"ok": false, "detail": "requires %s" % str(requires)}
 	busy = true
-	c.look_at_point(global_position)
+	WorldState.interaction_started.emit(self, c)
+	if stand_point != null:
+		# settle exactly onto the spot (seats, casting marks); the nav agent stops up to ~0.7 m short
+		var spot: Vector3 = approach_point()
+		var tw := c.create_tween()
+		tw.tween_property(c, "global_position", Vector3(spot.x, c.global_position.y, spot.z), 0.35)
+	c.look_at_point(get_parent().to_global(face_point) if face_point != null else global_position)
 	await get_tree().create_timer(0.6).timeout
 	if gesture != "":
 		c.play_gesture(gesture)
+	if on_begin.is_valid():
+		on_begin.call()
 	await get_tree().create_timer(duration).timeout
 	busy = false
 	times_done += 1
@@ -89,5 +104,9 @@ func perform(c: WorldCharacter) -> Dictionary:
 	if on_done.is_valid():
 		on_done.call()
 	var result := {"ok": true, "detail": "%s: %s" % [verb, label], "changes": changes, "times_done": times_done}
+	var lore: Dictionary = WorldState.sanctuary.get("lore", {}).get(lore_id if lore_id != "" else id, {})
+	if not lore.is_empty():
+		result["read"] = lore
+	WorldState.interaction_finished.emit(self, c, result)
 	performed.emit(result)
 	return result

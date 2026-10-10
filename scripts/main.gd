@@ -12,6 +12,10 @@ var bridge: ActionBridge
 var overlay: TravelOverlay
 var hud: Label
 var prompt: Label
+var subtitle: Label
+var director: CameraDirector
+var brain: SanctuaryBrain
+var _subtitle_until := 0.0
 var _fps_acc := 0.0
 var _fps_frames := 0
 
@@ -82,10 +86,29 @@ func _ready() -> void:
 	add_child(bridge)
 	bridge.setup(self)
 
+	# Cinematographer + Mika's own decision layer for her home region (both local, no network)
+	director = CameraDirector.new()
+	director.name = "CameraDirector"
+	add_child(director)
+	director.setup(self)
+	brain = SanctuaryBrain.new()
+	brain.name = "SanctuaryBrain"
+	add_child(brain)
+	brain.setup(self)
+	brain.thought.connect(func(text, sub): show_subtitle("Mika: \u201c%s\u201d" % text, 5.5))
+	WorldState.interaction_finished.connect(func(_it, _c, r): if r.has("read"): show_subtitle("%s \u2014 %s" % [r.read.title, r.read.text], 8.0))
+	bridge.attach_brain(brain, director)
+	if RenderProfile.options.has("brain"):
+		set_brain(true)
+
 	if RenderProfile.options.has("facetest"):
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("sanctuarytour"):
+		var st := SanctuaryTour.new()
+		st.main = self
+		add_child(st)
 	elif RenderProfile.options.has("worldtour"):
 		var wt := WorldTour.new()
 		wt.main = self
@@ -131,6 +154,19 @@ func _build_hud() -> void:
 	prompt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	prompt.add_theme_constant_override("outline_size", 6)
 	layer.add_child(prompt)
+	subtitle = Label.new()
+	subtitle.anchor_left = 0.5
+	subtitle.anchor_right = 0.5
+	subtitle.anchor_top = 0.88
+	subtitle.position = Vector2(-520, 0)
+	subtitle.custom_minimum_size = Vector2(1040, 30)
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle.add_theme_font_size_override("font_size", 19)
+	subtitle.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
+	subtitle.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	subtitle.add_theme_constant_override("outline_size", 6)
+	layer.add_child(subtitle)
 
 
 func nearest_interactable(max_d := 3.0) -> Interactable:
@@ -157,6 +193,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		RenderProfile.cycle_profile()
 		if world:
 			RenderProfile.apply_to_environment(world.env)
+	elif event.is_action_pressed("camera_director"):
+		director.enabled = not director.enabled
+		print("[main] camera director ", "on" if director.enabled else "off")
+	elif event.is_action_pressed("brain_toggle"):
+		set_brain(not brain.enabled)
 	elif event.is_action_pressed("toggle_hud"):
 		hud.visible = not hud.visible
 	elif event.is_action_pressed("interact"):
@@ -171,8 +212,27 @@ func _unhandled_input(event: InputEvent) -> void:
 		print("[main] saved ", path)
 
 
+## Let Mika decide for herself (player controls pause; the director frames her) or hand control back.
+func set_brain(on: bool) -> void:
+	player.enabled = not on
+	if on:
+		characters["mika"].set_move_input(Vector3.ZERO, false)
+	director.enabled = on
+	brain.set_enabled(on)
+	show_subtitle("Mika is choosing what to do (B to take control)" if on else "You are in control (B: let Mika decide)", 3.0)
+
+
+func show_subtitle(text: String, seconds: float) -> void:
+	subtitle.text = text
+	subtitle.modulate.a = 1.0
+	_subtitle_until = Time.get_ticks_msec() / 1000.0 + seconds
+
+
 func _process(delta: float) -> void:
 	_fps_acc += delta
+	if subtitle and _subtitle_until > 0.0:
+		var left := _subtitle_until - Time.get_ticks_msec() / 1000.0
+		subtitle.modulate.a = clampf(left / 0.8, 0.0, 1.0)
 	_fps_frames += 1
 	if world == null:
 		return
@@ -184,8 +244,14 @@ func _process(delta: float) -> void:
 		WorldState.enter_location(loc)
 	if _fps_acc >= 0.5 and hud.visible:
 		var lname: String = WorldState.locations[loc].name if WorldState.locations.has(loc) else loc
-		hud.text = "%s · %s  |  %s  |  %.0f fps (%.1f ms)  |  %s\nArea loaded: %s  (streaming: %s, instantiated areas: %d)  Action: %s\nDiscovered %d/%d locations · WASD move · Shift run · Space cast · E interact · R sword · F slash · G charge · T element · N day/night · P profile · H hide" % [
-			WorldState.regions[WorldState.areas[world.area_id].region].name, lname, RenderProfile.profile,
+		var sub := ""
+		var sid := SanctuaryBrain.sub_area(world, mika.global_position)
+		if sid != "":
+			sub = " · " + String(WorldState.sanctuary.sub_areas[sid].name)
+		var ms := WorldState.mission_state()
+		hud.text = ("Rank: %s · Trials %d/%d%s · Brain %s · Director %s\n" % [ms.rank, ms.trials_done, ms.trials_total, (" · next: " + ms.next_rank) if ms.next_rank != "" else "",
+			"ON" if brain and brain.enabled else "off", director.mode if director and director.enabled else "off"]) + "%s · %s%s  |  %s  |  %.0f fps (%.1f ms)  |  %s\nArea loaded: %s  (streaming: %s, instantiated areas: %d)  Action: %s\nDiscovered %d/%d locations · WASD move · Shift run · Space cast · E interact · R sword · F slash · G charge · T element · B Mika decides · V director · N day/night · P profile · H hide" % [
+			WorldState.regions[WorldState.areas[world.area_id].region].name, lname, sub, RenderProfile.profile,
 			_fps_frames / _fps_acc, 1000.0 * _fps_acc / _fps_frames, "NIGHT" if WorldState.night else "DAY",
 			streaming.current_id, streaming.state, streaming._instantiated_count(), mika.current_action,
 			WorldState.discovered_locations.size(), WorldState.locations.size()]

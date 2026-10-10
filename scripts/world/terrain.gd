@@ -14,7 +14,14 @@ const PATHS := [
 	[Vector2(7.5, 1.5), Vector2(15, 4.5), Vector2(26, 4.0)],
 	[Vector2(0, -9.5), Vector2(0, -17), Vector2(1.5, -30), Vector2(-3, -55), Vector2(0, -100)],
 	[Vector2(26, 4.0), Vector2(34, 14), Vector2(48, 20)],
+	[Vector2(1.5, 13.0), Vector2(9.0, 12.5), Vector2(14.0, 15.5)],          # to the Meditation Garden
+	[Vector2(-1.0, -19.5), Vector2(-10.0, -22.0), Vector2(-17.5, -21.0)],    # to the Altar Chamber
+	[Vector2(-2.5, 36.0), Vector2(-10.0, 38.5), Vector2(-14.5, 38.0)],       # to the Watchpoint
 ]
+const GARDEN := Vector2(15, 17)
+const CHAMBER := Vector2(-21, -21)
+const WATCH := Vector2(-18, 38)
+const POND := Vector2(16.5, 19.0)
 
 var noise := FastNoiseLite.new()
 var micro := FastNoiseLite.new()
@@ -47,6 +54,9 @@ func flat_mask(p: Vector2) -> float:
 	var f := 1.0 - smoothstep(19.0, 34.0, d)
 	f = maxf(f, 1.0 - smoothstep(9.0, 15.0, p.distance_to(TRAINING_CENTER)))
 	f = maxf(f, (1.0 - smoothstep(2.0, 7.0, dist_to_paths(p))) * 0.8)
+	f = maxf(f, 1.0 - smoothstep(7.0, 11.0, p.distance_to(GARDEN)))
+	f = maxf(f, 1.0 - smoothstep(6.5, 10.0, p.distance_to(CHAMBER)))
+	f = maxf(f, 1.0 - smoothstep(5.0, 8.0, p.distance_to(WATCH)))
 	return f
 
 
@@ -61,6 +71,8 @@ func height(x: float, z: float) -> float:
 	h += micro.get_noise_2d(x, z) * 0.12 * smoothstep(9.0, 13.0, d)
 	# worn path: slightly sunken
 	h -= (1.0 - smoothstep(0.6, 1.8, dist_to_paths(p))) * 0.06
+	# the garden pond basin
+	h -= (1.0 - smoothstep(1.6, 3.3, p.distance_to(POND))) * 0.6
 	return h
 
 
@@ -86,6 +98,7 @@ func build_mesh() -> ArrayMesh:
 			var nrm := Vector3(hl - hr, 2.0 * STEP, hd - hu).normalized()
 			var p := Vector2(x, z)
 			var path := 1.0 - smoothstep(1.1, 2.6, dist_to_paths(p))
+			path = maxf(path, 1.0 - smoothstep(2.6, 3.4, p.distance_to(POND)))  # muddy pond bed
 			var d := p.length()
 			var leaf := smoothstep(17.0, 30.0, d) * (1.0 - (1.0 - smoothstep(7.0, 12.0, p.distance_to(TRAINING_CENTER))))
 			# leaf litter also gathers at the base of the ruin walls

@@ -1,0 +1,1 @@
+[{"sleep": 2}, {"id": "n", "cmd": "navigate_to", "target": "heartstone_attune", "run": true, "wait": true, "timeout": 60}, {"id": "i", "cmd": "interact", "object": "heartstone_attune"}, {"id": "o", "cmd": "observe"}]

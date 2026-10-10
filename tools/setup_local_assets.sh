@@ -9,7 +9,7 @@ SRC="${MIXAMO_SRC:-$HOME/Downloads}"
 mkdir -p assets/animations/mixamo
 for f in "Standing Idle" "Walking" "Run Forward" "Jog Forward" "Prepare and cast" "Spell Casting" \
          "Wide Arm Spell Casting" "Standing 2H Magic Attack 01" "Standing 1H Magic Attack 03" \
-         "Look Around" "Waving" "Standing React Death Forward"; do
+         "Look Around" "Waving" "Standing React Death Forward" "Sitting Idle"; do
   n=$(echo "$f" | tr 'A-Z ' 'a-z_')
   cp -n "$SRC/$f.fbx" "assets/animations/mixamo/$n.fbx"
 done
