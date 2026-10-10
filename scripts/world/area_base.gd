@@ -62,7 +62,7 @@ func bake_navigation() -> void:
 	nm.agent_radius = 0.5
 	nm.agent_height = 1.75
 	nm.agent_max_climb = nav_agent_climb
-	nm.agent_max_slope = 40.0
+	nm.agent_max_slope = 30.0  # keep nav well inside the controller's 46° floor limit (rounded rock flanks)
 	nm.cell_size = 0.25
 	nm.cell_height = 0.25
 	nm.filter_baking_aabb = nav_aabb

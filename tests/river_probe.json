@@ -1,0 +1,1 @@
+[{"sleep": 2}, {"id": "t", "cmd": "travel_to", "location": "village_square", "wait": true, "timeout": 150}, {"id": "o", "cmd": "observe"}]

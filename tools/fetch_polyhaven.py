@@ -35,6 +35,8 @@ def main():
             total += save(inc["url"], os.path.join(out, rel), inc["md5"]); saved.append(rel)
     elif kind == "texture":
         maps = {"Diffuse": "jpg", "nor_gl": "jpg", "Rough": "jpg", "AO": "jpg", "Displacement": "png"}
+        if "Diffuse" not in files and "col_01" in files:
+            maps["col_01"] = "jpg"  # colour-variant sets (fabrics) have col_01/col_02/... instead of Diffuse
         for m, f in maps.items():
             if m not in files or res not in files[m]: continue
             e = files[m][res].get(f) or next(iter(files[m][res].values()))

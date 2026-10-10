@@ -4,3 +4,4 @@
 assets/animations/mixamo/*.fbx
 # Runtime screenshots (curated copies live in docs/screenshots)
 screenshots/
+assets/animations/mixamo_sword/*.fbx

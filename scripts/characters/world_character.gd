@@ -405,7 +405,14 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= _gravity * delta
 	else:
 		velocity.y = minf(velocity.y, 0.0)
+	var before := global_position
+	var was_on_floor := is_on_floor()
 	move_and_slide()
+	var wanted := Vector3(velocity.x, 0, velocity.z) if target_vel.length() < 0.01 else Vector3(target_vel.x, 0, target_vel.z)
+	if was_on_floor and is_on_wall() and wanted.length() > 0.3:
+		var moved := Vector2(global_position.x - before.x, global_position.z - before.z).length()
+		if moved < wanted.length() * delta * 0.5:
+			_try_step_up(wanted.normalized())
 
 	# orientation: face travel direction, or the look target
 	var face_dir := Vector3.ZERO
@@ -441,6 +448,26 @@ func _physics_process(delta: float) -> void:
 	elif blend > 1.0:
 		ref = clampf(_speed_smoothed / lerpf(walk_speed, run_speed, blend - 1.0), 0.7, 1.25)
 	anim_tree.set("parameters/loco_speed/scale", ref)
+
+
+## Step-up for small ledges (rock lips, disc rims, kerbs) that navigation treats as climbable
+## (agent_max_climb 0.25 m). CharacterBody3D has no built-in step-up.
+const STEP_HEIGHT := 0.34
+
+
+func _try_step_up(dir: Vector3) -> void:
+	var t := global_transform
+	if test_move(t, Vector3(0, STEP_HEIGHT, 0)):
+		return  # no headroom
+	var up := t.translated(Vector3(0, STEP_HEIGHT, 0))
+	var fwd := dir * 0.18
+	if test_move(up, fwd):
+		return  # still a wall at step height: a real obstacle
+	var over := up.translated(fwd)
+	var col := KinematicCollision3D.new()
+	if test_move(over, Vector3(0, -STEP_HEIGHT - 0.05, 0), col) and col.get_normal().y > 0.7:
+		global_position = over.origin + col.get_travel()
+		velocity.y = 0.0
 
 
 func _process(delta: float) -> void:

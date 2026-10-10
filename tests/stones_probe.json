@@ -1,0 +1,2 @@
+[{"sleep": 2}, {"id": "a", "cmd": "travel_to", "location": "mage_training_grounds", "wait": true, "timeout": 60},
+ {"id": "b", "cmd": "travel_to", "location": "academy_courtyard", "wait": true, "timeout": 120}, {"id": "p", "cmd": "probe_space", "radius": 1.0}]

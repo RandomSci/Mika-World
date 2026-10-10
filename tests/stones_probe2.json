@@ -1,0 +1,3 @@
+[{"sleep": 2}, {"id": "n", "cmd": "navigate_to", "target": "training_stones_practice", "run": true, "wait": true, "timeout": 60},
+ {"id": "i", "cmd": "interact", "object": "training_stones_practice"},
+ {"id": "t", "cmd": "travel_to", "location": "academy_courtyard"}, {"sleep": 6}, {"id": "p", "cmd": "probe_space", "radius": 0.8}, {"id": "o", "cmd": "observe"}]

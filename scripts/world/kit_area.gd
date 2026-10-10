@@ -128,12 +128,16 @@ func stairs(base: Vector3, yaw: float, width: float, steps: int, rise: float, ru
 	# Collision is a smooth ramp under the step nosings: CharacterBody3D has no step-up, and a
 	# rise/run of 0.2/0.42 (~25°) is well inside floor_max_angle. Visuals keep crisp steps.
 	var top := base + b * Vector3(0, rise * steps, -run * steps)
-	var length := Vector2(run * steps, rise * steps).length()
+	# ramp plane from the stair foot to exactly the top edge (flush with the landing, no lip),
+	# extended 0.5 m below ground at the foot only
+	var dir := (top - base).normalized()
+	var foot := base - dir * 0.5
+	var length := foot.distance_to(top)
 	var pitch := atan2(rise * steps, run * steps)
 	var thick := 0.4
 	var ramp_basis := b * Basis(Vector3.RIGHT, pitch)
-	var mid := (base + top) * 0.5 + Vector3(0, rise * 0.5, 0) - ramp_basis * Vector3(0, thick * 0.5, 0)
-	Kit.static_box(self, Vector3(width, thick, length + 0.3), Transform3D(ramp_basis, mid))
+	var mid := (foot + top) * 0.5 - ramp_basis * Vector3(0, thick * 0.5, 0)
+	Kit.static_box(self, Vector3(width, thick, length), Transform3D(ramp_basis, mid))
 	return top
 
 

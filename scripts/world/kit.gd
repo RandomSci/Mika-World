@@ -17,7 +17,17 @@ static var _noise: NoiseTexture2D
 # ------------------------------------------------------------------ texture paths (also used as RESOURCES lists)
 static func tex_set(name: String, res: String) -> PackedStringArray:
 	var b := PH_TEX + name + "/" + name + "_"
-	var d := "diffuse" if name == "forest_leaves_02" else "diff"
+	# fall back to whatever resolution was actually downloaded
+	if not FileAccess.file_exists(b + "nor_gl_" + res + ".jpg"):
+		for r in ["1k", "2k", "4k"]:
+			if FileAccess.file_exists(b + "nor_gl_" + r + ".jpg"):
+				res = r
+				break
+	var d := "diff"
+	for cand in ["diff", "diffuse", "col_01", "col_1", "color"]:
+		if FileAccess.file_exists(b + cand + "_" + res + ".jpg"):
+			d = cand
+			break
 	return PackedStringArray([b + d + "_" + res + ".jpg", b + "nor_gl_" + res + ".jpg", b + "rough_" + res + ".jpg", b + "ao_" + res + ".jpg"])
 
 
@@ -149,6 +159,9 @@ static func shader_mat(path: String, params := {}) -> ShaderMaterial:
 ## Drop cached materials/meshes/props that nothing outside the cache references any more.
 static func release_unused() -> int:
 	var n := 0
+	for k in _convex.keys():
+		if not is_instance_valid(k) or (k as RefCounted).get_reference_count() <= 2:
+			_convex.erase(k)
 	for cache in [_mats, _meshes, _props]:
 		for k in cache.keys():
 			var r = cache[k]
@@ -454,10 +467,15 @@ static func trimesh_collide(mi: MeshInstance3D) -> void:
 	mi.add_child(body)
 
 
+static var _convex := {}
+
+
 static func convex_collide(mi: MeshInstance3D) -> void:
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
-	cs.shape = mi.mesh.create_convex_shape(true, true)
+	if not _convex.has(mi.mesh):
+		_convex[mi.mesh] = mi.mesh.create_convex_shape(true, true)  # hull is expensive on scanned meshes; reuse per mesh
+	cs.shape = _convex[mi.mesh]
 	body.add_child(cs)
 	mi.add_child(body)
 
@@ -591,3 +609,44 @@ static func terrain_mat(grass: String, forest: String, path: String, grass_tint 
 	m.set_shader_parameter("leaves_tint", forest_tint)
 	_mats[key] = m
 	return m
+
+
+## Enclosing cave shell: an inward-facing, noise-displaced ellipsoid. `keep(dir)` can reject
+## faces (e.g. to cut a cave mouth); dir is the unit direction from the centre.
+static func cave_shell(radii: Vector3, seed: int, roughness := 0.22, keep: Callable = Callable(), segs := 40, rings := 22) -> ArrayMesh:
+	var fn := FastNoiseLite.new()
+	fn.seed = seed
+	fn.frequency = 1.6
+	fn.fractal_octaves = 4
+	var grid := []
+	for r in rings + 1:
+		var phi := PI * r / rings
+		var row := []
+		for s in segs + 1:
+			var th := TAU * s / segs
+			var d := Vector3(sin(phi) * cos(th), cos(phi), sin(phi) * sin(th))
+			var n := fn.get_noise_3dv(d * 2.0)
+			row.append([d, d * radii * (1.0 + n * roughness)])
+		grid.append(row)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for r in rings:
+		for s in segs:
+			var a: Array = grid[r][s]
+			var b: Array = grid[r][s + 1]
+			var c: Array = grid[r + 1][s]
+			var d: Array = grid[r + 1][s + 1]
+			var dir: Vector3 = ((a[0] + b[0] + c[0] + d[0]) * 0.25).normalized()
+			if keep.is_valid() and not keep.call(dir):
+				continue
+			# inward-facing winding (verified per triangle against the outward direction)
+			for tri in [[a[1], b[1], c[1]], [c[1], b[1], d[1]]]:
+				var p0: Vector3 = tri[0]
+				var p1: Vector3 = tri[1]
+				var p2: Vector3 = tri[2]
+				if (p1 - p0).cross(p2 - p0).dot(p0 + p1 + p2) > 0.0:
+					tri = [p0, p2, p1]
+				for v in tri:
+					st.add_vertex(v)
+	st.generate_normals()
+	return st.commit()

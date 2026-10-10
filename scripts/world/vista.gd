@@ -21,8 +21,8 @@ static func build(area: AreaBase) -> Vista:
 	var haze: Color = opts.get("haze", Color(0.62, 0.7, 0.8))
 	var mat := Kit.shader_mat("res://shaders/vista.gdshader", {"haze": haze, "snow_line": opts.get("snow_line", 380.0),
 		"rock_tex": load("res://assets/polyhaven/textures/cliff_side/cliff_side_diff_2k.jpg"),
-		"green_col": opts.get("green", Color(0.18, 0.26, 0.15)), "max_haze": opts.get("max_haze", 0.82)})
-	if opts.get("mountains", true):
+		"green_col": opts.get("green", Color(0.18, 0.26, 0.15)), "max_haze": opts.get("max_haze", 0.6)})
+	if opts.get("mountains", false):
 		var ring := Kit.mesh_node(v, _ridge_ring(opts.get("ridge_height", 260.0), opts.get("ridge_seed", 7)), mat, Transform3D(Basis.IDENTITY, Vector3(0, opts.get("ridge_base", -40.0), 0)), false)
 		ring.name = "MountainRing"
 	if opts.has("cloud_sea"):

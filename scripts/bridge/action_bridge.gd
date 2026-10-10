@@ -285,7 +285,7 @@ func _resolve_target(t) -> Variant:
 	if typeof(t) == TYPE_STRING and world.points_of_interest.has(t):
 		return world.points_of_interest[t].position
 	if typeof(t) == TYPE_STRING and world.interactables.has(t):
-		return world.interactables[t].global_position
+		return world.interactables[t].approach_point()
 	if typeof(t) == TYPE_STRING and characters.has(t):
 		return (characters[t] as WorldCharacter).global_position
 	if typeof(t) == TYPE_STRING:

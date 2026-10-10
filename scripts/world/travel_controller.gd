@@ -74,8 +74,10 @@ func _advance() -> void:
 		return
 	if here == journey.destination_area:
 		var target: Vector3 = streaming.current.points_of_interest[journey.destination].position
-		journey.phase = "final_approach"
 		character.navigate_to(target, journey.mode != "walk_slow")
+		journey.phase = "final_approach"
+		if character.current_action != "navigate_to":
+			_finish(false, "final approach refused: " + character.last_rejection)
 		return
 	var idx := path.find(here)
 	if idx < 0:
@@ -91,10 +93,16 @@ func _advance() -> void:
 	if gate.is_empty():
 		_finish(false, "area %s has no gate to %s" % [here, next_area])
 		return
-	journey.phase = "to_gate:" + next_area
 	journey.next_area = next_area
-	# walk to the gate's approach point (the walkable spot just outside it), then cross
-	character.navigate_to((gate.arrive as Transform3D).origin, true)
+	# walk to the walkable point closest to the gate (approach), then cross
+	var map := character.get_world_3d().navigation_map
+	var approach := NavigationServer3D.map_get_closest_point(map, gate.position)
+	if approach.distance_to(gate.position) > 6.0:
+		approach = NavigationServer3D.map_get_closest_point(map, (gate.arrive as Transform3D).origin)
+	character.navigate_to(approach, true)
+	journey.phase = "to_gate:" + next_area
+	if character.current_action != "navigate_to":
+		_finish(false, "gate approach refused: " + character.last_rejection)
 
 
 func _cross(to_area: String) -> void:
@@ -113,11 +121,13 @@ func _cross(to_area: String) -> void:
 
 ## Called by main when the character finishes a navigate_to (from the action_finished signal).
 func on_character_action(action: String, ok: bool, detail: String) -> void:
-	if not active() or action != "navigate_to":
-		return
+	if not active() or action != "navigate_to" or detail.begins_with("superseded"):
+		return  # a "superseded" result belongs to an older navigation, not this journey's
 	var phase: String = journey.get("phase", "")
 	if phase == "final_approach":
-		_finish(ok, detail)
+		var target: Vector3 = streaming.current.points_of_interest[journey.destination].position
+		var miss := Vector2(character.global_position.x - target.x, character.global_position.z - target.z).length()
+		_finish(ok or miss <= 2.5, detail if ok else "%s; within %.1f m of the location marker" % [detail, miss])
 	elif phase.begins_with("to_gate:"):
 		var gate: Dictionary = streaming.current.gates.get(journey.next_area, {})
 		var near := not gate.is_empty() and character.global_position.distance_to(gate.position) < 8.0

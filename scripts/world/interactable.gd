@@ -19,6 +19,23 @@ var times_done := 0
 var requires := {}            # {"items": {"crystal_shard": 1}} etc. checked against WorldState
 var on_done: Callable         # optional visual change (e.g. light a lantern)
 var busy := false
+var _approach = null           # closest walkable point (computed once navigation exists)
+
+
+## Where a character should stand to use this: the navmesh point closest to the object.
+func approach_point() -> Vector3:
+	if _approach == null:
+		var map := get_world_3d().navigation_map
+		if NavigationServer3D.map_get_iteration_id(map) > 0:
+			_approach = NavigationServer3D.map_get_closest_point(map, global_position)
+		else:
+			return global_position
+	return _approach
+
+
+func in_reach(from: Vector3) -> bool:
+	var flat := func(a: Vector3, b: Vector3) -> float: return Vector2(a.x - b.x, a.z - b.z).length()
+	return flat.call(from, global_position) <= radius + 0.6 or flat.call(from, approach_point()) <= 1.1
 
 
 static func make(p_id: String, p_label: String, p_verb: String, p_loc: String, pos: Vector3, p_effects := {}, p_gesture := "", p_duration := 3.0) -> Interactable:
@@ -37,7 +54,7 @@ static func make(p_id: String, p_label: String, p_verb: String, p_loc: String, p
 
 func describe(from: Vector3) -> Dictionary:
 	return {"id": id, "label": label, "verb": verb, "location": location_id,
-		"distance": snappedf(from.distance_to(global_position), 0.01), "in_reach": from.distance_to(global_position) <= radius + 0.6,
+		"distance": snappedf(from.distance_to(global_position), 0.01), "in_reach": in_reach(from),
 		"times_done": times_done, "available": (repeatable or times_done == 0) and not busy and _requirements_met()}
 
 
@@ -52,8 +69,8 @@ func perform(c: WorldCharacter) -> Dictionary:
 	var d := Vector2(c.global_position.x - global_position.x, c.global_position.z - global_position.z).length()
 	if busy:
 		return {"ok": false, "detail": "already in use"}
-	if d > radius + 0.6:
-		return {"ok": false, "detail": "too far: %.1f m away (reach %.1f m)" % [d, radius + 0.6]}
+	if not in_reach(c.global_position):
+		return {"ok": false, "detail": "too far: %.1f m away (reach %.1f m, or stand at the approach point)" % [d, radius + 0.6]}
 	if not repeatable and times_done > 0:
 		return {"ok": false, "detail": "already done; not repeatable"}
 	if not _requirements_met():

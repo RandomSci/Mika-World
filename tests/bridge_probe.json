@@ -1,0 +1,1 @@
+[{"sleep": 2}, {"id": "n", "cmd": "navigate_to", "target": "falls_meditate", "run": true, "wait": true, "timeout": 60}, {"id": "i", "cmd": "interact", "object": "falls_meditate"}]

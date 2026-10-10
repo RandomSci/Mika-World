@@ -1,0 +1,3 @@
+[{"sleep": 2}, {"id": "n", "cmd": "navigate_to", "target": "shrine_glyphs_read", "run": true, "wait": true, "timeout": 60},
+ {"id": "i", "cmd": "interact", "object": "shrine_glyphs_read"},
+ {"id": "t", "cmd": "travel_to", "location": "luminous_river"}, {"sleep": 6}, {"id": "p", "cmd": "probe_space", "radius": 0.8}, {"id": "o", "cmd": "observe"}]
