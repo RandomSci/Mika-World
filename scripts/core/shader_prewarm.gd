@@ -47,10 +47,10 @@ static func run(camera: Camera3D, host: Node) -> void:
 	# its own particle shader; trail/round/puff draw meshes compile their own pipelines)
 	var k := 0
 	var combos := []
-	for el in ["arcane", "wind", "water", "fire", "rune", "self"]:
+	for el in ["arcane", "wind", "water", "fire", "rune", "self", "mist"]:
 		for kind in ["gather", "swirl", "trail", "burst", "rise", "splash"]:
 			combos.append([FX.pm_motes(el, kind), FX.mote_mesh(0.05)])
-	for kind in ["steam", "smoke", "dust"]:
+	for kind in ["steam", "smoke", "dust", "mist"]:
 		combos.append([FX.pm_puff(kind), FX.puff_mesh(0.5)])
 	combos.append([FX.pm_motes("wind", "trail"), FX.mote_mesh(0.06, true)])
 	for c in combos:

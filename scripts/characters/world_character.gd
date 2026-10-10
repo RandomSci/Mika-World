@@ -44,6 +44,9 @@ var nav_agent: NavigationAgent3D
 var world: Node  # the active area (magic bounce / rune floor), set by the streaming manager
 var sword: SwordLayer  # optional magical-sword layer
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
+var head_look: LookAtModifier3D  # eases her head toward what she reads / inspects
+var handler: ObjectHandler       # right-arm IK + holding objects
+var _head_target: Node3D
 var seated := false
 
 var current_action := "idle"
@@ -93,9 +96,33 @@ func _ready() -> void:
 	pose_adjust.name = "PoseAdjust"
 	pose_adjust.influence = 0.0
 	skeleton.add_child(pose_adjust)
+	_head_target = Node3D.new()
+	_head_target.name = "HeadLookTarget"
+	add_child(_head_target)
+	head_look = LookAtModifier3D.new()
+	head_look.name = "HeadLook"
+	head_look.bone_name = "Head"
+	head_look.forward_axis = SkeletonModifier3D.BONE_AXIS_PLUS_Z
+	head_look.primary_rotation_axis = Vector3.AXIS_Y
+	head_look.use_secondary_rotation = true
+	head_look.use_angle_limitation = true
+	head_look.symmetry_limitation = true
+	head_look.primary_limit_angle = deg_to_rad(110.0)
+	head_look.secondary_limit_angle = deg_to_rad(70.0)
+	head_look.duration = 0.45
+	head_look.transition_type = Tween.TRANS_SINE
+	head_look.ease_type = Tween.EASE_IN_OUT
+	head_look.influence = 0.0
+	skeleton.add_child(head_look)
+	head_look.target_node = head_look.get_path_to(_head_target)
+	handler = ObjectHandler.new()
+	handler.name = "ObjectHandler"
+	handler.process_priority = 100   # after animation + IK, so held objects follow the final hand pose
+	add_child(handler)
 	left_hand = _attach("LeftHand")
 	right_hand = _attach("RightHand")
 	chest = _attach("UpperChest")
+	handler.attach(self)
 
 	nav_agent = NavigationAgent3D.new()
 	nav_agent.path_desired_distance = 1.0  # > navmesh voxel float (up to ~0.6 m above ground with 0.25 m cells)
@@ -177,6 +204,16 @@ func _extend_skirt_colliders() -> void:
 				cap.is_capsule = true
 				kept.append(cap)
 			cg.colliders.assign(kept)
+
+
+## Turn her head toward a world point (books, objects, speakers); null releases it smoothly.
+func look_head_at(p) -> void:
+	var tw := create_tween()
+	if p == null:
+		tw.tween_property(head_look, "influence", 0.0, 0.5)
+		return
+	_head_target.global_position = p
+	tw.tween_property(head_look, "influence", 0.85, 0.5)
 
 
 ## Seated posture on/off: blends the knee correction in or out over `seconds`.

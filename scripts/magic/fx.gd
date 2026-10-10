@@ -14,6 +14,7 @@ const PALETTES := {
 	"fire": [Color(1.0, 0.55, 0.15), Color(1.0, 0.85, 0.4)],
 	"rune": [Color(0.55, 0.85, 1.0), Color(0.95, 0.85, 0.5)],
 	"self": [Color(0.95, 0.85, 0.55), Color(0.6, 0.8, 1.0)],
+	"mist": [Color(0.8, 0.92, 1.0), Color(0.6, 0.85, 0.95)],
 }
 
 
@@ -231,6 +232,11 @@ static func pm_puff(kind: String) -> ParticleProcessMaterial:
 				pm.initial_velocity_max = 1.6
 			"smoke":
 				pm.color_ramp = ramp([Color(0.25, 0.24, 0.23, 0.0), Color(0.3, 0.29, 0.28, 0.5), Color(0.35, 0.34, 0.33, 0.0)], [0.0, 0.2, 1.0])
+			"mist":
+				pm.color_ramp = ramp([Color(0.85, 0.92, 1.0, 0.0), Color(0.88, 0.94, 1.0, 0.5), Color(0.85, 0.9, 0.97, 0.0)], [0.0, 0.25, 1.0])
+				pm.emission_sphere_radius = 0.8
+				pm.initial_velocity_max = 0.5
+				pm.gravity = Vector3(0, 0.05, 0)
 			"dust":
 				pm.color_ramp = ramp([Color(0.6, 0.55, 0.45, 0.0), Color(0.62, 0.58, 0.5, 0.35), Color(0.6, 0.56, 0.5, 0.0)], [0.0, 0.2, 1.0])
 				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING

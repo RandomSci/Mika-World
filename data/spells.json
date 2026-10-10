@@ -1,49 +1,159 @@
 {
  "_note": "Spell catalogue. Mastery (WorldState.skills[id]) drives power and aim. A spell is only castable once Mika knows it: arcane_orb is known from the start; the others need their incantation knowledge (from reading) and become reliable through practice. Latin: classical forms, translations kept here.",
  "mastery_tiers": [
-  {"name": "Untested", "min": 0.0},
-  {"name": "Novice", "min": 0.05},
-  {"name": "Apprentice", "min": 0.5},
-  {"name": "Adept", "min": 1.5},
-  {"name": "Expert", "min": 3.0},
-  {"name": "Master", "min": 6.0}
+  {
+   "name": "Untested",
+   "min": 0.0
+  },
+  {
+   "name": "Novice",
+   "min": 0.05
+  },
+  {
+   "name": "Apprentice",
+   "min": 0.5
+  },
+  {
+   "name": "Adept",
+   "min": 1.5
+  },
+  {
+   "name": "Expert",
+   "min": 3.0
+  },
+  {
+   "name": "Master",
+   "min": 6.0
+  }
  ],
  "spells": {
   "arcane_orb": {
-   "name": "Arcane Orb", "element": "arcane", "clip": "prepare_and_cast", "range": 16.0, "speed": 11.0,
-   "incantation": "Orbis lucis.", "translation": "Sphere of light.",
-   "known_from_start": true, "base_power": 0.55, "power_per_mastery": 0.25, "target_kinds": ["*"],
+   "name": "Arcane Orb",
+   "element": "arcane",
+   "clip": "prepare_and_cast",
+   "range": 16.0,
+   "speed": 11.0,
+   "incantation": "Orbis lucis.",
+   "translation": "Sphere of light.",
+   "known_from_start": true,
+   "base_power": 0.55,
+   "power_per_mastery": 0.25,
+   "target_kinds": [
+    "*"
+   ],
    "summary": "A sphere of raw arcane light. Stirs anything that holds magic."
   },
   "wind_gust": {
-   "name": "Wind Gust", "element": "wind", "clip": "magic_attack_1h", "range": 11.0, "speed": 14.0,
-   "incantation": "Spiritus venti, fla!", "translation": "Breath of the wind, blow!",
-   "requires_knowledge": "incantation:wind_gust", "base_power": 0.3, "power_per_mastery": 0.45, "target_kinds": ["*"],
+   "name": "Wind Gust",
+   "element": "wind",
+   "clip": "magic_attack_1h",
+   "range": 11.0,
+   "speed": 14.0,
+   "incantation": "Spiritus venti, fla!",
+   "translation": "Breath of the wind, blow!",
+   "requires_knowledge": "incantation:wind_gust",
+   "base_power": 0.3,
+   "power_per_mastery": 0.45,
+   "target_kinds": [
+    "*"
+   ],
    "summary": "A shaped push of air. A weak gust only disturbs; a strong one can put out a flame."
   },
   "water_ripple": {
-   "name": "Water Ripple", "element": "water", "clip": "spell_casting", "range": 12.0, "speed": 9.0,
-   "incantation": "Aqua, surge!", "translation": "Water, rise!",
-   "requires_knowledge": "incantation:water_ripple", "base_power": 0.35, "power_per_mastery": 0.4, "target_kinds": ["*"],
+   "name": "Water Ripple",
+   "element": "water",
+   "clip": "spell_casting",
+   "range": 12.0,
+   "speed": 9.0,
+   "incantation": "Aqua, surge!",
+   "translation": "Water, rise!",
+   "requires_knowledge": "incantation:water_ripple",
+   "base_power": 0.35,
+   "power_per_mastery": 0.4,
+   "target_kinds": [
+    "*"
+   ],
    "summary": "Calls water into motion: ripples on still water, steam against fire."
   },
   "ember_control": {
-   "name": "Ember Control", "element": "fire", "clip": "magic_attack_1h", "range": 10.0, "speed": 10.0,
-   "incantation": "Flamma, cresce!", "translation": "Flame, grow!",
-   "requires_knowledge": "incantation:ember_control", "base_power": 0.35, "power_per_mastery": 0.4, "target_kinds": ["brazier", "practice_crystal", "dummy", "water", "stone"],
+   "name": "Ember Control",
+   "element": "fire",
+   "clip": "magic_attack_1h",
+   "range": 10.0,
+   "speed": 10.0,
+   "incantation": "Flamma, cresce!",
+   "translation": "Flame, grow!",
+   "requires_knowledge": "incantation:ember_control",
+   "base_power": 0.35,
+   "power_per_mastery": 0.4,
+   "target_kinds": [
+    "brazier",
+    "practice_crystal",
+    "dummy",
+    "water",
+    "stone"
+   ],
    "summary": "Feeds and guides an existing flame. It cannot make fire from nothing yet."
   },
   "rune_activation": {
-   "name": "Rune Activation", "element": "arcane", "clip": "spell_casting", "range": 8.0, "speed": 18.0, "projectile": "beam",
-   "incantation": "Signum, expergiscere!", "translation": "Sign, awaken!",
-   "requires_knowledge": "incantation:rune_activation", "base_power": 0.5, "power_per_mastery": 0.3, "target_kinds": ["rune", "marked_stone", "relic"],
+   "name": "Rune Activation",
+   "element": "arcane",
+   "clip": "spell_casting",
+   "range": 8.0,
+   "speed": 18.0,
+   "projectile": "beam",
+   "incantation": "Signum, expergiscere!",
+   "translation": "Sign, awaken!",
+   "requires_knowledge": "incantation:rune_activation",
+   "base_power": 0.5,
+   "power_per_mastery": 0.3,
+   "target_kinds": [
+    "rune",
+    "marked_stone",
+    "relic"
+   ],
    "summary": "Wakes a carved sign. Only works on runes and marked stones."
   },
   "elemental_charge": {
-   "name": "Elemental Charge", "element": "self", "clip": "wide_arm_spell", "range": 0.0, "speed": 0.0, "projectile": "self",
-   "incantation": "Vis elementorum, in me convenite!", "translation": "Power of the elements, gather in me!",
-   "requires_knowledge": "incantation:elemental_charge", "base_power": 0.2, "power_per_mastery": 0.2, "target_kinds": ["self"],
+   "name": "Elemental Charge",
+   "element": "self",
+   "clip": "wide_arm_spell",
+   "range": 0.0,
+   "speed": 0.0,
+   "projectile": "self",
+   "incantation": "Vires elementorum, in me convenite!",
+   "translation": "Power of the elements, gather in me!",
+   "requires_knowledge": "incantation:elemental_charge",
+   "base_power": 0.2,
+   "power_per_mastery": 0.2,
+   "target_kinds": [
+    "self"
+   ],
    "summary": "Gathers ambient power into the caster: the next spell is stronger."
+  },
+  "mist_veil": {
+   "name": "Mist Veil",
+   "element": "mist",
+   "clip": "wide_arm_spell",
+   "range": 10.0,
+   "speed": 7.0,
+   "incantation": "Aqua et ventus, surgite!",
+   "translation": "Water and wind, rise!",
+   "requires_knowledge": "incantation:mist_veil",
+   "requires_mastery": {
+    "wind_gust": 0.3,
+    "water_ripple": 0.3
+   },
+   "base_power": 0.4,
+   "power_per_mastery": 0.3,
+   "target_kinds": [
+    "*"
+   ],
+   "fusion": [
+    "wind_gust",
+    "water_ripple"
+   ],
+   "summary": "The first joined breath: water lifted by wind into a veil of mist. Needs both breaths to answer reliably."
   }
  }
 }

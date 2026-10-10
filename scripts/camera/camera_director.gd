@@ -157,6 +157,16 @@ func _frame(delta: float) -> void:
 		"activity":
 			var it := _interaction
 			var obj: Vector3 = it.get_parent().to_global(it.face_point) if it.face_point != null else it.global_position
+			if it.book_id != "" and BookReader.instance and BookReader.instance.reading() and it.book_xf != null:
+				# book close-up: over her right shoulder, looking down onto the open pages
+				var anchor: Vector3 = BookReader.instance.current.anchor
+				pos = p - fwd * 0.45 + right * _side * 0.55 + Vector3(0, 1.72, 0)
+				pos = pos.lerp(anchor + Vector3(0, 0.75, 0), 0.25)
+				look = anchor + Vector3(0, 0.02, 0)
+				fov = 42.0
+				pos = _clear_line(look, pos)
+				_apply(pos, look, fov, delta)
+				return
 			match it.kind:
 				"study", "inspect":
 					# over the shoulder, onto the page / inscription
@@ -192,6 +202,10 @@ func _frame(delta: float) -> void:
 					pos = p - fwd * 2.2 + right * 0.6 + Vector3(0, 1.7, 0)
 					look = obj
 	pos = _clear_line(look, pos)
+	_apply(pos, look, fov, delta)
+
+
+func _apply(pos: Vector3, look: Vector3, fov: float, delta: float) -> void:
 	var cut := _since_change < 0.05 and (_pos.distance_to(pos) > 4.0 or not rig.shot_active)
 	if cut or not rig.shot_active:
 		_pos = pos

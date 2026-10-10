@@ -147,13 +147,16 @@ func _desks() -> void:
 	Kit.place_prop(self, "brass_vase_01", Kit.xf(Vector3(-6.6, 0, -12.5), 0.0, Vector3.ONE * 1.6))
 
 
+var lectern_book: Node3D
+
+
 func _lectern() -> void:
 	var c := Vector3(0, 0, -11.0)
 	rune_disc(c, 4.3, Color(0.85, 0.6, 0.3), Color(1.0, 0.8, 0.45), 9.0)
 	Kit.mesh_node(self, Kit.lathe([Vector2(0.45, 0.12), Vector2(0.45, 0.25), Vector2(0.2, 0.32), Vector2(0.16, 1.0), Vector2(0.3, 1.08)], 8, false), stone, Kit.xf(c))
 	Kit.static_box(self, Vector3(0.7, 1.1, 0.7), Kit.xf(c + Vector3(0, 0.55, 0)))
 	Kit.mesh_node(self, Kit.box_mesh(Vector3(0.7, 0.06, 0.5), 0.01), wood, Transform3D(Basis(Vector3.RIGHT, 0.35), c + Vector3(0, 1.15, 0)))
-	var book := Kit.mesh_node(self, Kit.prop("book_encyclopedia_set_01", "book_encyclopedia_set_01_book09"), null,
+	lectern_book = Kit.mesh_node(self, Kit.prop("book_encyclopedia_set_01", "book_encyclopedia_set_01_book09"), null,
 		Transform3D(Basis(Vector3.RIGHT, 0.35) * Basis(Vector3.FORWARD, PI * 0.5).scaled(Vector3.ONE * 1.4), c + Vector3(-0.1, 1.2, -0.05)))
 	Kit.omni(self, c + Vector3(0, 1.9, 0.6), Color(1.0, 0.75, 0.45), 1.4, 6.0)
 	add_location("ancient_spell_library", Vector3(0, 0, 0), 18.0, Vector3(0, 0, -2.0))
@@ -168,9 +171,30 @@ func _lights() -> void:
 
 func _links() -> void:
 	add_gate("sanctuary", Vector3(0, 0.5, L * 0.5 + 1.6), Vector3(0, 0.05, L * 0.5 - 3.0), 0.0, 1.3)
-	add_interactable(Interactable.make("lectern_warding_glyph", "Study the Warding Glyph on the spell lectern", "study", "ancient_spell_library",
-		Vector3(0, 0, -10.2), {"knowledge": {"spell:warding_glyph_theory": 1, "lore:library_lectern": 1}}, "look_around", 5.0)).radius = 2.4
-	add_interactable(Interactable.make("research_desk", "Research at the reading desk", "study", "ancient_spell_library",
-		Vector3(-2.6, 0, 3.0), {"knowledge": {"lore:history_of_the_sanctuary": 1}, "skills": {"arcane_orb": 0.05}}, "", 5.0)).radius = 2.2
+	var lec := add_interactable(Interactable.make("lectern_warding_glyph", "Read Elementa Prima on the spell lectern", "study", "ancient_spell_library",
+		Vector3(0, 0, -10.2), {}, "", 5.0))
+	lec.radius = 2.4
+	lec.kind = "study"
+	lec.book_id = "elementa_prima"
+	lec.book_xf = Transform3D(Basis(Vector3.RIGHT, 0.35), Vector3(0, 1.21, -11.0))
+	lec.book_props = [lectern_book]
+	lec.stand_point = Vector3(0, 0, -10.05)
+	lec.face_point = Vector3(0, 1.2, -11.0)
+	var desk := add_interactable(Interactable.make("research_desk", "Read Signs and Wakings at the reading desk", "study", "ancient_spell_library",
+		Vector3(-2.6, 0, 3.0), {"skills": {"arcane_orb": 0.05}}, "", 5.0))
+	desk.radius = 2.2
+	desk.kind = "study"
+	desk.book_id = "signs_and_wakings"
+	desk.book_xf = Transform3D(Basis(Vector3.UP, PI), Vector3(-2.6, 0.84, 3.7))
+	desk.stand_point = Vector3(-2.6, 0, 2.95)
+	desk.face_point = Vector3(-2.6, 0.84, 3.7)
+	var desk2 := add_interactable(Interactable.make("desk_gathering", "Read On Gathering at the east desk", "study", "ancient_spell_library",
+		Vector3(2.6, 0, -4.9), {}, "", 5.0))
+	desk2.radius = 2.2
+	desk2.kind = "study"
+	desk2.book_id = "on_gathering"
+	desk2.book_xf = Transform3D(Basis.IDENTITY, Vector3(2.6, 0.84, -5.65))
+	desk2.stand_point = Vector3(2.6, 0, -4.95)
+	desk2.face_point = Vector3(2.6, 0.84, -5.65)
 	add_interactable(Interactable.make("map_table", "Examine the old map of the realm", "inspect", "ancient_spell_library",
 		Vector3(4.6, 0, 8.5), {"knowledge": {"geography:realm_map": 1}, "discover": ["village_square", "crystal_entrance", "cloud_temple", "academy_courtyard"]}, "look_around", 4.0)).radius = 2.2

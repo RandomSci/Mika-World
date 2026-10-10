@@ -16,6 +16,9 @@ var subtitle: Label
 var director: CameraDirector
 var brain: SanctuaryBrain
 var magic: MagicSystem
+var voice: VoiceService
+var book_reader: BookReader
+var book_overlay: BookOverlay
 var _subtitle_until := 0.0
 var _fps_acc := 0.0
 var _fps_frames := 0
@@ -87,6 +90,19 @@ func _ready() -> void:
 	add_child(bridge)
 	bridge.setup(self)
 
+	# Speech (DEV Kokoro), reading (books / scrolls / inscriptions)
+	voice = VoiceService.new()
+	voice.name = "VoiceService"
+	add_child(voice)
+	voice.setup(self)
+	voice.register_speaker("mika", mika)
+	book_overlay = BookOverlay.new()
+	add_child(book_overlay)
+	book_reader = BookReader.new()
+	book_reader.name = "BookReader"
+	add_child(book_reader)
+	book_reader.setup(self)
+
 	# Target-aware magic (spell catalogue, targeting, reactive world)
 	magic = MagicSystem.new()
 	magic.name = "MagicSystem"
@@ -104,7 +120,7 @@ func _ready() -> void:
 	add_child(brain)
 	brain.setup(self)
 	brain.thought.connect(func(text, sub): show_subtitle("Mika: \u201c%s\u201d" % text, 5.5))
-	WorldState.interaction_finished.connect(func(_it, _c, r): if r.has("read"): show_subtitle("%s \u2014 %s" % [r.read.title, r.read.text], 8.0))
+	WorldState.interaction_finished.connect(func(_it, _c, r): if r.has("read") and not r.has("reading"): show_subtitle("%s: %s" % [r.read.title, r.read.text], 8.0))
 	bridge.attach_brain(brain, director)
 	if RenderProfile.options.has("brain"):
 		set_brain(true)
@@ -113,6 +129,16 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("alchemytest"):
+		travel._cooldown_until = 1e12
+		var at := AlchemyTest.new()
+		at.main = self
+		add_child(at)
+	elif RenderProfile.options.has("readtest"):
+		travel._cooldown_until = 1e12
+		var rt := ReadTest.new()
+		rt.main = self
+		add_child(rt)
 	elif RenderProfile.options.has("magictest"):
 		travel._cooldown_until = 1e12
 		var mt := MagicTest.new()
@@ -246,7 +272,7 @@ func set_brain(on: bool) -> void:
 
 
 func show_subtitle(text: String, seconds: float) -> void:
-	subtitle.text = text
+	subtitle.text = VoiceService.clean(text)
 	subtitle.modulate.a = 1.0
 	_subtitle_until = Time.get_ticks_msec() / 1000.0 + seconds
 

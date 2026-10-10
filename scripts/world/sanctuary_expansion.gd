@@ -94,8 +94,11 @@ func build_ritual_and_gate() -> void:
 		Transform3D(Basis(Vector3.UP, PI * 0.5) * Basis.from_euler(Vector3(0, 0, -0.35)), lp + Vector3(0.0, 1.09, 0)), false)
 	paper.add_to_group("cat_expansion")
 	var it := Interactable.make("scroll_first_circle", "Read the Scroll of the First Circle", "study", "ritual_sanctuary",
-		lp, {"knowledge": {"lore:first_circle": 1}, "skills": {"arcane_orb": 0.05}}, "", 4.0)
+		lp, {"skills": {"arcane_orb": 0.05}}, "", 4.0)
 	it.kind = "study"
+	it.book_id = "scroll_first_circle"
+	it.book_xf = Transform3D(Basis(Vector3.UP, PI * 0.5) * Basis(Vector3.RIGHT, 0.35), lp + Vector3(0.02, 1.13, 0))
+	it.book_props = [scroll, paper]
 	it.radius = 1.3
 	it.stand_point = lp + Vector3(0.75, 0, 0.0)
 	it.face_point = lp + Vector3(0, 1.0, 0)
@@ -144,8 +147,9 @@ func build_ritual_and_gate() -> void:
 	glyph.transform = Transform3D(Basis(Vector3.UP, 0.35) * Basis(Vector3.RIGHT, -0.08), Vector3(ip.x, gy + 0.75, ip.z) + Basis(Vector3.UP, 0.35) * Vector3(0, 0, 0.17))
 	s.add_child(glyph)
 	it = Interactable.make("gate_inscription", "Read the inscription on the forest gate", "inspect", "ritual_sanctuary",
-		Vector3(ip.x, gy, ip.z), {"knowledge": {"lore:gate_inscription": 1}}, "", 3.5)
+		Vector3(ip.x, gy, ip.z), {}, "", 3.5)
 	it.kind = "inspect"
+	it.book_id = "gate_inscription"
 	it.radius = 1.4
 	it.stand_point = Vector3(ip.x, gy, ip.z) + Basis(Vector3.UP, 0.35) * Vector3(0, 0, 1.15)
 	it.face_point = Vector3(ip.x, gy + 0.9, ip.z)
@@ -425,11 +429,27 @@ func build_chamber() -> void:
 	tg.position = tp + Vector3(0, 1.45, 0.08)
 	s.add_child(tg)
 	it = Interactable.make("chamber_tablet", "Read the Tablet of the Heartstone", "study", "ritual_sanctuary",
-		tp + Vector3(0, 1.2, 0), {"knowledge": {"lore:heartstone": 1}}, "", 4.0)
+		tp + Vector3(0, 1.2, 0), {}, "", 4.0)
 	it.kind = "study"
+	it.book_id = "chamber_tablet"
 	it.radius = 1.4
 	it.stand_point = tp + Vector3(0, 0, 1.25)
 	it.face_point = tp + Vector3(0, 1.45, 0)
+	s.add_interactable(it)
+	# Stone reading ledge with the Keeper's Daybook (south-east corner of the chamber, reader faces south)
+	var lg := Vector3(c.x + 2.2, cy, c.y + 2.3)
+	blk(Vector3(0.75, 0.95, 0.55), lg + Vector3(0, 0.5, 0), 0.0, stone, true)
+	blk(Vector3(0.85, 0.1, 0.62), lg + Vector3(0, 1.0, 0), 0.0, slab, false, Vector3(-0.3, 0, 0))
+	var closed := Kit.mesh_node(s, Kit.prop("book_encyclopedia_set_01", "book_encyclopedia_set_01_book05"), null,
+		Transform3D(Basis(Vector3.RIGHT, -0.3) * Basis(Vector3.FORWARD, PI * 0.5).scaled(Vector3.ONE * 1.3), lg + Vector3(-0.05, 1.07, 0.0)), false)
+	it = Interactable.make("keepers_daybook", "Read the Keeper's Daybook", "study", "ritual_sanctuary", lg + Vector3(0, 1.0, 0), {}, "", 4.0)
+	it.kind = "study"
+	it.book_id = "keepers_daybook"
+	it.radius = 1.4
+	it.book_xf = Transform3D(Basis(Vector3.UP, PI) * Basis(Vector3.RIGHT, 0.3), lg + Vector3(0, 1.07, -0.02))
+	it.book_props = [closed]
+	it.stand_point = lg + Vector3(0, 0, -0.85)
+	it.face_point = lg + Vector3(0, 1.0, 0)
 	s.add_interactable(it)
 	# Fallen roof stones inside, rubble outside, a sun shaft through the open roof, drifting dust
 	blk(Vector3(1.0, 0.5, 0.7), Vector3(c.x + 2.2, cy + 0.32, c.y - 2.6), 0.7, stone, true, Vector3(0.2, 0, 0.15))
@@ -693,6 +713,24 @@ func build_magic_props() -> void:
 	s.add_child(ms)
 	ms.position = Vector3(mp.x, my + 0.78, mp.y) + mb * Vector3(0, 0, 0.2)
 	ms.setup("marked_stone", "the weathered marked stone by the gate", gm, "clue:gate_mark")
+
+
+## The alchemy table west of the dais (between the colonnade and the ruin wall).
+func build_alchemy() -> void:
+	var tp := Vector3(-9.6, 0, 5.5)
+	tp.y = g(tp.x, tp.z)
+	var table := AlchemyTable.new()
+	table.name = "AlchemyTable"
+	table.build(s, tp, 0.0)
+	table.remember_homes()
+	s.alchemy = table
+	var it := Interactable.make("alchemy_table", "Experiment at the alchemy table", "craft", "ritual_sanctuary", tp + Vector3(0, 0.85, 0), {}, "", 3.0)
+	it.kind = "craft"
+	it.radius = 1.4
+	it.stand_point = Vector3(tp.x + 0.6, tp.y, tp.z - 0.05)
+	it.face_point = tp + Vector3(0, 0.85, 0)
+	it.custom_activity = func(c): return await table.experiment(c)
+	s.add_interactable(it)
 
 
 func finish() -> void:

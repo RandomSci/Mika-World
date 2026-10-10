@@ -17,7 +17,7 @@ const TIMING := {
 	"prepare_and_cast": {"rune": 0.06, "gather": 0.12, "charge": 0.4, "release": 0.66, "end": 0.92},
 	"magic_attack_2h": {"rune": 0.04, "gather": 0.08, "charge": 0.18, "release": 0.45, "end": 0.9},
 }
-const SPELL_RADIUS := {"wind": 0.9, "water": 0.5, "fire": 0.4, "arcane": 0.3, "self": 0.0}
+const SPELL_RADIUS := {"wind": 0.9, "water": 0.5, "fire": 0.4, "arcane": 0.3, "self": 0.0, "mist": 1.2}
 
 var caster: WorldCharacter
 var clip := "spell_casting"
@@ -57,7 +57,7 @@ func configure(id: String, d: Dictionary, p_aim: Vector3, p_target: ReactiveElem
 	target = p_target
 	power = p_power
 	tier = clampi(int(p_mastery * 1.5), 0, 3)
-	style = {"wind": "wind", "water": "water", "fire": "fire", "self": "charge"}.get(element, "rune" if d.get("projectile", "") == "beam" else "rune")
+	style = {"wind": "wind", "water": "water", "fire": "fire", "self": "charge", "mist": "mist"}.get(element, "rune")
 	_build()
 
 
@@ -103,6 +103,17 @@ func _build() -> void:
 			add_child(rise)
 			rise.emitting = false
 			core = FX.quad("res://shaders/magic/flame_billboard.gdshader", 0.32, {"noise_tex": FX.noise(), "heat": 0.4, "intensity": 0.0}, false)
+		"mist":
+			# the joined breath: wind arcs sweeping over water rings
+			ground = FX.quad("res://shaders/magic/water_rings.gdshader", 3.0, {"color": pal[1], "rings": 3 + tier, "intensity": 0.0, "draw_progress": 0.0})
+			var arcs := FX.quad("res://shaders/magic/wind_arcs.gdshader", 3.4, {"color": pal[0], "arcs": 3 + tier, "intensity": 0.0, "draw_progress": 0.0})
+			arcs.name = "MistArcs"
+			add_child(arcs)
+			var sw2 := FX.particles(60 + 20 * tier, 1.4, FX.pm_motes("mist", "swirl"), FX.mote_mesh(0.06), true)
+			sw2.name = "Swirl"
+			hand_fx.add_child(sw2)
+			sw2.emitting = false
+			core = _water_core()
 		"rune":
 			ground = FX.quad("res://shaders/magic/sigil.gdshader", 1.6, {"color": pal[0], "sides": 4, "intensity": 0.0, "draw_progress": 0.0, "spin": 0.15, "seed": 4.0})
 			core = FX.quad("res://shaders/magic/sigil.gdshader", 0.55, {"color": pal[1], "sides": 4 + tier, "intensity": 0.0, "draw_progress": 0.0, "spin": -0.4, "seed": 9.0}, false)
@@ -189,10 +200,15 @@ func _process(delta: float) -> void:
 		var gm: ShaderMaterial = ground.material_override
 		gm.set_shader_parameter("draw_progress", smoothstep(0.0, 1.0, awaken))
 		gm.set_shader_parameter("intensity", (0.9 + 0.5 * build) * awaken * fade * (0.8 + 0.2 * tier) * (1.8 if style == "wind" else 1.0))
+	if has_node("MistArcs"):
+		var ma: MeshInstance3D = get_node("MistArcs")
+		ma.global_position = caster.global_position + Vector3(0, 0.05, 0)
+		(ma.material_override as ShaderMaterial).set_shader_parameter("draw_progress", smoothstep(0.0, 1.0, awaken))
+		(ma.material_override as ShaderMaterial).set_shader_parameter("intensity", 1.5 * awaken * fade)
 	# charging core / hand light
 	hand_light.light_energy = (0.4 + 1.4 * build) * fade * _light_scale * (1.0 if not _flying else 0.3)
 	match style:
-		"water":
+		"water", "mist":
 			if core and not _flying:
 				core.scale = Vector3.ONE * maxf(0.01, smoothstep(0.0, 1.0, build) * (0.9 + 0.15 * sin(t * 9.0)))
 				(core.material_override as StandardMaterial3D).emission_energy_multiplier = 0.6 * build
@@ -374,6 +390,8 @@ func _impact_fx(point: Vector3, outcome: String) -> void:
 			FX.burst(host, point, 40, 0.6, FX.pm_motes("wind", "burst"), FX.mote_mesh(0.04, true))
 		"water":
 			FX.burst(host, point, 50 if big else 25, 1.1, FX.pm_motes("water", "splash"), FX.mote_mesh(0.05))
+		"mist":
+			FX.burst(host, point, 40 if big else 20, 3.0, FX.pm_puff("mist"), FX.puff_mesh(1.2))
 		"fire":
 			FX.burst(host, point, 50 if big else 25, 0.9, FX.pm_motes("fire", "burst"), FX.mote_mesh(0.05))
 		"rune":

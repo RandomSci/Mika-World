@@ -32,7 +32,7 @@ func setup(p_id: String, p_label: String, p_flame: GPUParticles3D, p_light: Omni
 	base_energy = light.light_energy
 	aim_offset = Vector3(0, 0.25, 0)
 	aim_radius = 0.6
-	supports = ["wind", "water", "fire", "arcane"]
+	supports = ["wind", "water", "fire", "arcane", "mist"]
 	# own copy of the process material so each brazier bends independently
 	_pm = (flame.process_material as ParticleProcessMaterial).duplicate()
 	flame.process_material = _pm
@@ -99,6 +99,15 @@ func _react_water(power: float, _point: Vector3) -> Dictionary:
 	schedule("restore", 10.0)
 	_sync_state()
 	return {"effect": "steam", "detail": "steam burst up and the flame shrank to %d%%" % int(intensity * 100)}
+
+
+func _react_mist(power: float, point: Vector3) -> Dictionary:
+	if not lit:
+		return {"effect": "veiled", "detail": "mist settles over the cold brazier"}
+	var r := _react_water(power * 0.6, point)
+	r["effect"] = "misted_" + String(r.effect)
+	r["detail"] = "mist rolled over the flame: " + String(r.detail)
+	return r
 
 
 func _react_fire(power: float, _point: Vector3) -> Dictionary:

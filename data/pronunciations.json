@@ -1,0 +1,17 @@
+{
+ "_note": "Kokoro phoneme-mode (IPA) readings for Latin lines. Captions keep the written Latin. Classical vowels; 'v' kept as /v/ to match the production voice's verified incantations (tools/voice/pronunciations_production.json). Verified by tools/voice/verify_speech.py (local SenseVoice recogniser).",
+ "lines": {
+  "Orbis lucis.": "ˈɔɹbɪs lˈukɪs.",
+  "Circulus arcanus.": "kˈiɹkʊlʊs ɑɹkˈɑnʊs.",
+  "Spiritus venti, fla!": "spˈɪɹɪtʊs vˈɛnti, flˈɑ!",
+  "Aqua, surge!": "ˈɑkwɑ, sˈʊɹɡɛ!",
+  "Aqua et ventus, surgite!": "ˈɑkwɑ ɛt vˈɛntʊs, sˈʊɹɡɪtɛ!",
+  "Flamma, cresce!": "flˈɑmɑ, kɹˈɛskɛ!",
+  "Signum, expergiscere!": "sˈɪɡnʊm, ɛkspɛɹɡˈɪskɛɹɛ!",
+  "Vires elementorum, in me convenite!": "vˈiɹeɪs ɛlɛmɛntˈoɹʊm, ɪn mˈeɪ kɔnvɛnˈitɛ!",
+  "Cor lapidis ter pulsat.": "kˈɔɹ lˈɑpɪdɪs tˈɛɹ pˈʊlsɑt.",
+  "Quod lapis obliviscitur, aqua meminit.": "kwˈɔd lˈɑpɪs ɔblɪvˈɪskɪtʊɹ, ˈɑkwɑ mˈɛmɪnɪt.",
+  "Signum Reditus.": "sˈɪɡnʊm ɹˈɛdɪtʊs.",
+  "Reditus.": "ɹˈɛdɪtʊs."
+ }
+}

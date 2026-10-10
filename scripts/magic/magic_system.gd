@@ -69,6 +69,9 @@ func can_cast(id: String) -> Dictionary:
 		return {"ok": true}
 	var need: String = s.get("requires_knowledge", "")
 	if need != "" and WorldState.knowledge.has(need):
+		for other in s.get("requires_mastery", {}):
+			if mastery(other) < float(s.requires_mastery[other]):
+				return {"ok": false, "reason": "%s needs %s mastery of at least %.1f first (now %.2f)" % [s.name, spell(other).name, float(s.requires_mastery[other]), mastery(other)]}
 		return {"ok": true, "first_attempt": true}
 	return {"ok": false, "reason": "Mika doesn't know %s yet: she has not learned its incantation (%s)" % [s.name, need]}
 

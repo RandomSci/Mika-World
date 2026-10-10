@@ -43,6 +43,8 @@ var altar_crystal: Node3D
 var _scene_cache := {}
 var _shape_cache := {}
 var _group := "misc"  # perf category for nodes created by the helpers
+var altar_books: Array = []
+var alchemy: AlchemyTable
 var expansion: SanctuaryExpansion   # sub-areas of the mini-region (garden, chamber, watchpoint...)
 
 
@@ -77,6 +79,7 @@ func _step_expansion_watch() -> void:
 
 func _step_expansion_finish() -> void:
 	expansion.build_magic_props()
+	expansion.build_alchemy()
 	expansion.finish()
 	expansion.set_night(night)
 
@@ -599,6 +602,7 @@ func _build_props() -> void:
 	var b1 := MeshInstance3D.new(); b1.mesh = book; add_child(b1)
 	b1.transform = Transform3D(Basis(Vector3.UP, 0.4) * Basis(Vector3.FORWARD, PI * 0.5).scaled(Vector3.ONE * 1.4), altar + Vector3(-0.15, 0.03, 0.12))
 	var b2 := MeshInstance3D.new(); b2.mesh = _part_mesh("book_encyclopedia_set_01", "book_encyclopedia_set_01_book07"); add_child(b2)
+	altar_books = [b1, b2]
 	b2.transform = Transform3D(Basis(Vector3.UP, -0.2) * Basis(Vector3.FORWARD, PI * 0.5).scaled(Vector3.ONE * 1.4), altar + Vector3(-0.12, 0.08, 0.1))
 	# Brass candle holders flanking the altar top
 	var holder := _part_mesh("brass_candleholders", "brass_candleholder_01")
@@ -899,6 +903,13 @@ func _build_world_links() -> void:
 		Vector3(0, DAIS_TOP, -1.9), {"knowledge": {"lore:arcane_orb_theory": 1}, "skills": {"arcane_orb": 0.1}}, "", 4.0))
 	tome.radius = 1.6
 	tome.kind = "study"
+	tome.book_id = "liber_orbis"
+	tome.effects = {"skills": {"arcane_orb": 0.05}}
+	var altar_top := DAIS_TOP + 0.44 + 0.74 + 0.19
+	tome.book_xf = Transform3D(Basis.IDENTITY, Vector3(0, altar_top + 0.03, -2.45))
+	tome.book_props = altar_books
+	tome.stand_point = Vector3(0, DAIS_TOP, -1.45)
+	tome.face_point = Vector3(0, altar_top, -2.45)
 	add_interactable(Interactable.make("ritual_circle_attune", "Attune to the ritual circle", "meditate", "ritual_sanctuary",
 		Vector3(0, DAIS_TOP, 0.5), {"skills": {"arcane_orb": 0.15}, "knowledge": {"attuned:ritual_circle": 1}}, "spell_casting", 4.2)).radius = 2.6
 	interactables.ritual_circle_attune.kind = "practice"

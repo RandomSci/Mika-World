@@ -26,6 +26,10 @@ var face_point = null          # optional point to face while performing (defaul
 var on_begin: Callable         # optional visual cue when the gesture starts (e.g. a target lights up)
 var seat_body: PhysicsBody3D   # solid seat: ignored by the seated character only while she sits on it
 var sit_point = null           # where her root goes while seated (pelvis over the seat), local to the area
+var book_id := ""              # a readable book/scroll/inscription (data/books.json): perform() = real reading
+var book_xf = null             # Transform3D (area-local) where the open book lies; null = read in place
+var book_props: Array = []     # closed-book decor hidden while the open book is out
+var custom_activity: Callable  # multi-step physical activity (alchemy...): awaited instead of the plain wait
 var _approach = null           # closest walkable point (computed once navigation exists)
 
 
@@ -106,11 +110,23 @@ func perform(c: WorldCharacter) -> Dictionary:
 		var sp: Vector3 = get_parent().to_global(sit_point)
 		var tws := c.create_tween()
 		tws.tween_property(c, "global_position", Vector3(sp.x, c.global_position.y, sp.z), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	elif gesture != "":
+	elif gesture != "" and book_id == "":
 		c.play_gesture(gesture)
 	if on_begin.is_valid():
 		on_begin.call()
-	await get_tree().create_timer(duration).timeout
+	var read_result := {}
+	var act_result := {}
+	if custom_activity.is_valid():
+		act_result = await custom_activity.call(c)
+	elif book_id != "" and BookReader.instance:
+		for bp in book_props:
+			bp.visible = false
+		var anchor = get_parent().global_transform * (book_xf as Transform3D) if book_xf != null else null
+		read_result = await BookReader.instance.read(c, book_id, anchor)
+		for bp in book_props:
+			bp.visible = true
+	else:
+		await get_tree().create_timer(duration).timeout
 	if seat_body:
 		# stand up: rise forward off the seat, clear of it, before it becomes solid for her again
 		if sitting:
@@ -129,6 +145,15 @@ func perform(c: WorldCharacter) -> Dictionary:
 	if on_done.is_valid():
 		on_done.call()
 	var result := {"ok": true, "detail": "%s: %s" % [verb, label], "changes": changes, "times_done": times_done}
+	if not act_result.is_empty():
+		result["activity"] = act_result
+		result["ok"] = act_result.get("ok", false)
+		result["detail"] = String(act_result.get("detail", result.detail))
+	if not read_result.is_empty():
+		result["reading"] = read_result
+		result["ok"] = read_result.get("ok", false) and not read_result.get("interrupted", false)
+		if read_result.get("interrupted", false):
+			result["detail"] = "stopped reading %s after %d page(s)" % [read_result.title, read_result.pages_read.size()]
 	var lore: Dictionary = WorldState.sanctuary.get("lore", {}).get(lore_id if lore_id != "" else id, {})
 	if not lore.is_empty():
 		result["read"] = lore

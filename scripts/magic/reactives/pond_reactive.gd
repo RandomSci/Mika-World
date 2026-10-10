@@ -29,7 +29,7 @@ func setup(p_id: String, p_label: String, p_water: MeshInstance3D, p_radius: flo
 	water.material_override = mat
 	aim_offset = Vector3.ZERO
 	aim_radius = radius
-	supports = ["water", "wind", "fire", "arcane"]
+	supports = ["water", "wind", "fire", "arcane", "mist"]
 	_spout = MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
 	cyl.top_radius = 0.05
@@ -93,6 +93,20 @@ func _react_wind(power: float, point: Vector3) -> Dictionary:
 	_ripple(p + MagicSystem.last_cast_dir * 0.8, 0.25 + 0.3 * power)
 	FX.burst(self, p, int(10 + 20 * power), 1.0, FX.pm_motes("water", "splash"), FX.mote_mesh(0.03))
 	return {"effect": "ruffled", "detail": "the surface ruffled under the gust and a fine spray lifted"}
+
+
+func _react_mist(power: float, point: Vector3) -> Dictionary:
+	var p := _on_surface(point)
+	var veil := FX.particles(int(40 + 40 * power), 4.0, FX.pm_puff("mist"), FX.puff_mesh(1.4))
+	add_child(veil)
+	veil.global_position = global_position + Vector3(0, 0.25, 0)
+	veil.emitting = true
+	get_tree().create_timer(8.0).timeout.connect(func(): veil.emitting = false)
+	get_tree().create_timer(13.0).timeout.connect(veil.queue_free)
+	_ripple(p, 0.3)
+	state = {"surface": "veiled in mist"}
+	_calm_timer = 12.0
+	return {"effect": "mist_veil", "detail": "a low veil of mist spread over the pond and lingered"}
 
 
 func _react_fire(power: float, point: Vector3) -> Dictionary:
