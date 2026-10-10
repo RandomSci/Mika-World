@@ -131,3 +131,19 @@ The only new animation is Mixamo "Sitting Idle" (local only, git-ignored, re-cop
 | Speech | Kokoro-82M (Apache-2.0) through a DEV copy of the production speech service script (`tools/voice/kokoro_service.py`), run with the production venv + model files read-only on port 12471 | Apache-2.0 model; see `/home/selwyn/Documents/Mika-Live/tools/kokoro/PROVENANCE.md` |
 
 No ElevenLabs or other paid generation was used. Pixabay was not used (the search page refused automated access, and per-file licence checks would have been needed).
+
+### Wildlife and travellers (CC0, Quaternius via poly.pizza)
+| file | model | source page | licence |
+|---|---|---|---|
+| `assets/wildlife/fox.glb` | Fox (animated) | https://poly.pizza/m/Bc97C66HKi | CC0 1.0 (Quaternius) |
+| `assets/wildlife/deer.glb` | Deer (animated) | https://poly.pizza/m/T6Cs7tmMHJ | CC0 1.0 (Quaternius) |
+| `assets/wildlife/stag.glb` | Stag (animated) | https://poly.pizza/m/tQdzbZ1Cmw | CC0 1.0 (Quaternius) |
+| `assets/wildlife/koi.glb` | Koi (animated) | https://poly.pizza/m/qyGtRmhgzl | CC0 1.0 (Quaternius) |
+| `assets/npc/witch.glb` | Witch -> Ysolde, Wandering Mage | https://poly.pizza/m/QBEOV9ZUT8 | CC0 1.0 (Quaternius) |
+| `assets/npc/hooded_adventurer.glb` | Hooded Adventurer -> Elowen, Travelling Scholar (sword hidden) | https://poly.pizza/m/y9KWOVG21R | CC0 1.0 (Quaternius) |
+| `assets/npc/adventurer.glb` | Adventurer -> Tobias, Wandering Merchant | https://poly.pizza/m/5EGWBMpuXq | CC0 1.0 (Quaternius) |
+| `assets/npc/woman.glb`, `assets/npc/worker.glb` | evaluated, not used (modern clothing) | poly.pizza AQsd9ngvKU / E8079Ahx7k | CC0 1.0 |
+
+The official Quaternius Google Drive downloads were quota-blocked ("too many downloads"), so the same CC0 models were taken from
+their poly.pizza mirror (each page lists Quaternius as creator and CC0 / Public Domain). Style note: these are low-poly
+characters next to Mika's anime VRoid model; no licensed anime-style NPC models were available locally.

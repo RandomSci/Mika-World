@@ -14,6 +14,7 @@ var _bird_params := []        # [flock, phase, radius, height, speed]
 var _fly_params := []         # [center, phase, rx, rz, h]
 var _night := false
 var _check := 0.0
+var _scatter := 0.0     # birds wheel higher and faster after a spell lands nearby
 
 
 func _init(owner: AreaBase) -> void:
@@ -69,6 +70,7 @@ func _ready() -> void:
 			[Vector3(6, 1.2, -22), Vector3(9, 1.0, 4), 30 if live else 50]]:
 		fireflies.append(_fireflies(spot[0], spot[1], spot[2]))
 	_apply_night(area.night)
+	MagicEvents.spell_phase.connect(func(_c, _sid, ph, _el, _p): if ph in ["impact", "blocked"]: _scatter = 6.0)
 
 
 func _make_mm(mesh: Mesh, count: int, colors: bool) -> MultiMesh:
@@ -150,7 +152,10 @@ func _process(delta: float) -> void:
 		_check = 0.5
 		if area.night != _night:
 			_apply_night(area.night)
+	MagicEvents.spell_phase.connect(func(_c, _sid, ph, _el, _p): if ph in ["impact", "blocked"]: _scatter = 6.0)
 	var t := Time.get_ticks_msec() / 1000.0
+	_scatter = maxf(0.0, _scatter - delta)
+	var startle := smoothstep(0.0, 1.5, _scatter)
 	# birds: two flocks on slow wide circles, each bird with a small offset in the formation
 	for i in _bird_params.size():
 		var bp: Array = _bird_params[i]
@@ -159,7 +164,7 @@ func _process(delta: float) -> void:
 		var ang: float = t * spd * bp[4] + bp[1] + flock * 2.4
 		var rad: float = (38.0 if flock == 0 else 52.0) + bp[2]
 		var c := Vector3(6.0, 0, -4.0) if flock == 0 else Vector3(-10.0, 0, 8.0)
-		var pos := c + Vector3(cos(ang) * rad, (24.0 if flock == 0 else 31.0) + bp[3] + sin(t * 0.7 + i) * 0.6, sin(ang) * rad)
+		var pos := c + Vector3(cos(ang) * rad * (1.0 + 0.25 * startle), (24.0 if flock == 0 else 31.0) + bp[3] + sin(t * 0.7 + i) * 0.6 + 9.0 * startle, sin(ang) * rad * (1.0 + 0.25 * startle))
 		var tangent := Vector3(-sin(ang), 0, cos(ang)) * signf(spd)
 		var b := Basis.looking_at(-tangent, Vector3.UP).rotated(tangent.normalized(), -0.25 * signf(spd))
 		birds.set_instance_transform(i, Transform3D(b.scaled(Vector3.ONE * 1.6), pos))

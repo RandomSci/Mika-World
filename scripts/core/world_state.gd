@@ -32,6 +32,7 @@ var skills := {"arcane_orb": 1}  # known spells and their practice level
 var current_goal := ""
 var sanctuary := {}              # data/sanctuary.json: sub-areas, lore, trials, ranks, actions, thoughts
 var trials_done := {}            # trial id -> true
+var npc_state := {}              # traveller id -> {met, visits, relationship, taught, knows_from_mika, used_beats, memories}
 var _prefix_counts := {}         # activity prefix -> distinct activity ids done
 
 

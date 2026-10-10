@@ -733,6 +733,29 @@ func build_alchemy() -> void:
 	s.add_interactable(it)
 
 
+## Wild residents: a fox by the west ruins, a doe and a stag in the east meadow, koi in the pond.
+func build_wildlife() -> void:
+	var wl := Node3D.new()
+	wl.name = "AnimatedWildlife"
+	s.add_child(wl)
+	var specs := [["fox", "res://assets/wildlife/fox.glb", Vector3(-16.0, 0, 9.0), 0.24, 11, 9.0],
+		["deer", "res://assets/wildlife/deer.glb", Vector3(36.0, 0, 21.0), 0.34, 12, 12.0],
+		["stag", "res://assets/wildlife/stag.glb", Vector3(38.5, 0, 17.0), 0.42, 13, 12.0]]
+	for sp in specs:
+		var a := Animal.new()
+		wl.add_child(a)
+		var h: Vector3 = sp[2]
+		h.y = g(h.x, h.z)
+		a.global_position = h
+		a.setup(sp[0], sp[1], s, h, sp[3], sp[4])
+		a.home_radius = sp[5]
+	var water_y := g(POND.x + 3.6, POND.y) - 0.14
+	for k in 5:
+		var f := PondFish.new()
+		wl.add_child(f)
+		f.setup("res://assets/wildlife/koi.glb", Vector3(POND.x, water_y, POND.y), 0.9 + k * 0.38, 40 + k)
+
+
 func finish() -> void:
 	# All loose rubble as one MultiMesh (one draw call), shadows only nearby
 	var mm := Kit.multimesh(s, Kit.box_mesh(Vector3(0.42, 0.26, 0.34), 0.05), rubble_xf, 55.0, true, stone)

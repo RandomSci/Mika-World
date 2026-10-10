@@ -1,0 +1,93 @@
+{
+ "_note": "Recurring travellers who visit the Arcane Sanctuary. Each knows only its own facts plus what Mika has actually told it (stored in WorldState.npc_state). Conversation beats are chosen by conditions on verified world state; an optional LLM may phrase lines but may only use facts listed here or already known to that NPC.",
+ "travellers": {
+  "wandering_mage": {
+   "name": "Ysolde",
+   "role": "Wandering Mage",
+   "model": "res://assets/npc/witch.glb",
+   "height_m": 1.62,
+   "voice": "wandering_mage",
+   "appearance": "a tall woman in a violet travelling robe and a pointed hat, staff-less, hands always slightly warm with stray magic",
+   "personality": "dry humour, patient teacher, dislikes showing off, believes magic should be practical",
+   "dialogue_style": "short sentences, practical advice, the occasional gentle tease",
+   "motive": "walking the old ley-lines to see which circles still answer",
+   "arrives_from": "forest_gate",
+   "hangout": [6.5, 0, 7.5],
+   "schedule": {"first_after_s": 120, "stay_s": [240, 360], "cooldown_s": [900, 1500], "day_only": false},
+   "knowledge": {
+    "fact:breath_before_word": "A gust is shaped by the breath before the word, not by the word itself. Exhale first, then speak.",
+    "fact:circles_answer": "Only a handful of the old circles still answer. This one does, which is rare.",
+    "fact:steam_trick": "Water against fire is not a fight. Aim at the base of the flame and the steam does the work.",
+    "fact:mist_needs_both": "The joined breath fails if either breath is unsure. Practise each until it is boring."
+   },
+   "teaches": {"fact:breath_before_word": {"skills": {"wind_gust": 0.15}}, "fact:steam_trick": {"skills": {"water_ripple": 0.1}}},
+   "beats": [
+    {"id": "greet", "when": {"first_meeting": true}, "npc": "Hello. You must be the one who woke this circle. I felt it two valleys away.", "mika": "I'm Mika. I study here. I didn't know anyone could feel it from that far."},
+    {"id": "wind_advice", "when": {"mika_knows": "incantation:wind_gust", "not_taught": "fact:breath_before_word"}, "npc": "You've been practising the gust. Here's a secret: exhale first, then speak the words. The breath shapes it.", "mika": "Breathe out, then speak. I'll try that at the brazier.", "teach": "fact:breath_before_word"},
+    {"id": "saw_extinguish", "when": {"witnessed_effect": "extinguished"}, "npc": "Was that you who put out the brazier? Clean work. The flame will forgive you.", "mika": "It relit itself after a while. I wanted to see how strong my wind really was."},
+    {"id": "saw_flicker", "when": {"witnessed_effect": "flicker"}, "npc": "I saw the flame lean but stay lit. Not enough yet. That's fine. It tells you honestly.", "mika": "It does. The book said the flame would tell me how strong my wind had become."},
+    {"id": "steam", "when": {"mika_knows": "incantation:water_ripple", "not_taught": "fact:steam_trick"}, "npc": "When you call water at a flame, aim at its base. The steam does the rest.", "mika": "The base of the flame. That makes sense.", "teach": "fact:steam_trick"},
+    {"id": "mist", "when": {"mika_knows": "incantation:mist_veil"}, "npc": "You found the joined breath. Don't rush it. If either breath is unsure, it falls apart.", "mika": "My water is still clumsy. I'll practise both first.", "teach": "fact:mist_needs_both"},
+    {"id": "circles", "when": {}, "npc": "Only a few of the old circles still answer anyone. Yours does. Take care of it.", "mika": "I will. It feels like it is teaching me too.", "teach": "fact:circles_answer"}
+   ]
+  },
+  "travelling_scholar": {
+   "name": "Elowen",
+   "role": "Travelling Scholar",
+   "model": "res://assets/npc/hooded_adventurer.glb",
+   "hide_meshes": ["Sword", "sword", "Weapon"],
+   "height_m": 1.6,
+   "voice": "travelling_scholar",
+   "appearance": "a hooded scholar with silver hair, ink on her fingers, a satchel of copied pages",
+   "personality": "curious, precise, a little shy until the subject is history",
+   "dialogue_style": "careful, cites sources, asks what Mika has actually seen",
+   "motive": "piecing together where the First Circle went",
+   "arrives_from": "east_trail",
+   "hangout": [-14.8, 0, -20.6],
+   "schedule": {"first_after_s": 420, "stay_s": [300, 420], "cooldown_s": [1100, 1700], "day_only": false, "earlier_if": "clue:heartbeat_should_be_three"},
+   "knowledge": {
+    "fact:aurel_last_keeper": "Aurel was the last Keeper of the Heartstone. Letters at the Academy mention him until the year the Circle left.",
+    "fact:circle_went_south": "The Circle's last letters were sent south, toward the drowned towers people call the Sunken Citadel.",
+    "fact:signs_need_water": "Old keepers hid patterns in signs and read them back in still water. It was a common practice once.",
+    "fact:three_beats": "The Heartstone was said to beat three times when it was whole. Two beats would mean something is missing."
+   },
+   "teaches": {},
+   "beats": [
+    {"id": "greet", "when": {"first_meeting": true}, "npc": "Oh. Hello. I didn't expect anyone to be living here. I'm Elowen, I study the old circles.", "mika": "I'm Mika. I've been learning here. There are books in the chamber and the library below."},
+    {"id": "aurel", "when": {"mika_knows": "clue:margin_note_aurel"}, "npc": "A note signed 'A'? That would be Aurel, the last Keeper. The Academy has his letters, up until the year the Circle left.", "mika": "So he wrote in the spellbook too. He knew the stone answers the orb.", "teach": "fact:aurel_last_keeper", "learn": "clue:margin_note_aurel"},
+    {"id": "beats", "when": {"mika_knows": "clue:heartbeat_should_be_three"}, "npc": "Three beats when whole. If it answers with two, something it was made for is missing. Have you heard it yourself?", "mika": "I cast the orb at it and it pulsed twice, slowly. Like a sleeper.", "teach": "fact:three_beats", "learn": "clue:heartbeat_should_be_three", "requires_mika_event": "resonance"},
+    {"id": "beats_unseen", "when": {"mika_knows": "clue:heartbeat_should_be_three"}, "npc": "Three beats when whole. If it answers with two, something it was made for is missing.", "mika": "The daybook says the same. I haven't heard it answer yet.", "teach": "fact:three_beats", "learn": "clue:heartbeat_should_be_three"},
+    {"id": "water_signs", "when": {"mika_knows": "clue:water_remembers"}, "npc": "'What the stone forgets, the water remembers.' Keepers hid patterns in signs and read them back in still water.", "mika": "Then the sign by the gate and the pond in the garden belong together.", "teach": "fact:signs_need_water", "learn": "clue:water_remembers"},
+    {"id": "south", "when": {"mika_knows": "lore:circle_departed"}, "npc": "When the Circle left, their last letters went south, to the drowned towers. The Sunken Citadel.", "mika": "The towers I can see from the watchpoint. I can't reach them yet.", "teach": "fact:circle_went_south", "learn": "lore:circle_departed"},
+    {"id": "ask", "when": {}, "npc": "What have you actually found here? I'd rather hear it from you than guess.", "mika": "Mostly books so far. I'm trying to understand the Heartstone before I touch anything else."}
+   ]
+  },
+  "wandering_merchant": {
+   "name": "Tobias",
+   "role": "Wandering Merchant",
+   "model": "res://assets/npc/adventurer.glb",
+   "height_m": 1.72,
+   "voice": "wandering_merchant",
+   "appearance": "a bearded trader with a heavy pack of jars, books and oddments",
+   "personality": "cheerful, talkative, honest about prices, loves a story",
+   "dialogue_style": "warm, a bit theatrical, trades in stories as much as goods",
+   "motive": "walking the circuit between the village, the academy and the forest shrines",
+   "arrives_from": "forest_gate",
+   "hangout": [-11.6, 0, 2.2],
+   "schedule": {"first_after_s": 780, "stay_s": [240, 360], "cooldown_s": [1300, 2000], "day_only": true},
+   "knowledge": {
+    "fact:village_news": "The village is lighting its lanterns early this season; people say the nights feel thinner.",
+    "fact:academy_wants_draught": "The Academy pays well for a properly brewed Luminous Draught.",
+    "fact:sylph_dew_source": "Sylph dew comes from the ferns by the waterfall, gathered before sunrise."
+   },
+   "trades": {"luminous_draught": {"gives": {"sylph_dew_flask": 1}, "line": "A real Luminous Draught! I'll take it to the Academy. Here, fresh sylph dew for your table."}},
+   "teaches": {},
+   "beats": [
+    {"id": "greet", "when": {"first_meeting": true}, "npc": "Ho there! Tobias, trader in jars, books and gossip. Is this the sanctuary everyone's whispering about?", "mika": "It might be. I'm Mika. I live and study here now."},
+    {"id": "trade_draught", "when": {"mika_has_item": "luminous_draught"}, "npc": "Is that glow in your bag what I think it is? A Luminous Draught? The Academy pays well for those.", "mika": "I brewed it at the table here. Would you take it to them?", "teach": "fact:academy_wants_draught", "trade": "luminous_draught"},
+    {"id": "dew", "when": {"mika_knows": "recipe:luminous_draught"}, "npc": "Brewing, are you? Sylph dew comes from the ferns by the waterfall. Gather it before sunrise.", "mika": "Before sunrise. I'll remember that.", "teach": "fact:sylph_dew_source"},
+    {"id": "news", "when": {}, "npc": "News from the village: they're lighting the lanterns early this season. People say the nights feel thinner.", "mika": "Thinner? I wonder if that has anything to do with the circles waking.", "teach": "fact:village_news"}
+   ]
+  }
+ }
+}

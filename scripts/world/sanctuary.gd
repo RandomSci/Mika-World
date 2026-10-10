@@ -32,6 +32,7 @@ const RESOURCES := [
 	"res://assets/polyhaven/models/brass_vase_01/brass_vase_01_1k.gltf",
 	"res://assets/polyhaven/models/ceramic_vase_01/ceramic_vase_01_1k.gltf",
 	"res://assets/polyhaven/models/folding_wooden_stool/folding_wooden_stool_1k.gltf",
+	"res://assets/wildlife/fox.glb", "res://assets/wildlife/deer.glb", "res://assets/wildlife/stag.glb", "res://assets/wildlife/koi.glb",
 ]
 
 var mats: SanctuaryMaterials
@@ -80,6 +81,7 @@ func _step_expansion_watch() -> void:
 func _step_expansion_finish() -> void:
 	expansion.build_magic_props()
 	expansion.build_alchemy()
+	expansion.build_wildlife()
 	expansion.finish()
 	expansion.set_night(night)
 

@@ -20,6 +20,9 @@ var voice: VoiceService
 var book_reader: BookReader
 var book_overlay: BookOverlay
 var audio: AudioDirector
+var llm: LLMClient
+var dialogue: DialogueService
+var npcs: NPCManager
 var _subtitle_until := 0.0
 var _fps_acc := 0.0
 var _fps_frames := 0
@@ -50,6 +53,7 @@ func _ready() -> void:
 	chars.name = "Characters"
 	add_child(chars)
 	var mika := spawn_character("mika", "Mika", "res://assets/characters/mika/Mika.vrm", Transform3D.IDENTITY, chars)
+	mika.add_to_group("player_character")
 	mika.set_physics_process(false)
 	mika.sword = SwordLayer.attach(mika)
 
@@ -112,6 +116,20 @@ func _ready() -> void:
 	add_child(book_reader)
 	book_reader.setup(self)
 
+	# Optional language model (mock unless explicitly configured), shared dialogue, visiting travellers
+	llm = LLMClient.new()
+	llm.name = "LLMClient"
+	add_child(llm)
+	llm.setup()
+	dialogue = DialogueService.new()
+	dialogue.name = "DialogueService"
+	add_child(dialogue)
+	dialogue.setup(self)
+	npcs = NPCManager.new()
+	npcs.name = "NPCManager"
+	add_child(npcs)
+	npcs.setup(self)
+
 	# Target-aware magic (spell catalogue, targeting, reactive world)
 	magic = MagicSystem.new()
 	magic.name = "MagicSystem"
@@ -138,6 +156,11 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("lifetest"):
+		travel._cooldown_until = 1e12
+		var lt := LifeTest.new()
+		lt.main = self
+		add_child(lt)
 	elif RenderProfile.options.has("audiotest"):
 		travel._cooldown_until = 1e12
 		var aut := AudioTest.new()

@@ -21,7 +21,7 @@ const DEFAULT_PYTHON := "/home/selwyn/Documents/Mika-Live/tools/kokoro/.venv/bin
 const DEFAULT_MODELS := "/home/selwyn/Documents/Mika-Live/models/kokoro"
 const VOICES := {
 	"mika": {"voice": "af_bella:0.6,jf_alpha:0.4", "gain": 0.7, "speed": 1.0},
-	"wandering_mage": {"voice": "am_michael", "gain": 0.8, "speed": 0.95},
+	"wandering_mage": {"voice": "bf_isabella", "gain": 0.8, "speed": 0.95},
 	"travelling_scholar": {"voice": "bf_emma", "gain": 0.8, "speed": 0.95},
 	"wandering_merchant": {"voice": "bm_george", "gain": 0.8, "speed": 1.05},
 }
@@ -222,7 +222,7 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 
 
 func _caption(speaker: String, text: String) -> String:
-	var names := {"mika": "Mika", "wandering_mage": "Corvin", "travelling_scholar": "Elowen", "wandering_merchant": "Tobias"}
+	var names := {"mika": "Mika", "wandering_mage": "Ysolde", "travelling_scholar": "Elowen", "wandering_merchant": "Tobias"}
 	return "%s: %s" % [names.get(speaker, speaker.capitalize()), text]
 
 
