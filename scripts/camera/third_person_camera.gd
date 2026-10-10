@@ -34,7 +34,7 @@ func _ready() -> void:
 	camera = Camera3D.new()
 	camera.fov = 52.0
 	camera.near = 0.05
-	camera.far = 600.0
+	camera.far = 6000.0  # distant vistas are placed up to ~3.4 km away
 	arm.add_child(camera)
 	camera.current = true
 	if target:
@@ -68,6 +68,17 @@ func set_shot(pos: Vector3, look: Vector3, fov := 50.0) -> void:
 	_shot_pos = pos
 	_shot_look = look
 	camera.fov = fov
+
+
+## After a transition: put the camera behind the character immediately (no swooping across the map).
+func snap_behind() -> void:
+	if target:
+		yaw = target.rotation.y
+		pitch = -0.18
+		_focus = target.global_position + Vector3(0, height, 0)
+		global_position = _focus
+		rotation = Vector3(pitch, yaw, 0)
+		arm.spring_length = distance
 
 
 func clear_shot() -> void:

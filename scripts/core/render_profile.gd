@@ -123,5 +123,4 @@ func apply_to_environment(env: Environment) -> void:
 		RenderingServer.ENV_SSAO_QUALITY_HIGH if profile == ULTRA else (RenderingServer.ENV_SSAO_QUALITY_MEDIUM if profile == CINEMATIC else RenderingServer.ENV_SSAO_QUALITY_LOW),
 		profile != ULTRA, 0.5, 2, 50, 300)
 	RenderingServer.environment_set_ssil_quality(RenderingServer.ENV_SSIL_QUALITY_LOW if profile != ULTRA else RenderingServer.ENV_SSIL_QUALITY_MEDIUM, true, 0.5, 2, 50, 300)
-	RenderingServer.environment_set_ssr_roughness_quality(RenderingServer.ENV_SSR_ROUGHNESS_QUALITY_LOW)
 	RenderingServer.environment_set_volumetric_fog_volume_size(64 if profile == CINEMATIC else 128, 64 if profile == CINEMATIC else 128)

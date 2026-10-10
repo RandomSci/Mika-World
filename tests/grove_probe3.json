@@ -1,0 +1,1 @@
+[{"sleep": 2}, {"id": "t2", "cmd": "travel_to", "location": "forgotten_forest_shrine", "wait": true, "timeout": 120}, {"id": "o", "cmd": "observe"}]

@@ -1,0 +1,135 @@
+extends Node
+## Authoritative world registry + persistent world/character state (autoload "WorldState").
+## The registry (data/world.json) says what exists; this node tracks what Mika has discovered,
+## visited and done. Areas, the streaming manager and the AI bridge all read from here so the
+## engine — not the AI — decides what is real, reachable, loaded or unfinished.
+
+signal location_entered(location_id: String)
+signal discovered(kind: String, id: String)
+signal state_changed(change: Dictionary)
+
+var registry := {}
+var regions := {}
+var areas := {}
+var locations := {}
+var landmarks := {}
+var adjacency := {}       # area -> {neighbour_area: route description}
+
+var night := false
+var current_area := ""
+var current_location := ""
+var discovered_locations := {}   # id -> true
+var visited_locations := {}      # id -> visit count
+var seen_landmarks := {}         # id -> true
+var activity_log: Array[Dictionary] = []
+var knowledge := {}              # e.g. {"spell:arcane_orb": 1.0, "lore:...": true}
+var inventory := {}              # item -> count
+var skills := {"arcane_orb": 1}  # known spells and their practice level
+var current_goal := ""
+
+
+func _init() -> void:
+	var f := FileAccess.open("res://data/world.json", FileAccess.READ)
+	registry = JSON.parse_string(f.get_as_text())
+	regions = registry.regions
+	areas = registry.areas
+	locations = registry.locations
+	landmarks = registry.landmarks
+	for c in registry.connections:
+		adjacency.get_or_add(c[0], {})[c[1]] = c[2]
+		adjacency.get_or_add(c[1], {})[c[0]] = c[2]
+	for a in areas:
+		adjacency.get_or_add(a, {})
+	discovered_locations[registry.start_location] = true
+
+
+func area_of(location_id: String) -> String:
+	return locations[location_id].area if locations.has(location_id) else ""
+
+
+func locations_in_area(area_id: String) -> Array:
+	return locations.keys().filter(func(l): return locations[l].area == area_id)
+
+
+## Shortest chain of areas (inclusive) from `from_area` to `to_area`; [] if unreachable.
+func route(from_area: String, to_area: String) -> Array:
+	if from_area == to_area:
+		return [from_area]
+	var prev := {from_area: ""}
+	var queue := [from_area]
+	while not queue.is_empty():
+		var a: String = queue.pop_front()
+		for n in adjacency.get(a, {}):
+			if not prev.has(n):
+				prev[n] = a
+				if n == to_area:
+					var path := [n]
+					while prev[path[0]] != "":
+						path.push_front(prev[path[0]])
+					return path
+				queue.append(n)
+	return []
+
+
+func is_playable(location_id: String) -> bool:
+	return locations.has(location_id) and locations[location_id].status == "playable" \
+		and ResourceLoader.exists(areas[locations[location_id].area].scene)
+
+
+func enter_location(location_id: String) -> void:
+	if location_id == "" or location_id == current_location:
+		return
+	current_location = location_id
+	visited_locations[location_id] = visited_locations.get(location_id, 0) + 1
+	discover("location", location_id)
+	location_entered.emit(location_id)
+
+
+func discover(kind: String, id: String) -> void:
+	var store := discovered_locations if kind == "location" else seen_landmarks
+	if not store.has(id):
+		store[id] = true
+		discovered.emit(kind, id)
+		# seeing a destination landmark makes its location known (but not visited)
+		if kind == "landmark" and landmarks.get(id, {}).get("kind") == "destination":
+			discover("location", landmarks[id].location)
+
+
+## Apply an activity's effects and return a truthful description of what changed.
+func record_activity(activity: Dictionary, effects: Dictionary) -> Dictionary:
+	var changes := {}
+	for k in effects.get("knowledge", {}):
+		var before = knowledge.get(k, 0)
+		var v = effects.knowledge[k]
+		knowledge[k] = (before + v) if typeof(v) in [TYPE_INT, TYPE_FLOAT] and typeof(before) in [TYPE_INT, TYPE_FLOAT] else v
+		changes["knowledge." + k] = [before, knowledge[k]]
+	for k in effects.get("items", {}):
+		var before: int = inventory.get(k, 0)
+		inventory[k] = before + int(effects.items[k])
+		changes["inventory." + k] = [before, inventory[k]]
+	for k in effects.get("skills", {}):
+		var before: float = skills.get(k, 0)
+		skills[k] = before + float(effects.skills[k])
+		changes["skills." + k] = [before, skills[k]]
+	for loc in effects.get("discover", []):
+		if not discovered_locations.has(loc):
+			discover("location", loc)
+			changes["discovered." + loc] = [false, true]
+	var entry := {"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.01), "location": current_location, "activity": activity, "changes": changes}
+	activity_log.append(entry)
+	state_changed.emit(entry)
+	return changes
+
+
+func location_summary(id: String) -> Dictionary:
+	var l: Dictionary = locations[id]
+	return {"id": id, "name": l.name, "region": l.region, "area": l.area, "status": l.status,
+		"playable": is_playable(id), "discovered": discovered_locations.has(id), "visits": visited_locations.get(id, 0),
+		"current": id == current_location, "loaded": l.area == current_area}
+
+
+func snapshot() -> Dictionary:
+	return {"current_area": current_area, "current_location": current_location, "night": night,
+		"skills": skills, "knowledge": knowledge, "inventory": inventory, "goal": current_goal,
+		"discovered": discovered_locations.keys(), "visited": visited_locations, "landmarks_seen": seen_landmarks.keys(),
+		"activities_done": activity_log.size()}

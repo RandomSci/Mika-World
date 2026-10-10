@@ -1,0 +1,1 @@
+[{"sleep": 2}, {"id": "t1", "cmd": "travel_to", "location": "ancient_grove", "wait": true, "timeout": 120}, {"id": "p3", "cmd": "probe_space", "radius": 1.2}]

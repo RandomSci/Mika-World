@@ -1,0 +1,473 @@
+{
+ "version": 1,
+ "start_location": "ritual_sanctuary",
+ "regions": {
+  "arcane_sanctuary": {
+   "name": "Arcane Sanctuary",
+   "theme": "ancient ritual ruins in a forest clearing"
+  },
+  "enchanted_forest": {
+   "name": "Enchanted Forest",
+   "theme": "immense mossy trees, luminous water, waterfalls"
+  },
+  "fantasy_village": {
+   "name": "Fantasy Village",
+   "theme": "timber-and-slate village, lanterns, cobbles"
+  },
+  "crystal_caverns": {
+   "name": "Crystal Caverns",
+   "theme": "luminous crystals, underground lake"
+  },
+  "celestial_highlands": {
+   "name": "Celestial Highlands",
+   "theme": "mountain paths above a sea of clouds"
+  },
+  "grand_academy": {
+   "name": "Grand Academy",
+   "theme": "monumental school of magic"
+  }
+ },
+ "areas": {
+  "sanctuary": {
+   "region": "arcane_sanctuary",
+   "scene": "res://scenes/areas/sanctuary.tscn",
+   "global_pos": [
+    0,
+    0,
+    0
+   ]
+  },
+  "arcane_library": {
+   "region": "arcane_sanctuary",
+   "scene": "res://scenes/areas/arcane_library.tscn",
+   "global_pos": [
+    -40,
+    -12,
+    -30
+   ],
+   "interior": true
+  },
+  "mentor_tower": {
+   "region": "arcane_sanctuary",
+   "scene": "res://scenes/areas/mentor_tower.tscn",
+   "global_pos": [
+    420,
+    30,
+    160
+   ]
+  },
+  "ancient_grove": {
+   "region": "enchanted_forest",
+   "scene": "res://scenes/areas/ancient_grove.tscn",
+   "global_pos": [
+    -80,
+    10,
+    -650
+   ]
+  },
+  "river_valley": {
+   "region": "enchanted_forest",
+   "scene": "res://scenes/areas/river_valley.tscn",
+   "global_pos": [
+    350,
+    -20,
+    -1150
+   ]
+  },
+  "village": {
+   "region": "fantasy_village",
+   "scene": "res://scenes/areas/village.tscn",
+   "global_pos": [
+    950,
+    0,
+    -1400
+   ]
+  },
+  "observatory_hill": {
+   "region": "fantasy_village",
+   "scene": "res://scenes/areas/observatory_hill.tscn",
+   "global_pos": [
+    1150,
+    120,
+    -1650
+   ]
+  },
+  "crystal_caverns": {
+   "region": "crystal_caverns",
+   "scene": "res://scenes/areas/crystal_caverns.tscn",
+   "global_pos": [
+    1650,
+    -40,
+    -1050
+   ],
+   "interior": true
+  },
+  "deep_caverns": {
+   "region": "crystal_caverns",
+   "scene": "res://scenes/areas/deep_caverns.tscn",
+   "global_pos": [
+    1850,
+    -160,
+    -900
+   ],
+   "interior": true
+  },
+  "highland_path": {
+   "region": "celestial_highlands",
+   "scene": "res://scenes/areas/highland_path.tscn",
+   "global_pos": [
+    1300,
+    450,
+    -2300
+   ]
+  },
+  "celestial_summit": {
+   "region": "celestial_highlands",
+   "scene": "res://scenes/areas/celestial_summit.tscn",
+   "global_pos": [
+    1450,
+    1100,
+    -3100
+   ]
+  },
+  "academy": {
+   "region": "grand_academy",
+   "scene": "res://scenes/areas/academy.tscn",
+   "global_pos": [
+    -1600,
+    60,
+    -900
+   ]
+  },
+  "great_library": {
+   "region": "grand_academy",
+   "scene": "res://scenes/areas/great_library.tscn",
+   "global_pos": [
+    -1680,
+    60,
+    -980
+   ],
+   "interior": true
+  }
+ },
+ "locations": {
+  "ritual_sanctuary": {
+   "area": "sanctuary",
+   "region": "arcane_sanctuary",
+   "name": "Ritual Sanctuary",
+   "description": "Engraved arcane circle on a stepped dais, spell altar, fluted colonnade and ruins.",
+   "status": "playable"
+  },
+  "mage_training_grounds": {
+   "area": "sanctuary",
+   "region": "arcane_sanctuary",
+   "name": "Mage Training Grounds",
+   "description": "Ring of standing stones east of the sanctuary for casting practice and future mentor lessons.",
+   "status": "playable"
+  },
+  "ancient_spell_library": {
+   "area": "arcane_library",
+   "region": "arcane_sanctuary",
+   "name": "Ancient Spell Library",
+   "description": "Vaulted underground library beneath the west ruins: shelves, reading desks, a spell lectern.",
+   "status": "playable"
+  },
+  "mentors_tower": {
+   "area": "mentor_tower",
+   "region": "arcane_sanctuary",
+   "name": "Mentor's Tower",
+   "description": "Stone tower on a rise with an external stair, lookout balcony and an advanced-magic circle.",
+   "status": "playable"
+  },
+  "ancient_grove": {
+   "area": "ancient_grove",
+   "region": "enchanted_forest",
+   "name": "Ancient Grove",
+   "description": "Immense moss-hung trees around overgrown stones and a fallen giant.",
+   "status": "playable"
+  },
+  "forgotten_forest_shrine": {
+   "area": "ancient_grove",
+   "region": "enchanted_forest",
+   "name": "Forgotten Forest Shrine",
+   "description": "Runic ruin with carved guardian faces, a stair and glowing glyph stones.",
+   "status": "playable"
+  },
+  "luminous_river": {
+   "area": "river_valley",
+   "region": "enchanted_forest",
+   "name": "Luminous River",
+   "description": "A clear river with glowing reeds and stepping stones through the valley floor.",
+   "status": "playable"
+  },
+  "waterfall_crossing": {
+   "area": "river_valley",
+   "region": "enchanted_forest",
+   "name": "Waterfall Crossing",
+   "description": "An arched stone bridge in front of twin waterfalls and spray.",
+   "status": "playable"
+  },
+  "village_square": {
+   "area": "village",
+   "region": "fantasy_village",
+   "name": "Village Square",
+   "description": "Timber-and-slate houses around a cobbled square with a stone well.",
+   "status": "playable"
+  },
+  "lantern_market": {
+   "area": "village",
+   "region": "fantasy_village",
+   "name": "Lantern Market",
+   "description": "A lane of market stalls under strings of lanterns.",
+   "status": "playable"
+  },
+  "craft_workshop": {
+   "area": "village",
+   "region": "fantasy_village",
+   "name": "Craft Workshop",
+   "description": "Open-fronted workshop with workbench, tools, barrels and an alchemy table.",
+   "status": "playable"
+  },
+  "village_observatory": {
+   "area": "observatory_hill",
+   "region": "fantasy_village",
+   "name": "Village Observatory",
+   "description": "Hilltop star platform with a brass telescope overlooking the village.",
+   "status": "playable"
+  },
+  "crystal_entrance": {
+   "area": "crystal_caverns",
+   "region": "crystal_caverns",
+   "name": "Crystal Entrance",
+   "description": "A rocky cave mouth where the first crystals glow in the dark.",
+   "status": "playable"
+  },
+  "luminous_crystal_hall": {
+   "area": "crystal_caverns",
+   "region": "crystal_caverns",
+   "name": "Luminous Crystal Hall",
+   "description": "A high chamber of giant glowing crystal formations.",
+   "status": "playable"
+  },
+  "underground_lake": {
+   "area": "deep_caverns",
+   "region": "crystal_caverns",
+   "name": "Underground Lake",
+   "description": "A still subterranean lake with a crystal-lit shoreline.",
+   "status": "playable"
+  },
+  "ancient_vault": {
+   "area": "deep_caverns",
+   "region": "crystal_caverns",
+   "name": "Ancient Vault",
+   "description": "Sealed stone vault with a monumental door and a glowing seal.",
+   "status": "playable"
+  },
+  "mountain_path": {
+   "area": "highland_path",
+   "region": "celestial_highlands",
+   "name": "Mountain Path",
+   "description": "Switchback trail climbing steep slopes with cairns and long views.",
+   "status": "playable"
+  },
+  "cliff_overlook": {
+   "area": "highland_path",
+   "region": "celestial_highlands",
+   "name": "Cliff Overlook",
+   "description": "Railed stone overlook above the cloud sea and distant peaks.",
+   "status": "playable"
+  },
+  "celestial_observatory": {
+   "area": "celestial_summit",
+   "region": "celestial_highlands",
+   "name": "Celestial Observatory",
+   "description": "Armillary sphere and star dial on the summit under an extraordinary sky.",
+   "status": "playable"
+  },
+  "cloud_temple": {
+   "area": "celestial_summit",
+   "region": "celestial_highlands",
+   "name": "Cloud Temple",
+   "description": "Tiered stone temple at the edge of the sea of clouds.",
+   "status": "playable"
+  },
+  "academy_courtyard": {
+   "area": "academy",
+   "region": "grand_academy",
+   "name": "Academy Courtyard",
+   "description": "Monumental courtyard framed by the academy's halls and spires.",
+   "status": "playable"
+  },
+  "great_library": {
+   "area": "great_library",
+   "region": "grand_academy",
+   "name": "Great Library",
+   "description": "Tall interior of bookcases, galleries, study tables and chandeliers.",
+   "status": "playable"
+  },
+  "advanced_magic_arena": {
+   "area": "academy",
+   "region": "grand_academy",
+   "name": "Advanced Magic Arena",
+   "description": "Circular arena with tiered stone seating for large-scale magic.",
+   "status": "playable"
+  },
+  "academy_gardens": {
+   "area": "academy",
+   "region": "grand_academy",
+   "name": "Academy Gardens",
+   "description": "Formal gardens with hedges, flowerbeds and a fountain.",
+   "status": "playable"
+  }
+ },
+ "connections": [
+  [
+   "sanctuary",
+   "ancient_grove",
+   "forest path through the north arch"
+  ],
+  [
+   "sanctuary",
+   "arcane_library",
+   "stairway down beneath the west ruins"
+  ],
+  [
+   "sanctuary",
+   "mentor_tower",
+   "east trail past the training stones"
+  ],
+  [
+   "sanctuary",
+   "academy",
+   "ley-line portal (magical, only between the two schools of magic)"
+  ],
+  [
+   "ancient_grove",
+   "river_valley",
+   "forest track down to the river"
+  ],
+  [
+   "river_valley",
+   "village",
+   "the waterfall bridge road"
+  ],
+  [
+   "village",
+   "observatory_hill",
+   "hill stairway"
+  ],
+  [
+   "village",
+   "crystal_caverns",
+   "quarry road to the cave mouth"
+  ],
+  [
+   "crystal_caverns",
+   "deep_caverns",
+   "descending tunnel"
+  ],
+  [
+   "village",
+   "highland_path",
+   "mountain road"
+  ],
+  [
+   "highland_path",
+   "celestial_summit",
+   "summit stairway"
+  ],
+  [
+   "academy",
+   "great_library",
+   "library doors"
+  ]
+ ],
+ "landmarks": {
+  "cloud_temple_peak": {
+   "name": "Cloud Temple on the summit",
+   "kind": "destination",
+   "location": "cloud_temple",
+   "global_pos": [
+    1450,
+    1180,
+    -3100
+   ],
+   "impostor": "temple_peak"
+  },
+  "academy_spires": {
+   "name": "Spires of the Grand Academy",
+   "kind": "destination",
+   "location": "academy_courtyard",
+   "global_pos": [
+    -1600,
+    160,
+    -900
+   ],
+   "impostor": "spires"
+  },
+  "mentors_tower": {
+   "name": "The Mentor's Tower",
+   "kind": "destination",
+   "location": "mentors_tower",
+   "global_pos": [
+    420,
+    75,
+    160
+   ],
+   "impostor": "tower"
+  },
+  "village_lights": {
+   "name": "Village rooftops and lights",
+   "kind": "destination",
+   "location": "village_square",
+   "global_pos": [
+    950,
+    20,
+    -1400
+   ],
+   "impostor": "village"
+  },
+  "observatory_dome": {
+   "name": "Village observatory",
+   "kind": "destination",
+   "location": "village_observatory",
+   "global_pos": [
+    1150,
+    150,
+    -1650
+   ],
+   "impostor": "dome"
+  },
+  "dragon_peaks": {
+   "name": "Dragon Peaks",
+   "kind": "scenic",
+   "global_pos": [
+    3200,
+    1600,
+    -4200
+   ],
+   "impostor": "range"
+  },
+  "sky_spire": {
+   "name": "Floating Sky Spire",
+   "kind": "scenic",
+   "global_pos": [
+    -2600,
+    900,
+    -3400
+   ],
+   "impostor": "floating_rock"
+  },
+  "sunken_citadel": {
+   "name": "Sunken Citadel",
+   "kind": "unfinished",
+   "global_pos": [
+    -900,
+    -10,
+    1800
+   ],
+   "impostor": "ruin_silhouette",
+   "note": "Visible ruin across the southern marsh. Planned destination; no playable scene exists yet."
+  }
+ }
+}

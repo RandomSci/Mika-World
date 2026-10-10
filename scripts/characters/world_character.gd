@@ -81,6 +81,7 @@ func _ready() -> void:
 	skeleton = avatar.find_child("GeneralSkeleton", true, false)
 	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	_fix_vrm1_mtoon_shading()
 	_setup_animation()
 	_setup_expressions()
 	left_hand = _attach("LeftHand")
@@ -88,11 +89,44 @@ func _ready() -> void:
 	chest = _attach("UpperChest")
 
 	nav_agent = NavigationAgent3D.new()
-	nav_agent.path_desired_distance = 0.6
-	nav_agent.target_desired_distance = 0.45
+	nav_agent.path_desired_distance = 1.0  # > navmesh voxel float (up to ~0.6 m above ground with 0.25 m cells)
+	nav_agent.target_desired_distance = 0.7
 	nav_agent.radius = 0.35
 	nav_agent.height = 1.6
 	add_child(nav_agent)
+
+
+## VRM 1.0 → MToon 0.x shading conversion (fixes the "black face" in point-lit interiors).
+## godot-vrm copies VRM1 shadingShiftFactor/shadingToonyFactor straight into the 0.x shader's
+## _ShadeShift/_ShadeToony, but the conventions differ:
+##   VRM1:  s = N·L + shift;   lit = linearstep(-1 + toony, 1 - toony, s)   (positive shift = MORE lit)
+##   MToon0: lit = clamp((N·L - S0) / ((1 - S0) * (1 - T0)))                  (positive shift = MORE shaded)
+## Matching the ramp centre and width gives  S0 = -shift - (1 - toony),  T0 = 1 - 2(1 - toony) / (1 - S0).
+## Mika's face (0.71, 0.91) becomes (-0.80, 0.90): lit almost everywhere, as VRoid intends.
+func _fix_vrm1_mtoon_shading() -> void:
+	var meta = avatar.get("vrm_meta")
+	var spec: String = str(meta.get("spec_version")) if meta else ""
+	if not spec.begins_with("1") or RenderProfile.options.has("mtoon-legacy"):
+		return
+	var fixed := 0
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		for si in m.mesh.get_surface_count():
+			var mat := m.get_active_material(si)
+			while mat is ShaderMaterial:
+				var sm := mat as ShaderMaterial
+				if not sm.has_meta("vrm1_shading_converted") and sm.get_shader_parameter("_ShadeShift") != null:
+					var s1: float = sm.get_shader_parameter("_ShadeShift")
+					var t1: float = sm.get_shader_parameter("_ShadeToony")
+					var s0 := clampf(-s1 - (1.0 - t1), -1.0, 1.0)
+					var t0 := clampf(1.0 - 2.0 * (1.0 - t1) / maxf(1.0 - s0, 0.001), 0.0, 1.0)
+					sm.set_shader_parameter("_ShadeShift", s0)
+					sm.set_shader_parameter("_ShadeToony", t0)
+					sm.set_shader_parameter("_Vrm1Lighting", 1.0)
+					sm.set_meta("vrm1_shading_converted", [s1, t1, s0, t0])
+					fixed += 1
+				mat = sm.next_pass
+	print("[character] %s: converted VRM1 MToon shading on %d materials" % [character_id, fixed])
 
 
 func _attach(bone: String) -> BoneAttachment3D:
@@ -298,6 +332,15 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 	return spell
 
 
+## Play a one-off body gesture (study, practice, look around...) through the same one-shot slot as casting.
+func play_gesture(clip: String) -> bool:
+	if casting or not CLIPS.has(clip):
+		return false
+	(anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast_anim").animation = "mx/" + clip
+	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	return true
+
+
 func end_cast(ok: bool, detail: String) -> void:
 	casting = false
 	set_expression("happy", 0.0)
@@ -342,13 +385,13 @@ func _physics_process(delta: float) -> void:
 			desired = (next - global_position)
 			desired.y = 0
 			desired = desired.normalized()
-			if global_position.distance_to(_nav_last_pos) < 0.05:
-				_nav_stuck_time += delta
-			else:
+			# window-based progress check: less than 0.5 m in 3 s while trying to move = stuck
+			_nav_stuck_time += delta
+			if _nav_stuck_time >= 3.0:
+				if global_position.distance_to(_nav_last_pos) < 0.5:
+					_finish_action(false, "stuck: under 0.5 m of progress in 3 s near %s" % str(global_position.snapped(Vector3.ONE * 0.1)))
 				_nav_stuck_time = 0.0
 				_nav_last_pos = global_position
-			if _nav_stuck_time > 3.0:
-				_finish_action(false, "stuck: no progress for 3 s")
 			elif now > _action_deadline:
 				_finish_action(false, "timeout")
 	if casting:

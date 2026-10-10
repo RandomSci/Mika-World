@@ -1,55 +1,69 @@
 class_name Sanctuary
-extends Node3D
+extends AreaBase
 ## The Arcane Sanctuary: builds the playable world from imported CC0 assets
 ## (Poly Haven / ambientCG) + the custom Blender architecture.
 ## Characters are spawned by main.gd; this node owns terrain, architecture,
 ## set dressing, light/atmosphere, points of interest and navigation.
 
-signal navigation_ready
-
 const ARCH_PATH := "res://assets/architecture/sanctuary_architecture.glb"
 const MODELS := "res://assets/polyhaven/models/"
 const DAIS_TOP := 0.6
+## Heavy resources preloaded on worker threads by the streaming manager.
+const RESOURCES := [
+	"res://assets/architecture/sanctuary_architecture.glb",
+	"res://assets/trees/broadleaf_tree_near.glb",
+	"res://assets/trees/broadleaf_tree_far.glb",
+	"res://assets/polyhaven/textures/mossy_rock/mossy_rock_diff_2k.jpg",
+	"res://assets/polyhaven/textures/mossy_rock/mossy_rock_nor_gl_2k.jpg",
+	"res://assets/polyhaven/textures/monastery_stone_floor/monastery_stone_floor_diff_2k.jpg",
+	"res://assets/polyhaven/textures/leafy_grass/leafy_grass_diff_2k.jpg",
+	"res://assets/polyhaven/textures/leafy_grass/leafy_grass_nor_gl_2k.jpg",
+	"res://assets/polyhaven/models/rock_moss_set_01/rock_moss_set_01_1k.gltf",
+	"res://assets/polyhaven/models/rock_moss_set_02/rock_moss_set_02_1k.gltf",
+	"res://assets/polyhaven/models/rock_face_01/rock_face_01_1k.gltf",
+	"res://assets/polyhaven/models/fern_02/fern_02_1k.gltf",
+	"res://assets/polyhaven/models/shrub_02/shrub_02_1k.gltf",
+	"res://assets/polyhaven/hdris/nature_reserve_forest/nature_reserve_forest_2k.hdr",
+]
 
 var mats: SanctuaryMaterials
 var terrain: SanctuaryTerrain
-var env: Environment
-var world_env: WorldEnvironment
-var sun: DirectionalLight3D
-var night := false
-var nav_region: NavigationRegion3D
-var points_of_interest := {}   # id -> {position, description, interact_radius}
 var areas := []                # [{id, center(Vector3), radius}]
 var fire_lights: Array[OmniLight3D] = []
-var night_only: Array[Node3D] = []
+var _night_nodes: Array[Node3D] = []
 var altar_crystal: Node3D
-var rng := RandomNumberGenerator.new()
 var _scene_cache := {}
 var _shape_cache := {}
-var _sky_day: Sky
-var _sky_night: Sky
 var _group := "misc"  # perf category for nodes created by the helpers
 
 
-func _ready() -> void:
+func build_steps() -> Array:
+	# The original build order, split into steps the streaming manager runs within a frame budget.
+	return [_step_init, _build_terrain, _build_architecture, _step_rocks, _build_trees, _step_foliage,
+		_step_props, _build_fires_and_lights, _register_points_of_interest, _build_world_links]
+
+
+func _step_init() -> void:
 	rng.seed = 20261010
 	mats = SanctuaryMaterials.new()
+	magic_receivers = mats.magic_receivers()
 	terrain = SanctuaryTerrain.new()
-	_build_environment()
-	_build_terrain()
-	_build_architecture()
+	nav_aabb = AABB(Vector3(-36, -2, -36), Vector3(90, 12, 66))
+
+
+func _step_rocks() -> void:
 	_group = "rocks"
 	_build_rocks()
-	_build_trees()
+
+
+func _step_foliage() -> void:
 	_group = "foliage"
 	_build_foliage()
+
+
+func _step_props() -> void:
 	_group = "props"
 	_build_props()
-	_build_fires_and_lights()
-	_register_points_of_interest()
-	set_night(RenderProfile.night)
-	RenderProfile.profile_changed.connect(func(_p): RenderProfile.apply_to_environment(env))
-	_build_navigation()
 
 
 # ------------------------------------------------------------------ environment
@@ -148,7 +162,7 @@ func set_night(v: bool) -> void:
 	env.fog_sun_scatter = 0.25
 	for l in fire_lights:
 		l.light_energy = l.get_meta("base_energy") * (1.7 if night else 1.0)
-	for n in night_only:
+	for n in _night_nodes:
 		n.visible = night
 	RenderProfile.apply_to_environment(env)
 	if env.volumetric_fog_enabled and not night:
@@ -698,32 +712,9 @@ func spawn_point(id: String) -> Transform3D:
 			var tc := SanctuaryTerrain.TRAINING_CENTER
 			return Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(tc.x - 2.0, terrain.height(tc.x - 2.0, tc.y), tc.y))
 		_:
+			if gates.has(id):
+				return gates[id].arrive
 			return Transform3D(Basis.IDENTITY, Vector3(0, DAIS_TOP + 0.05, 1.6))  # facing north, toward the altar
-
-
-# ------------------------------------------------------------------ navigation
-func _build_navigation() -> void:
-	nav_region = NavigationRegion3D.new()
-	nav_region.name = "Navigation"
-	var nm := NavigationMesh.new()
-	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	nm.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_ROOT_NODE_CHILDREN
-	nm.agent_radius = 0.5
-	nm.agent_height = 1.75
-	nm.agent_max_climb = 0.25
-	nm.agent_max_slope = 35.0
-	nm.cell_size = 0.25
-	nm.cell_height = 0.25
-	nm.filter_baking_aabb = AABB(Vector3(-36, -2, -36), Vector3(76, 12, 60))
-	nav_region.navigation_mesh = nm
-	add_child(nav_region)
-	# Parse static colliders from the whole sanctuary, bake off the main thread.
-	var src := NavigationMeshSourceGeometryData3D.new()
-	NavigationServer3D.parse_source_geometry_data(nm, src, self)
-	NavigationServer3D.bake_from_source_geometry_data_async(nm, src, func():
-		nav_region.navigation_mesh = nm
-		print("[world] navigation mesh baked: %d polygons" % nm.get_polygon_count())
-		navigation_ready.emit())
 
 
 func set_magic_bounce(pos: Vector3, strength: float, color: Color) -> void:
@@ -747,3 +738,73 @@ func _process(_delta: float) -> void:
 	if altar_crystal:
 		altar_crystal.rotation.y = t * 0.4
 		altar_crystal.position.y = DAIS_TOP + 0.44 + 0.74 + 0.19 + 0.62 + sin(t * 1.3) * 0.04
+
+
+# ------------------------------------------------------------------ world links (streaming): locations, routes, activities
+func _build_world_links() -> void:
+	var tc := SanctuaryTerrain.TRAINING_CENTER
+	var h := func(x: float, z: float) -> float: return terrain.height(x, z)
+	add_location("ritual_sanctuary", Vector3(0, 0, -2), 17.0, Vector3(0, DAIS_TOP, 0.0))
+	add_location("mage_training_grounds", Vector3(tc.x, 0, tc.y), 12.0, Vector3(tc.x, h.call(tc.x, tc.y), tc.y))
+	var stone := mats.stone
+
+	# North: the forest path continues beyond the arch into the Ancient Grove.
+	add_gate("ancient_grove", Vector3(1.0, h.call(1.0, -33.0), -33.0), Vector3(0.8, h.call(0.8, -27.0) + 0.05, -27.0), PI, 2.6)
+	var post := Kit.block(self, Vector3(0.18, 1.7, 0.18), Kit.xf(Vector3(3.2, h.call(3.2, -31.0) + 0.85, -31.0)), Kit.uvmat("dark_wooden_planks"), true, 0.02)
+	Kit.block(self, Vector3(1.1, 0.28, 0.06), Kit.xf(Vector3(3.2, h.call(3.2, -31.0) + 1.45, -31.0), -0.3), Kit.uvmat("dark_wooden_planks"), false, 0.01)
+
+	# South-west: a stone crypt over the stairway down to the Ancient Spell Library.
+	var cx := -10.5
+	var cz := 12.5
+	var gy: float = h.call(cx, cz)
+	Kit.block(self, Vector3(3.6, 0.3, 4.2), Kit.xf(Vector3(cx, gy + 0.05, cz)), stone)
+	for sx in [-1.0, 1.0]:
+		Kit.block(self, Vector3(0.5, 2.6, 4.0), Kit.xf(Vector3(cx + sx * 1.5, gy + 1.45, cz)), stone)
+	Kit.block(self, Vector3(3.6, 0.5, 0.5), Kit.xf(Vector3(cx, gy + 2.9, cz + 1.75)), stone)
+	Kit.block(self, Vector3(3.6, 2.6, 0.5), Kit.xf(Vector3(cx, gy + 1.45, cz - 1.75)), stone)
+	var roof := Kit.mesh_node(self, Kit.gable_roof(3.6, 4.2, 1.1, 0.25, 0.18), Kit.uvmat("castle_wall_slates", "1k", Vector2(0.8, 0.8)), Kit.xf(Vector3(cx, gy + 3.15, cz), PI * 0.5))
+	Kit.mesh_node(self, Kit.box_mesh(Vector3(2.4, 2.4, 3.0), 0.01), Kit.emissive(Color(0.01, 0.012, 0.02), 0.0), Kit.xf(Vector3(cx, gy + 1.3, cz - 0.2)), false)
+	for k in 5:  # visible steps descending into the dark
+		Kit.mesh_node(self, Kit.box_mesh(Vector3(2.2, 0.18, 0.5), 0.02), stone, Kit.xf(Vector3(cx, gy + 0.18 - k * 0.2, cz + 1.2 - k * 0.45)), false)
+	Kit.omni(self, Vector3(cx, gy + 2.2, cz + 2.2), Color(0.5, 0.6, 1.0), 0.6, 4.0)
+	add_gate("arcane_library", Vector3(cx, gy, cz + 0.6), Vector3(cx + 0.2, gy + 0.05, cz + 4.2), PI, 1.3)
+
+	# East: the trail past the training stones to the Mentor's Tower.
+	add_gate("mentor_tower", Vector3(45.0, h.call(45.0, 18.8), 18.8), Vector3(39.0, h.call(39.0, 16.2) + 0.05, 16.2), atan2(13.0, 12.0), 2.4)
+	Kit.block(self, Vector3(0.18, 1.7, 0.18), Kit.xf(Vector3(41.0, h.call(41.0, 15.2) + 0.85, 15.2)), Kit.uvmat("dark_wooden_planks"), true, 0.02)
+	Kit.block(self, Vector3(1.1, 0.28, 0.06), Kit.xf(Vector3(41.0, h.call(41.0, 15.2) + 1.45, 15.2), 0.4), Kit.uvmat("dark_wooden_planks"), false, 0.01)
+
+	# South-west meadow: a ley-line portal (the only magical route, linking the two schools of magic).
+	var px := -12.0
+	var pz := 23.0
+	var py: float = h.call(px, pz)
+	for sx in [-1.0, 1.0]:
+		Kit.block(self, Vector3(0.7, 3.6, 0.7), Kit.xf(Vector3(px + sx * 1.6, py + 1.75, pz), 0.0), stone)
+	Kit.block(self, Vector3(4.2, 0.6, 0.8), Kit.xf(Vector3(px, py + 3.8, pz)), stone)
+	var portal := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(2.6, 3.4)
+	portal.mesh = q
+	var pm := ShaderMaterial.new()
+	pm.shader = load("res://shaders/magic/sigil.gdshader")
+	pm.set_shader_parameter("sides", 7)
+	pm.set_shader_parameter("color", Color(0.55, 0.45, 1.0))
+	pm.set_shader_parameter("intensity", 1.3)
+	pm.set_shader_parameter("spin", 0.25)
+	portal.material_override = pm
+	portal.position = Vector3(px, py + 1.75, pz)
+	portal.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(portal)
+	Kit.omni(self, Vector3(px, py + 1.8, pz + 0.8), Color(0.6, 0.5, 1.0), 1.0, 5.0)
+	add_gate("academy", Vector3(px, py, pz), Vector3(px, py + 0.05, pz - 3.0), 0.0, 1.2)
+
+	# Activities
+	var tome := add_interactable(Interactable.make("altar_spellbook", "Study the spellbook on the altar", "study", "ritual_sanctuary",
+		Vector3(0, DAIS_TOP, -1.9), {"knowledge": {"lore:arcane_orb_theory": 1}, "skills": {"arcane_orb": 0.1}}, "", 4.0))
+	tome.radius = 1.6
+	add_interactable(Interactable.make("ritual_circle_attune", "Attune to the ritual circle", "meditate", "ritual_sanctuary",
+		Vector3(0, DAIS_TOP, 0.5), {"skills": {"arcane_orb": 0.15}, "knowledge": {"attuned:ritual_circle": 1}}, "spell_casting", 4.2)).radius = 2.6
+	add_interactable(Interactable.make("training_stones_practice", "Practice strikes at the standing stones", "practice", "mage_training_grounds",
+		Vector3(tc.x, h.call(tc.x, tc.y), tc.y), {"skills": {"arcane_orb": 0.25}}, "magic_attack_1h", 2.3)).radius = 3.5
+	add_interactable(Interactable.make("statue_inspect", "Inspect the weathered gate statue", "inspect", "ritual_sanctuary",
+		Vector3(-4.4, h.call(-4.4, -14.0), -14.0), {"knowledge": {"lore:gate_guardian": 1}}, "look_around", 3.0)).radius = 2.0

@@ -23,6 +23,7 @@ run/max_fps=60
 
 RenderProfile="*res://scripts/core/render_profile.gd"
 GameInput="*res://scripts/core/game_input.gd"
+WorldState="*res://scripts/core/world_state.gd"
 
 [display]
 

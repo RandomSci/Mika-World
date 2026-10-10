@@ -77,6 +77,10 @@ uniform float _UvAnimScrollX = 0;
 uniform float _UvAnimRotation = 0;
 uniform float _UvAnimScrollY = 0;
 uniform float _DebugMode : hint_range(0,3,1) = 0.0;
+// Mika-Godot-Dev: VRM 1.0 lighting for point/spot lights (set by WorldCharacter for VRM1 avatars).
+// MToon 1.0 shades every light between shade and lit colour; the 0.x path below uses black shade,
+// halves the light and thresholds attenuation with _ShadeShift, which blackens VRoid faces indoors.
+uniform float _Vrm1Lighting : hint_range(0,1,1) = 0.0;
 
 uniform float _MToonVersion = 33;
 
@@ -376,6 +380,13 @@ void light() {
 		vec3 rimLighting = mix(staticRimLighting, mixedRimLighting, _RimLightingMix);
 		SPECULAR_LIGHT += mix(rim * rimLighting, vec3(0, 0, 0), isOutline);
 
+	} else if (_Vrm1Lighting > 0.5) {
+		float atten = length(vec3(ATTENUATION)) / length(vec3(1.0)); // distance falloff * shadow, smooth
+		vec3 col;
+		lighting = calculateLighting(mainUv, addDotNL, 1.0, shade, lit, LIGHT_COLOR * atten, col, lightIntensity);
+		diffuse_output = col * lighting;
+		vec3 rimLighting = mix(vec3(0.0), lighting, _RimLightingMix);
+		SPECULAR_LIGHT += mix(rim * rimLighting, vec3(0, 0, 0), isOutline);
 	} else {
 		vec3 addCol = vec3(0.0);
 		float addTmp;
