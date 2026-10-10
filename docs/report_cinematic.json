@@ -1,0 +1,309 @@
+{
+  "adapter": "Intel(R) Graphics (RPL-P)",
+  "profile": "CINEMATIC",
+  "renderer": "vulkan/forward_plus",
+  "resolution": [
+    1600.0,
+    900.0
+  ],
+  "shots": [
+    {
+      "avg_frame_ms": 60.84,
+      "draw_calls": 156,
+      "fps": 16.4,
+      "gpu_ms": 60.6,
+      "name": "cinematic_mika_front",
+      "primitives": 2002031,
+      "render_cpu_ms": 1.71,
+      "static_mem_mb": 278.8,
+      "video_mem_mb": 752.0,
+      "worst_frame_ms": 68.52
+    },
+    {
+      "name": "cinematic_mika_portrait"
+    },
+    {
+      "name": "cinematic_mika_side"
+    },
+    {
+      "name": "cinematic_mika_back"
+    },
+    {
+      "avg_frame_ms": 60.65,
+      "draw_calls": 197,
+      "fps": 16.5,
+      "gpu_ms": 60.56,
+      "name": "cinematic_establishing",
+      "primitives": 2705560,
+      "render_cpu_ms": 2.26,
+      "static_mem_mb": 278.9,
+      "video_mem_mb": 752.0,
+      "worst_frame_ms": 63.27
+    },
+    {
+      "avg_frame_ms": 60.71,
+      "draw_calls": 222,
+      "fps": 16.5,
+      "gpu_ms": 60.44,
+      "name": "cinematic_dais_lowangle",
+      "primitives": 2473364,
+      "render_cpu_ms": 2.08,
+      "static_mem_mb": 278.9,
+      "video_mem_mb": 752.0,
+      "worst_frame_ms": 64.3
+    },
+    {
+      "avg_frame_ms": 56.5,
+      "draw_calls": 216,
+      "fps": 17.7,
+      "gpu_ms": 56.33,
+      "name": "cinematic_colonnade_ground",
+      "primitives": 2456498,
+      "render_cpu_ms": 2.1,
+      "static_mem_mb": 278.9,
+      "video_mem_mb": 752.0,
+      "worst_frame_ms": 61.92
+    },
+    {
+      "avg_frame_ms": 55.56,
+      "draw_calls": 221,
+      "fps": 18.0,
+      "gpu_ms": 55.35,
+      "name": "cinematic_through_arch",
+      "primitives": 2852517,
+      "render_cpu_ms": 1.93,
+      "static_mem_mb": 278.9,
+      "video_mem_mb": 752.0,
+      "worst_frame_ms": 61.65
+    },
+    {
+      "avg_frame_ms": 60.52,
+      "draw_calls": 118,
+      "fps": 16.5,
+      "gpu_ms": 60.45,
+      "name": "cinematic_altar_detail",
+      "primitives": 2091007,
+      "render_cpu_ms": 1.36,
+      "static_mem_mb": 278.9,
+      "video_mem_mb": 752.0,
+      "worst_frame_ms": 68.36
+    },
+    {
+      "avg_frame_ms": 58.22,
+      "draw_calls": 83,
+      "fps": 17.2,
+      "gpu_ms": 58.23,
+      "name": "cinematic_west_ruins",
+      "primitives": 2191503,
+      "render_cpu_ms": 1.53,
+      "static_mem_mb": 278.9,
+      "video_mem_mb": 752.0,
+      "worst_frame_ms": 62.93
+    },
+    {
+      "avg_frame_ms": 55.26,
+      "draw_calls": 81,
+      "fps": 18.1,
+      "gpu_ms": 55.07,
+      "name": "cinematic_training_clearing",
+      "primitives": 2107621,
+      "render_cpu_ms": 1.44,
+      "static_mem_mb": 278.9,
+      "video_mem_mb": 752.0,
+      "worst_frame_ms": 59.15
+    },
+    {
+      "name": "cinematic_walk_chase"
+    },
+    {
+      "name": "cinematic_run_chase"
+    },
+    {
+      "avg_frame_ms": 60.8,
+      "draw_calls": 199,
+      "fps": 16.4,
+      "gpu_ms": 60.7,
+      "name": "cinematic_night_establishing",
+      "primitives": 2651355,
+      "render_cpu_ms": 2.16,
+      "static_mem_mb": 280.6,
+      "video_mem_mb": 800.3,
+      "worst_frame_ms": 68.61
+    },
+    {
+      "avg_frame_ms": 59.48,
+      "draw_calls": 208,
+      "fps": 16.8,
+      "gpu_ms": 59.27,
+      "name": "cinematic_night_dais",
+      "primitives": 2483765,
+      "render_cpu_ms": 1.87,
+      "static_mem_mb": 280.6,
+      "video_mem_mb": 800.3,
+      "worst_frame_ms": 66.3
+    }
+  ],
+  "tests": {
+    "bridge_navigate": {
+      "finished": {
+        "detail": "arrived",
+        "ok": true
+      },
+      "reply": {
+        "cmd": "navigate_to",
+        "id": "tour-1",
+        "ok": true,
+        "status": "started",
+        "target": [
+          0.0,
+          0.6,
+          0.0
+        ]
+      },
+      "seconds": 10.97
+    },
+    "bridge_observe": {
+      "cmd": "observe",
+      "id": "tour-3",
+      "observation": {
+        "action_detail": {},
+        "area": "ritual_platform",
+        "casting": false,
+        "current_action": "idle",
+        "facing_yaw_deg": 4.9,
+        "forward": [
+          -0.09,
+          -1.0
+        ],
+        "id": "mika",
+        "interactions": [
+          "observe",
+          "navigate_to",
+          "look_at",
+          "stop",
+          "cast_spell:arcane_orb",
+          "start_training"
+        ],
+        "name": "Mika",
+        "nearby": [
+          {
+            "bearing_deg": 6.6,
+            "description": "Engraved arcane circle at the centre of the dais",
+            "distance": 0.4,
+            "id": "ritual_circle"
+          },
+          {
+            "bearing_deg": -2.3,
+            "description": "Octagonal spell-learning pedestal with books and a floating crystal",
+            "distance": 1.75,
+            "id": "spell_altar"
+          },
+          {
+            "bearing_deg": -46.8,
+            "description": "Burning stone brazier",
+            "distance": 6.17,
+            "id": "brazier_ne"
+          },
+          {
+            "bearing_deg": 78.3,
+            "description": "Curved ruined wall with a mossy rock outcrop",
+            "distance": 11.68,
+            "id": "west_ruins"
+          },
+          {
+            "bearing_deg": -69.6,
+            "description": "Ruined wall and the north-east rock face",
+            "distance": 12.64,
+            "id": "east_ruins"
+          },
+          {
+            "bearing_deg": 178.1,
+            "description": "Stone-lined path leading south into the forest",
+            "distance": 13.64,
+            "id": "south_path"
+          }
+        ],
+        "on_floor": true,
+        "other_characters": [],
+        "position": [
+          0.08,
+          0.6,
+          0.39
+        ],
+        "recent_events": [
+          {
+            "action": "navigate_to",
+            "detail": {
+              "run": false,
+              "target": [
+                0.0,
+                0.600000023841858,
+                0.0
+              ]
+            },
+            "event": "action_started",
+            "ok": true
+          },
+          {
+            "action": "navigate_to",
+            "detail": "arrived",
+            "event": "action_finished",
+            "ok": true
+          },
+          {
+            "action": "look_at",
+            "detail": {
+              "target": [
+                0.0,
+                0.600000023841858,
+                -1.35000002384186
+              ]
+            },
+            "event": "action_started",
+            "ok": true
+          },
+          {
+            "action": "look_at",
+            "detail": "facing target",
+            "event": "action_finished",
+            "ok": true
+          }
+        ],
+        "speed": 0.0,
+        "visible": [
+          "ritual_circle",
+          "spell_altar",
+          "brazier_ne",
+          "gothic_statue"
+        ]
+      },
+      "ok": true,
+      "status": "done"
+    },
+    "cast_day": {
+      "action_after": "idle",
+      "avg_fps_during_cast": 8.4,
+      "clip_seconds": 7.47,
+      "ok": true
+    },
+    "cast_night": {
+      "action_after": "idle",
+      "avg_fps_during_cast": 9.1,
+      "clip_seconds": 7.47,
+      "ok": true
+    },
+    "movement": {
+      "end_position": [
+        3.05222487449646,
+        -0.0417653359472752,
+        15.4186000823975
+      ],
+      "ground_height_at_end": -0.0511914074420929,
+      "on_floor_after": true,
+      "run_distance_m": 10.62,
+      "run_speed_mps": 4.24,
+      "walk_distance_m": 3.66,
+      "walk_speed_mps": 1.46
+    }
+  }
+}

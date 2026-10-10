@@ -1,0 +1,422 @@
+class_name WorldCharacter
+extends CharacterBody3D
+## A humanoid VRM character living in the world. Input-agnostic: a PlayerController,
+## the AI ActionBridge, or (later) a companion brain all drive it through the same API:
+##   set_move_input(dir, run) · navigate_to(pos) · look_at_point(pos) · cast_spell(id) · stop_action()
+## Every action reports completion via `action_finished(action, ok, detail)`.
+
+signal action_started(action: String, detail: Dictionary)
+signal action_finished(action: String, ok: bool, detail: String)
+signal cast_event(event: String)
+
+const MIXAMO_DIR := "res://assets/animations/mixamo/"
+## name -> [file, loop, in_place]
+const CLIPS := {
+	"idle": ["standing_idle.fbx", true, true],
+	"walk": ["walking.fbx", true, true],
+	"run": ["run_forward.fbx", true, true],
+	"jog": ["jog_forward.fbx", true, true],
+	"look_around": ["look_around.fbx", false, true],
+	"wave": ["waving.fbx", false, true],
+	"prepare_and_cast": ["prepare_and_cast.fbx", false, true],
+	"spell_casting": ["spell_casting.fbx", false, true],
+	"wide_arm_spell": ["wide_arm_spell_casting.fbx", false, true],
+	"magic_attack_2h": ["standing_2h_magic_attack_01.fbx", false, true],
+	"magic_attack_1h": ["standing_1h_magic_attack_03.fbx", false, true],
+}
+
+@export var character_id := "mika"
+@export var display_name := "Mika"
+@export var avatar_path := "res://assets/characters/mika/Mika.vrm"
+@export var walk_speed := 1.45
+@export var run_speed := 4.1
+@export var turn_speed := 10.0
+
+var avatar: Node3D
+var skeleton: Skeleton3D
+var body_player: AnimationPlayer
+var anim_tree: AnimationTree
+var left_hand: BoneAttachment3D
+var right_hand: BoneAttachment3D
+var chest: BoneAttachment3D
+var nav_agent: NavigationAgent3D
+var world: Node  # the Sanctuary (for magic bounce / rune floor), set by main
+
+var current_action := "idle"
+var last_rejection := ""  # reason the most recent action request was refused outright
+var action_detail := {}
+var casting := false
+var _move_input := Vector3.ZERO
+var _run := false
+var _look_target = null
+var _nav_active := false
+var _nav_stuck_time := 0.0
+var _nav_last_pos := Vector3.ZERO
+var _nav_goal := Vector3.ZERO
+var _action_deadline := 0.0
+var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
+var _expr := {}            # expression name -> Array[[MeshInstance3D, blend_idx, value]]
+var _expr_weight := {}     # expression name -> current weight
+var _expr_target := {}
+var _blink_timer := 2.0
+var _blink_phase := -1.0
+var _speed_smoothed := 0.0
+
+
+func _ready() -> void:
+	floor_snap_length = 0.45
+	floor_max_angle = deg_to_rad(46)
+	var shape := CapsuleShape3D.new()
+	shape.radius = 0.28
+	shape.height = 1.55
+	var cs := CollisionShape3D.new()
+	cs.shape = shape
+	cs.position.y = 0.775
+	add_child(cs)
+
+	avatar = load(avatar_path).instantiate()
+	avatar.name = "Avatar"
+	avatar.rotation.y = PI  # VRM 1.0 faces +Z; Godot forward is -Z
+	add_child(avatar)
+	skeleton = avatar.find_child("GeneralSkeleton", true, false)
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	_setup_animation()
+	_setup_expressions()
+	left_hand = _attach("LeftHand")
+	right_hand = _attach("RightHand")
+	chest = _attach("UpperChest")
+
+	nav_agent = NavigationAgent3D.new()
+	nav_agent.path_desired_distance = 0.6
+	nav_agent.target_desired_distance = 0.45
+	nav_agent.radius = 0.35
+	nav_agent.height = 1.6
+	add_child(nav_agent)
+
+
+func _attach(bone: String) -> BoneAttachment3D:
+	var ba := BoneAttachment3D.new()
+	ba.bone_name = bone
+	ba.name = bone + "Attach"
+	skeleton.add_child(ba)
+	return ba
+
+
+# ------------------------------------------------------------------ animation
+func _setup_animation() -> void:
+	body_player = AnimationPlayer.new()
+	body_player.name = "BodyPlayer"
+	avatar.add_child(body_player)
+	body_player.root_node = body_player.get_path_to(avatar)
+	var lib := AnimationLibrary.new()
+	var skel_path := String(avatar.get_path_to(skeleton))
+	for clip_name in CLIPS:
+		var spec: Array = CLIPS[clip_name]
+		var src: Node = load(MIXAMO_DIR + spec[0]).instantiate()
+		var ap: AnimationPlayer = src.find_child("AnimationPlayer", true, false)
+		var anim: Animation = ap.get_animation("mixamo_com").duplicate(true)
+		src.free()
+		_retarget_paths(anim, skel_path, spec[2])
+		anim.loop_mode = Animation.LOOP_LINEAR if spec[1] else Animation.LOOP_NONE
+		lib.add_animation(clip_name, anim)
+	body_player.add_animation_library("mx", lib)
+
+	anim_tree = AnimationTree.new()
+	anim_tree.name = "AnimTree"
+	avatar.add_child(anim_tree)
+	anim_tree.anim_player = anim_tree.get_path_to(body_player)
+	anim_tree.root_node = anim_tree.get_path_to(avatar)
+	anim_tree.deterministic = false
+	var bt := AnimationNodeBlendTree.new()
+	var loco := AnimationNodeBlendSpace1D.new()
+	for p in [["mx/idle", 0.0, "idle"], ["mx/walk", 1.0, "walk"], ["mx/run", 2.0, "run"]]:
+		var an := AnimationNodeAnimation.new()
+		an.animation = p[0]
+		loco.add_blend_point(an, p[1], -1, p[2])
+	loco.min_space = 0.0
+	loco.max_space = 2.0
+	bt.add_node("loco", loco, Vector2(0, 0))
+	var ts := AnimationNodeTimeScale.new()
+	bt.add_node("loco_speed", ts, Vector2(200, 0))
+	var cast_anim := AnimationNodeAnimation.new()
+	cast_anim.animation = "mx/prepare_and_cast"
+	bt.add_node("cast_anim", cast_anim, Vector2(200, 200))
+	var shot := AnimationNodeOneShot.new()
+	shot.fadein_time = 0.35
+	shot.fadeout_time = 0.55
+	shot.mix_mode = AnimationNodeOneShot.MIX_MODE_BLEND
+	bt.add_node("cast", shot, Vector2(400, 0))
+	bt.connect_node("loco_speed", 0, "loco")
+	bt.connect_node("cast", 0, "loco_speed")
+	bt.connect_node("cast", 1, "cast_anim")
+	bt.connect_node("output", 0, "cast")
+	anim_tree.tree_root = bt
+	anim_tree.active = true
+
+
+## Point tracks at Mika's skeleton, drop bones she doesn't have, and make clips in-place.
+func _retarget_paths(anim: Animation, skel_path: String, in_place: bool) -> void:
+	for t in range(anim.get_track_count() - 1, -1, -1):
+		var path := String(anim.track_get_path(t))
+		var bone := path.get_slice(":", 1)
+		if bone == "" or skeleton.find_bone(bone) == -1:
+			anim.remove_track(t)
+			continue
+		anim.track_set_path(t, NodePath(skel_path + ":" + bone))
+		if in_place and bone == "Hips" and anim.track_get_type(t) == Animation.TYPE_POSITION_3D:
+			var first: Vector3 = anim.track_get_key_value(t, 0)
+			for k in anim.track_get_key_count(t):
+				var v: Vector3 = anim.track_get_key_value(t, k)
+				anim.track_set_key_value(t, k, Vector3(first.x, v.y, first.z))
+
+
+func animation_length(clip: String) -> float:
+	return body_player.get_animation("mx/" + clip).length
+
+
+# ------------------------------------------------------------------ expressions (VRM blend shapes)
+func _setup_expressions() -> void:
+	var vrm_ap: AnimationPlayer = avatar.find_child("AnimationPlayer", false, false)
+	if vrm_ap == null:
+		return
+	for ex in ["blink", "happy", "relaxed", "surprised", "aa", "angry"]:
+		if not vrm_ap.has_animation(ex):
+			continue
+		var anim := vrm_ap.get_animation(ex)
+		var binds := []
+		for t in anim.get_track_count():
+			if anim.track_get_type(t) != Animation.TYPE_BLEND_SHAPE or anim.track_get_key_count(t) == 0:
+				continue
+			var np := anim.track_get_path(t)
+			var mi := vrm_ap.get_node(vrm_ap.root_node).get_node_or_null(NodePath(String(np).get_slice(":", 0))) as MeshInstance3D
+			if mi == null:
+				continue
+			var idx := mi.find_blend_shape_by_name(String(np).get_slice(":", 1))
+			if idx >= 0:
+				binds.append([mi, idx, float(anim.track_get_key_value(t, anim.track_get_key_count(t) - 1))])
+		_expr[ex] = binds
+		_expr_weight[ex] = 0.0
+		_expr_target[ex] = 0.0
+
+
+func set_expression(ex: String, weight: float) -> void:
+	if _expr_target.has(ex):
+		_expr_target[ex] = clampf(weight, 0.0, 1.0)
+
+
+func _update_expressions(delta: float) -> void:
+	# natural blinking
+	_blink_timer -= delta
+	if _blink_timer <= 0.0 and _blink_phase < 0.0:
+		_blink_phase = 0.0
+		_blink_timer = randf_range(2.2, 5.5)
+	var blink := 0.0
+	if _blink_phase >= 0.0:
+		_blink_phase += delta / 0.16
+		blink = sin(clampf(_blink_phase, 0.0, 1.0) * PI)
+		if _blink_phase >= 1.0:
+			_blink_phase = -1.0
+	var weights := {}
+	for ex in _expr:
+		_expr_weight[ex] = move_toward(_expr_weight[ex], _expr_target[ex], delta * 3.0)
+		weights[ex] = _expr_weight[ex]
+	if weights.has("blink"):
+		weights["blink"] = maxf(blink * (1.0 - weights.get("happy", 0.0)), 0.0)
+	var totals := {}
+	for ex in _expr:
+		for b in _expr[ex]:
+			var key: String = str(b[0].get_instance_id()) + ":" + str(b[1])
+			totals[key] = [b[0], b[1], minf(totals.get(key, [null, 0, 0.0])[2] + b[2] * weights[ex], 1.0)]
+	for key in totals:
+		var e: Array = totals[key]
+		(e[0] as MeshInstance3D).set_blend_shape_value(e[1], e[2])
+
+
+# ------------------------------------------------------------------ public control API
+func set_move_input(dir: Vector3, run: bool) -> void:
+	_move_input = Vector3(dir.x, 0, dir.z).limit_length(1.0)
+	_run = run
+	if _move_input.length() > 0.1 and (_nav_active or current_action == "look_at"):
+		_finish_action(false, "interrupted by player input")
+
+
+func navigate_to(target: Vector3, run := false) -> void:
+	if casting:
+		action_finished.emit("navigate_to", false, "busy casting")
+		return
+	_finish_action(false, "superseded by navigate_to")
+	var map := get_world_3d().navigation_map
+	if NavigationServer3D.map_get_iteration_id(map) == 0:
+		last_rejection = "navigation not ready yet"
+		action_finished.emit("navigate_to", false, last_rejection)
+		return
+	var reachable := NavigationServer3D.map_get_closest_point(map, target)
+	if reachable.distance_to(target) > 2.0:
+		last_rejection = "unreachable: nearest walkable point is %.1f m from target" % reachable.distance_to(target)
+		action_finished.emit("navigate_to", false, last_rejection)
+		return
+	_nav_goal = target
+	nav_agent.target_position = target
+	_nav_active = true
+	_run = run
+	_nav_stuck_time = 0.0
+	_nav_last_pos = global_position
+	_action_deadline = Time.get_ticks_msec() / 1000.0 + 90.0
+	_begin_action("navigate_to", {"target": [target.x, target.y, target.z], "run": run})
+
+
+func look_at_point(target: Vector3) -> void:
+	_finish_action(false, "superseded by look_at")
+	_look_target = target
+	_action_deadline = Time.get_ticks_msec() / 1000.0 + 6.0
+	_begin_action("look_at", {"target": [target.x, target.y, target.z]})
+
+
+func stop_action() -> void:
+	if casting:
+		anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
+	_finish_action(false, "stopped")
+	set_move_input(Vector3.ZERO, false)
+
+
+## Begins a cast; the spell node drives the visuals and calls `end_cast()` when resolved.
+func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
+	if casting or not is_on_floor():
+		action_finished.emit("cast_spell", false, "already casting" if casting else "not on the ground")
+		return null
+	_finish_action(false, "superseded by cast")
+	casting = true
+	_nav_active = false
+	(anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast_anim").animation = "mx/" + clip
+	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	_begin_action("cast_spell", {"clip": clip})
+	set_expression("relaxed", 0.0)
+	var spell: Node3D = spell_scene.new()
+	get_parent().add_child(spell)
+	spell.call("start", self, clip)
+	return spell
+
+
+func end_cast(ok: bool, detail: String) -> void:
+	casting = false
+	set_expression("happy", 0.0)
+	set_expression("surprised", 0.0)
+	if current_action == "cast_spell":
+		_finish_action(ok, detail)
+
+
+func _begin_action(action: String, detail: Dictionary) -> void:
+	current_action = action
+	action_detail = detail
+	action_started.emit(action, detail)
+
+
+func _finish_action(ok: bool, detail: String) -> void:
+	if current_action == "idle":
+		return
+	var a := current_action
+	current_action = "idle"
+	action_detail = {}
+	_nav_active = false
+	_look_target = null
+	if a == "navigate_to" or a == "look_at":
+		_run = false
+	action_finished.emit(a, ok, detail)
+
+
+# ------------------------------------------------------------------ simulation
+func _physics_process(delta: float) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var desired := _move_input
+	if _nav_active:
+		if nav_agent.is_navigation_finished():
+			var miss := Vector2(global_position.x - _nav_goal.x, global_position.z - _nav_goal.z).length()
+			if miss <= 1.2:
+				_finish_action(true, "arrived (%.2f m from target)" % miss)
+			else:
+				_finish_action(false, "stopped %.2f m short of target (blocked)" % miss)
+			desired = Vector3.ZERO
+		else:
+			var next := nav_agent.get_next_path_position()
+			desired = (next - global_position)
+			desired.y = 0
+			desired = desired.normalized()
+			if global_position.distance_to(_nav_last_pos) < 0.05:
+				_nav_stuck_time += delta
+			else:
+				_nav_stuck_time = 0.0
+				_nav_last_pos = global_position
+			if _nav_stuck_time > 3.0:
+				_finish_action(false, "stuck: no progress for 3 s")
+			elif now > _action_deadline:
+				_finish_action(false, "timeout")
+	if casting:
+		desired = Vector3.ZERO
+	var speed := run_speed if _run else walk_speed
+	var target_vel := desired * speed
+	var accel := 10.0 if desired.length() > 0.01 else 12.0
+	velocity.x = move_toward(velocity.x, target_vel.x, accel * delta * speed)
+	velocity.z = move_toward(velocity.z, target_vel.z, accel * delta * speed)
+	if not is_on_floor():
+		velocity.y -= _gravity * delta
+	else:
+		velocity.y = minf(velocity.y, 0.0)
+	move_and_slide()
+
+	# orientation: face travel direction, or the look target
+	var face_dir := Vector3.ZERO
+	var hv := Vector3(velocity.x, 0, velocity.z)
+	if hv.length() > 0.2:
+		face_dir = hv.normalized()
+	elif _look_target != null:
+		face_dir = (_look_target as Vector3 - global_position)
+		face_dir.y = 0
+		if face_dir.length() > 0.01:
+			face_dir = face_dir.normalized()
+			var ang := absf(angle_difference(rotation.y, atan2(-face_dir.x, -face_dir.z)))
+			if ang < 0.05:
+				_finish_action(true, "facing target")
+			elif now > _action_deadline:
+				_finish_action(false, "timeout")
+	if face_dir != Vector3.ZERO:
+		var target_yaw := atan2(-face_dir.x, -face_dir.z)
+		rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-turn_speed * delta))
+
+	# locomotion blend: 0 idle, 1 walk, 2 run; time scale keeps feet planted
+	var spd := hv.length()
+	_speed_smoothed = lerpf(_speed_smoothed, spd, 1.0 - exp(-8.0 * delta))
+	var blend := 0.0
+	if _speed_smoothed < walk_speed:
+		blend = _speed_smoothed / walk_speed
+	else:
+		blend = 1.0 + clampf((_speed_smoothed - walk_speed) / (run_speed - walk_speed), 0.0, 1.0)
+	anim_tree.set("parameters/loco/blend_position", blend)
+	var ref := 1.0
+	if blend > 0.05 and blend <= 1.0:
+		ref = clampf(_speed_smoothed / walk_speed, 0.6, 1.3)
+	elif blend > 1.0:
+		ref = clampf(_speed_smoothed / lerpf(walk_speed, run_speed, blend - 1.0), 0.7, 1.25)
+	anim_tree.set("parameters/loco_speed/scale", ref)
+
+
+func _process(delta: float) -> void:
+	_update_expressions(delta)
+
+
+# ------------------------------------------------------------------ observation
+func observe() -> Dictionary:
+	var p := global_position
+	var fwd := -global_transform.basis.z
+	return {
+		"id": character_id,
+		"name": display_name,
+		"position": [snappedf(p.x, 0.01), snappedf(p.y, 0.01), snappedf(p.z, 0.01)],
+		"facing_yaw_deg": snappedf(rad_to_deg(rotation.y), 0.1),
+		"forward": [snappedf(fwd.x, 0.01), snappedf(fwd.z, 0.01)],
+		"speed": snappedf(Vector3(velocity.x, 0, velocity.z).length(), 0.01),
+		"on_floor": is_on_floor(),
+		"current_action": current_action,
+		"action_detail": action_detail,
+		"casting": casting,
+	}

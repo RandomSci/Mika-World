@@ -1,8 +1,25 @@
 #!/usr/bin/env bash
+# Launch Mika World 2.0 (DEV). Independent of the production Three.js stream.
+#   ./run.sh                  CINEMATIC, Forward+ (Vulkan)
+#   ./run.sh live             LIVE_OPTIMIZED (use while OBS + the live stream share this laptop)
+#   ./run.sh ultra            ULTRA (stronger GPUs: SDFGI, 4 shadow cascades, MSAA)
+#   ./run.sh compat           Compatibility/OpenGL fallback (LIVE_OPTIMIZED settings)
+#   ./run.sh night            CINEMATIC at night
+#   ./run.sh tour [live]      automated screenshots + measurements -> screenshots/, then quits
+#   ./run.sh editor           open the Godot editor on this project
+# Extra Godot user args may follow, e.g. ./run.sh live --no-bridge
 set -eu
 cd "$(dirname "$0")"
-if command -v godot >/dev/null 2>&1; then exec godot --path .; fi
-if command -v godot4 >/dev/null 2>&1; then exec godot4 --path .; fi
-if command -v godot-mono >/dev/null 2>&1; then exec godot-mono --path .; fi
-printf 'Godot 4 was not found on PATH. Get the Linux editor from https://godotengine.org/download/linux/\nThen import project.godot, and press F5.\n' >&2
-exit 1
+GODOT="${GODOT:-$HOME/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64}"
+mode="${1:-cinematic}"; shift || true
+case "$mode" in
+  cinematic) exec "$GODOT" --path . -- --profile=cinematic "$@" ;;
+  live)      exec "$GODOT" --path . -- --profile=live "$@" ;;
+  ultra)     exec "$GODOT" --path . -- --profile=ultra "$@" ;;
+  night)     exec "$GODOT" --path . -- --profile=cinematic --night "$@" ;;
+  compat)    exec "$GODOT" --path . --rendering-method gl_compatibility -- --profile=live "$@" ;;
+  tour)      p="${1:-cinematic}"; shift || true
+             exec "$GODOT" --path . --resolution 1600x900 -- --tour --no-bridge --profile="$p" "$@" ;;
+  editor)    exec "$GODOT" --path . -e ;;
+  *) echo "unknown mode: $mode" >&2; exit 2 ;;
+esac

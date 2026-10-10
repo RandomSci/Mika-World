@@ -1,0 +1,9 @@
+[
+  {"id": "m1", "cmd": "observe"},
+  {"id": "m2", "cmd": "navigate_to", "target": "west_ruins", "wait": true, "timeout": 40},
+  {"id": "m3", "cmd": "look_at", "target": "north_arch", "wait": true, "timeout": 8},
+  {"id": "m4", "cmd": "navigate_to", "target": "ritual_circle", "run": true, "wait": true, "timeout": 40},
+  {"id": "m5", "cmd": "cast_spell", "spell": "arcane_orb", "wait": true, "timeout": 20},
+  {"id": "m6", "cmd": "navigate_to", "target": "nowhere"},
+  {"id": "m7", "cmd": "observe"}
+]

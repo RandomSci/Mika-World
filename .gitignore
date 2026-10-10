@@ -1,3 +1,6 @@
 .godot/
 *.import.tmp
-/screenshots/tmp/
+# Raw Mixamo animation files: not redistributable as raw assets (see ASSETS.md). Import settings ARE tracked.
+assets/animations/mixamo/*.fbx
+# Runtime screenshots (curated copies live in docs/screenshots)
+screenshots/
