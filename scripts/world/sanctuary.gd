@@ -39,8 +39,8 @@ var _group := "misc"  # perf category for nodes created by the helpers
 
 func build_steps() -> Array:
 	# The original build order, split into steps the streaming manager runs within a frame budget.
-	return [_step_init, _build_terrain, _build_architecture, _step_rocks, _build_trees, _step_foliage,
-		_step_props, _build_fires_and_lights, _register_points_of_interest, _build_world_links]
+	return [_step_init, _build_terrain, _build_architecture, _step_rocks, _build_trees, _step_grass, _step_ferns_shrubs,
+		_step_deadwood, _step_props, _build_fires_and_lights, _register_points_of_interest, _build_world_links]
 
 
 func _step_init() -> void:
@@ -56,9 +56,19 @@ func _step_rocks() -> void:
 	_build_rocks()
 
 
-func _step_foliage() -> void:
+func _step_grass() -> void:
 	_group = "foliage"
-	_build_foliage()
+	_build_foliage_part(0)
+
+
+func _step_ferns_shrubs() -> void:
+	_group = "foliage"
+	_build_foliage_part(1)
+
+
+func _step_deadwood() -> void:
+	_group = "foliage"
+	_build_foliage_part(2)
 
 
 func _step_props() -> void:
@@ -176,7 +186,7 @@ func _build_terrain() -> void:
 	add_child(body)
 	body.add_to_group("cat_terrain")
 	var mi := MeshInstance3D.new()
-	mi.mesh = terrain.build_mesh()
+	mi.mesh = terrain.build_mesh()  # also fills terrain.grid
 	mi.material_override = mats.terrain
 	body.add_child(mi)
 	var cs := CollisionShape3D.new()
@@ -255,11 +265,11 @@ func place_mesh(mesh: Mesh, pos: Vector3, yaw: float, scale_v: Vector3, collide 
 	mi.mesh = mesh
 	add_child(mi)
 	mi.add_to_group("cat_" + _group)
-	var ground := terrain.height(pos.x, pos.z) if pos.y < -50.0 else pos.y
+	var ground := terrain.fast_height(pos.x, pos.z) if pos.y < -50.0 else pos.y
 	mi.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(scale_v), Vector3(pos.x, ground - sink, pos.z))
 	if collide:
 		if not _shape_cache.has(mesh):
-			_shape_cache[mesh] = mesh.create_convex_shape(true, true)
+			_shape_cache[mesh] = mesh.create_convex_shape(true, false)  # no simplify pass: much faster on scanned rocks
 		_add_static_collision(mi, _shape_cache[mesh])
 	return mi
 
@@ -343,12 +353,13 @@ func _build_trees() -> void:
 		add_child(root)
 		root.add_to_group("cat_trees")
 		var s := rng.randf_range(0.95, 1.3)
-		root.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.height(p.x, p.y) - 0.15, p.y))
+		root.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.fast_height(p.x, p.y) - 0.15, p.y))
 		var casts_shadow := p.length() < 30.0
+		var near_end := 15.0 if RenderProfile.profile == RenderProfile.LIVE_OPTIMIZED else 24.0
 		for tm in lods.near:
-			root.add_child(_tree_part(tm, 0.0, 24.0, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+			root.add_child(_tree_part(tm, 0.0, near_end, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
 		for tm in lods.far:
-			root.add_child(_tree_part(tm, 24.0, 150.0, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+			root.add_child(_tree_part(tm, near_end, 150.0, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
 			if casts_shadow:
 				root.add_child(_tree_part(tm, 0.0, 0.0, GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY))
 		var body := StaticBody3D.new()
@@ -413,9 +424,18 @@ func _blocked(p: Vector2, margin := 0.0) -> bool:
 	return false
 
 
-func _build_foliage() -> void:
+func _build_foliage_part(part_i: int) -> void:
 	var density: float = RenderProfile.get_setting("foliage_density")
 	var tc := SanctuaryTerrain.TRAINING_CENTER
+	if part_i == 0:
+		_foliage_grass(density, tc)
+	elif part_i == 1:
+		_foliage_ferns_shrubs(density, tc)
+	else:
+		_foliage_deadwood()
+
+
+func _foliage_grass(density: float, tc: Vector2) -> void:
 
 	# Grass clumps (geometry blades) across the clearing and training area
 	var grass_mesh := _make_grass_clump_mesh()
@@ -431,12 +451,15 @@ func _build_foliage() -> void:
 			p = Vector2.from_angle(rng.randf() * TAU) * lerpf(8.6, 26.0, sqrt(rng.randf()))
 		if _blocked(p, -0.2):
 			continue
-		var y := terrain.height(p.x, p.y)
+		var y := terrain.fast_height(p.x, p.y)
 		var s := rng.randf_range(0.7, 1.35)
 		xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.3), s)), Vector3(p.x, y - 0.02, p.y)))
 		cols.append(Color(rng.randf_range(0.85, 1.1), rng.randf_range(0.9, 1.1), rng.randf_range(0.8, 1.0)))
 	_group = "grass"
 	_multimesh(grass_mesh, xf, 30.0, cols).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _foliage_ferns_shrubs(density: float, tc: Vector2) -> void:
 
 	_group = "foliage"
 	# Ferns hugging architecture bases, rocks and the forest edge
@@ -452,7 +475,7 @@ func _build_foliage() -> void:
 			if _blocked(p):
 				continue
 			var s := rng.randf_range(0.9, 1.7)
-			fx.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.height(p.x, p.y) - 0.03, p.y)))
+			fx.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.fast_height(p.x, p.y) - 0.03, p.y)))
 		_multimesh(_part_mesh("fern_02", part), fx, 60.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	# Shrubs: denser toward the forest, a few as accents near ruins
@@ -464,7 +487,7 @@ func _build_foliage() -> void:
 			if _blocked(p, 1.0) or p.distance_to(tc) < 9.0:
 				continue
 			var s := rng.randf_range(0.8, 1.5)
-			sx.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.height(p.x, p.y) - 0.05, p.y)))
+			sx.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.fast_height(p.x, p.y) - 0.05, p.y)))
 		_multimesh(_part_mesh(sp[0], sp[1]), sx, 90.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	# Small undergrowth flowers/weeds near the dais edge (shrub_03 sprigs)
@@ -475,9 +498,12 @@ func _build_foliage() -> void:
 			if _blocked(p):
 				continue
 			var s := rng.randf_range(1.0, 1.8)
-			wx.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.height(p.x, p.y), p.y)))
+			wx.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.fast_height(p.x, p.y), p.y)))
 		_multimesh(_part_mesh("shrub_03", part), wx, 35.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
+
+
+func _foliage_deadwood() -> void:
 	# Dead wood, stumps and roots in the forest margin
 	place_mesh(_part_mesh("dead_tree_trunk"), _ground(-15.0, 19.0), 0.6, Vector3.ONE * 1.3, true, 0.05)
 	place_mesh(_part_mesh("tree_stump_01"), _ground(18.0, 21.0), 1.0, Vector3.ONE * 1.1, true, 0.05)

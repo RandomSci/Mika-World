@@ -4,7 +4,7 @@ extends KitArea
 ## stone overlook hangs above a sea of clouds with snow-capped ranges beyond.
 
 const OVERLOOK := Vector3(26, 0, -6)
-const SKY := "res://assets/polyhaven/hdris/kloppenheim_06_puresky/kloppenheim_06_puresky_2k.hdr"
+const SKY := "res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr"
 const TRAIL := [Vector2(0, 42), Vector2(-14, 26), Vector2(10, 12), Vector2(-10, -4), Vector2(12, -18), Vector2(0, -36), Vector2(0, -44)]
 
 var stone: ShaderMaterial
@@ -12,15 +12,15 @@ var rock: ShaderMaterial
 
 
 static func resources() -> Array:
-	return textures(["rocky_terrain_02", "rock_wall_10", "stony_dirt_path", "castle_wall_slates", "snow_02"]) + textures(["cliff_side"], "2k") + \
+	return textures(["rock_wall_10", "stony_dirt_path", "castle_wall_slates", "snow_02"]) + textures(["leafy_grass"], "2k") + textures(["cliff_side"], "2k") + \
 		models(["mountainside", "namaqualand_boulder_02", "rock_moss_set_02", "boulder_01"]) + [SKY]
 
 
 func env_preset() -> Dictionary:
 	return {"sky_day": SKY,
-		"day": {"sun_rot": Vector3(-26, -140, 0), "sun_energy": 2.5, "sun_color": Color(1.0, 0.9, 0.78), "fog": 0.0012, "fog_color": Color(0.7, 0.76, 0.84), "vol_fog": 0.0, "exposure": 0.9, "bg_energy": 0.85},
+		"day": {"sun_rot": Vector3(-26, -140, 0), "sun_energy": 2.5, "sun_color": Color(1.0, 0.9, 0.78), "fog": 0.0005, "fog_color": Color(0.7, 0.76, 0.84), "vol_fog": 0.0, "exposure": 0.9, "bg_energy": 0.85},
 		"night": {"fog": 0.002, "ambient": 1.5, "exposure": 1.35},
-		"vista": {"mountains": true, "ridge_height": 520.0, "ridge_base": -240.0, "ridge_seed": 33, "snow_line": 40.0, "haze": Color(0.68, 0.74, 0.84), "cloud_sea": -70.0, "green": Color(0.3, 0.32, 0.28)}}
+		"vista": {"mountains": false, "ridge_height": 420.0, "mountain_count": 8, "ridge_base": -240.0, "ridge_seed": 33, "snow_line": 40.0, "haze": Color(0.68, 0.74, 0.84), "cloud_sea": -70.0, "green": Color(0.3, 0.32, 0.28)}}
 
 
 var _seg_len := []
@@ -73,7 +73,7 @@ func _ground() -> void:
 	stone = Kit.tri("castle_wall_slates", "1k", 0.5, 0.15, Color(0.85, 0.85, 0.85))
 	rock = Kit.tri("cliff_side", "2k", 0.1, 0.0)
 	magic_receivers = [stone, rock]
-	var mat := Kit.terrain_mat("rocky_terrain_02", "rock_wall_10", "stony_dirt_path", Color(0.85, 0.9, 0.78), Color(0.62, 0.64, 0.66))
+	var mat := Kit.terrain_mat("leafy_grass", "rock_wall_10", "stony_dirt_path", Color(0.78, 0.84, 0.6), Color(0.62, 0.64, 0.66), "2k")
 	mat.set_shader_parameter("grass2_albedo", load("res://assets/polyhaven/textures/snow_02/snow_02_diff_1k.jpg"))
 	Kit.terrain(self, 100.0, 1.0, height, func(x, z):
 		var tr := trail_t(Vector2(x, z))
@@ -140,5 +140,5 @@ func _links() -> void:
 
 func showcase_shots(loc: String) -> Array:
 	if loc == "cliff_overlook":
-		return [[OVERLOOK + Vector3(-9, height(OVERLOOK.x - 9, OVERLOOK.z) + 2.5 - OVERLOOK.y, 6), OVERLOOK + Vector3(30, -10, -12), 60.0]]
+		return [[OVERLOOK + Vector3(-6.5, height(OVERLOOK.x - 6.5, OVERLOOK.z + 3) + 2.2, 3.0), OVERLOOK + Vector3(400, -40, -150), 62.0]]
 	return [[Vector3(-12, height(-12, 34) + 3.0, 34), Vector3(4, height(4, 0) + 2.0, 0), 60.0]]

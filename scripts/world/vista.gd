@@ -23,8 +23,25 @@ static func build(area: AreaBase) -> Vista:
 		"rock_tex": load("res://assets/polyhaven/textures/cliff_side/cliff_side_diff_2k.jpg"),
 		"green_col": opts.get("green", Color(0.18, 0.26, 0.15)), "max_haze": opts.get("max_haze", 0.6)})
 	if opts.get("mountains", false):
-		var ring := Kit.mesh_node(v, _ridge_ring(opts.get("ridge_height", 260.0), opts.get("ridge_seed", 7)), mat, Transform3D(Basis.IDENTITY, Vector3(0, opts.get("ridge_base", -40.0), 0)), false)
-		ring.name = "MountainRing"
+		# Distant ranges = the scanned CC0 "mountainside" (10 m photogrammetry rock) scaled to km size:
+		# real rock forms read as mountains through the area's fog; auto mesh-LODs keep it cheap.
+		var mesh: Mesh = Kit.prop("mountainside") if ResourceLoader.exists(Kit.model_path("mountainside")) else null
+		var r := RandomNumberGenerator.new()
+		r.seed = int(opts.get("ridge_seed", 7))
+		var count: int = opts.get("mountain_count", 11)
+		var height_scale: float = opts.get("ridge_height", 300.0) / 300.0
+		for i in count:
+			var a := TAU * (i + r.randf_range(-0.3, 0.3)) / count
+			var dist := r.randf_range(1500.0, 2500.0)
+			var s := r.randf_range(140.0, 230.0)
+			var pos := Vector3(cos(a) * dist, opts.get("ridge_base", -40.0) - s * 0.05, sin(a) * dist)
+			if mesh:
+				var mi := Kit.mesh_node(v, mesh, null, Transform3D(Basis(Vector3.UP, r.randf() * TAU).scaled(Vector3(s, s * r.randf_range(0.12, 0.22) * height_scale, s)), pos), false)
+				mi.name = "Mountain%d" % i
+				mi.lod_bias = 0.6
+			else:
+				Kit.mesh_node(v, _ridge_ring(opts.get("ridge_height", 260.0), opts.get("ridge_seed", 7)), mat, Transform3D(Basis.IDENTITY, Vector3(0, opts.get("ridge_base", -40.0), 0)), false)
+				break
 	if opts.has("cloud_sea"):
 		var cs := MeshInstance3D.new()
 		var pm := PlaneMesh.new()

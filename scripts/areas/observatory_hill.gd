@@ -9,14 +9,14 @@ var stone: ShaderMaterial
 
 static func resources() -> Array:
 	return textures(["castle_wall_slates", "forrest_ground_01", "stony_dirt_path", "wood_table_001", "dark_wooden_planks", "large_grey_tiles"]) + textures(["leafy_grass"], "2k") + \
-		models(["Lantern_01", "fern_02", "shrub_02", "folding_wooden_stool"]) + [TREE_NEAR, TREE_FAR, "res://assets/polyhaven/hdris/kloppenheim_06_puresky/kloppenheim_06_puresky_2k.hdr"]
+		models(["Lantern_01", "fern_02", "shrub_02", "folding_wooden_stool"]) + [TREE_NEAR, TREE_FAR, "res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr"]
 
 
 func env_preset() -> Dictionary:
-	return {"sky_day": "res://assets/polyhaven/hdris/kloppenheim_06_puresky/kloppenheim_06_puresky_2k.hdr",
-		"day": {"sun_rot": Vector3(-20, -110, 0), "sun_energy": 2.1, "sun_color": Color(1.0, 0.8, 0.6), "fog": 0.0015, "vol_fog": 0.003, "exposure": 0.95, "bg_energy": 0.85},
+	return {"sky_day": "res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr",
+		"day": {"sun_rot": Vector3(-20, -110, 0), "sun_energy": 2.1, "sun_color": Color(1.0, 0.8, 0.6), "fog": 0.0005, "vol_fog": 0.003, "exposure": 0.95, "bg_energy": 0.85},
 		"night": {"fog": 0.002, "ambient": 1.4, "exposure": 1.35, "bg_energy": 1.2},
-		"vista": {"mountains": true, "ridge_height": 420.0, "ridge_seed": 12, "haze": Color(0.56, 0.62, 0.7), "snow_line": 260.0}}
+		"vista": {"mountains": false, "ridge_height": 420.0, "ridge_seed": 12, "haze": Color(0.56, 0.62, 0.7), "snow_line": 260.0}}
 
 
 func height(x: float, z: float) -> float:

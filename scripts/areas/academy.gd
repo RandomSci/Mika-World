@@ -6,7 +6,7 @@ extends KitArea
 const COURT := Vector3(0, 0, 0)
 const ARENA := Vector3(44, 0, 6)
 const GARDEN := Vector3(-42, 0, 6)
-const SKY := "res://assets/polyhaven/hdris/kloppenheim_06_puresky/kloppenheim_06_puresky_2k.hdr"
+const SKY := "res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr"
 
 var stone: ShaderMaterial
 var marble: ShaderMaterial
@@ -23,9 +23,9 @@ static func resources() -> Array:
 
 func env_preset() -> Dictionary:
 	return {"sky_day": SKY,
-		"day": {"sun_rot": Vector3(-32, -150, 0), "sun_energy": 2.3, "sun_color": Color(1.0, 0.88, 0.72), "fog": 0.0015, "fog_color": Color(0.62, 0.68, 0.76), "vol_fog": 0.003, "exposure": 0.92, "bg_energy": 0.85},
+		"day": {"sun_rot": Vector3(-32, -150, 0), "sun_energy": 2.3, "sun_color": Color(1.0, 0.88, 0.72), "fog": 0.0006, "fog_color": Color(0.62, 0.68, 0.76), "vol_fog": 0.003, "exposure": 0.92, "bg_energy": 0.85},
 		"night": {"fog": 0.003, "ambient": 1.4, "exposure": 1.35},
-		"vista": {"mountains": true, "ridge_height": 360.0, "ridge_seed": 55, "haze": Color(0.6, 0.66, 0.76), "snow_line": 260.0}}
+		"vista": {"mountains": false, "ridge_height": 360.0, "ridge_seed": 55, "haze": Color(0.6, 0.66, 0.76), "snow_line": 260.0}}
 
 
 func height(x: float, z: float) -> float:
@@ -283,7 +283,7 @@ func _links() -> void:
 func showcase_shots(loc: String) -> Array:
 	match loc:
 		"advanced_magic_arena":
-			return [[ARENA + Vector3(-15, 4.0, 14), ARENA + Vector3(0, 1, 0), 60.0]]
+			return [[ARENA + Vector3(-9.5, 2.6, 6.5), ARENA + Vector3(2, 1.2, -2), 62.0]]
 		"academy_gardens":
-			return [[GARDEN + Vector3(12, 3.0, 13), GARDEN + Vector3(0, 0.8, 0), 60.0]]
+			return [[GARDEN + Vector3(13, 2.6, -11), GARDEN + Vector3(0, 0.6, 1), 58.0]]
 	return [[Vector3(-10, 2.2, 26), Vector3(0, 9, -22), 62.0], [Vector3(14, 1.8, 18), Vector3(-6, 6, -16), 60.0]]

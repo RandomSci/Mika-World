@@ -40,7 +40,8 @@ var left_hand: BoneAttachment3D
 var right_hand: BoneAttachment3D
 var chest: BoneAttachment3D
 var nav_agent: NavigationAgent3D
-var world: Node  # the Sanctuary (for magic bounce / rune floor), set by main
+var world: Node  # the active area (magic bounce / rune floor), set by the streaming manager
+var sword: SwordLayer  # optional magical-sword layer
 
 var current_action := "idle"
 var last_rejection := ""  # reason the most recent action request was refused outright
@@ -320,6 +321,8 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 		action_finished.emit("cast_spell", false, "already casting" if casting else "not on the ground")
 		return null
 	_finish_action(false, "superseded by cast")
+	if sword and sword.drawn:
+		sword.sheathe()  # spells use both hands; keeps the original cast sequence unchanged
 	casting = true
 	_nav_active = false
 	(anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast_anim").animation = "mx/" + clip

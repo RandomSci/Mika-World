@@ -1,0 +1,3 @@
+[{"sleep": 2}, {"id": "s1", "cmd": "sword", "action": "draw"}, {"id": "m", "cmd": "navigate_to", "target": "ritual_circle", "run": true, "wait": true, "timeout": 30},
+ {"id": "s2", "cmd": "sword", "action": "attack"}, {"id": "s3", "cmd": "sword", "action": "attack"}, {"id": "s4", "cmd": "sword", "action": "power_up", "element": "fire"},
+ {"id": "s5", "cmd": "sword", "action": "power_up", "element": "lava"}, {"id": "c", "cmd": "cast_spell", "wait": true, "timeout": 20}, {"id": "o", "cmd": "observe"}, {"id": "w", "cmd": "travel_to", "location": "mage_training_grounds", "wait": true, "timeout": 60}]

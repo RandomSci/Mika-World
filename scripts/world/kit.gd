@@ -156,18 +156,14 @@ static func shader_mat(path: String, params := {}) -> ShaderMaterial:
 	return m
 
 
-## Drop cached materials/meshes/props that nothing outside the cache references any more.
+## Called when an area unloads: drop every cached material/mesh/prop/shape so their textures and
+## buffers can be freed (the next area rebuilds what it needs in a few ms). Returns entries dropped.
 static func release_unused() -> int:
-	var n := 0
-	for k in _convex.keys():
-		if not is_instance_valid(k) or (k as RefCounted).get_reference_count() <= 2:
-			_convex.erase(k)
-	for cache in [_mats, _meshes, _props]:
-		for k in cache.keys():
-			var r = cache[k]
-			if r is RefCounted and (r as RefCounted).get_reference_count() <= 1:
-				cache.erase(k)
-				n += 1
+	var n := _mats.size() + _meshes.size() + _props.size() + _convex.size()
+	_mats.clear()
+	_meshes.clear()
+	_props.clear()
+	_convex.clear()
 	return n
 
 

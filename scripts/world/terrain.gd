@@ -18,6 +18,7 @@ const PATHS := [
 
 var noise := FastNoiseLite.new()
 var micro := FastNoiseLite.new()
+var grid := PackedFloat32Array()   # heights computed once by build_mesh(); reused for collision + placement
 
 
 func _init() -> void:
@@ -71,6 +72,7 @@ func build_mesh() -> ArrayMesh:
 	for iz in n:
 		for ix in n:
 			heights[iz * n + ix] = height(-half + ix * STEP, -half + iz * STEP)
+	grid = heights
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for iz in n:
@@ -107,10 +109,25 @@ func build_collision_shape() -> HeightMapShape3D:
 	var shape := HeightMapShape3D.new()
 	shape.map_width = n
 	shape.map_depth = n
-	var data := PackedFloat32Array()
-	data.resize(n * n)
-	for iz in n:
-		for ix in n:
-			data[iz * n + ix] = height(-half + ix * STEP, -half + iz * STEP)
-	shape.map_data = data
+	if grid.size() != n * n:
+		build_mesh()
+	shape.map_data = grid
 	return shape
+
+
+## Bilinear lookup into the precomputed grid (identical to the collision surface).
+func fast_height(x: float, z: float) -> float:
+	var n := int(SIZE / STEP) + 1
+	if grid.size() != n * n:
+		return height(x, z)
+	var fx := clampf((x + SIZE * 0.5) / STEP, 0.0, n - 1.001)
+	var fz := clampf((z + SIZE * 0.5) / STEP, 0.0, n - 1.001)
+	var ix := int(fx)
+	var iz := int(fz)
+	var tx := fx - ix
+	var tz := fz - iz
+	var h00 := grid[iz * n + ix]
+	var h10 := grid[iz * n + ix + 1]
+	var h01 := grid[(iz + 1) * n + ix]
+	var h11 := grid[(iz + 1) * n + ix + 1]
+	return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), tz)

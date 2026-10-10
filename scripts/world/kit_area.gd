@@ -41,7 +41,7 @@ func tree(pos: Vector3, scale: float, yaw: float, shadow := true, collide := tru
 	var root := Node3D.new()
 	root.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * scale), pos)
 	add_child(root)
-	var near_end := 22.0 * scale
+	var near_end := (13.0 if RenderProfile.profile == RenderProfile.LIVE_OPTIMIZED else 22.0) * scale
 	for tm in _tree_meshes(TREE_NEAR):
 		root.add_child(_lod(tm, 0.0, near_end, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
 	for tm in _tree_meshes(TREE_FAR):

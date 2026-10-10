@@ -14,14 +14,14 @@ var crystal_cols := [Color(0.25, 0.85, 1.0), Color(0.55, 0.45, 1.0), Color(0.3, 
 static func resources() -> Array:
 	return textures(["rock_wall_10", "rocky_terrain_02", "forrest_ground_01", "stony_dirt_path"]) + textures(["cliff_side"], "2k") + \
 		models(["namaqualand_cliff_01", "boulder_01", "rock_moss_set_02", "moon_rock_01", "moon_rock_03", "moon_rock_05", "wooden_crate_01", "Lantern_01", "fern_02"]) + \
-		["res://assets/polyhaven/hdris/kloppenheim_06_puresky/kloppenheim_06_puresky_2k.hdr"]
+		["res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr"]
 
 
 func env_preset() -> Dictionary:
-	return {"sky_day": "res://assets/polyhaven/hdris/kloppenheim_06_puresky/kloppenheim_06_puresky_2k.hdr",
+	return {"sky_day": "res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr",
 		"day": {"sun_rot": Vector3(-35, 160, 0), "sun_energy": 2.2, "ambient": 0.35, "fog": 0.01, "fog_color": Color(0.1, 0.16, 0.2), "vol_fog": 0.02, "vol_albedo": Color(0.7, 0.85, 1.0), "exposure": 1.05, "bg_energy": 0.8},
 		"night": {"ambient": 0.3, "fog": 0.012, "fog_color": Color(0.03, 0.05, 0.08), "vol_fog": 0.02, "exposure": 1.3},
-		"vista": {"mountains": true, "ridge_height": 340.0, "ridge_seed": 21, "haze": Color(0.55, 0.62, 0.7)}}
+		"vista": {"mountains": false, "ridge_height": 340.0, "ridge_seed": 21, "haze": Color(0.55, 0.62, 0.7)}}
 
 
 func height(x: float, z: float) -> float:

@@ -24,3 +24,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("cast"):
 		character.cast_spell(ArcaneOrbSpell, spell_clip)
+	elif character.sword == null:
+		return
+	elif event.is_action_pressed("sword_toggle"):
+		if character.sword.drawn:
+			character.sword.sheathe()
+		else:
+			character.sword.draw()
+	elif event.is_action_pressed("sword_attack"):
+		character.sword.attack()
+	elif event.is_action_pressed("sword_power"):
+		character.sword.power_up()
+	elif event.is_action_pressed("sword_element"):
+		var keys: Array = SwordLayer.ELEMENTS.keys()
+		character.sword.set_element(keys[(keys.find(character.sword.element) + 1) % keys.size()])

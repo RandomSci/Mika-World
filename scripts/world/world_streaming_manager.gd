@@ -26,6 +26,7 @@ var state := "idle"             # idle | preloading | transition_out | unloading
 var cache := {}                 # area_id -> {"scene": PackedScene, "resources": Array, "used": msec}
 var loading := {}               # area_id -> {"phase": 1|2, "paths": PackedStringArray, "t0": msec, "error": ""}
 var last_report := {}
+var prewarm_once: Callable  # run once behind the first travel mask (shader pipeline compilation)
 var history: Array[Dictionary] = []
 
 
@@ -233,6 +234,10 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		camera_rig.snap_behind()
 	WorldState.current_area = to_area
 	WorldState.enter_location(area.location_at(at.origin))
+	if prewarm_once.is_valid():
+		var pw := prewarm_once
+		prewarm_once = Callable()
+		await pw.call()
 	state = "transition_in"
 	if masked and overlay:
 		await overlay.fade_in()

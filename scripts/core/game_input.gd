@@ -14,6 +14,10 @@ const BINDINGS := {
 	"photo_mode": [KEY_C],
 	"screenshot": [KEY_F12],
 	"release_mouse": [KEY_ESCAPE],
+	"sword_toggle": [KEY_R],
+	"sword_attack": [KEY_F],
+	"sword_power": [KEY_G],
+	"sword_element": [KEY_T],
 }
 
 

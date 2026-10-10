@@ -14,15 +14,15 @@ var rings: Array[Node3D] = []
 
 
 static func resources() -> Array:
-	return textures(["castle_wall_slates", "roof_slates_02", "rocky_terrain_02", "rock_wall_10", "stony_dirt_path", "dark_wooden_planks", "large_grey_tiles"]) + \
+	return textures(["leafy_grass"], "2k") + textures(["castle_wall_slates", "roof_slates_02", "rocky_terrain_02", "rock_wall_10", "stony_dirt_path", "dark_wooden_planks", "large_grey_tiles"]) + \
 		textures(["cliff_side", "monastery_stone_floor"], "2k") + models(["Lantern_01", "namaqualand_boulder_02", "brass_candleholders", "gothic_statue"]) + [SKY]
 
 
 func env_preset() -> Dictionary:
 	return {"sky_day": SKY,
-		"day": {"sun_rot": Vector3(-12, -70, 0), "sun_energy": 2.4, "sun_color": Color(1.0, 0.74, 0.5), "fog": 0.0008, "fog_color": Color(0.85, 0.72, 0.62), "vol_fog": 0.0, "exposure": 0.95, "bg_energy": 0.9, "saturation": 1.08},
+		"day": {"sun_rot": Vector3(-12, -70, 0), "sun_energy": 2.4, "sun_color": Color(1.0, 0.74, 0.5), "fog": 0.0004, "fog_color": Color(0.85, 0.72, 0.62), "vol_fog": 0.0, "exposure": 0.95, "bg_energy": 0.9, "saturation": 1.08},
 		"night": {"fog": 0.0015, "ambient": 1.6, "exposure": 1.4, "bg_energy": 1.3},
-		"vista": {"mountains": true, "ridge_height": 300.0, "ridge_base": -420.0, "ridge_seed": 44, "snow_line": -120.0, "haze": Color(0.86, 0.74, 0.68), "cloud_sea": -55.0}}
+		"vista": {"mountains": false, "ridge_height": 260.0, "mountain_count": 7, "ridge_base": -420.0, "ridge_seed": 44, "snow_line": -120.0, "haze": Color(0.86, 0.74, 0.68), "cloud_sea": -55.0}}
 
 
 func height(x: float, z: float) -> float:
@@ -40,7 +40,7 @@ func _ground() -> void:
 	roof = Kit.uvmat("roof_slates_02", "1k", Vector2(4, 3), Color(0.55, 0.6, 0.62))
 	wood = Kit.tri("dark_wooden_planks", "1k", 0.7, 0.0, Color(0.5, 0.28, 0.2))
 	magic_receivers = [stone]
-	var mat := Kit.terrain_mat("rocky_terrain_02", "rock_wall_10", "stony_dirt_path", Color(0.85, 0.88, 0.76), Color(0.6, 0.6, 0.62))
+	var mat := Kit.terrain_mat("leafy_grass", "rock_wall_10", "stony_dirt_path", Color(0.8, 0.82, 0.62), Color(0.6, 0.6, 0.62), "2k")
 	Kit.terrain(self, 90.0, 1.0, height, func(x, z):
 		var path := 1.0 - smoothstep(1.2, 2.5, absf(x * 0.5 + (z - 20.0) * 0.0) if z > -4.0 and z < 30.0 and absf(x) < 3.0 else 9.0)
 		return Color(path, smoothstep(0.85, 1.0, Vector2(x / 34.0, (z + 4.0) / 30.0).length()), 0.0), mat)

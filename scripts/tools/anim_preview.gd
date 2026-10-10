@@ -54,6 +54,12 @@ func _run() -> void:
 	await get_tree().create_timer(1.0).timeout
 	mika.anim_tree.active = false
 	mika.set_physics_process(false)
+	if RenderProfile.options.has("swordshots"):
+		await _sword_shots()
+		return
+	if RenderProfile.options.has("gripcal"):
+		await _grip_calibration()
+		return
 	var dir: String = RenderProfile.options.get("clipdir", "res://assets/animations/mixamo_sword")
 	var out: String = RenderProfile.options.get("out", "res://screenshots/sword")
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out))
@@ -169,4 +175,72 @@ func _run() -> void:
 	f.store_string(JSON.stringify(report, "  "))
 	f.close()
 	print("[preview] done ", report.size(), " clips")
+	get_tree().quit()
+
+
+## Measure the two-handed grip axis in the RightHand bone frame (blade must pass through both fists).
+func _grip_calibration() -> void:
+	var sl := SwordLayer.attach(mika)
+	await get_tree().process_frame
+	var sk := mika.skeleton
+	var rh_i := sk.find_bone("RightHand")
+	var lh_i := sk.find_bone("LeftHand")
+	var rmid := sk.find_bone("RightMiddleProximal")
+	var acc_dir := Vector3.ZERO
+	var acc_mid := Vector3.ZERO
+	var acc_palm := Vector3.ZERO
+	var n := 0
+	for role in ["idle", "walk", "slash", "attack", "block"]:
+		var anim := mika.body_player.get_animation("sw/" + role)
+		mika.body_player.play("sw/" + role)
+		mika.body_player.pause()
+		for i in 12:
+			mika.body_player.seek(anim.length * i / 11.0, true)
+			sk.force_update_all_bone_transforms()
+			var rh := sk.get_bone_global_pose(rh_i)
+			var lh := sk.get_bone_global_pose(lh_i)
+			if rh.origin.distance_to(lh.origin) > 0.22:
+				continue  # not in a two-handed grip at this instant
+			var inv := rh.basis.inverse()
+			acc_dir += inv * (rh.origin - lh.origin).normalized()
+			acc_mid += inv * ((rh.origin + lh.origin) * 0.5 - rh.origin)
+			if rmid >= 0:
+				acc_palm += inv * ((sk.get_bone_global_pose(rmid).origin + rh.origin) * 0.5 - rh.origin)
+			n += 1
+	acc_dir = (acc_dir / n).normalized()
+	print("[gripcal] samples=", n, " blade_dir_local=", acc_dir, " grip_mid_local=", acc_mid / n, " palm_local=", acc_palm / n)
+	get_tree().quit()
+
+
+func _sword_shots() -> void:
+	var sl := SwordLayer.attach(mika)
+	await get_tree().process_frame
+	sl.blade_root.visible = true
+	sl._glow(0.6)
+	var out: String = RenderProfile.options.get("out", "res://screenshots/sword")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out))
+	for role in ["idle", "slash", "attack", "power_up", "block", "slash_heavy"]:
+		var anim := mika.body_player.get_animation("sw/" + role)
+		mika.body_player.play("sw/" + role)
+		mika.body_player.pause()
+		var imgs := []
+		for k in 5:
+			mika.body_player.seek(anim.length * k / 4.0, true)
+			mika.skeleton.force_update_all_bone_transforms()
+			cam.global_position = Vector3(2.2, 1.4, -2.4)
+			cam.look_at(Vector3(0, 1.0, 0))
+			await get_tree().process_frame
+			await get_tree().process_frame
+			imgs.append(get_viewport().get_texture().get_image())
+		var w := 380
+		var h := 420
+		var sheet := Image.create(w * 5, h, false, Image.FORMAT_RGB8)
+		for k in 5:
+			var im: Image = imgs[k]
+			im.convert(Image.FORMAT_RGB8)
+			var crop := im.get_region(Rect2i(im.get_width() / 2 - im.get_height() * 9 / 20, 0, im.get_height() * 9 / 10, im.get_height()))
+			crop.resize(w, h)
+			sheet.blit_rect(crop, Rect2i(0, 0, w, h), Vector2i(k * w, 0))
+		sheet.save_png("%s/withsword_%s.png" % [out, role])
+	print("[preview] sword shots done")
 	get_tree().quit()

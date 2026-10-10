@@ -17,9 +17,9 @@ static func resources() -> Array:
 
 func env_preset() -> Dictionary:
 	return {
-		"day": {"sun_rot": Vector3(-34, 150, 0), "sun_energy": 2.2, "fog": 0.003, "fog_color": Color(0.55, 0.65, 0.7), "vol_fog": 0.006, "exposure": 0.95, "bg_energy": 0.7, "saturation": 1.08},
+		"day": {"sun_rot": Vector3(-34, 150, 0), "sun_energy": 2.2, "fog": 0.0009, "fog_color": Color(0.55, 0.65, 0.7), "vol_fog": 0.006, "exposure": 0.95, "bg_energy": 0.7, "saturation": 1.08},
 		"night": {"fog": 0.006, "fog_color": Color(0.05, 0.08, 0.13), "vol_fog": 0.01, "ambient": 1.5, "exposure": 1.35},
-		"vista": {"mountains": true, "ridge_height": 320.0, "green": Color(0.16, 0.25, 0.14), "haze": Color(0.56, 0.66, 0.74), "snow_line": 300.0},
+		"vista": {"mountains": false, "ridge_height": 320.0, "green": Color(0.16, 0.25, 0.14), "haze": Color(0.56, 0.66, 0.74), "snow_line": 300.0},
 	}
 
 

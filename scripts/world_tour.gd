@@ -78,6 +78,8 @@ func _go(location: String, mode := "walk") -> Dictionary:
 func _run() -> void:
 	var mika: WorldCharacter = main.characters["mika"]
 	main.player.enabled = false
+	main.hud.visible = false
+	main.prompt.visible = false
 	var rig: ThirdPersonCamera = main.camera_rig
 	await _wait(3.0)
 	var plan: PackedStringArray
@@ -144,15 +146,20 @@ func _run() -> void:
 				var worst := 0.0
 				var last := t0
 				var shot_done := false
+				var skip_next := false
 				while is_instance_valid(spell):
 					await get_tree().process_frame
 					var now := Time.get_ticks_usec()
-					worst = maxf(worst, (now - last) / 1000.0)
+					if not skip_next:
+						worst = maxf(worst, (now - last) / 1000.0)  # the frame that saved a PNG is excluded
+					skip_next = false
 					last = now
 					frames += 1
 					if not shot_done and spell.t > spell.duration * 0.6:
 						visit["shot_cast"] = _shot(loc + "_cast")
 						shot_done = true
+						skip_next = true
+						last = Time.get_ticks_usec()
 				var el := (Time.get_ticks_usec() - t0) / 1e6
 				visit["perf_cast"] = {"fps": snappedf(frames / el, 0.1), "worst_frame_ms": snappedf(worst, 0.01), "seconds": snappedf(el, 0.01)}
 		visit["world_state"] = WorldState.snapshot()

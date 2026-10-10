@@ -42,6 +42,7 @@ func _ready() -> void:
 	add_child(chars)
 	var mika := spawn_character("mika", "Mika", "res://assets/characters/mika/Mika.vrm", Transform3D.IDENTITY, chars)
 	mika.set_physics_process(false)
+	mika.sword = SwordLayer.attach(mika)
 
 	camera_rig = ThirdPersonCamera.new()
 	camera_rig.name = "CameraRig"
@@ -67,6 +68,7 @@ func _ready() -> void:
 	var start: String = RenderProfile.options.get("start", WorldState.registry.start_location)
 	if not WorldState.locations.has(start):
 		start = WorldState.registry.start_location
+	streaming.prewarm_once = func(): await ShaderPrewarm.run(camera_rig.camera, self)
 	var report := await streaming.travel(WorldState.area_of(start), mika)
 	if not report.get("ok", false):
 		push_error("[main] could not load start area: %s" % report)
@@ -182,7 +184,7 @@ func _process(delta: float) -> void:
 		WorldState.enter_location(loc)
 	if _fps_acc >= 0.5 and hud.visible:
 		var lname: String = WorldState.locations[loc].name if WorldState.locations.has(loc) else loc
-		hud.text = "%s · %s  |  %s  |  %.0f fps (%.1f ms)  |  %s\nArea loaded: %s  (streaming: %s, instantiated areas: %d)  Action: %s\nDiscovered %d/%d locations · WASD move · Shift run · Space cast · E interact · N day/night · P profile · H hide" % [
+		hud.text = "%s · %s  |  %s  |  %.0f fps (%.1f ms)  |  %s\nArea loaded: %s  (streaming: %s, instantiated areas: %d)  Action: %s\nDiscovered %d/%d locations · WASD move · Shift run · Space cast · E interact · R sword · F slash · G charge · T element · N day/night · P profile · H hide" % [
 			WorldState.regions[WorldState.areas[world.area_id].region].name, lname, RenderProfile.profile,
 			_fps_frames / _fps_acc, 1000.0 * _fps_acc / _fps_frames, "NIGHT" if WorldState.night else "DAY",
 			streaming.current_id, streaming.state, streaming._instantiated_count(), mika.current_action,

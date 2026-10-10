@@ -253,6 +253,22 @@ func handle(req: Dictionary) -> Dictionary:
 			reply.merge({"ok": true, "status": "done", "landmarks": landmarks(cid)})
 		"world_state":
 			reply.merge({"ok": true, "status": "done", "state": WorldState.snapshot(), "recent_activities": WorldState.activity_log.slice(maxi(0, WorldState.activity_log.size() - 5))})
+		"sword":
+			if c.sword == null or not c.sword.available:
+				reply.merge({"ok": false, "status": "error", "error": "sword layer unavailable"})
+			else:
+				var act := String(req.get("action", "draw"))
+				var r: Dictionary
+				match act:
+					"draw": r = await c.sword.draw()
+					"sheathe": r = c.sword.sheathe()
+					"attack": r = await c.sword.attack()
+					"power_up": r = await c.sword.power_up(String(req.get("element", "")))
+					"element": r = {"ok": c.sword.set_element(String(req.get("element", ""))), "detail": "element " + c.sword.element}
+					_: r = {"ok": false, "detail": "unknown sword action (draw|sheathe|attack|power_up|element)"}
+				reply.merge(r)
+				reply["status"] = "done" if r.ok else "error"
+				reply["sword"] = {"drawn": c.sword.drawn, "element": c.sword.element}
 		"probe_space":
 			# dev diagnostic: physics bodies overlapping a sphere around the character
 			var q := PhysicsShapeQueryParameters3D.new()

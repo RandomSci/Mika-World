@@ -6,7 +6,7 @@ extends KitArea
 const SQUARE := Vector3(0, 0, 0)
 const MARKET := Vector3(22, 0, -18)
 const WORKSHOP := Vector3(17, 0, 17)
-const SKY_DAY := "res://assets/polyhaven/hdris/kloppenheim_06_puresky/kloppenheim_06_puresky_2k.hdr"
+const SKY_DAY := "res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr"
 
 var m: Dictionary
 var stone: ShaderMaterial
@@ -22,9 +22,9 @@ static func resources() -> Array:
 
 func env_preset() -> Dictionary:
 	return {"sky_day": SKY_DAY,
-		"day": {"sun_rot": Vector3(-22, -120, 0), "sun_energy": 2.1, "sun_color": Color(1.0, 0.82, 0.64), "fog": 0.0025, "fog_color": Color(0.58, 0.62, 0.68), "vol_fog": 0.004, "exposure": 0.95, "bg_energy": 0.8},
+		"day": {"sun_rot": Vector3(-22, -120, 0), "sun_energy": 2.1, "sun_color": Color(1.0, 0.82, 0.64), "fog": 0.0007, "fog_color": Color(0.58, 0.62, 0.68), "vol_fog": 0.004, "exposure": 0.95, "bg_energy": 0.8},
 		"night": {"fog": 0.006, "fog_color": Color(0.06, 0.07, 0.1), "vol_fog": 0.012, "vol_albedo": Color(0.9, 0.8, 0.7), "ambient": 1.3, "exposure": 1.3},
-		"vista": {"mountains": true, "ridge_height": 380.0, "ridge_seed": 12, "haze": Color(0.55, 0.6, 0.68), "snow_line": 280.0, "green": Color(0.17, 0.24, 0.15)},
+		"vista": {"mountains": false, "ridge_height": 380.0, "ridge_seed": 12, "haze": Color(0.55, 0.6, 0.68), "snow_line": 280.0, "green": Color(0.17, 0.24, 0.15)},
 	}
 
 

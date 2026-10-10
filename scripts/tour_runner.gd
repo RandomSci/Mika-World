@@ -206,8 +206,12 @@ func _perf_probe() -> void:
 	await _wait(1.0)
 	var base := await _measure(1.5)
 	var probe := {"all": base}
-	for cat in ["terrain", "architecture", "rocks", "trees", "foliage", "grass", "props"]:
+	for cat in ["terrain", "architecture", "rocks", "trees", "foliage", "grass", "props", "vista", "links"]:
 		var nodes := get_tree().get_nodes_in_group("cat_" + cat)
+		if cat == "vista":
+			nodes = main.world.find_children("Vista", "", false, false)
+		if cat == "links":
+			nodes = main.world.find_children("Gate_*", "", false, false)
 		for n in nodes: n.visible = false
 		await _wait(0.4)
 		var m := await _measure(1.2)
