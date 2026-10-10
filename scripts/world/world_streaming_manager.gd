@@ -221,6 +221,12 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		frames += 1
 		await get_tree().process_frame
 	var t_built := Time.get_ticks_msec()
+	var layout_hash := _layout_hash(area)
+	if RenderProfile.options.has("hashdump"):
+		var f := FileAccess.open("user://layout_%s_%d.txt" % [to_area, history.size()], FileAccess.WRITE)
+		for n in area.find_children("*", "GeometryInstance3D", true, false):
+			f.store_line("%s\t%s" % [area.get_path_to(n), str((n as Node3D).global_transform.origin.snapped(Vector3.ONE * 0.001))])
+		f.close()
 	state = "baking"
 	await area.bake_navigation()
 	var t_nav := Time.get_ticks_msec()
@@ -252,7 +258,7 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		"mem_static_mb_before": mem_before.static_mb, "mem_static_mb_after": mem_after.static_mb,
 		"video_mb_after": mem_after.video_mb, "nodes_after": mem_after.nodes, "objects_after": mem_after.objects,
 		"nav_regions_after": mem_after.nav_regions, "instantiated_areas": _instantiated_count(),
-		"arrived_location": WorldState.current_location}
+		"arrived_location": WorldState.current_location, "layout_hash": layout_hash}
 	history.append(last_report)
 	area_activated.emit(to_area, last_report)
 	print("[stream] ", JSON.stringify(last_report))
@@ -281,3 +287,22 @@ static func _mem() -> Dictionary:
 		"objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
 		"resources": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
 		"nav_regions": int(Performance.get_monitor(Performance.NAVIGATION_REGION_COUNT))}
+
+
+## Deterministic fingerprint of everything placed in an area (mesh + multimesh instance transforms).
+## Identical on every visit ⇒ no reseeding, no spontaneous world changes.
+static func _layout_hash(area: Node) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_MD5)
+	var positions := []
+	for n in area.find_children("*", "GeometryInstance3D", true, false):
+		if String(area.get_path_to(n)).contains("AltarCrystal"):
+			continue  # deliberately animated (bobbing), not layout
+		if n is MeshInstance3D:
+			ctx.update(var_to_bytes((n as Node3D).global_transform.origin.snapped(Vector3.ONE * 0.001)))
+		elif n is MultiMeshInstance3D and (n as MultiMeshInstance3D).multimesh:
+			var mm := (n as MultiMeshInstance3D).multimesh
+			ctx.update(var_to_bytes(mm.instance_count))
+			for i in mini(mm.instance_count, 64):
+				ctx.update(var_to_bytes(mm.get_instance_transform(i).origin.snapped(Vector3.ONE * 0.001)))
+	return ctx.finish().hex_encode().left(12)

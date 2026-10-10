@@ -1,125 +1,111 @@
-# Mika World 2.0: Arcane Sanctuary (Godot 4.7.2, DEV)
+# Mika World 2.0 — streamed fantasy world (Godot 4.7.2, DEV)
 
-An independent Godot project. The **real Mika** (her VRoid VRM with MToon shading and spring bones) walks through a ruined forest sanctuary built from CC0 photogrammetry assets and casts a layered, animation-synced arcane spell.
-It does **not** touch the production Three.js stream, OBS, YouTube, production ports, credentials or memory.
+The real Mika (her VroidStudio VRM, MToon shading, expressions, spring bones) lives in a **streamed world of 6 regions,
+13 areas and 24 playable locations**. Only the area she is in is loaded; neighbouring areas preload on worker threads as
+she approaches a route, and travel is a short masked transition. She walks, runs, casts the Arcane Orb, draws a magical
+great-sword, does real activities that change world state, and can be driven by an external AI over an isolated
+localhost bridge. Fully separate from the production Three.js stream, OBS, YouTube and production services.
 
-![establishing](docs/screenshots/cinematic_establishing.jpg)
+![village observatory](docs/screenshots/world/live_optimized_village_observatory_view1.jpg)
 
 ## Launch
 
 ```bash
 cd ~/Downloads/Mika-Godot-Dev
-./run.sh            # CINEMATIC (Forward+/Vulkan)
-./run.sh live       # LIVE_OPTIMIZED: use this while OBS + the live stream share the laptop
-./run.sh night      # CINEMATIC at night
-./run.sh compat     # OpenGL Compatibility fallback
-./run.sh tour       # automated screenshots + perf report -> screenshots/, then quits
-./run.sh editor     # open in the Godot editor
+./run.sh live                 # LIVE_OPTIMIZED (recommended default; Forward+/Vulkan, 30 FPS cap)
+./run.sh                      # CINEMATIC
+./run.sh compat               # OpenGL Compatibility fallback
+./run.sh live --start=village_square     # start at any of the 24 location ids (see data/world.json)
 ```
+Exact command: `~/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64 --path ~/Downloads/Mika-Godot-Dev -- --profile=live`
 
-Exact command behind `./run.sh`:
-`~/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64 --path ~/Downloads/Mika-Godot-Dev -- --profile=cinematic`
-
-After a fresh clone, run `tools/setup_local_assets.sh` once (re-copies the git-ignored Mixamo FBX files), then open the editor or run `--headless --import`.
+Fresh clone: run `tools/setup_local_assets.sh` (re-copies git-ignored Mixamo files), then open the editor once or run
+`--headless --import`.
 
 ### Controls
-
 | Input | Action |
 |---|---|
-| W A S D | move (camera-relative) |
-| Shift | run |
-| Mouse | orbit camera (click to capture; Esc releases; or hold right button) |
-| Wheel | zoom |
-| Space | cast **Arcane Orb** |
-| N | toggle day / night |
-| P | cycle CINEMATIC → LIVE_OPTIMIZED → ULTRA |
-| H | toggle HUD |
-| F12 | screenshot to `screenshots/` |
+| WASD / Shift | move / run (camera-relative) |
+| Mouse (click to capture, Esc release), wheel | orbit, zoom |
+| Space | cast Arcane Orb |
+| E | perform the nearby activity shown on screen |
+| R / F / G / T | sword: draw-sheathe / 3-hit combo / elemental charge / next element |
+| walk into a route (path end, crypt stair, bridge road, cave mouth, portal…) | travel to the neighbouring area |
+| N · P · H · F12 | day-night · profile · HUD · screenshot |
 
-## What's in the build
+## World
 
-* **Real Mika avatar**: `Mika.vrm` (VRM 1.0, the canonical "FORMAL"/World-Edition outfit used by production) imported natively by V-Sekai **godot-vrm** (pinned to the commit that adds Godot 4.7 support). It keeps MToon materials, transparency, all 18 expressions, 49 spring-bone chains (hair, ears, tail), and the humanoid `GeneralSkeleton`. Blinking plus relaxed/happy/surprised expressions are driven during casts.
-* **Animation**: 11 Mixamo clips retargeted by Godot's own importer (`BoneMap` → `SkeletonProfileHumanoid`, overwrite-axis rest fixer, matching the VRM importer's convention). Unmapped bone tracks are dropped and locomotion is made in-place at runtime. The `AnimationTree` has an idle/walk/run blend space with stride-matched time-scale, plus a cast one-shot.
-* **Character controller**: `WorldCharacter` (`CharacterBody3D`, capsule, gravity, floor snap, Jolt physics) is input-agnostic: player, AI bridge, or a future companion drive the same API. Measured: walk 1.46 m/s, run 4.24 m/s, feet on the ground (y error < 1 cm).
-* **Sanctuary**:
-  * Custom Blender-modelled architecture (`tools/blender/build_sanctuary_architecture.py`, every block a real bevelled piece): a 3-tier segmented dais, 8 fluted columns with entasis (3 broken, plus fallen drums), lintels, a 13-voussoir arch gateway, curved masonry ruin walls, an octagonal spell altar with gold bands, and braziers.
-  * Textured with Poly Haven `mossy_rock` / `monastery_stone_floor` + ambientCG moss through a triplanar weathering shader.
-  * Poly Haven scanned rocks (two moss sets, `boulder_01`, `rock_face_01/02`, `namaqualand_boulder_02`), ferns, shrubs, stumps, roots, books, candleholders, lanterns, `gothic_statue`.
-  * LOD-reduced `jacaranda_tree` forest; procedural geometry grass; a 3-layer PBR terrain (`leafy_grass`, `forrest_ground_01`, `stony_dirt_path`).
-  * Engraved procedural rune circle in the floor that charges during casts.
-  * Training clearing with a standing-stone ring (east), reserved for the mentor.
-* **Lighting**: CC0 HDRI skies (`nature_reserve_forest` by day, starry `kloppenheim_02` by night); a warm low sun with 2-cascade soft shadows; AgX tonemapping; HDR-threshold glow (only magic and flames bloom); SSAO, SSIL, SSR, and light volumetric fog (CINEMATIC); flickering braziers and candles.
-* **Arcane Orb** (`scripts/magic/arcane_orb_spell.gd`), with phases keyed to the clip's own timeline:
-  1. A sigil draws itself under her feet and the dais runes wake outward.
-  2. Motes stream into her hands and hand lights build.
-  3. Three geometric sigil rings draw themselves around a forming orb (hot core + writhing shell + haze) with orbiting comet trails.
-  4. The orb's light (shadowed in CINEMATIC) and a stone "magic bounce" term light the surroundings.
-  5. Release: the orb launches, then bursts in sparks and a shockwave.
-  6. Clean fade; she returns to idle.
+| Region | Area (streaming unit) | Locations |
+|---|---|---|
+| Arcane Sanctuary | sanctuary | A1 Ritual Sanctuary · A2 Mage Training Grounds |
+| | arcane_library (interior) | A3 Ancient Spell Library |
+| | mentor_tower | A4 Mentor's Tower (walkable spiral stair + lookout) |
+| Enchanted Forest | ancient_grove | B1 Ancient Grove · B4 Forgotten Forest Shrine |
+| | river_valley | B2 Luminous River · B3 Waterfall Crossing (walkable arched bridge) |
+| Fantasy Village | village | C1 Village Square · C2 Lantern Market · C3 Craft Workshop |
+| | observatory_hill | C4 Village Observatory |
+| Crystal Caverns | crystal_caverns | D1 Crystal Entrance · D2 Luminous Crystal Hall |
+| | deep_caverns (interior) | D3 Underground Lake · D4 Ancient Vault |
+| Celestial Highlands | highland_path | E1 Mountain Path · E2 Cliff Overlook |
+| | celestial_summit | E3 Celestial Observatory · E4 Cloud Temple |
+| Grand Academy | academy | F1 Academy Courtyard · F3 Advanced Magic Arena · F4 Academy Gardens |
+| | great_library (interior) | F2 Great Library |
 
-## Render profiles (measured on this laptop, 1600×900, with OBS streaming)
+All 24 locations have their own geometry, landmark, navigation and at least one real activity (study, meditate, practise,
+collect, craft, trade, observe, pray…) whose effects are recorded in `WorldState` (skills, knowledge, inventory, discovered
+locations). Some activities have requirements (e.g. the vault seal needs a crystal shard; brewing needs luminous water).
 
-All numbers are real measurements from `./run.sh tour` (`docs/report_cinematic.json`) and quick tours. Intel Raptor Lake-P iGPU, Vulkan 1.4.305 (Mesa). The NVIDIA RTX 5050 driver is not loaded, so the iGPU does everything.
+Routes (`data/world.json` → `connections`) are physical: forest path through the north arch, crypt stairway under the west
+ruins, east trail, a ley-line portal (only between the two schools of magic), forest track, the waterfall bridge road,
+hill stairway, quarry road and cave mouth, descending tunnel, mountain road, summit stairway, library doors.
 
-| Profile | Renderer | Settings | FPS | GPU ms/frame | Draw calls | Video mem |
-|---|---|---|---|---|---|---|
-| CINEMATIC | Forward+ Vulkan | full res, TAA, SSAO(med) + SSIL + SSR, vol. fog, 4096 shadows | **14–18** (varies with OBS load) | 55–74 | 80–220 | ~750 MB |
-| LIVE_OPTIMIZED | Forward+ Vulkan | 75% FSR1, FXAA, SSAO(low), no SSIL/SSR/vol. fog, 2048 shadows, 55% foliage, 30 FPS cap | **30 (capped)** | 28–30 | 120–220 | ~600 MB |
-| Compatibility | OpenGL 4.6 | LIVE settings; no SSAO/SSIL/SSR/vol. fog | **30 (capped)** | ~14.5 | 130–250 | — |
-| ULTRA | Forward+ | SDFGI, 4 cascades, 8192 shadows, MSAA 2× | *defined, not run here* (meant for stronger GPUs) | | | |
+Landmarks are honest: the vista places impostors (Cloud Temple peak, Academy spires, Mentor's Tower, village lights,
+observatory dome) in their **true world-map direction** from the current area. The registry marks each as `destination`
+(with its playable location), `scenic` (Dragon Peaks, Floating Sky Spire — never reachable) or `unfinished`
+(Sunken Citadel — visible, planned, refused by `travel_to`).
 
-Peak process RSS: ~1.17 GB (CINEMATIC), ~0.77 GB (LIVE_OPTIMIZED); Godot static memory ~270–280 MB. Primitives per frame: ~1.5–2.8M after optimization (down from 38–63M in the first build).
+## Architecture
 
-## AI bridge (isolated, DEV only)
+```
+data/world.json                      registry: regions, areas, 24 locations, routes, landmarks (stable ids)
+scripts/core/world_state.gd          authoritative state: discovered/visited, activity log, skills, inventory, routing
+scripts/world/world_streaming_manager.gd  threaded 2-phase preload (scene → declared resources), LRU cache (3 areas),
+                                     validated swap, unload + cache release, budgeted activation, async nav bake, metrics
+scripts/world/travel_controller.gd   journeys: walk to the gate of each hop (next area preloads meanwhile) or fast travel
+                                     on visited routes; player gate crossings; proximity preloading
+scripts/world/area_base.gd           per-area environment/day-night, locations, gates, interactables, nav bake
+scripts/world/kit.gd, kit_area.gd    shared CC0 PBR materials, bevelled architecture primitives, props, scatter, terrain
+scripts/world/vista.gd               honest landmark impostors (+ optional cloud sea)
+scripts/areas/*.gd, scenes/areas/*.tscn   the 13 areas (sanctuary.gd is the original sanctuary, now streamed)
+scripts/characters/world_character.gd     Mika (any VRM humanoid): movement, step-up, actions, expressions, VRM1 MToon fix
+scripts/characters/sword_layer.gd    optional magical great-sword layer (docs/SWORD_ANIMATIONS.md)
+scripts/bridge/action_bridge.gd      isolated JSON bridge on 127.0.0.1:47651
+tools/mock_brain.py                  autonomous traversal over the bridge (no keyboard)
+scripts/world_tour.gd, face_test.gd, tools/anim_preview.gd   verification tools
+```
 
-`scripts/bridge/action_bridge.gd` is newline-delimited JSON over TCP on **127.0.0.1:47651**. It's localhost only, never a production port, and if the port is busy the bridge disables itself instead of picking another. Disable with `--no-bridge`. The renderer only executes actions and reports real outcomes; no brain lives here.
+## AI bridge (DEV only, 127.0.0.1:47651)
 
-Commands: `observe`, `navigate_to {target: poi_id | [x,y,z], run}`, `look_at {target}`, `cast_spell {spell: "arcane_orb", clip}`, `start_training`, `stop`, `list_interactions`.
-Events: `action_started`, `action_finished {ok, detail, observation}`, `cast_phase {awaken|gather|release|burst|resolved}`.
-Observations: position, facing, speed, current area, nearby POIs (distance + bearing), visible POIs (view cone + line-of-sight raycast), available interactions, other characters, recent events.
+Commands: `observe`, `list_regions`, `list_locations{filter}`, `travel_to{location, mode: walk|fast}`, `transition_state`,
+`navigate_to{target, run}`, `look_at|face{target}`, `nearby_interactables{radius}`, `interact{object}`, `cast_spell`,
+`start_training`, `sword{action, element}`, `landmarks`, `world_state`, `set_time{night}`, `stop`, `probe_space` (debug).
+Events: `journey_started/progress/finished`, `area_activated` (with transition metrics), `action_started/finished`,
+`cast_phase`, `activity_done`, `player_crossed`.
+Every result comes from the engine: refused actions say why (unknown/unfinished location, unreachable, too far,
+requirements unmet, transition in progress, not enough space to cast).
 
 ```bash
-./run.sh live &                    # game with bridge
-python3 tools/bridge_client.py     # observe → walk to altar → look at arch → cast → refusal tests → training
+./run.sh live &   python3 tools/mock_brain.py      # chooses, travels to and acts at every location autonomously
 ```
 
-There's also an offline mock: `godot --path . --headless -- --mock-commands=res://tests/mock_commands.json`.
+## Tests and measurements
 
-To connect Mika's existing Python intelligence later, wrap `tools/bridge_client.py`'s `Bridge` class in an adapter that maps planner intents to these commands. The planner, personality and memory stay untouched.
+See **docs/WORLD_REPORT.md** (performance per location in LIVE and CINEMATIC, casting, transitions, memory cycles,
+autonomous traversal results). Face fix: docs/FACE_SHADING_FIX.md. Sword animations: docs/SWORD_ANIMATIONS.md.
+Assets and licenses: ASSETS.md (all environment assets CC0; Mixamo files local only; Mika.vrm licence notes).
 
-## Layout
-
-```
-scenes/main.tscn            entry scene → scripts/main.gd (composition root, character registry)
-scripts/core/               RenderProfile (profiles + CLI options), GameInput (input map)
-scripts/world/              sanctuary.gd (world), terrain.gd, materials.gd
-scripts/characters/         world_character.gd (any VRM humanoid), player_controller.gd
-scripts/camera/             third_person_camera.gd
-scripts/magic/              arcane_orb_spell.gd
-scripts/bridge/             action_bridge.gd
-scripts/tour_runner.gd      automated screenshots, movement/bridge/cast tests, perf probe
-shaders/                    stone_triplanar, rune_floor, terrain_blend, grass_blades, magic/*
-tools/                      asset fetch/LOD/import tools, Blender generators, bridge client
-assets/                     Mika.vrm, Mixamo imports, CC0 assets (see ASSETS.md)
-legacy/                     the original procedural prototype (kept for reference)
-docs/screenshots/           real runtime captures from this machine
-```
-
-## Known issues
-
-* **CINEMATIC runs at ~17 FPS** on the iGPU while OBS shares it. It's fine for screenshots and recording, but LIVE_OPTIMIZED is the profile to use alongside the live stream. LIVE has little headroom (GPU ~28–30 ms against a 33 ms budget).
-* The NVIDIA RTX 5050's driver isn't loaded on this Debian install. With it, CINEMATIC/ULTRA should be far faster; this wasn't changed (no driver changes per instructions).
-* Trees come from a single species (2 LODs, random scale/rotation). The canopy looks good at mid distance, but up close the enlarged leaf clusters reveal the thinning.
-* Distant terrain beyond the tree ring is open woodland floor, not dense forest.
-* Spring bones (hair/tail) run through godot-vrm's `SkeletonModifier3D`. They behave plausibly in captures but weren't tuned.
-* The orb's release direction is fixed (forward + up). There's no target selection or impact interaction yet.
-* `navigate_to spell_altar` arrives ~0.8 m from the POI marker because the pedestal's collider is in the way (reported honestly in the result).
-* The VRM's own license field says `commercialUsage: personalNonProfit`. That's the creator's setting; worth reviewing before monetized use.
-
-## Next steps
-
-1. Tree variety: a second species (Poly Haven `island_tree_02` / `fir_tree_01` through the same LOD tools), plus impostors for the far ring.
-2. Expand LIVE headroom: occlusion culling (architecture as occluders), lower grass density at distance, baked shadows for static geometry.
-3. A mentor character: `spawn_character("mentor", …, world.spawn_point("companion"))` already works with any VRM. Give it its own controller and a second spell.
-4. Bridge adapter for the existing Mika planner; add `study_spellbook` interaction and target-directed spells.
-5. Terrain3D (verify a 4.7-compatible release first) for painted, larger landscapes.
+## Adding an area
+1. Add the area + its locations + a connection to `data/world.json`.
+2. Write `scripts/areas/<area>.gd` (`extends KitArea`; `resources()`, `env_preset()`, `build_steps()`, `add_location`,
+   `add_gate`, `add_interactable`), run `python3 tools/make_area_scenes.py` and `--headless --import`.
+3. Add the matching gate in the neighbour area; verify with `tools/mock_brain.py`.

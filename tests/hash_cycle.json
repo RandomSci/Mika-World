@@ -1,0 +1,1 @@
+[{"sleep": 2}, {"id": "t1", "cmd": "travel_to", "location": "ancient_spell_library", "wait": true, "timeout": 90}, {"id": "t2", "cmd": "travel_to", "location": "ritual_sanctuary", "wait": true, "timeout": 90}]

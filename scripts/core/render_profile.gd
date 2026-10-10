@@ -35,7 +35,7 @@ const SETTINGS := {
 	LIVE_OPTIMIZED: {
 		"scale_3d": 0.75, "fsr": true, "taa": false, "fxaa": true, "msaa": Viewport.MSAA_DISABLED,
 		"ssao": true, "ssil": false, "ssr": false, "sdfgi": false, "glow": true,
-		"volumetric_fog": false, "fog_density": 0.0, "shadow_size": 2048, "shadow_distance": 40.0,
+		"volumetric_fog": false, "fog_density": 0.0, "shadow_size": 2048, "shadow_distance": 30.0,
 		"foliage_density": 0.55, "magic_shadows": false, "max_fps": 30, "lod_threshold": 2.0,
 	},
 	ULTRA: {

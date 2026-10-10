@@ -17,8 +17,8 @@ static func resources() -> Array:
 
 func env_preset() -> Dictionary:
 	return {"bg": Color(0.004, 0.008, 0.012), "sun_shadows": false,
-		"day": {"ambient_color": Color(0.2, 0.32, 0.42), "ambient": 0.35, "sun_energy": 0.0, "fog": 0.018, "fog_color": Color(0.02, 0.06, 0.08), "vol_fog": 0.025, "vol_albedo": Color(0.6, 0.85, 1.0), "exposure": 1.25},
-		"night": {"ambient_color": Color(0.2, 0.32, 0.42), "ambient": 0.35, "sun_energy": 0.0, "fog": 0.018, "fog_color": Color(0.02, 0.06, 0.08), "vol_fog": 0.025, "exposure": 1.25}}
+		"day": {"ambient_color": Color(0.3, 0.42, 0.52), "ambient": 0.9, "sun_energy": 0.0, "fog": 0.018, "fog_color": Color(0.02, 0.06, 0.08), "vol_fog": 0.025, "vol_albedo": Color(0.6, 0.85, 1.0), "exposure": 1.25},
+		"night": {"ambient_color": Color(0.3, 0.42, 0.52), "ambient": 0.9, "sun_energy": 0.0, "fog": 0.018, "fog_color": Color(0.02, 0.06, 0.08), "vol_fog": 0.025, "exposure": 1.25}}
 
 
 func height(x: float, z: float) -> float:
@@ -33,7 +33,7 @@ func build_steps() -> Array:
 
 func _ground() -> void:
 	nav_aabb = AABB(Vector3(-30, -5, -44), Vector3(60, 16, 66))
-	cave_rock = Kit.tri("rock_wall_10", "1k", 0.25, 0.0, Color(0.5, 0.56, 0.62), {"wetness": 0.6, "grime_height": 0.0})
+	cave_rock = Kit.tri("rock_wall_10", "1k", 0.25, 0.0, Color(0.5, 0.56, 0.62), {"wetness": 0.6, "grime_height": 0.0, "two_sided": true})
 	stone = Kit.tri("castle_wall_slates", "1k", 0.45, 0.1, Color(0.72, 0.76, 0.8))
 	magic_receivers = [cave_rock, stone]
 	var mat := Kit.terrain_mat("rocky_terrain_02", "rock_wall_10", "stony_dirt_path", Color(0.55, 0.6, 0.66), Color(0.4, 0.44, 0.5))
@@ -80,8 +80,8 @@ func _ceiling_crystals() -> void:
 			p.y = 2.5 + 11.0 * sqrt(maxf(0.0, 1.0 - e * e)) - 0.4
 			xs.append(Transform3D(Basis(Vector3.RIGHT, PI) * Basis(Vector3(rng.randf(), 0, rng.randf()).normalized(), rng.randf_range(0, 0.4)).scaled(Vector3.ONE * rng.randf_range(0.6, 1.5)), p))
 		Kit.multimesh(self, meshes[k], xs, 0.0, false, Kit.crystal(cols[k], 2.4))
-	for p in [LAKE + Vector3(0, 8, 0), LAKE + Vector3(-8, 7, -10), LAKE + Vector3(8, 7, 8)]:
-		Kit.omni(self, p, Color(0.3, 0.8, 1.0), 2.4, 16.0)
+	for p in [LAKE + Vector3(0, 8, 0), LAKE + Vector3(-8, 7, -10), LAKE + Vector3(8, 7, 8), LAKE + Vector3(-18, 4, 6), LAKE + Vector3(16, 4, -14)]:
+		Kit.omni(self, p, Color(0.3, 0.8, 1.0), 2.4, 18.0)
 
 
 func _shore() -> void:

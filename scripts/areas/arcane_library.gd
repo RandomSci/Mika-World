@@ -18,7 +18,7 @@ static func resources() -> Array:
 
 func env_preset() -> Dictionary:
 	return {"bg": Color(0.01, 0.01, 0.015), "sun_shadows": false,
-		"day": {"ambient_color": Color(0.32, 0.3, 0.36), "ambient": 0.5, "sun_energy": 0.0, "fog": 0.02, "fog_color": Color(0.08, 0.07, 0.06), "vol_fog": 0.03, "vol_albedo": Color(0.8, 0.85, 1.0), "exposure": 1.15},
+		"day": {"ambient_color": Color(0.38, 0.35, 0.4), "ambient": 0.75, "sun_energy": 0.0, "fog": 0.02, "fog_color": Color(0.08, 0.07, 0.06), "vol_fog": 0.03, "vol_albedo": Color(0.8, 0.85, 1.0), "exposure": 1.15},
 		"night": {"ambient_color": Color(0.22, 0.24, 0.34), "ambient": 0.45, "sun_energy": 0.0, "fog": 0.02, "fog_color": Color(0.05, 0.05, 0.07), "vol_fog": 0.03, "exposure": 1.2}}
 
 
@@ -163,7 +163,7 @@ func _lights() -> void:
 	for z in [-9.0, 0.0, 9.0]:
 		Kit.mesh_node(self, Kit.prop("lantern_chandelier_01"), null, Kit.xf(Vector3(0, H - 2.4, z), 0.0, Vector3.ONE * 1.3))
 		Kit.mesh_node(self, Kit.box_mesh(Vector3(0.04, 1.2, 0.04), 0.005), Kit.metal(Color(0.15, 0.12, 0.1), 0.5), Kit.xf(Vector3(0, H - 0.6, z)), false)
-		Kit.omni(self, Vector3(0, H - 2.6, z), Color(1.0, 0.7, 0.42), 2.2, 11.0)
+		Kit.omni(self, Vector3(0, H - 2.6, z), Color(1.0, 0.7, 0.42), 3.0, 13.0)
 
 
 func _links() -> void:

@@ -74,7 +74,8 @@ static func tri(tex: String, res := "1k", tiling := 0.4, moss := 0.0, tint := Co
 	if moss == 0.0:
 		m.set_shader_parameter("grime_height", 0.25)
 	for k in extra:
-		m.set_shader_parameter(k, extra[k])
+		if k != "two_sided":
+			m.set_shader_parameter(k, extra[k])
 	_mats[key] = m
 	return m
 
@@ -640,7 +641,9 @@ static func cave_shell(radii: Vector3, seed: int, roughness := 0.22, keep: Calla
 				var p0: Vector3 = tri[0]
 				var p1: Vector3 = tri[1]
 				var p2: Vector3 = tri[2]
-				if (p1 - p0).cross(p2 - p0).dot(p0 + p1 + p2) > 0.0:
+				# Godot front faces are clockwise as seen by the viewer; for a viewer at the centre that
+				# means the right-hand cross product must point OUTWARD.
+				if (p1 - p0).cross(p2 - p0).dot(p0 + p1 + p2) < 0.0:
 					tri = [p0, p2, p1]
 				for v in tri:
 					st.add_vertex(v)

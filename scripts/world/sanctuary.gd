@@ -354,7 +354,7 @@ func _build_trees() -> void:
 		root.add_to_group("cat_trees")
 		var s := rng.randf_range(0.95, 1.3)
 		root.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(p.x, terrain.fast_height(p.x, p.y) - 0.15, p.y))
-		var casts_shadow := p.length() < 30.0
+		var casts_shadow := p.length() < (22.0 if RenderProfile.profile == RenderProfile.LIVE_OPTIMIZED else 30.0)
 		var near_end := 15.0 if RenderProfile.profile == RenderProfile.LIVE_OPTIMIZED else 24.0
 		for tm in lods.near:
 			root.add_child(_tree_part(tm, 0.0, near_end, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))

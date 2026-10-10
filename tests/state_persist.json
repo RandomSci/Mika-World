@@ -1,0 +1,5 @@
+[{"sleep": 2}, {"id": "s", "cmd": "sword", "action": "draw"}, {"id": "e", "cmd": "sword", "action": "element", "element": "frost"},
+ {"id": "i", "cmd": "interact", "object": "ritual_circle_attune"}, {"id": "w0", "cmd": "world_state"},
+ {"id": "t1", "cmd": "travel_to", "location": "ancient_spell_library", "wait": true, "timeout": 90}, {"id": "o1", "cmd": "observe"}, {"id": "w1", "cmd": "world_state"},
+ {"id": "t2", "cmd": "travel_to", "location": "ritual_sanctuary", "wait": true, "timeout": 90}, {"id": "t3", "cmd": "travel_to", "location": "ancient_spell_library", "wait": true, "timeout": 90},
+ {"id": "t4", "cmd": "travel_to", "location": "ritual_sanctuary", "wait": true, "timeout": 90}, {"id": "sw", "cmd": "sword", "action": "attack"}]

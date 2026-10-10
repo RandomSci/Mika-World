@@ -21,7 +21,7 @@ static func build(area: AreaBase) -> Vista:
 	var haze: Color = opts.get("haze", Color(0.62, 0.7, 0.8))
 	var mat := Kit.shader_mat("res://shaders/vista.gdshader", {"haze": haze, "snow_line": opts.get("snow_line", 380.0),
 		"rock_tex": load("res://assets/polyhaven/textures/cliff_side/cliff_side_diff_2k.jpg"),
-		"green_col": opts.get("green", Color(0.18, 0.26, 0.15)), "max_haze": opts.get("max_haze", 0.6)})
+		"green_col": opts.get("green", Color(0.18, 0.26, 0.15)), "max_haze": opts.get("max_haze", 0.42)})
 	if opts.get("mountains", false):
 		# Distant ranges = the scanned CC0 "mountainside" (10 m photogrammetry rock) scaled to km size:
 		# real rock forms read as mountains through the area's fog; auto mesh-LODs keep it cheap.
@@ -148,9 +148,9 @@ static func _impostor(kind: String, mat: Material, s: float, area: AreaBase) -> 
 			Kit.mesh_node(root, Kit.lathe([Vector2(12, 0), Vector2(12, 10), Vector2(11, 14), Vector2(6, 20), Vector2(0, 22)], 16), stone, Transform3D(Basis.IDENTITY, Vector3(0, 0, 0)), false)
 		"range":
 			for i in 5:
-				Kit.mesh_node(root, Kit.rock_mesh(500.0 + i * 60.0, 30 + i, 0.5, Vector3(1.4, 1.5 + (i % 2) * 0.5, 1.0), 3), stone, Transform3D(Basis.IDENTITY, Vector3(-900 + i * 450, -250, (i % 2) * 200)), false)
+				Kit.mesh_node(root, Kit.rock_mesh(190.0 + i * 25.0, 30 + i, 0.5, Vector3(1.6, 1.15 + (i % 2) * 0.35, 1.0), 3), stone, Transform3D(Basis.IDENTITY, Vector3(-700 + i * 350, -120, (i % 2) * 160)), false)
 		"floating_rock":
-			Kit.mesh_node(root, Kit.rock_mesh(140.0, 21, 0.4, Vector3(1.2, 0.7, 1.0), 3), stone, Transform3D(Basis(Vector3.RIGHT, PI), Vector3(0, 0, 0)), false)
+			Kit.mesh_node(root, Kit.rock_mesh(70.0, 21, 0.4, Vector3(1.2, 0.7, 1.0), 3), stone, Transform3D(Basis(Vector3.RIGHT, PI), Vector3(0, 0, 0)), false)
 			Kit.mesh_node(root, Kit.lathe([Vector2(8, 0), Vector2(7, 60), Vector2(0, 85)], 8, false), stone, Transform3D(Basis.IDENTITY, Vector3(20, 60, 0)), false)
 		"ruin_silhouette":
 			for i in 4:

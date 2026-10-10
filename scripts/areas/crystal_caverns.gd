@@ -38,7 +38,7 @@ func build_steps() -> Array:
 func _ground() -> void:
 	nav_aabb = AABB(Vector3(-24, -4, -40), Vector3(48, 20, 84))
 	rock = Kit.tri("cliff_side", "2k", 0.14, 0.15)
-	cave_rock = Kit.tri("rock_wall_10", "1k", 0.25, 0.0, Color(0.62, 0.66, 0.72), {"wetness": 0.45, "grime_height": 0.0})
+	cave_rock = Kit.tri("rock_wall_10", "1k", 0.25, 0.0, Color(0.62, 0.66, 0.72), {"wetness": 0.45, "grime_height": 0.0, "two_sided": true})
 	magic_receivers = [rock, cave_rock]
 	var mat := Kit.terrain_mat("rocky_terrain_02", "rock_wall_10", "stony_dirt_path", Color(0.9, 0.9, 0.86), Color(0.45, 0.48, 0.52))
 	Kit.terrain(self, 90.0, 1.0, height, func(x, z):

@@ -133,7 +133,7 @@ func _falls() -> void:
 		q.size = Vector2(1.0, 1.0)
 		var sm := ShaderMaterial.new()
 		sm.shader = load("res://shaders/magic/energy_mote.gdshader")
-		sm.set_shader_parameter("hdr_boost", 0.35)
+		sm.set_shader_parameter("hdr_boost", 0.8)
 		q.material = sm
 		p.draw_pass_1 = q
 		p.visibility_aabb = AABB(Vector3(-6, -1, -3), Vector3(12, 8, 8))
