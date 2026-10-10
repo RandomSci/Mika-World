@@ -105,6 +105,16 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("posetest"):
+		travel._cooldown_until = 1e12
+		var pz := PoseTest.new()
+		pz.main = self
+		add_child(pz)
+	elif RenderProfile.options.has("physicstest"):
+		travel._cooldown_until = 1e12  # no gate auto-travel while Mika is teleported around
+		var pt := PhysicsTest.new()
+		pt.main = self
+		add_child(pt)
 	elif RenderProfile.options.has("sanctuarytour"):
 		var st := SanctuaryTour.new()
 		st.main = self

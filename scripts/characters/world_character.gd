@@ -43,6 +43,8 @@ var chest: BoneAttachment3D
 var nav_agent: NavigationAgent3D
 var world: Node  # the active area (magic bounce / rune floor), set by the streaming manager
 var sword: SwordLayer  # optional magical-sword layer
+var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
+var seated := false
 
 var current_action := "idle"
 var last_rejection := ""  # reason the most recent action request was refused outright
@@ -77,6 +79,7 @@ func _ready() -> void:
 	add_child(cs)
 
 	avatar = load(avatar_path).instantiate()
+	_extend_skirt_colliders()
 	avatar.name = "Avatar"
 	avatar.rotation.y = PI  # VRM 1.0 faces +Z; Godot forward is -Z
 	add_child(avatar)
@@ -86,6 +89,10 @@ func _ready() -> void:
 	_fix_vrm1_mtoon_shading()
 	_setup_animation()
 	_setup_expressions()
+	pose_adjust = PoseAdjust.new()
+	pose_adjust.name = "PoseAdjust"
+	pose_adjust.influence = 0.0
+	skeleton.add_child(pose_adjust)
 	left_hand = _attach("LeftHand")
 	right_hand = _attach("RightHand")
 	chest = _attach("UpperChest")
@@ -129,6 +136,54 @@ func _fix_vrm1_mtoon_shading() -> void:
 					fixed += 1
 				mat = sm.next_pass
 	print("[character] %s: converted VRM1 MToon shading on %d materials" % [character_id, fixed])
+
+
+## The VRoid skirt's spring-bone colliders are three small spheres on the upper ~0.2 m of each thigh, so
+## when the thighs are horizontal (sitting) the front skirt falls through the knee half of the legs.
+## Replace them with a capsule from hip to knee (same radius family, slightly fuller) before the VRM
+## secondary system builds its runtime colliders. Walking is unaffected (the capsule follows the thigh).
+func _extend_skirt_colliders() -> void:
+	var sec = avatar.find_child("secondary", true, false)
+	if sec == null or sec.get("spring_bones") == null:
+		return
+	var sk: Skeleton3D = avatar.find_child("GeneralSkeleton", true, false)
+	var done := {}
+	for sb in sec.spring_bones:
+		if not String(sb.comment).begins_with("Skirt"):
+			continue
+		for cg in sb.collider_groups:
+			if done.has(cg) or cg.has_meta("mika_extended"):
+				continue
+			done[cg] = true
+			cg.set_meta("mika_extended", true)
+			var legs := {}
+			for c in cg.colliders:
+				if String(c.bone).ends_with("UpperLeg"):
+					legs[c.bone] = c.radius
+			if legs.is_empty():
+				continue
+			var kept: Array = []
+			for c in cg.colliders:
+				if not legs.has(c.bone):
+					kept.append(c)
+			for bone in legs:
+				var knee := sk.find_bone(String(bone).replace("Upper", "Lower"))
+				var thigh_len := sk.get_bone_rest(knee).origin.length() if knee >= 0 else 0.4
+				var cap = load("res://addons/vrm/vrm_collider.gd").new()
+				cap.bone = bone
+				cap.offset = Vector3.ZERO
+				cap.tail = Vector3(0, thigh_len * 0.97, 0)
+				cap.radius = maxf(float(legs[bone]) * 1.15, 0.08)
+				cap.is_capsule = true
+				kept.append(cap)
+			cg.colliders.assign(kept)
+
+
+## Seated posture on/off: blends the knee correction in or out over `seconds`.
+func set_seated(on: bool, seconds := 0.7) -> void:
+	seated = on
+	var tw := create_tween()
+	tw.tween_property(pose_adjust, "influence", 1.0 if on else 0.0, seconds)
 
 
 func _attach(bone: String) -> BoneAttachment3D:
@@ -326,6 +381,9 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 		sword.sheathe()  # spells use both hands; keeps the original cast sequence unchanged
 	casting = true
 	_nav_active = false
+	var shot := (anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast") as AnimationNodeOneShot
+	shot.fadein_time = 0.35
+	shot.fadeout_time = 0.55
 	(anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast_anim").animation = "mx/" + clip
 	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	_begin_action("cast_spell", {"clip": clip})
@@ -337,10 +395,14 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 
 
 ## Play a one-off body gesture (study, practice, look around...) through the same one-shot slot as casting.
-func play_gesture(clip: String) -> bool:
+func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
 	if casting or not CLIPS.has(clip):
 		return false
-	(anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast_anim").animation = "mx/" + clip
+	var bt := anim_tree.tree_root as AnimationNodeBlendTree
+	var shot := bt.get_node("cast") as AnimationNodeOneShot
+	shot.fadein_time = fade_in
+	shot.fadeout_time = fade_out
+	bt.get_node("cast_anim").animation = "mx/" + clip
 	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	return true
 

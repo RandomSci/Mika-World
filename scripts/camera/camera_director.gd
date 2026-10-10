@@ -165,9 +165,11 @@ func _frame(delta: float) -> void:
 					look = obj.lerp(p + Vector3(0, 1.35, 0), 0.3)
 					fov = 50.0
 				"meditate", "rest":
-					pos = p + fwd * 2.7 + right * _side * 1.3 + Vector3(0, 1.0, 0)
-					look = p + Vector3(0, 0.95, 0)
-					fov = 44.0
+					# side profile looking past her toward what she contemplates: no close front shots of
+					# the seated pose (the skirt drape over the thighs is the weakest part of the pose)
+					pos = p + right * _side * 2.9 + fwd * 0.9 - fwd * 0.0 + Vector3(0, 1.15, 0)
+					look = p + fwd * 1.6 + Vector3(0, 0.95, 0)
+					fov = 46.0
 				"practice":
 					var mid := (p + obj) * 0.5
 					var axis := (obj - p)

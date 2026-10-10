@@ -24,6 +24,8 @@ var kind := ""                # study | practice | meditate | inspect | explore 
 var stand_point = null         # optional exact spot (local to the area) to stand at, e.g. in front of a seat
 var face_point = null          # optional point to face while performing (default: the object itself)
 var on_begin: Callable         # optional visual cue when the gesture starts (e.g. a target lights up)
+var seat_body: PhysicsBody3D   # solid seat: ignored by the seated character only while she sits on it
+var sit_point = null           # where her root goes while seated (pelvis over the seat), local to the area
 var _approach = null           # closest walkable point (computed once navigation exists)
 
 
@@ -84,18 +86,41 @@ func perform(c: WorldCharacter) -> Dictionary:
 		return {"ok": false, "detail": "requires %s" % str(requires)}
 	busy = true
 	WorldState.interaction_started.emit(self, c)
+	if seat_body:
+		c.add_collision_exception_with(seat_body)
 	if stand_point != null:
-		# settle exactly onto the spot (seats, casting marks); the nav agent stops up to ~0.7 m short
+		# settle exactly onto the spot (seats, casting marks); the nav agent stops up to ~0.7 m short.
+		# Never slide through geometry: if the short move would collide, she stays where she is.
 		var spot: Vector3 = approach_point()
-		var tw := c.create_tween()
-		tw.tween_property(c, "global_position", Vector3(spot.x, c.global_position.y, spot.z), 0.35)
+		var delta := Vector3(spot.x - c.global_position.x, 0.0, spot.z - c.global_position.z)
+		if delta.length() < 1.2 and not c.test_move(c.global_transform, delta):
+			var tw := c.create_tween()
+			tw.tween_property(c, "global_position", c.global_position + delta, 0.35)
 	c.look_at_point(get_parent().to_global(face_point) if face_point != null else global_position)
 	await get_tree().create_timer(0.6).timeout
-	if gesture != "":
+	var sitting := gesture == "sit" and sit_point != null
+	if sitting:
+		# lower onto the seat: the root (and so the pelvis) slides back over the seat while the pose blends in
+		c.play_gesture(gesture, 0.7, 0.7)
+		c.set_seated(true, 0.8)
+		var sp: Vector3 = get_parent().to_global(sit_point)
+		var tws := c.create_tween()
+		tws.tween_property(c, "global_position", Vector3(sp.x, c.global_position.y, sp.z), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	elif gesture != "":
 		c.play_gesture(gesture)
 	if on_begin.is_valid():
 		on_begin.call()
 	await get_tree().create_timer(duration).timeout
+	if seat_body:
+		# stand up: rise forward off the seat, clear of it, before it becomes solid for her again
+		if sitting:
+			c.set_seated(false, 0.6)
+		var fwd := -c.global_transform.basis.z
+		fwd.y = 0
+		var tw2 := c.create_tween()
+		tw2.tween_property(c, "global_position", c.global_position + fwd.normalized() * (0.75 if sitting else 0.4), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		await tw2.finished
+		c.remove_collision_exception_with(seat_body)
 	busy = false
 	times_done += 1
 	for k in requires.get("items", {}):

@@ -51,7 +51,111 @@ func activate_steps() -> Array:
 	if outdoor:
 		steps.append(func(): Vista.build(self))
 	steps.append(func(): set_night(WorldState.night))
+	steps.append(finalize_collisions)
 	return steps
+
+
+## Solid-looking props must block movement and navigation (physics_test audit). Many props were
+## placed as visuals only; before the nav bake, give every reachable solid prop a collider:
+## Poly Haven furniture/containers/statues get their (cached) convex hull, shrubs and crystal
+## clusters a cylinder. Walkable decals, foliage, water, magic and gate/portal visuals are skipped.
+const SOLID_PROPS := ["Barrel_01", "wooden_barrels_01", "wooden_crate_01", "planter_box_01", "potted_plant_01", "gothic_statue",
+	"treasure_chest", "stone_fire_pit", "GothicCabinet_01", "bench_vice_01", "wooden_bucket_01", "wicker_basket_01", "brass_vase_01",
+	"ceramic_vase_01", "large_castle_door", "tree_stump", "dead_tree_trunk", "root_cluster_01"]
+const CYLINDER_PROPS := ["shrub_02", "shrub_03"]
+static var _solid_shape_cache := {}
+
+
+func finalize_collisions() -> void:
+	var space := get_world_3d().direct_space_state
+	var probe := SphereShape3D.new()
+	probe.radius = 0.1
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = probe
+	var added := 0
+	for n in find_children("*", "GeometryInstance3D", true, false):
+		var gi: GeometryInstance3D = n
+		var mesh: Mesh = null
+		var xforms: Array[Transform3D] = []
+		if gi is MeshInstance3D:
+			mesh = (gi as MeshInstance3D).mesh
+			xforms.append(gi.global_transform)
+		elif gi is MultiMeshInstance3D and (gi as MultiMeshInstance3D).multimesh:
+			var mm := (gi as MultiMeshInstance3D).multimesh
+			mesh = mm.mesh
+			for i in mm.instance_count:
+				xforms.append(gi.global_transform * mm.get_instance_transform(i))
+		if mesh == null or not mesh is ArrayMesh:
+			continue
+		var key := String(mesh.resource_name)
+		var mat = gi.material_override
+		var crystal := mat is ShaderMaterial and (mat as ShaderMaterial).shader and String((mat as ShaderMaterial).shader.resource_path).ends_with("crystal.gdshader")
+		var kind := ""
+		for p in SOLID_PROPS:
+			if key.begins_with(p):
+				kind = "hull"
+		for p in CYLINDER_PROPS:
+			if key.begins_with(p):
+				kind = "cyl"
+		if crystal:
+			kind = "cyl"
+		var stone_shader := mat is ShaderMaterial and (mat as ShaderMaterial).shader and String((mat as ShaderMaterial).shader.resource_path).contains("stone_triplanar")
+		if kind == "" and stone_shader and gi is MeshInstance3D:
+			kind = "box"  # free-standing stone posts / plinths / blocks
+		if kind == "":
+			continue
+		var maabb := mesh.get_aabb()
+		for xf in xforms:
+			var aabb: AABB = xf * maabb
+			if aabb.size.y < 0.45 or maxf(aabb.size.x, aabb.size.z) > 6.0:
+				continue
+			q.transform = Transform3D(Basis.IDENTITY, aabb.get_center())
+			if not space.intersect_shape(q, 1).is_empty():
+				continue  # already solid (placed with collision)
+			if _near_gate(aabb.get_center()):
+				continue  # doors/portals at routes are travel triggers, walked into on purpose
+			if kind == "box":
+				if maxf(aabb.size.x, aabb.size.z) > 2.6 or aabb.size.y > 4.0:
+					continue  # big architecture is authored with its own collision (arches must stay open)
+				var gq := PhysicsRayQueryParameters3D.create(aabb.get_center() + Vector3(0, 0.1, 0), aabb.get_center() - Vector3(0, 30, 0))
+				var gh := space.intersect_ray(gq)
+				if gh.is_empty() or aabb.position.y > (gh.position as Vector3).y + 0.35:
+					continue  # not standing on the ground (wall-mounted, roof ornaments)
+			var body := StaticBody3D.new()
+			body.name = "AutoCollider"
+			var cs := CollisionShape3D.new()
+			if kind == "box":
+				var bs := BoxShape3D.new()
+				bs.size = maabb.size
+				cs.shape = bs
+				body.transform = xf * Transform3D(Basis.IDENTITY, maabb.get_center())
+			elif kind == "hull":
+				if not _solid_shape_cache.has(mesh):
+					_solid_shape_cache[mesh] = mesh.create_convex_shape(true, true)
+				cs.shape = _solid_shape_cache[mesh]
+				body.transform = xf
+			else:
+				var cyl := CylinderShape3D.new()
+				cyl.radius = clampf(minf(aabb.size.x, aabb.size.z) * 0.32, 0.12, 0.7)
+				cyl.height = minf(aabb.size.y, 2.0)
+				cs.shape = cyl
+				body.position = Vector3(aabb.get_center().x, aabb.position.y + cyl.height * 0.5, aabb.get_center().z)
+			body.add_child(cs)
+			add_child(body)
+			added += 1
+	if added > 0:
+		print("[area] %s: finalize_collisions added %d colliders to solid props" % [area_id, added])
+
+
+func _near_gate(p: Vector3) -> bool:
+	for g in gates.values():
+		if Vector2(p.x - g.position.x, p.z - g.position.z).length() < g.radius + 1.5:
+			return true
+	return false
+
+
+static func clear_collision_cache() -> void:
+	_solid_shape_cache.clear()
 
 
 func bake_navigation() -> void:

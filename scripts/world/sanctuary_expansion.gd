@@ -237,6 +237,9 @@ func build_garden() -> void:
 	it.radius = 1.2
 	it.stand_point = Vector3(stand.x, sy, stand.y)
 	it.face_point = Vector3(POND.x, sy + 1.0, POND.y)
+	it.seat_body = Kit.static_box(s, Vector3(1.4, SEAT_H, 0.9), Transform3D(Basis(Vector3.UP, yaw), Vector3(seat.x, sy + SEAT_H * 0.5, seat.y)))
+	var sitp := seat + face * 0.12  # pelvis a little forward of the stone's centre (it is deep)
+	it.sit_point = Vector3(sitp.x, sy, sitp.y)
 	s.add_interactable(it)
 	var refl := POND + Vector2(-0.6, -3.9)
 	var ry := g(refl.x, refl.y)
@@ -507,7 +510,7 @@ func build_watchpoint() -> void:
 	# low cheek walls along the stair: they read as masonry and keep the path off the ramp's raw edge
 	for sz in [-1.7, 1.7]:
 		var cheek := Basis(Vector3(0, 0, 1), ang)
-		blk(Vector3(length - 0.6, 0.5, 0.35), mid + cheek.y * 0.12 + Vector3(0.3, 0.1, sz), 0.0, stone, false, Vector3(0, 0, ang))
+		blk(Vector3(length - 0.6, 0.5, 0.35), mid + cheek.y * 0.12 + Vector3(0.3, 0.1, sz), 0.0, stone, true, Vector3(0, 0, ang))
 	# Bench facing the sanctuary (north-east) + plaque on the north parapet
 	var bench := Vector2(w.x - 0.6, w.y + 1.7)
 	var look := (Vector2.ZERO - bench).normalized()
@@ -523,6 +526,8 @@ func build_watchpoint() -> void:
 	it.radius = 1.2
 	it.stand_point = stand
 	it.face_point = stand + bb * Vector3(0, 1.2, 3.0)
+	it.seat_body = Kit.static_box(s, Vector3(1.6, SEAT_H, 0.45), Transform3D(bb, Vector3(bench.x, top + SEAT_H * 0.5, bench.y)))
+	it.sit_point = Vector3(bench.x, top, bench.y) + bb * Vector3(0, 0, 0.02)
 	s.add_interactable(it)
 	var pl := Vector3(w.x + 2.1, top, w.y - half + 0.4)
 	blk(Vector3(0.9, 0.55, 0.08), pl + Vector3(0, 0.75, 0), 0.0, Kit.metal(Color(0.55, 0.45, 0.3), 0.5), false, Vector3(-0.5, 0, 0))
@@ -538,7 +543,7 @@ func build_watchpoint() -> void:
 	s._add_flame(Vector3(w.x + half - 0.4, top + 1.0, w.y + half - 0.4), 0.45, 0.4, true)
 	Kit.place_prop(s, "Lantern_01", Kit.xf(Vector3(w.x + half - 0.4, top + 0.84, w.y + half - 0.4), 0.0, Vector3.ONE * 1.4), "Lantern_01")
 	Kit.place_prop(s, "Lantern_01", Kit.xf(Vector3(w.x + half - 0.4, top + 0.84, w.y + half - 0.4), 0.0, Vector3.ONE * 1.4), "Lantern_01_glass")
-	blk(Vector3(0.3, 0.84, 0.3), Vector3(w.x + half - 0.4, top + 0.42, w.y + half - 0.4), 0.0, stone, false)
+	blk(Vector3(0.3, 0.84, 0.3), Vector3(w.x + half - 0.4, top + 0.42, w.y + half - 0.4), 0.0, stone, true)
 	rubble(Vector2(w.x, w.y), 5.5, 20, 1.6)
 
 
@@ -558,6 +563,7 @@ func build_training_targets() -> void:
 		var disc := Kit.mesh_node(s, Kit.lathe([Vector2(0.48, 0), Vector2(0.5, 0.06), Vector2(0.48, 0.12)], 24, true, true), stone,
 			Transform3D(b * Basis(Vector3.RIGHT, PI * 0.5), base + Vector3(0, 1.35, 0) + b * Vector3(0, 0, 0.1)))
 		disc.add_to_group("cat_expansion")
+		Kit.static_box(s, Vector3(1.0, 1.0, 0.16), Transform3D(b, base + Vector3(0, 1.35, 0) + b * Vector3(0, 0, 0.1)))
 		var sig := MeshInstance3D.new()
 		var q := QuadMesh.new()
 		q.size = Vector2(0.92, 0.92)

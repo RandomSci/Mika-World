@@ -160,6 +160,7 @@ static func shader_mat(path: String, params := {}) -> ShaderMaterial:
 ## Called when an area unloads: drop every cached material/mesh/prop/shape so their textures and
 ## buffers can be freed (the next area rebuilds what it needs in a few ms). Returns entries dropped.
 static func release_unused() -> int:
+	AreaBase.clear_collision_cache()
 	var n := _mats.size() + _meshes.size() + _props.size() + _convex.size()
 	_mats.clear()
 	_meshes.clear()
