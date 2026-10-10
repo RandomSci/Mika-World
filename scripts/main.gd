@@ -19,6 +19,7 @@ var magic: MagicSystem
 var voice: VoiceService
 var book_reader: BookReader
 var book_overlay: BookOverlay
+var audio: AudioDirector
 var _subtitle_until := 0.0
 var _fps_acc := 0.0
 var _fps_frames := 0
@@ -90,6 +91,14 @@ func _ready() -> void:
 	add_child(bridge)
 	bridge.setup(self)
 
+	# Event-driven sound (spells, reactions, books, footsteps, ambience)
+	audio = AudioDirector.new()
+	audio.name = "AudioDirector"
+	add_child(audio)
+	audio.setup(self)
+	audio._build_beds()
+	WorldState.interaction_started.connect(func(it, c): audio.on_interaction(it, "start", c))
+
 	# Speech (DEV Kokoro), reading (books / scrolls / inscriptions)
 	voice = VoiceService.new()
 	voice.name = "VoiceService"
@@ -129,6 +138,11 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("audiotest"):
+		travel._cooldown_until = 1e12
+		var aut := AudioTest.new()
+		aut.main = self
+		add_child(aut)
 	elif RenderProfile.options.has("alchemytest"):
 		travel._cooldown_until = 1e12
 		var at := AlchemyTest.new()

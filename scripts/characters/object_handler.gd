@@ -81,6 +81,8 @@ func grasp(obj: HoldableObject) -> bool:
 		return false
 	held = obj
 	obj.on_grasped(c)
+	if AudioDirector.instance:
+		AudioDirector.instance.on_interaction(obj, "grasp", c)
 	return true
 
 
@@ -110,6 +112,8 @@ func place(xf: Transform3D, seconds := 0.8) -> bool:
 	held = null
 	tilt = 0.0
 	obj.on_placed(xf)
+	if AudioDirector.instance:
+		AudioDirector.instance.on_interaction(obj, "place", c)
 	return true
 
 
