@@ -76,6 +76,7 @@ func _step_expansion_watch() -> void:
 
 
 func _step_expansion_finish() -> void:
+	expansion.build_magic_props()
 	expansion.finish()
 	expansion.set_night(night)
 
@@ -683,21 +684,28 @@ func _add_flame(pos: Vector3, energy: float, rng_m: float, night_boost: bool) ->
 
 # ------------------------------------------------------------------ braziers + magic lights
 func _build_fires_and_lights() -> void:
+	var names := ["brazier_ne", "brazier_nw", "brazier_sw", "brazier_se"]
+	var labels := ["north-east brazier", "north-west brazier", "south-west brazier", "south-east brazier"]
 	for k in 4:
 		var a := k * PI * 0.5 + PI * 0.25
 		# Blender (x, y) -> Godot (x, -z)
 		var pos := Vector3(6.35 * cos(a), 0.4 + 0.82, -6.35 * sin(a))
+		# each brazier is a ReactiveElement: its fire answers wind / water / fire / arcane magic
+		var br := Brazier.new()
+		br.name = names[k]
+		br.position = pos
+		add_child(br)
 		var l := OmniLight3D.new()
 		l.light_color = Color(1.0, 0.55, 0.26)
 		l.light_energy = 1.6
-		l.set_meta("base_energy", 1.6)
 		l.omni_range = 7.0
 		l.shadow_enabled = false  # omni cube shadows re-render the scene 6x per light; too costly on the iGPU
-		l.position = pos + Vector3(0, 0.35, 0)
+		l.position = Vector3(0, 0.35, 0)
 		l.light_volumetric_fog_energy = 1.0
-		add_child(l)
-		fire_lights.append(l)
-		add_child(_make_fire_particles(pos))
+		br.add_child(l)
+		var fp := _make_fire_particles(Vector3.ZERO)
+		br.add_child(fp)
+		br.setup(names[k], "the " + labels[k], fp, l)
 
 
 func _make_fire_particles(pos: Vector3) -> GPUParticles3D:

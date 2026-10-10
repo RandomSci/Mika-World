@@ -31,18 +31,21 @@ const SETTINGS := {
 		"ssao": true, "ssil": true, "ssr": true, "sdfgi": false, "glow": true,
 		"volumetric_fog": true, "fog_density": 0.0035, "shadow_size": 4096, "shadow_distance": 45.0,
 		"foliage_density": 1.0, "magic_shadows": true, "max_fps": 60, "lod_threshold": 1.0,
+		"particle_scale": 1.0, "magic_light_scale": 0.75,
 	},
 	LIVE_OPTIMIZED: {
 		"scale_3d": 0.75, "fsr": true, "taa": false, "fxaa": true, "msaa": Viewport.MSAA_DISABLED,
 		"ssao": true, "ssil": false, "ssr": false, "sdfgi": false, "glow": true,
 		"volumetric_fog": false, "fog_density": 0.0, "shadow_size": 2048, "shadow_distance": 30.0,
 		"foliage_density": 0.55, "magic_shadows": false, "max_fps": 30, "lod_threshold": 2.0,
+		"particle_scale": 0.6, "magic_light_scale": 1.0,
 	},
 	ULTRA: {
 		"scale_3d": 1.0, "fsr": false, "taa": true, "fxaa": false, "msaa": Viewport.MSAA_2X,
 		"ssao": true, "ssil": true, "ssr": true, "sdfgi": true, "glow": true,
 		"volumetric_fog": true, "fog_density": 0.004, "shadow_size": 8192, "shadow_distance": 110.0,
 		"foliage_density": 1.4, "magic_shadows": true, "max_fps": 0, "lod_threshold": 0.5,
+		"particle_scale": 1.3, "magic_light_scale": 0.75,
 	},
 }
 
@@ -67,7 +70,7 @@ func _init() -> void:
 func get_setting(key: String) -> Variant:
 	if key == "scale_3d" and options.has("scale"):
 		return float(options["scale"])
-	return SETTINGS[profile][key]
+	return SETTINGS[profile].get(key)
 
 
 func is_compatibility_renderer() -> bool:

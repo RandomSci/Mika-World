@@ -172,6 +172,11 @@ func build_garden() -> void:
 	w.position = Vector3(POND.x, water_y, POND.y)
 	w.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	s.add_child(w)
+	var pr := PondReactive.new()
+	pr.name = "Reactive_pond"
+	s.add_child(pr)
+	pr.position = w.position
+	pr.setup("pond", "the garden pond", w, 3.25)
 	# Invisible pond guard: the navmesh routes around it; too tall to step onto.
 	var guard := StaticBody3D.new()
 	var gcs := CollisionShape3D.new()
@@ -382,6 +387,11 @@ func build_chamber() -> void:
 	heartstone_light.omni_range = 3.6
 	heartstone_light.light_volumetric_fog_energy = 0.5
 	heartstone.add_child(heartstone_light)
+	var hr := HeartstoneReactive.new()
+	hr.name = "Reactive_heartstone"
+	s.add_child(hr)
+	hr.position = heartstone.position
+	hr.setup("heartstone", "the Heartstone relic", heartstone_light)
 	# Offering bowls + candles on the altar
 	Kit.place_prop(s, "brass_vase_01", Kit.xf(ap + Vector3(0.1, 1.15, -0.75), 0.0, Vector3.ONE * 0.6))
 	Kit.place_prop(s, "ceramic_vase_01", Kit.xf(ap + Vector3(0.15, 1.15, 0.78), 1.0, Vector3.ONE * 0.55))
@@ -563,7 +573,7 @@ func build_training_targets() -> void:
 		var disc := Kit.mesh_node(s, Kit.lathe([Vector2(0.48, 0), Vector2(0.5, 0.06), Vector2(0.48, 0.12)], 24, true, true), stone,
 			Transform3D(b * Basis(Vector3.RIGHT, PI * 0.5), base + Vector3(0, 1.35, 0) + b * Vector3(0, 0, 0.1)))
 		disc.add_to_group("cat_expansion")
-		Kit.static_box(s, Vector3(1.0, 1.0, 0.16), Transform3D(b, base + Vector3(0, 1.35, 0) + b * Vector3(0, 0, 0.1)))
+		var disc_body := Kit.static_box(s, Vector3(1.0, 1.0, 0.16), Transform3D(b, base + Vector3(0, 1.35, 0) + b * Vector3(0, 0, 0.1)))
 		var sig := MeshInstance3D.new()
 		var q := QuadMesh.new()
 		q.size = Vector2(0.92, 0.92)
@@ -581,6 +591,12 @@ func build_training_targets() -> void:
 		s.add_child(sig)
 		var id := "rune_target_%d" % (k + 1)
 		rune_sigils[id] = m
+		var rr := RuneReactive.new()
+		rr.name = "Reactive_" + id
+		s.add_child(rr)
+		rr.global_transform = Transform3D(b, base + Vector3(0, 1.35, 0) + b * Vector3(0, 0, 0.2))
+		rr.setup(id, "rune target %d" % (k + 1), m, disc, [disc, sig])
+		rr.bodies.append(disc_body)
 		var it := Interactable.make(id, "Strike rune target %d" % (k + 1), "practice", "mage_training_grounds",
 			base + Vector3(0, 1.35, 0), {"skills": {"arcane_orb": 0.08}}, "magic_attack_1h", 2.4)
 		it.kind = "practice"
@@ -599,6 +615,84 @@ func _flash_target(id: String) -> void:
 	tw.tween_interval(0.85)  # the strike lands
 	tw.tween_method(func(v: float): m.set_shader_parameter("intensity", v), 0.3, 4.0, 0.12)
 	tw.tween_method(func(v: float): m.set_shader_parameter("intensity", v), 4.0, 0.9, 1.2)  # stays lit once struck
+
+
+## Practice props for elemental experiments + the marked stone at the forest gate (story clue).
+func build_magic_props() -> void:
+	var tc := SanctuaryTerrain.TRAINING_CENTER
+	# practice crystal on a stone stand
+	var cp := tc + Vector2(cos(deg_to_rad(75.0)), sin(deg_to_rad(75.0))) * 5.0
+	var cy := g(cp.x, cp.y)
+	var stand := Kit.mesh_node(s, Kit.lathe([Vector2(0.32, 0), Vector2(0.28, 0.1), Vector2(0.14, 0.18), Vector2(0.12, 0.9), Vector2(0.24, 0.98), Vector2(0.24, 1.05)], 12, false, true), stone, Kit.xf(Vector3(cp.x, cy, cp.y)))
+	stand.add_to_group("cat_expansion")
+	var stand_body := Kit.static_box(s, Vector3(0.5, 1.05, 0.5), Kit.xf(Vector3(cp.x, cy + 0.52, cp.y)))
+	var pc := PracticeCrystal.new()
+	pc.name = "Reactive_practice_crystal"
+	s.add_child(pc)
+	pc.position = Vector3(cp.x, cy, cp.y)
+	var cm := MeshInstance3D.new()
+	cm.mesh = Kit.crystal_mesh(0.5, 0.13, 17)
+	cm.material_override = Kit.crystal(Color(0.5, 0.8, 1.0), 1.6)
+	cm.position.y = 1.45
+	pc.add_child(cm)
+	var cl := FX.light(Color(0.55, 0.8, 1.0), 0.8, 3.0)
+	cl.position.y = 1.5
+	pc.add_child(cl)
+	pc.setup("practice_crystal", "the practice crystal", cm, cl)
+	pc.bodies.append(stand_body)
+	# straw practice dummy
+	var dp := tc + Vector2(cos(deg_to_rad(120.0)), sin(deg_to_rad(120.0))) * 5.2
+	var dy := g(dp.x, dp.y)
+	var dummy := PracticeDummy.new()
+	dummy.name = "Reactive_practice_dummy"
+	s.add_child(dummy)
+	dummy.position = Vector3(dp.x, dy, dp.y)
+	var face := (tc - dp).normalized()
+	dummy.rotation.y = atan2(face.x, face.y)
+	var body := Node3D.new()
+	dummy.add_child(body)
+	var straw := StandardMaterial3D.new()
+	straw.albedo_color = Color(0.72, 0.6, 0.38)
+	straw.roughness = 0.95
+	Kit.mesh_node(body, Kit.box_mesh(Vector3(0.1, 1.9, 0.1), 0.01), wood, Kit.xf(Vector3(0, 0.95, 0)))
+	Kit.mesh_node(body, Kit.box_mesh(Vector3(0.9, 0.08, 0.08), 0.01), wood, Kit.xf(Vector3(0, 1.42, 0)))
+	var sack := CapsuleMesh.new()
+	sack.radius = 0.2
+	sack.height = 0.75
+	Kit.mesh_node(body, sack, straw, Kit.xf(Vector3(0, 1.22, 0)))
+	var head := SphereMesh.new()
+	head.radius = 0.14
+	head.height = 0.28
+	Kit.mesh_node(body, head, straw, Kit.xf(Vector3(0, 1.72, 0)))
+	var dbody := Kit.static_box(s, Vector3(0.45, 1.8, 0.45), Kit.xf(Vector3(dp.x, dy + 0.9, dp.y)))
+	dummy.setup("practice_dummy", "the straw practice dummy", body, straw)
+	dummy.bodies.append(dbody)
+	# the marked stone near the forest gate: a carving too faint to read until a rune is woken in it
+	var mp := Vector2(-6.4, -17.6)
+	var my := g(mp.x, mp.y)
+	var to_path := Vector2(-6.4, -20.8) - mp
+	var myaw := atan2(to_path.x, to_path.y)
+	blk(Vector3(0.75, 1.35, 0.42), Vector3(mp.x, my + 0.6, mp.y), myaw, stone, true, Vector3(0.04, 0, -0.05))
+	var glyph := MeshInstance3D.new()
+	var gq := QuadMesh.new()
+	gq.size = Vector2(0.6, 0.6)
+	glyph.mesh = gq
+	var gm := ShaderMaterial.new()
+	gm.shader = load("res://shaders/magic/sigil.gdshader")
+	gm.set_shader_parameter("sides", 7)
+	gm.set_shader_parameter("color", Color(1.0, 0.82, 0.45))
+	gm.set_shader_parameter("spin", 0.0)
+	gm.set_shader_parameter("seed", 31.0)
+	glyph.material_override = gm
+	glyph.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mb := Basis(Vector3.UP, myaw)
+	glyph.transform = Transform3D(mb, Vector3(mp.x, my + 0.78, mp.y) + mb * Vector3(0, 0, 0.23))
+	s.add_child(glyph)
+	var ms := MarkedStone.new()
+	ms.name = "Reactive_marked_stone"
+	s.add_child(ms)
+	ms.position = Vector3(mp.x, my + 0.78, mp.y) + mb * Vector3(0, 0, 0.2)
+	ms.setup("marked_stone", "the weathered marked stone by the gate", gm, "clue:gate_mark")
 
 
 func finish() -> void:

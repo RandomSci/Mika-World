@@ -20,6 +20,7 @@ const BINDINGS := {
 	"sword_element": [KEY_T],
 	"camera_director": [KEY_V],
 	"brain_toggle": [KEY_B],
+	"spell_cycle": [KEY_Q],
 }
 
 

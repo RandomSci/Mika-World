@@ -10,6 +10,8 @@ extends Node3D
 ##   release – orb launches forward and bursts: sparks, shockwave, light flash
 ##   resolve – everything decays cleanly, caster returns to idle
 
+signal resolved(result: Dictionary)
+
 const BLUE := Color(0.42, 0.66, 1.0)
 const VIOLET := Color(0.74, 0.46, 1.0)
 
@@ -29,6 +31,8 @@ var t := 0.0
 var released := false
 var burst_done := false
 var _gather_sent := false
+var _fired_rune := false
+var _fired_charge := false
 var _shadows: bool = RenderProfile.get_setting("magic_shadows")
 
 var ground_sigil: MeshInstance3D
@@ -52,6 +56,13 @@ var _orb_pos := Vector3.ZERO
 var _release_from := Vector3.ZERO
 var _release_to := Vector3.ZERO
 var _noise_tex: NoiseTexture2D
+var aim_point = null            # Vector3 from MagicSystem (target-aware); null = straight ahead
+var target_ref: ReactiveElement = null
+var spell_id := "arcane_orb"
+var _outcome := {}
+var _flight_s := 0.45
+var _prev_orb := Vector3.ZERO
+var _light_scale: float = RenderProfile.get_setting("magic_light_scale")
 
 
 func start(c: WorldCharacter, clip_name: String) -> void:
@@ -62,6 +73,11 @@ func start(c: WorldCharacter, clip_name: String) -> void:
 	global_position = caster.global_position
 	_build()
 	caster.cast_event.emit("awaken")
+	_bus("activation", caster.global_position)
+
+
+func _bus(ph: String, pos: Vector3) -> void:
+	MagicEvents.emit_phase(caster, spell_id, ph, "arcane", pos)
 
 
 func phase(name: String) -> float:
@@ -288,11 +304,12 @@ func _process(delta: float) -> void:
 	gather.global_position = hands
 	hand_sprite_l.emitting = t > G and t < R
 	hand_sprite_r.emitting = hand_sprite_l.emitting
-	hand_glow_l.light_energy = 1.2 * gather_amt
-	hand_glow_r.light_energy = 1.2 * gather_amt
+	hand_glow_l.light_energy = 1.2 * gather_amt * _light_scale
+	hand_glow_r.light_energy = 1.2 * gather_amt * _light_scale
 	if t > G and not _gather_sent:
 		_gather_sent = true
 		caster.cast_event.emit("gather")
+		_bus("gather", hands)
 		caster.set_expression("relaxed", 0.6)
 
 	# --- orb position follows the hands while forming, then launches
@@ -302,16 +319,42 @@ func _process(delta: float) -> void:
 	var form_amt := _ramp(F, O + 0.3)
 	var orb_amt := _ramp(O, R) * fade_out
 	var pulse := 1.0 + 0.08 * sin(t * 14.0) + 0.05 * sin(t * 23.0)
+	if t >= F and not _fired_rune:
+		_fired_rune = true
+		_bus("rune", caster.global_position)
+	if t >= O and not _fired_charge:
+		_fired_charge = true
+		_bus("charge", _orb_pos)
 	if t >= R and not released:
 		released = true
 		_release_from = _orb_pos
 		_release_to = _orb_pos + fwd * 4.5 + Vector3(0, 1.6, 0)
+		if aim_point != null:
+			_release_to = aim_point
+		_flight_s = clampf(_release_from.distance_to(_release_to) / 11.0, 0.25, 1.6)
+		_prev_orb = _release_from
 		caster.cast_event.emit("release")
+		_bus("release", _orb_pos)
 		caster.set_expression("happy", 0.0)
 		caster.set_expression("surprised", 0.35)
-	var flight := _ramp(R, R + 0.45)
-	if released:
+	var flight := _ramp(R, R + _flight_s)
+	if released and _outcome.is_empty():
 		_orb_pos = _release_from.lerp(_release_to, 1.0 - pow(1.0 - flight, 2.2))
+		# real flight: anything solid between the last and this frame stops the orb there
+		var hit := MagicSystem.sweep(caster.get_world_3d(), _prev_orb, _orb_pos, [caster.get_rid()])
+		if not hit.is_empty():
+			_orb_pos = hit.position
+			_release_to = hit.position
+			_outcome = {"outcome": MagicSystem.judge(target_ref, hit.position, hit.collider, 0.6), "point": [snappedf(_orb_pos.x, 0.01), snappedf(_orb_pos.y, 0.01), snappedf(_orb_pos.z, 0.01)]}
+			if hit.collider is Node and _outcome.outcome != "hit":
+				_outcome["blocked_by"] = String((hit.collider as Node).name)
+			flight = 1.0
+			t = maxf(t, R + _flight_s)
+		elif flight >= 1.0:
+			_outcome = {"outcome": MagicSystem.judge(target_ref, _orb_pos, null, 0.6) if target_ref else "released", "point": [snappedf(_orb_pos.x, 0.01), snappedf(_orb_pos.y, 0.01), snappedf(_orb_pos.z, 0.01)]}
+		if target_ref and not _outcome.is_empty():
+			_outcome["distance_from_target_m"] = snappedf(_orb_pos.distance_to(target_ref.aim_point()), 0.01)
+		_prev_orb = _orb_pos
 	orb_root.global_position = _orb_pos
 	var s := (0.25 + 0.75 * smoothstep(0.0, 1.0, orb_amt)) * pulse * (1.0 - flight * 0.6)
 	if t < O:
@@ -339,8 +382,8 @@ func _process(delta: float) -> void:
 		trail.emitting = t > O and not (flight >= 1.0)
 
 	# --- orb light and stone bounce
-	var flash := _pulse(R + 0.45, 0.6)
-	orb_light.light_energy = (2.8 * orb_amt * pulse + 5.0 * flash) * fade_out
+	var flash := _pulse(R + _flight_s, 0.6)
+	orb_light.light_energy = (2.8 * orb_amt * pulse * _light_scale + 5.0 * flash) * fade_out
 	orb_light.omni_range = 6.0 + 4.0 * flash
 	var bounce := orb_amt * 0.9 + flash * 1.6
 	if caster.world:
@@ -356,8 +399,9 @@ func _process(delta: float) -> void:
 		burst.emitting = true
 		shockwave.visible = true
 		caster.cast_event.emit("burst")
+		_bus("impact" if _outcome.get("outcome", "") in ["hit", "released"] else String(_outcome.get("outcome", "impact")), _release_to)
 	if burst_done:
-		var sw := _ramp(R + 0.45, R + 1.3)
+		var sw := _ramp(R + _flight_s, R + _flight_s + 0.85)
 		shockwave.global_position = _release_to
 		shockwave.look_at(_release_to + fwd, Vector3.UP)
 		shockwave.rotate_object_local(Vector3.RIGHT, PI * 0.5)
@@ -373,7 +417,11 @@ func _process(delta: float) -> void:
 			caster.world.call("set_magic_bounce", Vector3(0, -100, 0), 0.0, BLUE)
 			caster.world.call("set_rune_charge", 0.0, 1.0)
 		caster.cast_event.emit("resolved")
+		_bus("dissipate", _release_to)
 		caster.end_cast(true, "arcane_orb resolved")
+		if _outcome.is_empty():
+			_outcome = {"outcome": "released", "point": [snappedf(_release_to.x, 0.01), snappedf(_release_to.y, 0.01), snappedf(_release_to.z, 0.01)]}
+		resolved.emit(_outcome)
 		hand_glow_l.queue_free()
 		hand_glow_r.queue_free()
 		hand_sprite_l.queue_free()

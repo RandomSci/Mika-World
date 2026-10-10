@@ -87,6 +87,8 @@ func finalize_collisions() -> void:
 				xforms.append(gi.global_transform * mm.get_instance_transform(i))
 		if mesh == null or not mesh is ArrayMesh:
 			continue
+		if _in_reactive(gi):
+			continue  # magic-reactive objects own their colliders (a shattering crystal must not leave one behind)
 		var key := String(mesh.resource_name)
 		var mat = gi.material_override
 		var crystal := mat is ShaderMaterial and (mat as ShaderMaterial).shader and String((mat as ShaderMaterial).shader.resource_path).ends_with("crystal.gdshader")
@@ -145,6 +147,14 @@ func finalize_collisions() -> void:
 			added += 1
 	if added > 0:
 		print("[area] %s: finalize_collisions added %d colliders to solid props" % [area_id, added])
+
+
+func _in_reactive(n: Node) -> bool:
+	while n != null and n != self:
+		if n is ReactiveElement or String(n.name).begins_with("Animated"):
+			return true
+		n = n.get_parent()
+	return false
 
 
 func _near_gate(p: Vector3) -> bool:

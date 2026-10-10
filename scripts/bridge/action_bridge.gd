@@ -200,6 +200,16 @@ func handle(req: Dictionary) -> Dictionary:
 			else:
 				c.look_at_point(target)
 				reply.merge({"ok": true, "status": "started", "target": _v(target)})
+		"cast_spell" when main.magic != null and (req.has("target") or String(req.get("spell", "arcane_orb")) != "arcane_orb"):
+			# target-aware path: validated, aimed, real reaction (see MagicSystem)
+			var r3: Dictionary = await main.magic.cast(c, String(req.get("spell", "arcane_orb")), String(req.get("target", "")))
+			reply.merge(r3)
+			reply["status"] = "done" if r3.get("ok", false) else "error"
+		"spells":
+			reply.merge({"ok": true, "status": "done", "spells": main.magic.known_spells()})
+		"magic_targets":
+			reply.merge({"ok": true, "status": "done", "spell": String(req.get("spell", "arcane_orb")),
+				"targets": main.magic.targets_for(String(req.get("spell", "arcane_orb")), c)})
 		"cast_spell":
 			var spell := String(req.get("spell", "arcane_orb"))
 			if not WorldState.skills.has(spell):

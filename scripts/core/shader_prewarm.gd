@@ -16,7 +16,9 @@ static func run(camera: Camera3D, host: Node) -> void:
 		m.set_shader_parameter("noise_tex", noise)
 		mats.append(m)
 	for path in ["res://shaders/magic/sigil.gdshader", "res://shaders/magic/energy_mote.gdshader", "res://shaders/magic/elemental_blade.gdshader",
-			"res://shaders/crystal.gdshader", "res://shaders/water.gdshader", "res://shaders/waterfall.gdshader", "res://shaders/rune_floor.gdshader"]:
+			"res://shaders/crystal.gdshader", "res://shaders/water.gdshader", "res://shaders/waterfall.gdshader", "res://shaders/rune_floor.gdshader",
+			"res://shaders/magic/wind_arcs.gdshader", "res://shaders/magic/water_rings.gdshader", "res://shaders/magic/flame_billboard.gdshader",
+			"res://shaders/magic/beam.gdshader", "res://shaders/magic/smoke_puff.gdshader", "res://shaders/light_shaft.gdshader"]:
 		var m := ShaderMaterial.new()
 		m.shader = load(path)
 		mats.append(m)
@@ -41,6 +43,25 @@ static func run(camera: Camera3D, host: Node) -> void:
 	p.draw_pass_1 = q
 	p.global_transform = Transform3D(Basis.IDENTITY, cam_xf.origin - cam_xf.basis.z * 1.0)
 	root.add_child(p)
-	for f in 4:
+	# every elemental particle preset the spells and reactions use (each process material variant compiles
+	# its own particle shader; trail/round/puff draw meshes compile their own pipelines)
+	var k := 0
+	var combos := []
+	for el in ["arcane", "wind", "water", "fire", "rune", "self"]:
+		for kind in ["gather", "swirl", "trail", "burst", "rise", "splash"]:
+			combos.append([FX.pm_motes(el, kind), FX.mote_mesh(0.05)])
+	for kind in ["steam", "smoke", "dust"]:
+		combos.append([FX.pm_puff(kind), FX.puff_mesh(0.5)])
+	combos.append([FX.pm_motes("wind", "trail"), FX.mote_mesh(0.06, true)])
+	for c in combos:
+		var pp := GPUParticles3D.new()
+		pp.amount = 2
+		pp.lifetime = 0.2
+		pp.process_material = c[0]
+		pp.draw_pass_1 = c[1]
+		pp.global_transform = Transform3D(Basis.IDENTITY, cam_xf.origin - cam_xf.basis.z * 1.0 + cam_xf.basis.y * (k * 0.002))
+		root.add_child(pp)
+		k += 1
+	for f in 6:
 		await host.get_tree().process_frame
 	root.queue_free()

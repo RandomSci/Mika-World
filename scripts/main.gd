@@ -15,6 +15,7 @@ var prompt: Label
 var subtitle: Label
 var director: CameraDirector
 var brain: SanctuaryBrain
+var magic: MagicSystem
 var _subtitle_until := 0.0
 var _fps_acc := 0.0
 var _fps_frames := 0
@@ -86,6 +87,13 @@ func _ready() -> void:
 	add_child(bridge)
 	bridge.setup(self)
 
+	# Target-aware magic (spell catalogue, targeting, reactive world)
+	magic = MagicSystem.new()
+	magic.name = "MagicSystem"
+	add_child(magic)
+	magic.setup(self)
+	player.magic = magic
+
 	# Cinematographer + Mika's own decision layer for her home region (both local, no network)
 	director = CameraDirector.new()
 	director.name = "CameraDirector"
@@ -105,6 +113,11 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("magictest"):
+		travel._cooldown_until = 1e12
+		var mt := MagicTest.new()
+		mt.main = self
+		add_child(mt)
 	elif RenderProfile.options.has("posetest"):
 		travel._cooldown_until = 1e12
 		var pz := PoseTest.new()
@@ -259,8 +272,12 @@ func _process(delta: float) -> void:
 		if sid != "":
 			sub = " · " + String(WorldState.sanctuary.sub_areas[sid].name)
 		var ms := WorldState.mission_state()
-		hud.text = ("Rank: %s · Trials %d/%d%s · Brain %s · Director %s\n" % [ms.rank, ms.trials_done, ms.trials_total, (" · next: " + ms.next_rank) if ms.next_rank != "" else "",
-			"ON" if brain and brain.enabled else "off", director.mode if director and director.enabled else "off"]) + "%s · %s%s  |  %s  |  %.0f fps (%.1f ms)  |  %s\nArea loaded: %s  (streaming: %s, instantiated areas: %d)  Action: %s\nDiscovered %d/%d locations · WASD move · Shift run · Space cast · E interact · R sword · F slash · G charge · T element · B Mika decides · V director · N day/night · P profile · H hide" % [
+		var spell_txt := ""
+		if magic and player:
+			var sp := MagicSystem.spell(player.spell_id)
+			spell_txt = " · Spell (Q): %s [%s]" % [sp.get("name", "?"), MagicSystem.tier_name(MagicSystem.mastery(player.spell_id))]
+		hud.text = ("Rank: %s · Trials %d/%d%s · Brain %s · Director %s%s\n" % [ms.rank, ms.trials_done, ms.trials_total, (" · next: " + ms.next_rank) if ms.next_rank != "" else "",
+			"ON" if brain and brain.enabled else "off", director.mode if director and director.enabled else "off", spell_txt]) + "%s · %s%s  |  %s  |  %.0f fps (%.1f ms)  |  %s\nArea loaded: %s  (streaming: %s, instantiated areas: %d)  Action: %s\nDiscovered %d/%d locations · WASD move · Shift run · Space cast · E interact · R sword · F slash · G charge · T element · B Mika decides · V director · N day/night · P profile · H hide" % [
 			WorldState.regions[WorldState.areas[world.area_id].region].name, lname, sub, RenderProfile.profile,
 			_fps_frames / _fps_acc, 1000.0 * _fps_acc / _fps_frames, "NIGHT" if WorldState.night else "DAY",
 			streaming.current_id, streaming.state, streaming._instantiated_count(), mika.current_action,

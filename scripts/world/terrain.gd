@@ -7,6 +7,7 @@ extends RefCounted
 const SIZE := 200.0
 const STEP := 1.0
 const TRAINING_CENTER := Vector2(26.0, 4.0)
+const TRAINING_CENTER_3D := Vector3(26.0, 0.0, 4.0)
 
 # Path polylines (x, z)
 const PATHS := [
