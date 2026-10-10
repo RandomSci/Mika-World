@@ -33,6 +33,14 @@ var current_goal := ""
 var sanctuary := {}              # data/sanctuary.json: sub-areas, lore, trials, ranks, actions, thoughts
 var trials_done := {}            # trial id -> true
 var npc_state := {}              # traveller id -> {met, visits, relationship, taught, knows_from_mika, used_beats, memories}
+var story_state := {}            # StoryManager: {found: {clue: unix}, stage}
+var activity_counts := {}        # activity kind / id -> {count, last_unix}
+const SAVE_PATH := "user://mika_world_save.json"
+var save_path := SAVE_PATH       # --save-path=user://name.json (tests use their own file, never the real save)
+const SAVE_VERSION := 1
+var persistent := false          # true when this run loads/saves (normal play); tests run ephemeral
+var _dirty := false
+var _save_timer := 0.0
 var _prefix_counts := {}         # activity prefix -> distinct activity ids done
 
 
@@ -52,6 +60,86 @@ func _init() -> void:
 	var sf := FileAccess.open("res://data/sanctuary.json", FileAccess.READ)
 	if sf:
 		sanctuary = JSON.parse_string(sf.get_as_text())
+
+
+const _TEST_FLAGS := ["fresh", "physicstest", "posetest", "magictest", "readtest", "alchemytest", "audiotest", "lifetest",
+	"storytest", "brainrun", "sanctuarytour", "worldtour", "facetest", "tour", "mock-commands", "viewertest", "chattest", "perfrun"]
+
+
+func _ready() -> void:
+	persistent = true
+	for f in _TEST_FLAGS:
+		if RenderProfile.options.has(f):
+			persistent = false
+	if RenderProfile.options.has("persist"):
+		persistent = true
+	var sp := String(RenderProfile.options.get("save-path", ""))
+	if sp.begins_with("user://") and sp.ends_with(".json") and not sp.contains(".."):
+		save_path = sp
+	if persistent:
+		load_game()
+	state_changed.connect(func(_e): _dirty = true)
+
+
+func _process(delta: float) -> void:
+	if not persistent:
+		return
+	_save_timer += delta
+	if _dirty and _save_timer > 2.0:
+		save_game()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
+		if persistent and _dirty:
+			save_game()
+
+
+func save_game() -> void:
+	_dirty = false
+	_save_timer = 0.0
+	var d := {"version": SAVE_VERSION, "saved_unix": int(Time.get_unix_time_from_system()),
+		"discovered_locations": discovered_locations, "visited_locations": visited_locations, "seen_landmarks": seen_landmarks,
+		"knowledge": knowledge, "inventory": inventory, "skills": skills, "trials_done": trials_done, "prefix_counts": _prefix_counts,
+		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200))}
+	var tmp := save_path + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null:
+		push_warning("[save] cannot write %s" % tmp)
+		return
+	f.store_string(JSON.stringify(d))
+	f.close()
+	DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(save_path))
+
+
+func load_game() -> bool:
+	if not FileAccess.file_exists(save_path):
+		return false
+	var d = JSON.parse_string(FileAccess.get_file_as_string(save_path))
+	if not d is Dictionary or int(d.get("version", 0)) != SAVE_VERSION:
+		push_warning("[save] ignoring incompatible save")
+		return false
+	discovered_locations = d.discovered_locations
+	visited_locations = d.visited_locations
+	seen_landmarks = d.seen_landmarks
+	knowledge = d.knowledge
+	inventory = d.inventory
+	skills = d.skills
+	trials_done = d.trials_done
+	_prefix_counts = d.get("prefix_counts", {})
+	npc_state = d.get("npc_state", {})
+	story_state = d.get("story_state", {})
+	activity_counts = d.get("activity_counts", {})
+	activity_log.assign(d.get("activity_log", []))
+	print("[save] loaded progress from %s (%d knowledge entries, %d trials)" % [save_path, knowledge.size(), trials_done.size()])
+	return true
+
+
+func note_activity(kind: String) -> void:
+	var a: Dictionary = activity_counts.get_or_add(kind, {"count": 0, "last_unix": 0})
+	a.count += 1
+	a.last_unix = int(Time.get_unix_time_from_system())
+	_dirty = true
 
 
 func area_of(location_id: String) -> String:

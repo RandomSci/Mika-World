@@ -13,6 +13,8 @@ static func data() -> Dictionary:
 
 
 static func book(id: String) -> Dictionary:
+	if id == "mika_journal":
+		return Journal.book()   # written from verified events, so it changes as she lives
 	return data().books.get(id, {})
 
 

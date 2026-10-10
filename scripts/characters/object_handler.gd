@@ -14,6 +14,9 @@ var ik: TwoBoneIK3D
 var target: Node3D
 var pole: Node3D
 var held: HoldableObject = null
+var ik_left: TwoBoneIK3D            # second arm, used for two-handed poses (resting on a lectern)
+var target_left: Node3D
+var pole_left: Node3D
 var tilt := 0.0                  # pour tilt (radians) applied to the held object
 var busy := false
 var _shoulder := -1
@@ -38,6 +41,22 @@ func attach(character: WorldCharacter) -> void:
 	ik.set_pole_node(0, ik.get_path_to(pole))
 	ik.influence = 0.0
 	_shoulder = c.skeleton.find_bone("RightUpperArm")
+	target_left = Node3D.new()
+	target_left.name = "HandTargetL"
+	c.add_child(target_left)
+	pole_left = Node3D.new()
+	pole_left.name = "ElbowPoleL"
+	c.add_child(pole_left)
+	ik_left = TwoBoneIK3D.new()
+	ik_left.name = "LeftArmIK"
+	c.skeleton.add_child(ik_left)
+	ik_left.setting_count = 1
+	ik_left.set_root_bone_name(0, "LeftUpperArm")
+	ik_left.set_middle_bone_name(0, "LeftLowerArm")
+	ik_left.set_end_bone_name(0, "LeftHand")
+	ik_left.set_target_node(0, ik_left.get_path_to(target_left))
+	ik_left.set_pole_node(0, ik_left.get_path_to(pole_left))
+	ik_left.influence = 0.0
 
 
 func shoulder() -> Vector3:
@@ -115,6 +134,40 @@ func place(xf: Transform3D, seconds := 0.8) -> bool:
 	if AudioDirector.instance:
 		AudioDirector.instance.on_interaction(obj, "place", c)
 	return true
+
+
+## Rest both hands on a surface (e.g. the lectern board beside the book), elbows down and out.
+func rest_hands(left: Vector3, right: Vector3, seconds := 0.8) -> void:
+	var fwd := -c.global_transform.basis.z
+	fwd.y = 0
+	fwd = fwd.normalized()
+	var side := Vector3(-fwd.z, 0, fwd.x)
+	target.global_position = c.right_hand.global_position
+	target_left.global_position = c.left_hand.global_position
+	pole.global_position = right + side * 0.35 - fwd * 0.35 + Vector3(0, -0.4, 0)
+	pole_left.global_position = left - side * 0.35 - fwd * 0.35 + Vector3(0, -0.4, 0)
+	var tw := c.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ik, "influence", 0.85, seconds)
+	tw.tween_property(ik_left, "influence", 0.85, seconds)
+	tw.tween_property(target, "global_position", right, seconds).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(target_left, "global_position", left, seconds).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+
+
+## Move only the right hand (page turns) while the left stays where it is.
+func move_right(p: Vector3, seconds := 0.45) -> void:
+	var tw := c.create_tween()
+	tw.tween_property(target, "global_position", p, seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+
+
+func release_hands(seconds := 0.6) -> void:
+	var tw := c.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ik, "influence", 0.0, seconds)
+	tw.tween_property(ik_left, "influence", 0.0, seconds)
+	await tw.finished
 
 
 ## Bring the arm back to the animation (no IK).

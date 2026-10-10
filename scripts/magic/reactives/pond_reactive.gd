@@ -120,7 +120,26 @@ func _react_arcane(power: float, point: Vector3) -> Dictionary:
 	var p := _on_surface(point)
 	var pal := FX.palette("arcane")
 	_ripple(p, 0.4 + 0.4 * power, 1.2 + 1.5 * power, pal[0])
+	# story: once the Sign of Return has been woken, arcane light shaped by it shows what the water remembers
+	if WorldState.knowledge.has("clue:gate_mark"):
+		_show_pattern()
+		if not WorldState.knowledge.has("clue:pond_pattern"):
+			return {"effect": "pattern_reflection", "detail": "the rings settled into a seven-pointed pattern of light, the same shape as the sign by the gate", "clue": "clue:pond_pattern"}
+		return {"effect": "pattern_reflection", "detail": "the seven-pointed pattern shone in the water again"}
 	return {"effect": "glow_ring", "detail": "a ring of arcane light spread across the water and faded"}
+
+
+func _show_pattern() -> void:
+	var g := FX.quad("res://shaders/magic/sigil.gdshader", radius * 1.6, {"color": Color(1.0, 0.82, 0.45), "sides": 7, "intensity": 0.0, "draw_progress": 0.0, "spin": 0.03, "seed": 31.0})
+	add_child(g)
+	g.position = Vector3(0, 0.02, 0)
+	var m: ShaderMaterial = g.material_override
+	var tw := create_tween()
+	tw.tween_method(func(v: float): m.set_shader_parameter("draw_progress", v), 0.0, 1.0, 2.5)
+	tw.parallel().tween_method(func(v: float): m.set_shader_parameter("intensity", v), 0.0, 1.8, 2.5)
+	tw.tween_interval(9.0)
+	tw.tween_method(func(v: float): m.set_shader_parameter("intensity", v), 1.8, 0.0, 3.0)
+	tw.tween_callback(g.queue_free)
 
 
 func _process(delta: float) -> void:

@@ -7,17 +7,43 @@
    "style": "book",
    "location": "Ritual Circle, on the altar",
    "pages": [
-    {"heading": "Gather, Shape, Release",
+    {
+     "heading": "Gather, Shape, Release",
      "text": "Every spell begins as a breath held in the hands. First gather: draw the loose light of the circle toward you, slowly. Then shape: give it a single clear form, and do not change your mind halfway. Only then release.",
-     "latin": [{"text": "Orbis lucis.", "translation": "Sphere of light.", "spell": "arcane_orb"}],
-     "diagram": {"kind": "sigil", "sides": 6, "color": [0.45, 0.7, 1.0]},
-     "knowledge": ["lore:arcane_orb_theory"]},
-    {"heading": "Listening to the Circle",
+     "latin": [
+      {
+       "text": "Orbis lucis.",
+       "translation": "Sphere of light.",
+       "spell": "arcane_orb"
+      }
+     ],
+     "diagram": {
+      "kind": "sigil",
+      "sides": 6,
+      "color": [
+       0.45,
+       0.7,
+       1.0
+      ]
+     },
+     "knowledge": [
+      "lore:arcane_orb_theory"
+     ]
+    },
+    {
+     "heading": "Listening to the Circle",
      "text": "The circle is not a tool but a listener. Cast gently and it answers with light along its lines; force it and it falls silent. An apprentice who can hold the orb steady for nine heartbeats has begun to listen.",
-     "knowledge": ["lore:listening_circle"]},
-    {"heading": "A Note in the Margin",
+     "knowledge": [
+      "lore:listening_circle"
+     ]
+    },
+    {
+     "heading": "A Note in the Margin",
      "text": "Written later, in a smaller hand: 'The orb wakes more than runes. In the west chamber the stone answers it like a heartbeat. I have told no one.  A.'",
-     "knowledge": ["clue:margin_note_aurel"]}
+     "knowledge": [
+      "clue:margin_note_aurel"
+     ]
+    }
    ]
   },
   "scroll_first_circle": {
@@ -25,10 +51,19 @@
    "style": "scroll",
    "location": "Ritual Circle, west lectern",
    "pages": [
-    {"heading": "Where Three Lines Cross",
+    {
+     "heading": "Where Three Lines Cross",
      "text": "Where three ley-lines cross, a circle was cut into the living stone. Speak to it gently and it will answer; force it and it will sleep. Each mage who learns here adds a voice to the circle, and the circle remembers every voice.",
-     "latin": [{"text": "Circulus arcanus.", "translation": "The arcane circle."}],
-     "knowledge": ["lore:first_circle"]}
+     "latin": [
+      {
+       "text": "Circulus arcanus.",
+       "translation": "The arcane circle."
+      }
+     ],
+     "knowledge": [
+      "lore:first_circle"
+     ]
+    }
    ]
   },
   "keepers_daybook": {
@@ -37,22 +72,61 @@
    "style": "book",
    "location": "Altar Chamber, stone reading ledge",
    "pages": [
-    {"heading": "First Entry",
+    {
+     "heading": "First Entry",
      "text": "The Heartstone was quiet again tonight. When the orb is cast in the circle it answers twice, slow, like a sleeper's heart. The old texts say it should answer three times. Something is missing.",
-     "latin": [{"text": "Cor lapidis ter pulsat.", "translation": "The heart of the stone beats three times."}],
-     "knowledge": ["clue:heartbeat_should_be_three"]},
-    {"heading": "On Memory",
+     "latin": [
+      {
+       "text": "Cor lapidis ter pulsat.",
+       "translation": "The heart of the stone beats three times."
+      }
+     ],
+     "knowledge": [
+      "clue:heartbeat_should_be_three"
+     ]
+    },
+    {
+     "heading": "On Memory",
      "text": "The Circle's elders taught a saying I did not understand until now. The stone forgets the pattern it was made for, but still water holds whatever light passes through it, if the light is shaped like the sign.",
-     "latin": [{"text": "Quod lapis obliviscitur, aqua meminit.", "translation": "What the stone forgets, the water remembers."}],
-     "knowledge": ["clue:water_remembers"]},
-    {"heading": "The Sign of Return",
+     "latin": [
+      {
+       "text": "Quod lapis obliviscitur, aqua meminit.",
+       "translation": "What the stone forgets, the water remembers."
+      }
+     ],
+     "knowledge": [
+      "clue:water_remembers"
+     ]
+    },
+    {
+     "heading": "The Sign of Return",
      "text": "I have carved the Sign of Return on the stone beside the forest gate, too faint for daylight. It cannot be read, only woken. Whoever wakes it and carries its shape to still water will see what the Heartstone has forgotten.",
-     "latin": [{"text": "Signum Reditus.", "translation": "The Sign of Return."}],
-     "diagram": {"kind": "sigil", "sides": 7, "color": [1.0, 0.82, 0.45]},
-     "knowledge": ["clue:sign_of_return_location"]},
-    {"heading": "Last Entry",
+     "latin": [
+      {
+       "text": "Signum Reditus.",
+       "translation": "The Sign of Return."
+      }
+     ],
+     "diagram": {
+      "kind": "sigil",
+      "sides": 7,
+      "color": [
+       1.0,
+       0.82,
+       0.45
+      ]
+     },
+     "knowledge": [
+      "clue:sign_of_return_location"
+     ]
+    },
+    {
+     "heading": "Last Entry",
      "text": "The Circle leaves at dawn. They asked me to bind the Heartstone to sleep, and I have. But I left it a way to wake: a sign, a pond, and a mage patient enough to read. If you are reading this, you are probably that mage. Be kind to it.",
-     "knowledge": ["lore:circle_departed"]}
+     "knowledge": [
+      "lore:circle_departed"
+     ]
+    }
    ]
   },
   "elementa_prima": {
@@ -62,24 +136,86 @@
    "location": "Ancient Spell Library, spell lectern",
    "trial_activity": "lectern_warding_glyph",
    "pages": [
-    {"heading": "Wind and Flame",
+    {
+     "heading": "Wind and Flame",
      "text": "A flame leans away from a gentle wind and steadies again. A shaped gust, strong enough, takes the breath from a flame entirely. Practise on a brazier: the flame will tell you, honestly, how strong your wind has become.",
-     "latin": [{"text": "Spiritus venti, fla!", "translation": "Breath of the wind, blow!", "spell": "wind_gust"}],
-     "diagram": {"kind": "arcs", "count": 3, "color": [0.75, 1.0, 0.88]},
-     "knowledge": ["incantation:wind_gust", "lore:wind_and_flame"]},
-    {"heading": "Water and Fire",
+     "latin": [
+      {
+       "text": "Spiritus venti, fla!",
+       "translation": "Breath of the wind, blow!",
+       "spell": "wind_gust"
+      }
+     ],
+     "diagram": {
+      "kind": "arcs",
+      "count": 3,
+      "color": [
+       0.75,
+       1.0,
+       0.88
+      ]
+     },
+     "knowledge": [
+      "incantation:wind_gust",
+      "lore:wind_and_flame"
+     ]
+    },
+    {
+     "heading": "Water and Fire",
      "text": "Water called against fire rises as steam and steals its heat. Water called upon water moves in rings; called strongly, it stands up in a column before it falls. Still water is the best teacher: every ring shows your intent.",
-     "latin": [{"text": "Aqua, surge!", "translation": "Water, rise!", "spell": "water_ripple"}],
-     "diagram": {"kind": "rings", "count": 3, "color": [0.4, 0.78, 1.0]},
-     "knowledge": ["incantation:water_ripple", "lore:water_and_fire"]},
-    {"heading": "Two Breaths Together",
+     "latin": [
+      {
+       "text": "Aqua, surge!",
+       "translation": "Water, rise!",
+       "spell": "water_ripple"
+      }
+     ],
+     "diagram": {
+      "kind": "rings",
+      "count": 3,
+      "color": [
+       0.4,
+       0.78,
+       1.0
+      ]
+     },
+     "knowledge": [
+      "incantation:water_ripple",
+      "lore:water_and_fire"
+     ]
+    },
+    {
+     "heading": "Two Breaths Together",
      "text": "The old mages joined breaths. Water and wind together raise a veil of mist that hides and heals. No apprentice should attempt it before both breaths answer reliably.",
-     "latin": [{"text": "Aqua et ventus, surgite!", "translation": "Water and wind, rise!", "spell": "mist_veil"}],
-     "knowledge": ["incantation:mist_veil", "lore:joined_breaths"]},
-    {"heading": "The Warding Glyph",
+     "latin": [
+      {
+       "text": "Aqua et ventus, surgite!",
+       "translation": "Water and wind, rise!",
+       "spell": "mist_veil"
+      }
+     ],
+     "knowledge": [
+      "incantation:mist_veil",
+      "lore:joined_breaths"
+     ]
+    },
+    {
+     "heading": "The Warding Glyph",
      "text": "A ward is a promise drawn in light: four strokes, closed, and held while you breathe out. It turns aside small harms. It is the first glyph every Initiate must be able to draw with their eyes closed.",
-     "diagram": {"kind": "sigil", "sides": 4, "color": [0.95, 0.85, 0.5]},
-     "knowledge": ["spell:warding_glyph_theory", "lore:library_lectern"]}
+     "diagram": {
+      "kind": "sigil",
+      "sides": 4,
+      "color": [
+       0.95,
+       0.85,
+       0.5
+      ]
+     },
+     "knowledge": [
+      "spell:warding_glyph_theory",
+      "lore:library_lectern"
+     ]
+    }
    ]
   },
   "signs_and_wakings": {
@@ -88,14 +224,37 @@
    "location": "Ancient Spell Library, reading desk",
    "trial_activity": "research_desk",
    "pages": [
-    {"heading": "Signs That Sleep",
+    {
+     "heading": "Signs That Sleep",
      "text": "Some signs are carved to be invisible. They are not hidden by depth but by silence: no light has asked them anything for a long time. A woken sign glows along every line it was ever given.",
-     "knowledge": ["lore:sleeping_signs", "lore:history_of_the_sanctuary"]},
-    {"heading": "The Waking Word",
+     "knowledge": [
+      "lore:sleeping_signs",
+      "lore:history_of_the_sanctuary"
+     ]
+    },
+    {
+     "heading": "The Waking Word",
      "text": "To wake a sign, touch it with a thin line of light, never a blow. An orb will only outline it. The waking word gives the light its edge.",
-     "latin": [{"text": "Signum, expergiscere!", "translation": "Sign, awaken!", "spell": "rune_activation"}],
-     "diagram": {"kind": "sigil", "sides": 4, "color": [0.55, 0.85, 1.0]},
-     "knowledge": ["incantation:rune_activation"]}
+     "latin": [
+      {
+       "text": "Signum, expergiscere!",
+       "translation": "Sign, awaken!",
+       "spell": "rune_activation"
+      }
+     ],
+     "diagram": {
+      "kind": "sigil",
+      "sides": 4,
+      "color": [
+       0.55,
+       0.85,
+       1.0
+      ]
+     },
+     "knowledge": [
+      "incantation:rune_activation"
+     ]
+    }
    ]
   },
   "on_gathering": {
@@ -104,14 +263,34 @@
    "style": "book",
    "location": "Ancient Spell Library, east desk",
    "pages": [
-    {"heading": "Gathering Power",
+    {
+     "heading": "Gathering Power",
      "text": "Before a hard spell, stand still and let the elements come to you. It is slow and it looks like nothing, but the next spell you cast will carry more than your own strength.",
-     "latin": [{"text": "Vires elementorum, in me convenite!", "translation": "Powers of the elements, gather in me!", "spell": "elemental_charge"}],
-     "knowledge": ["incantation:elemental_charge"]},
-    {"heading": "A Practical Receipt: Luminous Draught",
+     "latin": [
+      {
+       "text": "Vires elementorum, in me convenite!",
+       "translation": "Powers of the elements, gather in me!",
+       "spell": "elemental_charge"
+      }
+     ],
+     "knowledge": [
+      "incantation:elemental_charge"
+     ]
+    },
+    {
+     "heading": "A Practical Receipt: Luminous Draught",
      "text": "Into a clean bowl pour moonwater, then a little sylph dew, and stir once with a thread of arcane light. It should glow softly and smell of rain. Never add ember salt to moonwater: it fizzes, smokes and ruins the bowl's patience.",
-     "diagram": {"kind": "recipe", "items": ["moonwater", "sylph_dew"]},
-     "knowledge": ["recipe:luminous_draught"]}
+     "diagram": {
+      "kind": "recipe",
+      "items": [
+       "moonwater",
+       "sylph_dew"
+      ]
+     },
+     "knowledge": [
+      "recipe:luminous_draught"
+     ]
+    }
    ]
   },
   "chamber_tablet": {
@@ -119,9 +298,28 @@
    "style": "inscription",
    "location": "Altar Chamber, north wall",
    "pages": [
-    {"heading": "Tablet of the Heartstone",
+    {
+     "heading": "Tablet of the Heartstone",
      "text": "The Heartstone was the sanctuary's first relic: a crystal that drinks moonlight and remembers every spell cast within the circle. When the First Circle left, they bound it to sleep.",
-     "knowledge": ["lore:heartstone"]}
+     "knowledge": [
+      "lore:heartstone"
+     ]
+    },
+    {
+     "heading": "The Second Inscription",
+     "requires_knowledge": "story:heartstone_awakened",
+     "text": "Lines that were not there before glow under the first: 'The Circle keeps its oath beneath the southern water. When the stone beats three times, the way to the drowned towers will open to the one who woke it.'",
+     "latin": [
+      {
+       "text": "Juramentum sub aqua servatur.",
+       "translation": "The oath is kept beneath the water."
+      }
+     ],
+     "knowledge": [
+      "lore:second_inscription",
+      "clue:drowned_towers_oath"
+     ]
+    }
    ]
   },
   "gate_inscription": {
@@ -129,10 +327,20 @@
    "style": "inscription",
    "location": "Ruined Forest Gate",
    "pages": [
-    {"heading": "Inscription on the Forest Gate",
+    {
+     "heading": "Inscription on the Forest Gate",
      "text": "Leave the noise of the world beyond this arch. Within, the stones remember. (Several later lines have been chiselled away. Only one word survives at the end: REDITUS, return.)",
-     "latin": [{"text": "Reditus.", "translation": "Return."}],
-     "knowledge": ["lore:gate_inscription", "clue:word_reditus"]}
+     "latin": [
+      {
+       "text": "Reditus.",
+       "translation": "Return."
+      }
+     ],
+     "knowledge": [
+      "lore:gate_inscription",
+      "clue:word_reditus"
+     ]
+    }
    ]
   }
  }

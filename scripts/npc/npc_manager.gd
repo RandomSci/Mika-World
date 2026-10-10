@@ -22,6 +22,8 @@ func setup(m: Node) -> void:
 	_rng.seed = int(Time.get_unix_time_from_system())
 	if String(RenderProfile.options.get("visitors", "")) == "fast":
 		time_scale = 0.05
+	elif String(RenderProfile.options.get("visitors", "")) == "quick":
+		time_scale = 0.25
 	if RenderProfile.options.has("no-visitors"):
 		set_process(false)
 
@@ -88,6 +90,8 @@ func arrive(id: String) -> TravelerNPC:
 	events.append({"t": snappedf(_session_t, 0.1), "npc": id, "event": "arrived", "from": t.arrives_from})
 	main.voice.register_speaker(String(t.voice), npc)
 	print("[npcs] %s (%s) arrives from %s" % [t.name, t.role, t.arrives_from])
+	if main.curiosity:
+		main.curiosity.on_visitor(id)
 	return npc
 
 

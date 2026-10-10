@@ -23,6 +23,16 @@ var audio: AudioDirector
 var llm: LLMClient
 var dialogue: DialogueService
 var npcs: NPCManager
+var story: StoryManager
+var curiosity: CuriosityModule
+var notice: Label
+var last_thought := ""
+var viewer_mode := false        # clean presentation for streaming (F1 toggles; --viewer starts in it)
+var rank_tag: Label
+var comment_label: Label
+var chat: ViewerChat
+var _comment_until := 0.0
+var _last_rank := ""
 var _subtitle_until := 0.0
 var _fps_acc := 0.0
 var _fps_frames := 0
@@ -130,6 +140,12 @@ func _ready() -> void:
 	add_child(npcs)
 	npcs.setup(self)
 
+	# Story (Echoes of the Heartstone) + optional curiosity (consulted between activities only)
+	story = StoryManager.new()
+	story.name = "StoryManager"
+	add_child(story)
+	story.setup(self)
+
 	# Target-aware magic (spell catalogue, targeting, reactive world)
 	magic = MagicSystem.new()
 	magic.name = "MagicSystem"
@@ -146,8 +162,26 @@ func _ready() -> void:
 	brain.name = "SanctuaryBrain"
 	add_child(brain)
 	brain.setup(self)
-	brain.thought.connect(func(text, sub): show_subtitle("Mika: \u201c%s\u201d" % text, 5.5))
+	brain.thought.connect(func(text, _sub): last_thought = text)   # private reasoning: developer HUD only, never spoken
 	WorldState.interaction_finished.connect(func(_it, _c, r): if r.has("read") and not r.has("reading"): show_subtitle("%s: %s" % [r.read.title, r.read.text], 8.0))
+	chat = ViewerChat.new()
+	chat.name = "ViewerChat"
+	add_child(chat)
+	chat.setup(self)
+	# region-specific portal effects: departing as the travel mask closes, arriving as the next area appears
+	streaming.transition_started.connect(func(_from, to):
+		if characters.has("mika"):
+			PortalFX.play(self, characters["mika"].global_position, WorldState.areas.get(to, {}).get("region", ""), false))
+	streaming.area_activated.connect(func(a, _r):
+		await get_tree().create_timer(0.15).timeout
+		if world and characters.has("mika"):
+			PortalFX.play(world, characters["mika"].global_position, WorldState.areas.get(a, {}).get("region", ""), true))
+	if RenderProfile.options.has("viewer"):
+		set_viewer_mode(true)
+	curiosity = CuriosityModule.new()
+	curiosity.name = "CuriosityModule"
+	add_child(curiosity)
+	curiosity.setup(self)
 	bridge.attach_brain(brain, director)
 	if RenderProfile.options.has("brain"):
 		set_brain(true)
@@ -156,6 +190,16 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("chattest"):
+		travel._cooldown_until = 1e12
+		var ct := ChatTest.new()
+		ct.main = self
+		add_child(ct)
+	elif RenderProfile.options.has("brainrun"):
+		travel._cooldown_until = 1e12
+		var br := BrainRun.new()
+		br.main = self
+		add_child(br)
 	elif RenderProfile.options.has("lifetest"):
 		travel._cooldown_until = 1e12
 		var lt := LifeTest.new()
@@ -253,6 +297,41 @@ func _build_hud() -> void:
 	subtitle.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	subtitle.add_theme_constant_override("outline_size", 6)
 	layer.add_child(subtitle)
+	notice = Label.new()
+	notice.anchor_left = 0.5
+	notice.anchor_right = 0.5
+	notice.anchor_top = 0.06
+	notice.position = Vector2(-450, 0)
+	notice.custom_minimum_size = Vector2(900, 30)
+	notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	notice.add_theme_font_size_override("font_size", 22)
+	notice.add_theme_color_override("font_color", Color(1.0, 0.88, 0.6))
+	notice.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	notice.add_theme_constant_override("outline_size", 6)
+	notice.modulate.a = 0.0
+	layer.add_child(notice)
+	rank_tag = Label.new()
+	rank_tag.position = Vector2(22, 18)
+	rank_tag.add_theme_font_size_override("font_size", 17)
+	rank_tag.add_theme_color_override("font_color", Color(0.95, 0.9, 0.78))
+	rank_tag.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	rank_tag.add_theme_constant_override("outline_size", 5)
+	rank_tag.modulate.a = 0.0
+	layer.add_child(rank_tag)
+	comment_label = Label.new()
+	comment_label.anchor_left = 0.5
+	comment_label.anchor_right = 0.5
+	comment_label.anchor_top = 0.80
+	comment_label.position = Vector2(-520, 0)
+	comment_label.custom_minimum_size = Vector2(1040, 26)
+	comment_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	comment_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	comment_label.add_theme_font_size_override("font_size", 16)
+	comment_label.add_theme_color_override("font_color", Color(0.75, 0.85, 1.0))
+	comment_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	comment_label.add_theme_constant_override("outline_size", 5)
+	comment_label.modulate.a = 0.0
+	layer.add_child(comment_label)
 
 
 func nearest_interactable(max_d := 3.0) -> Interactable:
@@ -284,6 +363,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		print("[main] camera director ", "on" if director.enabled else "off")
 	elif event.is_action_pressed("brain_toggle"):
 		set_brain(not brain.enabled)
+	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F1:
+		set_viewer_mode(not viewer_mode)
 	elif event.is_action_pressed("toggle_hud"):
 		hud.visible = not hud.visible
 	elif event.is_action_pressed("interact"):
@@ -308,6 +389,30 @@ func set_brain(on: bool) -> void:
 	show_subtitle("Mika is choosing what to do (B to take control)" if on else "You are in control (B: let Mika decide)", 3.0)
 
 
+## Viewer mode: no telemetry, controls or debug lines; only rank (when relevant), spoken subtitles,
+## story notices, the viewer comment being answered, the reading card, and the interaction prompt only
+## while a human is actually controlling Mika.
+func set_viewer_mode(on: bool) -> void:
+	viewer_mode = on
+	hud.visible = not on
+	print("[main] viewer mode ", "on" if on else "off")
+
+
+func show_comment(author: String, text: String) -> void:
+	comment_label.text = VoiceService.clean("%s: %s" % [author, text])
+	comment_label.modulate.a = 1.0
+	_comment_until = Time.get_ticks_msec() / 1000.0 + 9.0
+
+
+## A significant story notification (stays readable in viewer mode).
+func show_notice(text: String) -> void:
+	notice.text = VoiceService.clean(text)
+	notice.modulate.a = 1.0
+	var tw := create_tween()
+	tw.tween_interval(5.0)
+	tw.tween_property(notice, "modulate:a", 0.0, 1.5)
+
+
 func show_subtitle(text: String, seconds: float) -> void:
 	subtitle.text = VoiceService.clean(text)
 	subtitle.modulate.a = 1.0
@@ -324,7 +429,19 @@ func _process(delta: float) -> void:
 		return
 	var mika: WorldCharacter = characters["mika"]
 	var it := nearest_interactable(1.5)
-	prompt.text = ("E — " + it.label) if it and not it.busy else ""
+	var human: bool = player.enabled and not (brain and brain.enabled)
+	prompt.text = ("E: " + it.label) if it and not it.busy and human else ""
+	if _comment_until > 0.0:
+		comment_label.modulate.a = clampf((_comment_until - Time.get_ticks_msec() / 1000.0) / 0.8, 0.0, 1.0)
+	# rank tag: shown briefly whenever the rank changes; always visible in developer mode
+	var rank := WorldState.mage_rank()
+	if rank != _last_rank:
+		_last_rank = rank
+		rank_tag.text = rank
+		rank_tag.modulate.a = 1.0
+		var tw := create_tween()
+		tw.tween_interval(10.0)
+		tw.tween_property(rank_tag, "modulate:a", 0.0, 2.0)
 	var loc := world.location_at(mika.global_position)
 	if streaming.state == "idle":
 		WorldState.enter_location(loc)
@@ -339,11 +456,12 @@ func _process(delta: float) -> void:
 		if magic and player:
 			var sp := MagicSystem.spell(player.spell_id)
 			spell_txt = " · Spell (Q): %s [%s]" % [sp.get("name", "?"), MagicSystem.tier_name(MagicSystem.mastery(player.spell_id))]
+		var thought_txt := ("\nThinking: " + last_thought) if last_thought != "" and brain and brain.enabled else ""
 		hud.text = ("Rank: %s · Trials %d/%d%s · Brain %s · Director %s%s\n" % [ms.rank, ms.trials_done, ms.trials_total, (" · next: " + ms.next_rank) if ms.next_rank != "" else "",
 			"ON" if brain and brain.enabled else "off", director.mode if director and director.enabled else "off", spell_txt]) + "%s · %s%s  |  %s  |  %.0f fps (%.1f ms)  |  %s\nArea loaded: %s  (streaming: %s, instantiated areas: %d)  Action: %s\nDiscovered %d/%d locations · WASD move · Shift run · Space cast · E interact · R sword · F slash · G charge · T element · B Mika decides · V director · N day/night · P profile · H hide" % [
 			WorldState.regions[WorldState.areas[world.area_id].region].name, lname, sub, RenderProfile.profile,
 			_fps_frames / _fps_acc, 1000.0 * _fps_acc / _fps_frames, "NIGHT" if WorldState.night else "DAY",
 			streaming.current_id, streaming.state, streaming._instantiated_count(), mika.current_action,
-			WorldState.discovered_locations.size(), WorldState.locations.size()]
+			WorldState.discovered_locations.size(), WorldState.locations.size()] + thought_txt
 		_fps_acc = 0.0
 		_fps_frames = 0

@@ -30,6 +30,7 @@ var book_id := ""              # a readable book/scroll/inscription (data/books.
 var book_xf = null             # Transform3D (area-local) where the open book lies; null = read in place
 var book_props: Array = []     # closed-book decor hidden while the open book is out
 var custom_activity: Callable  # multi-step physical activity (alchemy...): awaited instead of the plain wait
+var duration_override := -1.0  # a caller (the planner) can make this use longer or shorter (e.g. a long meditation)
 var _approach = null           # closest walkable point (computed once navigation exists)
 
 
@@ -104,8 +105,9 @@ func perform(c: WorldCharacter) -> Dictionary:
 	await get_tree().create_timer(0.6).timeout
 	var sitting := gesture == "sit" and sit_point != null
 	if sitting:
-		# lower onto the seat: the root (and so the pelvis) slides back over the seat while the pose blends in
-		c.play_gesture(gesture, 0.7, 0.7)
+		# lower onto the seat: the root (and so the pelvis) slides back over the seat while the pose blends in.
+		# The seated clip loops for as long as she sits (meditation length is decided by the caller).
+		c.play_gesture("sit_loop", 0.7, 0.7)
 		c.set_seated(true, 0.8)
 		var sp: Vector3 = get_parent().to_global(sit_point)
 		var tws := c.create_tween()
@@ -126,10 +128,12 @@ func perform(c: WorldCharacter) -> Dictionary:
 		for bp in book_props:
 			bp.visible = true
 	else:
-		await get_tree().create_timer(duration).timeout
+		await get_tree().create_timer(duration_override if duration_override > 0.0 else duration).timeout
+		duration_override = -1.0
 	if seat_body:
 		# stand up: rise forward off the seat, clear of it, before it becomes solid for her again
 		if sitting:
+			c.end_gesture()
 			c.set_seated(false, 0.6)
 		var fwd := -c.global_transform.basis.z
 		fwd.y = 0

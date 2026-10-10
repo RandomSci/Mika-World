@@ -48,21 +48,34 @@ func _rebuild() -> void:
 	for c in get_children():
 		c.queue_free()
 	var col := _colors()
-	var bg := Panel.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = col.bg
-	sb.border_color = col.edge
-	sb.set_border_width_all(int(6 * scale_text))
-	sb.set_corner_radius_all(int(10 * scale_text) if style != "inscription" else 2)
-	sb.shadow_color = Color(0, 0, 0, 0.35)
-	sb.shadow_size = int(8 * scale_text)
-	bg.add_theme_stylebox_override("panel", sb)
+	# parchment (or stone) background with a thin double rule border
+	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var pm := ShaderMaterial.new()
+	pm.shader = load("res://shaders/parchment_2d.gdshader")
+	pm.set_shader_parameter("tone", {"scroll": 1, "inscription": 2}.get(style, 0))
+	pm.set_shader_parameter("seed", float(hash(title) % 97) + page_no * 3.0)
+	bg.material = pm
 	add_child(bg)
+	for inset in [14.0, 20.0]:
+		var rule := Panel.new()
+		var sb := StyleBoxFlat.new()
+		sb.draw_center = false
+		sb.border_color = Color(col.edge, 0.55 if inset < 15.0 else 0.3)
+		sb.set_border_width_all(maxi(1, int(2 * scale_text)) if inset < 15.0 else 1)
+		sb.set_corner_radius_all(3)
+		rule.add_theme_stylebox_override("panel", sb)
+		rule.set_anchors_preset(Control.PRESET_FULL_RECT)
+		rule.offset_left = inset * scale_text
+		rule.offset_top = inset * scale_text
+		rule.offset_right = -inset * scale_text
+		rule.offset_bottom = -inset * scale_text
+		rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(rule)
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, int(26 * scale_text))
+		margin.add_theme_constant_override("margin_" + side, int(34 * scale_text))
 	add_child(margin)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", int(10 * scale_text))
@@ -74,12 +87,28 @@ func _rebuild() -> void:
 	head.add_theme_color_override("font_color", col.ink)
 	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(head)
-	var body := Label.new()
-	body.text = String(page.get("text", ""))
-	body.add_theme_font_override("font", serif())
-	body.add_theme_font_size_override("font_size", int(21 * scale_text))
-	body.add_theme_color_override("font_color", col.ink)
+	# a thin divider with a small diamond
+	var div := Label.new()
+	div.text = "\u2500\u2500\u2500\u2500  \u25c6  \u2500\u2500\u2500\u2500"
+	div.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	div.add_theme_font_size_override("font_size", int(12 * scale_text))
+	div.add_theme_color_override("font_color", Color(col.edge, 0.7))
+	vb.add_child(div)
+	var body := RichTextLabel.new()
+	body.bbcode_enabled = true
+	body.fit_content = true
+	body.scroll_active = false
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.add_theme_font_override("normal_font", serif())
+	body.add_theme_font_size_override("normal_font_size", int(21 * scale_text))
+	body.add_theme_color_override("default_color", col.ink)
+	var txt := String(page.get("text", ""))
+	if txt.length() > 1 and style != "inscription":
+		var cap := "#%s" % Color(col.latin).to_html(false)
+		body.text = "[font_size=%d][color=%s]%s[/color][/font_size]%s" % [int(40 * scale_text), cap, txt.left(1), txt.substr(1)]
+	else:
+		body.text = txt
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(body)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 8 * scale_text)

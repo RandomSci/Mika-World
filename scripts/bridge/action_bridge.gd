@@ -309,6 +309,14 @@ func handle(req: Dictionary) -> Dictionary:
 				"agent_map_is_world_map": c.nav_agent.get_navigation_map() == c.get_world_3d().navigation_map,
 				"area_region_rid_in_map": world.nav_region != null and NavigationServer3D.map_get_regions(c.get_world_3d().navigation_map).has(world.nav_region.get_rid()),
 				"closest_point_to_target": _v(NavigationServer3D.map_get_closest_point(c.get_world_3d().navigation_map, Vector3(2, 0, 6)))})
+		"chat":
+			# DEV mock viewer comment (never connected to a real stream)
+			reply.merge({"ok": true, "status": "done", "result": main.chat.receive({"message_id": String(req.get("message_id", str(Time.get_ticks_usec()))),
+				"author_id": String(req.get("author_id", "mock_viewer")), "author": String(req.get("author", "Viewer")), "text": String(req.get("text", ""))})})
+		"chat_status":
+			reply.merge({"ok": true, "status": "done", "chat": main.chat.describe()})
+		"story":
+			reply.merge({"ok": true, "status": "done", "story": main.story.describe()})
 		"region_context":
 			if brain == null:
 				reply.merge({"ok": false, "status": "error", "error": "no region brain"})

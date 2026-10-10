@@ -24,6 +24,7 @@ const CLIPS := {
 	"magic_attack_2h": ["standing_2h_magic_attack_01.fbx", false, true],
 	"magic_attack_1h": ["standing_1h_magic_attack_03.fbx", false, true],
 	"sit": ["sitting_idle.fbx", false, true],
+	"sit_loop": ["sitting_idle.fbx", true, true],
 }
 
 @export var character_id := "mika"
@@ -45,6 +46,7 @@ var world: Node  # the active area (magic bounce / rune floor), set by the strea
 var sword: SwordLayer  # optional magical-sword layer
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
 var head_look: LookAtModifier3D  # eases her head toward what she reads / inspects
+var eye_looks: Array[LookAtModifier3D] = []
 var handler: ObjectHandler       # right-arm IK + holding objects
 var _head_target: Node3D
 var seated := false
@@ -115,6 +117,25 @@ func _ready() -> void:
 	head_look.influence = 0.0
 	skeleton.add_child(head_look)
 	head_look.target_node = head_look.get_path_to(_head_target)
+	# eyes follow within a small range (after the head), so reading looks like reading
+	for eb in ["LeftEye", "RightEye"]:
+		if skeleton.find_bone(eb) == -1:
+			continue
+		var el := LookAtModifier3D.new()
+		el.name = "EyeLook_" + eb
+		el.bone_name = eb
+		el.forward_axis = SkeletonModifier3D.BONE_AXIS_PLUS_Z
+		el.primary_rotation_axis = Vector3.AXIS_Y
+		el.use_secondary_rotation = true
+		el.use_angle_limitation = true
+		el.symmetry_limitation = true
+		el.primary_limit_angle = deg_to_rad(24.0)
+		el.secondary_limit_angle = deg_to_rad(18.0)
+		el.duration = 0.18
+		el.influence = 0.0
+		skeleton.add_child(el)
+		el.target_node = el.get_path_to(_head_target)
+		eye_looks.append(el)
 	handler = ObjectHandler.new()
 	handler.name = "ObjectHandler"
 	handler.process_priority = 100   # after animation + IK, so held objects follow the final hand pose
@@ -211,9 +232,19 @@ func look_head_at(p) -> void:
 	var tw := create_tween()
 	if p == null:
 		tw.tween_property(head_look, "influence", 0.0, 0.5)
+		for el in eye_looks:
+			tw.parallel().tween_property(el, "influence", 0.0, 0.4)
 		return
 	_head_target.global_position = p
 	tw.tween_property(head_look, "influence", 0.85, 0.5)
+	for el in eye_looks:
+		tw.parallel().tween_property(el, "influence", 0.9, 0.4)
+
+
+## Shift the gaze target without changing influence (reading lines, glancing).
+func gaze_to(p: Vector3, seconds := 0.25) -> void:
+	var tw := create_tween()
+	tw.tween_property(_head_target, "global_position", p, seconds).set_trans(Tween.TRANS_SINE)
 
 
 ## Seated posture on/off: blends the knee correction in or out over `seconds`.
@@ -442,6 +473,11 @@ func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
 	bt.get_node("cast_anim").animation = "mx/" + clip
 	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	return true
+
+
+## Ends a looping gesture (seated loop) with the one-shot's fade-out.
+func end_gesture() -> void:
+	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
 
 
 func end_cast(ok: bool, detail: String) -> void:

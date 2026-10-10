@@ -172,6 +172,11 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 	if charge > 0.0 and not self_spell:
 		caster.remove_meta("magic_charge")
 	var power := power_of(id, charge if not self_spell else 0.0)
+	# story unlock: the awakened Heartstone makes the ritual circle amplify spells cast inside it
+	var amplified: bool = WorldState.knowledge.has("story:circle_amplified") and main.streaming.current_id == "sanctuary" \
+		and Vector2(caster.global_position.x, caster.global_position.z).length() < 7.8
+	if amplified:
+		power = minf(power + 0.15, 1.75)
 	var aim := Vector3.ZERO
 	var fwd := -caster.global_transform.basis.z
 	if target:
@@ -202,6 +207,7 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 	res.merge(flight)
 	res["ok"] = true
 	res["power"] = snappedf(power, 0.01)
+	res["circle_amplified"] = amplified
 	res["mastery_before"] = snappedf(mastery(id), 0.01)
 	res["incantation"] = s.incantation
 	if self_spell:

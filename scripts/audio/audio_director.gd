@@ -147,6 +147,10 @@ func _on_phase(caster: Node, spell_id: String, phase: String, element: String, p
 			"page_turn": play3d("k:bookFlip%d" % (1 + randi() % 3), pos, "SFX", -3.0, phase)
 			"book_close": play3d("k:bookClose", pos, "SFX", -4.0, phase)
 		return
+	if spell_id == "portal":
+		if phase == "arrive":
+			play3d("portal_whoosh", pos + Vector3(0, 1.0, 0), "SFX", -10.0, "portal_arrive", 1.2)
+		return
 	if spell_id == "alchemy":
 		match phase:
 			"pour": play3d("pour_liquid", pos, "SFX", -6.0, phase)

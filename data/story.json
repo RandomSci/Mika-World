@@ -1,0 +1,28 @@
+{
+ "chapter": "echoes_of_the_heartstone",
+ "title": "Echoes of the Heartstone",
+ "goal": "Become a Level 100 Archmage",
+ "premise": "Mika studies the foundations of magic in an old sanctuary. The Heartstone answers her spells with a heartbeat that sounds incomplete. Old books, a hidden sign and a still pond hold the pattern it has forgotten.",
+ "clues": {
+  "heartbeat": {"title": "A heartbeat with a beat missing", "any_knowledge": ["reaction:arcane_orb:relic:resonance", "reaction:rune_activation:relic:resonance"], "hint": "The Heartstone answered my orb with two slow pulses."},
+  "daybook": {"title": "The Keeper's Daybook", "any_knowledge": ["clue:heartbeat_should_be_three"], "hint": "Aurel wrote that the stone should beat three times."},
+  "margin_note": {"title": "A note signed 'A.'", "any_knowledge": ["clue:margin_note_aurel"], "hint": "Someone signed 'A.' knew the stone answers the orb."},
+  "sign_location": {"title": "Where the sign is", "any_knowledge": ["clue:sign_of_return_location", "clue:word_reditus"], "hint": "A sign of return is carved by the forest gate."},
+  "gate_mark": {"title": "The Sign of Return, woken", "any_knowledge": ["clue:gate_mark"], "hint": "The marked stone by the gate woke under a rune of light."},
+  "water_remembers": {"title": "What the water remembers", "any_knowledge": ["clue:water_remembers", "fact:signs_need_water"], "hint": "Still water holds the light of a sign."},
+  "pond_pattern": {"title": "The pattern in the pond", "any_knowledge": ["clue:pond_pattern"], "hint": "The pond showed a seven-pointed pattern in its rings."},
+  "awakened": {"title": "The Heartstone, awake", "any_knowledge": ["story:heartstone_awakened"], "hint": "It beat three times."}
+ },
+ "stages": [
+  {"id": "quiet_stone", "title": "The Quiet Stone", "requires_any": [], "objective": "Study the sanctuary and its relic."},
+  {"id": "stone_stirs", "title": "The Stone Stirs", "requires_any": ["heartbeat", "daybook", "margin_note"], "objective": "Find out why the Heartstone's heartbeat sounds incomplete."},
+  {"id": "sign_of_return", "title": "The Sign of Return", "requires_all": ["gate_mark"], "objective": "Carry the shape of the sign to still water."},
+  {"id": "water_remembers", "title": "What Water Remembers", "requires_all": ["pond_pattern"], "objective": "Bring the remembered pattern back to the Heartstone."},
+  {"id": "echo", "title": "Echo", "requires_all": ["awakened"], "objective": "The Heartstone is awake. The ritual circle answers more strongly now."}
+ ],
+ "unlock": {
+  "knowledge": {"story:circle_amplified": 1, "lore:second_inscription": 1},
+  "circle_power_bonus": 0.15,
+  "summary": "The Heartstone beat three times. The ritual circle now amplifies every spell cast inside it, and a second inscription has appeared on the chamber tablet."
+ }
+}

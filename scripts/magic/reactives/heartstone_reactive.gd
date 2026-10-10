@@ -18,7 +18,34 @@ func setup(p_id: String, p_label: String, p_light: OmniLight3D) -> void:
 	state = {"resonance": "quiet"}
 
 
+func setup_awake_state() -> void:
+	if WorldState.knowledge.has("story:heartstone_awakened"):
+		light.light_energy = 1.4
+		light.omni_range = 6.0
+		state = {"resonance": "awake (three beats)"}
+
+
 func _react_arcane(power: float, _p: Vector3) -> Dictionary:
+	var pattern_known := WorldState.knowledge.has("clue:pond_pattern")
+	var awake := WorldState.knowledge.has("story:heartstone_awakened")
+	if pattern_known and not awake and MagicSystem.last_spell == "rune_activation":
+		# the remembered pattern completes the heartbeat: three beats, and it stays awake
+		var tw0 := create_tween()
+		for k in 3:
+			tw0.tween_property(light, "light_energy", 2.6 + power, 0.25)
+			tw0.tween_property(light, "light_energy", 0.5, 0.35)
+		tw0.tween_property(light, "light_energy", 1.4, 1.5)
+		tw0.parallel().tween_property(light, "omni_range", 6.0, 1.5)
+		FX.burst(self, global_position, 80, 2.0, FX.pm_motes("arcane", "rise"), FX.mote_mesh(0.05))
+		state = {"resonance": "awake (three beats)"}
+		return {"effect": "awakened", "detail": "the Heartstone beat three times, strong and even, and its light stayed", "clue": "story:heartstone_awakened"}
+	if awake:
+		var tw1 := create_tween()
+		for k in 3:
+			tw1.tween_property(light, "light_energy", 2.2 + power, 0.25)
+			tw1.tween_property(light, "light_energy", 0.9, 0.35)
+		tw1.tween_property(light, "light_energy", 1.4, 1.0)
+		return {"effect": "resonance", "detail": "the awakened Heartstone answered with three beats"}
 	resonances += 1
 	var tw := create_tween()
 	tw.tween_property(light, "light_energy", 1.6 + power, 0.3)

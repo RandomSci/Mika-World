@@ -116,9 +116,11 @@ func build_ritual_and_gate() -> void:
 	Kit.place_prop(s, "brass_candleholders", Kit.xf(dp + Vector3(-0.3, 0.77, -0.15)), "brass_candleholder_01")
 	s._add_flame(dp + Vector3(-0.3, 0.77 + 0.3, -0.15), 0.25, 0.2, true)
 	Kit.place_prop(s, "folding_wooden_stool", Kit.xf(dp + Vector3(-0.35, 0, 0.55), 2.6))
-	it = Interactable.make("mika_journal", "Write in Mika's training journal", "rest", "ritual_sanctuary",
-		dp, {"knowledge": {"journal:entries": 1}}, "", 3.5)
-	it.kind = "rest"
+	it = Interactable.make("mika_journal", "Read Mika's training journal", "rest", "ritual_sanctuary", dp, {}, "", 3.5)
+	it.kind = "study"
+	it.book_id = "mika_journal"
+	it.book_xf = Transform3D(Basis(Vector3.UP, -0.5 + PI), dp + Vector3(0, 0.79, 0))
+	it.book_props = [book]
 	it.radius = 1.3
 	it.stand_point = dp + Basis(Vector3.UP, -0.5) * Vector3(0, 0, 0.75)
 	it.face_point = dp + Vector3(0, 0.8, 0)
@@ -396,6 +398,7 @@ func build_chamber() -> void:
 	s.add_child(hr)
 	hr.position = heartstone.position
 	hr.setup("heartstone", "the Heartstone relic", heartstone_light)
+	hr.setup_awake_state()
 	# Offering bowls + candles on the altar
 	Kit.place_prop(s, "brass_vase_01", Kit.xf(ap + Vector3(0.1, 1.15, -0.75), 0.0, Vector3.ONE * 0.6))
 	Kit.place_prop(s, "ceramic_vase_01", Kit.xf(ap + Vector3(0.15, 1.15, 0.78), 1.0, Vector3.ONE * 0.55))

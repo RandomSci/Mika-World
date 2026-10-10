@@ -41,14 +41,26 @@ func owns_collider(o: Object) -> bool:
 	return o is Node and is_ancestor_of(o)
 
 
+## What Mika can observe: its visible state and the reactions she has actually seen on this kind of object
+## (not the hidden list of elements it would answer to).
 func describe(from: Vector3) -> Dictionary:
+	var seen := []
+	for k in WorldState.knowledge:
+		var ks := String(k)
+		if ks.begins_with("reaction:") and ks.split(":").size() >= 4 and ks.split(":")[2] == kind:
+			seen.append("%s -> %s" % [ks.split(":")[1], ks.split(":")[3]])
 	return {"id": id, "kind": kind, "label": label, "distance": snappedf(from.distance_to(aim_point()), 0.01),
-		"state": state.duplicate(), "responds_to": supports.duplicate(), "aim_point": [snappedf(aim_point().x, 0.01), snappedf(aim_point().y, 0.01), snappedf(aim_point().z, 0.01)]}
+		"looks": observed_state(), "reactions_seen": seen, "aim_point": [snappedf(aim_point().x, 0.01), snappedf(aim_point().y, 0.01), snappedf(aim_point().z, 0.01)]}
+
+
+## Override where the internal state would reveal something not yet visible.
+func observed_state() -> Dictionary:
+	return state.duplicate()
 
 
 ## Apply a spell that actually reached this object. power is 0..~1.5 (mastery-scaled).
 func react(element: String, power: float, point: Vector3, spell_id: String) -> Dictionary:
-	var before := state.duplicate(true)
+	var before := observed_state()
 	var r: Dictionary
 	if supports.has(element) and has_method("_react_" + element):
 		r = call("_react_" + element, power, point)
@@ -59,8 +71,8 @@ func react(element: String, power: float, point: Vector3, spell_id: String) -> D
 	r["spell"] = spell_id
 	r["power"] = snappedf(power, 0.01)
 	r["state_before"] = before
-	r["state_after"] = state.duplicate(true)
-	r["changed"] = before != state
+	r["state_after"] = observed_state()
+	r["changed"] = before != r["state_after"]
 	MagicEvents.emit_magic(global_position, element, power, r.get("effect", "none"), id)
 	reacted.emit(r)
 	return r
