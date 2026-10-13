@@ -69,6 +69,7 @@ func _run() -> void:
 	_frame_ms.clear()
 	match mode:
 		"face": await _face()
+		"companions": await _companions()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -237,3 +238,122 @@ func _face() -> void:
 	_check(looked, "the listener turns to look at the speaker")
 	report["face_log_mika"] = mika.face.log.slice(maxi(0, mika.face.log.size() - 20))
 	report["face_log_luna"] = luna.face.log.slice(maxi(0, luna.face.log.size() - 20))
+
+
+# ------------------------------------------------------------------ companions
+func _speakers_lines(entry: Dictionary) -> Array:
+	return (entry.get("lines", []) as Array).map(func(l): return "%s: %s" % [l.who, l.text])
+
+
+func _companions() -> void:
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	await _hold_all()
+	main.director.enabled = true
+	var mm := WorldState.mind("mika")
+	var lm := WorldState.mind("luna")
+	report["mika_clues"] = mm.knowledge.keys().filter(func(k): return String(k).begins_with("clue:"))
+	# 1) Luna lives through something of her own first: a real fight (her memory, not a fixture)
+	var map: RID = luna.get_world_3d().navigation_map
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(26, 0, 6)) + Vector3(0, 0.1, 0)
+	lm.vigor = 1.0
+	await main.focus_mage("luna", true)
+	var mon: Monster = main.spawner.spawn("gloomwisp", NavigationServer3D.map_get_closest_point(map, luna.global_position + Vector3(8, 0, 1)))
+	if mon:
+		mon.hp = mon.max_hp * 0.4
+	await _wait(1.5)
+	var opts := lb.options().filter(func(o): return o.kind == "hunt")
+	if not opts.is_empty():
+		var fr: Dictionary = await lb.run_activity(opts[0].merged(lb.score(opts[0])))
+		report["luna_fight"] = fr.get("detail", "")
+	_check(int(lm.knowledge.get("defeated:gloomwisp", 0)) > 0, "Luna has a real memory of her own (she fought a gloomwisp)", report.get("luna_fight", ""))
+	main.focus_locked = false
+	await main.focus_mage("mika", true)
+	main.focus_locked = false
+	# bring them near each other (each walks there herself)
+	var meet_spot := NavigationServer3D.map_get_closest_point(map, Vector3(6, 0, 4))
+	luna.navigate_to(meet_spot + Vector3(2.5, 0, 0.5), false)
+	mika.navigate_to(meet_spot, false)
+	var t0 := _gms()
+	while (luna.current_action == "navigate_to" or mika.current_action == "navigate_to") and _gms() - t0 < 30000:
+		await get_tree().process_frame
+	# 2) a meeting started by Mika: both bring topics from their own memory; real turn-taking
+	mm.knowledge["met:luna"] = 1                       # they already know each other (Milestone H introductions)
+	lm.knowledge["met:mika"] = 1
+	lm.knowledge["heard:mika:" + String((report.mika_clues as Array)[0]) ] = 1 if not (report.mika_clues as Array).is_empty() else 0
+	mm.knowledge["heard:luna:monster:gloomwisp"] = 1   # "Luna had been out fighting" (what she could see / was told in passing)
+	var shots := {"n": 0}
+	var on_line := func(sp: String, _tx: String):
+		shots.n += 1
+		if shots.n <= 6:
+			await _wait(0.6)
+			_shot("talk_%02d_%s" % [shots.n, sp])
+	main.voice.line_started.connect(on_line)
+	var res: Dictionary = await main.mage_talk.meet(mb, "luna")
+	main.voice.line_started.disconnect(on_line)
+	report["meeting"] = res
+	var lines: Array = res.get("lines", [])
+	var speakers := {}
+	for l in lines:
+		speakers[l.who] = int(speakers.get(l.who, 0)) + 1
+	_check(lines.size() >= 4 and speakers.size() == 2, "a real two-sided conversation (%d lines)" % lines.size(), speakers)
+	var alternations := 0
+	for i in range(1, lines.size()):
+		if lines[i].who != lines[i - 1].who:
+			alternations += 1
+	_check(alternations >= lines.size() - 2, "turn-taking: they alternate, nobody monologues", alternations)
+	var told := lines.filter(func(l): return String(l.get("told", "")) != "")
+	_check(not told.is_empty(), "something from one mage's own memory was shared", told.map(func(l): return l.told))
+	var luna_told := lm.knowledge.keys().filter(func(k): return String(k).begins_with("told:mika:"))
+	var luna_knows_fact := luna_told.any(func(k): return lm.knowledge.has(String(k).trim_prefix("told:mika:")))
+	_check(not luna_told.is_empty() and not luna_knows_fact, "Luna remembers being TOLD, the fact did not enter her own knowledge", luna_told)
+	var mika_told := mm.knowledge.keys().filter(func(k): return String(k).begins_with("told:luna:"))
+	report["mika_told"] = mika_told
+	report["luna_told"] = luna_told
+	# 3) an invitation: Mika proposes exploring together; Luna decides from her own state
+	mm.knowledge.erase("together_last:luna")
+	var cands: Array = mb.explore_map.candidates(3)
+	_check(not cands.is_empty(), "Mika sees somewhere unexplored to propose")
+	if cands.is_empty():
+		return
+	var tgt := {"pos": cands[0].pos, "fill": {"place": String(cands[0].describe)}}
+	var walk_gaps := []
+	var min_gap := {"v": 99.0}
+	var tracker := func():
+		while main.companionship.busy():
+			await get_tree().physics_frame
+			var g := Vector2(mika.global_position.x - luna.global_position.x, mika.global_position.z - luna.global_position.z).length()
+			if String(main.companionship.active.get("stage", "")) == "walking together":
+				walk_gaps.append(g)
+				min_gap.v = minf(min_gap.v, g)
+				if walk_gaps.size() == 60:
+					_shot("walk_together_a")
+				if walk_gaps.size() == 240:
+					_shot("walk_together_b")
+	var box := {"done": false, "res": {}}
+	var runner := func():
+		box.res = await main.companionship.invite(mb, "luna", "explore_together", tgt)
+		box.done = true
+	runner.call()
+	await get_tree().process_frame
+	tracker.call()
+	while not box.done:
+		await get_tree().process_frame
+	var ent: Dictionary = box.res.get("entry", {})
+	report["invite"] = ent
+	report["walk_gap"] = {"samples": walk_gaps.size(), "min": snappedf(min_gap.v, 0.01), "max": snappedf(walk_gaps.max() if not walk_gaps.is_empty() else 0.0, 0.01),
+		"avg": snappedf((walk_gaps.reduce(func(a, b): return a + b, 0.0) / maxf(1, walk_gaps.size())), 0.01)}
+	_check(ent.has("accepted"), "Luna answered the invitation from her own state", ent)
+	if ent.get("accepted", false):
+		_check(walk_gaps.size() > 30 and min_gap.v > 0.55, "they walked together without colliding (closest %.2f m)" % min_gap.v, report.walk_gap)
+		_check(float(report.walk_gap.avg) < 4.0, "the follower kept up beside her (avg gap %.2f m)" % float(report.walk_gap.avg))
+		var mt: Array = mm.knowledge.keys().filter(func(k): return String(k).begins_with("together:luna:"))
+		var lt: Array = lm.knowledge.keys().filter(func(k): return String(k).begins_with("together:mika:"))
+		_check(not mt.is_empty() and not lt.is_empty(), "each keeps her own memory of doing it together", [mt, lt])
+	report["rel_mika"] = MageTalk.rel("mika", "luna")
+	report["rel_luna"] = MageTalk.rel("luna", "mika")
+	_check(float(report.rel_mika.camaraderie) > 0.0, "their bond grew from real shared time", report.rel_mika)
+	# 4) persistence of the relationship memories
+	_check(WorldState.save_game(), "saved (disposable)")

@@ -102,6 +102,7 @@ var face: FaceController        # Milestone K: component-level expressive face (
 var head_posture: HeadPosture
 var _dash := {}            # active dodge: {dir, dist, t, dur, from}
 var combat_stance := false
+var pace := 1.0            # walking-with-someone speed factor (FollowCompanion); feet follow via the loco time scale
 var last_hit := {}         # most recent hit taken: {t, heavy, clip}
 
 
@@ -836,7 +837,7 @@ func _physics_process(delta: float) -> void:
 			_dash = {}
 			velocity = Vector3(0, velocity.y, 0)
 		return
-	var speed := run_speed if _run else walk_speed
+	var speed := (run_speed if _run else walk_speed) * pace
 	var target_vel := desired * speed
 	var accel := 10.0 if desired.length() > 0.01 else 12.0
 	velocity.x = move_toward(velocity.x, target_vel.x, accel * delta * speed)

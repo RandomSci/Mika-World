@@ -259,6 +259,23 @@ func options() -> Array:
 			if Time.get_unix_time_from_system() - last_met > MEET_COOLDOWN_S:
 				out.append({"kind": "meet", "key": "meet:" + other_id, "other": other_id,
 					"label": ("talk with %s" if mind.knowledge.has("met:" + other_id) else "introduce myself to %s") % MagicSystem.display_name(other_id)})
+	# do something TOGETHER with the other mage (Milestone K): she may propose; the other decides for herself
+	if main.get("companionship") and _allowed("meet"):
+		for other_id in main.mages:
+			if other_id == agent_id:
+				continue
+			var oc2: WorldCharacter = main.characters.get(other_id)
+			if oc2 == null or not oc2.visible or me.global_position.distance_to(oc2.global_position) > 35.0:
+				continue
+			if Time.get_unix_time_from_system() - float(mind.knowledge.get("together_last:" + other_id, 0.0)) < TOGETHER_COOLDOWN_S:
+				continue
+			var cands: Array = explore_map.candidates(1) if main.world and me.visible else []
+			if not cands.is_empty():
+				out.append({"kind": "together", "key": "together:explore:" + other_id, "other": other_id, "sub": "explore_together",
+					"target": {"pos": cands[0].pos, "fill": {"place": String(cands[0].describe)}}, "label": "ask %s to explore %s together" % [MagicSystem.display_name(other_id), cands[0].describe]})
+			if (mind.vigor < 0.7 or float(needs.energy) < 0.55) and main.world and main.world.interactables.has("watchpoint_rest"):
+				out.append({"kind": "together", "key": "together:rest:" + other_id, "other": other_id, "sub": "rest_together",
+					"target": {"pos": main.world.interactables.watchpoint_rest.global_position, "fill": {}}, "label": "ask %s to rest together at the watchpoint" % MagicSystem.display_name(other_id)})
 	# journal
 	if not Journal.compose(mind).is_empty():
 		out.append({"kind": "journal", "key": "journal", "label": "write in my journal"})
@@ -266,6 +283,7 @@ func options() -> Array:
 
 
 const MEET_COOLDOWN_S := 420.0
+const TOGETHER_COOLDOWN_S := 600.0
 
 
 ## Attunements and the knowledge that tells her about them (the interactable's lore source).
@@ -386,6 +404,18 @@ func score(o: Dictionary) -> Dictionary:
 		"recover":
 			u = (1.0 - mind.vigor) * 1.5 + (0.3 if threat and is_instance_valid(threat) and mind.vigor < 0.35 else 0.0)
 			why.append("vigor %.0f%%" % (mind.vigor * 100.0))
+		"together":
+			var relt: Dictionary = mind.knowledge.get("rel:" + String(o.other), {})
+			u = 0.32 + needs.social * 0.4 + 0.35 * float(relt.get("camaraderie", 0.0)) - 0.1 * float(relt.get("rivalry", 0.0))
+			if String(o.sub) == "explore_together":
+				u += 0.15 * needs.curiosity
+			if String(o.sub) == "rest_together":
+				u += (1.0 - needs.energy) * 0.4
+			var declined := float(mind.knowledge.get("declined_by:%s:%s" % [o.other, o.sub], 0.0))
+			if Time.get_unix_time_from_system() - declined < 900.0:
+				u -= 0.5
+				why.append("asked recently, she said no -0.5")
+			why.append("companionship")
 		"meet":
 			var rel: Dictionary = mind.knowledge.get("rel:" + String(o.other), {})
 			u = 0.3 + needs.social * 0.45 + 0.15 * float(rel.get("camaraderie", 0.0)) - 0.1 * float(rel.get("rivalry", 0.0))
@@ -536,6 +566,9 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"collect": return await _collect(o.loot)
 		"recover": return await _recover()
 		"meet": return await main.mage_talk.meet(self, String(o.other))
+		"together":
+			mind.knowledge["together_last:" + String(o.other)] = Time.get_unix_time_from_system()
+			return await main.companionship.invite(self, String(o.other), String(o.sub), o.target)
 		"roam": return await _roam(o)
 		"gather": return await _gather(o)
 		"perform": return await _perform(o)

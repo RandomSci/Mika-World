@@ -78,8 +78,7 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 	b.hold = true
 	b.interrupt("social")
 	a.current.stage = "walking over to %s" % MagicSystem.display_name(other_id)
-	var to := bc.global_position + (me.global_position - bc.global_position).normalized() * 1.7
-	await a._walk(to)
+	await Companionship.approach_for_talk(a, bc, 1.6)
 	var t0 := Time.get_ticks_msec()
 	while not b.current.is_empty() and b.current.get("kind", "") != "away" and Time.get_ticks_msec() - t0 < 8000:
 		await get_tree().process_frame
@@ -95,13 +94,21 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 	bc.look_head_at(me.global_position + Vector3(0, 1.5, 0))
 	if main.director and main.director.enabled:
 		main.director.focus_conversation(bc if main.director.mika == me else me, 14.0)
-	var lines := _compose(a.agent_id, other_id)
+	var first := not WorldState.mind(a.agent_id).knowledge.has("met:" + other_id)
+	var lines: Array = _compose(a.agent_id, other_id) if first or main.get("companionship") == null else main.companionship.compose(a.agent_id, other_id)
+	if lines.size() < 2:
+		lines = _compose(a.agent_id, other_id)
 	lines = await _phrase(a.agent_id, other_id, lines)
 	var spoken := []
 	for l in lines:
+		var spk: WorldCharacter = main.characters.get(String(l.who))
+		if String(l.get("gesture", "")) != "" and spk and not spk.casting:
+			spk.play_gesture(String(l.gesture), 0.3, 0.5)
 		var r: Dictionary = await main.voice.say(String(Progression.mages.get(l.who, {}).get("voice", l.who)), String(l.text))
-		spoken.append({"who": l.who, "text": l.text, "audio": r.get("audio", false)})
-		await get_tree().create_timer(0.3).timeout
+		Companionship.remember_told(l.get("teach", {}), String(l.who))
+		spoken.append({"who": l.who, "text": l.text, "audio": r.get("audio", false), "told": l.get("teach", {}).get("topic", "")})
+		# a natural beat between turns: shorter after a short reply, longer after news
+		await get_tree().create_timer(0.25 + clampf(String(l.text).length() / 120.0, 0.0, 0.6)).timeout
 	me.look_head_at(null)
 	bc.look_head_at(null)
 	# what each of them now remembers (social memory only; no knowledge crosses over)
@@ -170,7 +177,11 @@ func _phrase(a: String, b: String, lines: Array) -> Array:
 	var out := []
 	for i in lines.size():
 		var tx := VoiceService.clean(String(got[i]))
-		out.append({"who": lines[i].who, "text": tx if tx.length() > 2 and tx.split(" ").size() <= 28 else lines[i].text})
+		var nl: Dictionary = (lines[i] as Dictionary).duplicate()
+		# lines that state a remembered fact verbatim (a clue's own words) are kept exactly
+		if not nl.has("teach") or String(nl.teach.get("text", "")) != String(nl.text):
+			nl["text"] = tx if tx.length() > 2 and tx.split(" ").size() <= 28 else lines[i].text
+		out.append(nl)
 	return out
 
 

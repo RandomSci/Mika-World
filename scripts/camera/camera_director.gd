@@ -74,6 +74,26 @@ const PERF_SHOTS := {
 }
 
 
+func _on_conv_line(speaker: String, text: String) -> void:
+	if _conversation == null or not is_instance_valid(_conversation) or _now() > _conversation_until:
+		_conv_ots = null
+		return
+	var sc: Node3D = main.characters.get(speaker)
+	if sc == null:
+		return
+	var other: Node3D = _conversation if sc == mika else mika
+	if sc != mika and sc != _conversation:
+		return
+	_conv_lines += 1
+	# alternate: two-shot for greetings / short replies, reverse shots for real content
+	var words := text.split(" ", false).size()
+	if words >= 5 and _conv_lines % 3 != 1:
+		_conv_ots = {"speaker": sc, "listener": other}
+	else:
+		_conv_ots = null
+	_since_change = 0.0
+
+
 func setup(m: Node) -> void:
 	main = m
 	rig = main.camera_rig
@@ -146,6 +166,11 @@ func set_subject(c: WorldCharacter) -> void:
 
 
 func focus_conversation(other: Node3D, seconds := 8.0) -> void:
+	_conv_pick = {}
+	_conv_ots = null
+	_conv_lines = 0
+	if main.get("voice") and not main.voice.line_started.is_connected(_on_conv_line):
+		main.voice.line_started.connect(_on_conv_line)
 	_conversation = other
 	_conversation_until = _now() + seconds
 
@@ -323,13 +348,49 @@ func _frame(delta: float) -> void:
 			look = p + fwd * 1.6 + Vector3(0, 1.45, 0)
 			fov = 54.0
 		"conversation":
+			# a two-shot across their eye line, from the side where BOTH faces are clear (flips the side only
+			# when this one is blocked), a little toward the followed mage so she stays the main subject
 			var o := _conversation.global_position
 			var mid := (p + o) * 0.5
-			var axis := (o - p).normalized()
-			var perp := Vector3(-axis.z, 0, axis.x) * _side
-			pos = mid + perp * 3.2 + Vector3(0, 1.5, 0)
-			look = mid + Vector3(0, 1.35, 0)
-			fov = 45.0
+			var axis := Vector3(o.x - p.x, 0, o.z - p.z)
+			var sep := axis.length()
+			axis = axis.normalized() if sep > 0.05 else fwd
+			var dist := clampf(sep * 1.0 + 1.5, 2.4, 4.2)
+			# candidates: both sides of the eye line, swung a little either way; prefer the current side, both faces
+			# clear, and an OPEN background behind them (no column / wall right between their heads)
+			if _since_change < 0.05 or _conv_pick.is_empty():
+				var best_sc := -INF
+				for sd in [_side, -_side]:
+					for sw in [0.0, 0.35, -0.35]:
+						var pr: Vector3 = Vector3(-axis.z, 0, axis.x).rotated(Vector3.UP, sw) * sd
+						var cp: Vector3 = mid + pr * dist + Vector3(0, 1.45, 0)
+						var sc: float = (1.0 if sd == _side else 0.0) - absf(sw) * 0.5
+						if not _two_clear(cp, p, o):
+							sc -= 10.0
+						sc -= _background_clutter(cp, mid + Vector3(0, 1.3, 0)) * 3.0
+						if sc > best_sc:
+							best_sc = sc
+							_conv_pick = {"side": sd, "swing": sw}
+				_side = float(_conv_pick.side)
+			var prf := Vector3(-axis.z, 0, axis.x).rotated(Vector3.UP, float(_conv_pick.get("swing", 0.0))) * _side
+			pos = mid + prf * dist + Vector3(0, 1.45, 0)
+			# shot / reverse shot: on a substantive line, over the LISTENER's shoulder onto the speaker's face
+			if _conv_ots != null and is_instance_valid(_conv_ots.speaker) and is_instance_valid(_conv_ots.listener):
+				var spk: Node3D = _conv_ots.speaker
+				var lis: Node3D = _conv_ots.listener
+				var sh_axis := Vector3(spk.global_position.x - lis.global_position.x, 0, spk.global_position.z - lis.global_position.z).normalized()
+				var lperp := Vector3(-sh_axis.z, 0, sh_axis.x) * _side
+				var ots: Vector3 = lis.global_position - sh_axis * 1.35 + lperp * 0.72 + Vector3(0, 1.55, 0)
+				var face_pt: Vector3 = spk.global_position + Vector3(0, 1.42, 0)
+				if _two_clear(ots, spk.global_position, spk.global_position):
+					pos = ots
+					look = face_pt.lerp(lis.global_position + Vector3(0, 1.4, 0), 0.18)
+					fov = 34.0
+					pos = _clear_line(look, pos)
+					_apply(pos, look, fov, delta, 5.0)
+					return
+			look = mid.lerp(p, 0.15) + Vector3(0, 1.38, 0)
+			fov = 42.0
 		"activity":
 			var it := _interaction
 			var obj: Vector3 = it.get_parent().to_global(it.face_point) if it.face_point != null else it.global_position
@@ -393,6 +454,31 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		_look = _look.lerp(look, k2)
 		_fov = lerpf(_fov, fov, k2)
 	rig.set_shot(_pos, _look, _fov)
+
+
+var _conv_pick := {}
+var _conv_ots = null          # {speaker, listener} while a substantive line is spoken in a conversation
+var _conv_lines := 0
+
+
+## 1.0 when something solid stands just behind the subjects on the camera's line (within 3 m), 0 when open.
+func _background_clutter(cam: Vector3, at: Vector3) -> float:
+	var dir := (at - cam).normalized()
+	var q := PhysicsRayQueryParameters3D.create(at + dir * 0.6, at + dir * 3.6)
+	q.collision_mask = 1
+	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
+	return 0.0 if hit.is_empty() else 1.0 - clampf((at.distance_to(hit.position) - 0.6) / 3.0, 0.0, 1.0)
+
+
+func _two_clear(cam: Vector3, a: Vector3, b: Vector3) -> bool:
+	var space := mika.get_world_3d().direct_space_state
+	for t in [a, b]:
+		var q := PhysicsRayQueryParameters3D.create(cam, t + Vector3(0, 1.4, 0))
+		q.collision_mask = 1
+		q.exclude = [mika.get_rid()] + ([_conversation.get_rid()] if _conversation is CollisionObject3D else [])
+		if not space.intersect_ray(q).is_empty():
+			return false
+	return true
 
 
 ## Keep the subject visible: if geometry blocks the line from the subject to the camera, move the
