@@ -118,7 +118,9 @@ func _process(delta: float) -> void:
 	var who := subject.character_id
 	var pd := Progression.describe(who)
 	var brain = main.mage_brains.get(who)
-	var form := " · %s" % String(main.transformer.transformed[who].form).capitalize() if main.transformer and main.transformer.is_transformed(who) else ""
+	var form := " · %s" % TransformationDirector.appearance(who).capitalize() if main.transformer and main.transformer.is_transformed(who) else ""
+	if main.transformer and main.transformer.has_surge(who):
+		form += " (Orbit Surge)"
 	v_name.text = "%s  ·  Level %d %s%s" % [MagicSystem.display_name(who), pd.level, ("(" + pd.title + ")") if pd.title != "" else "", form]
 	v_bar.value = pd.fraction
 	var doing := String(brain.current.get("label", "")) if brain and brain.enabled else ""

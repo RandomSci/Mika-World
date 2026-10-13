@@ -65,19 +65,25 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 	var b := BookLibrary.book(book_id)
 	if b.is_empty():
 		return {"ok": false, "detail": "no such book '%s'" % book_id}
+	if not current.is_empty():
+		return {"ok": false, "detail": "someone else is reading right now (%s)" % current.get("reader", "?")}
+	var who := c.character_id
+	var m := WorldState.mind(who)
+	var voice_id := String(Progression.mages.get(who, {}).get("voice", who))
 	_stop = false
 	var style: String = b.get("style", "book")
 	# pages can be hidden until something in the world has happened (e.g. the awakened Heartstone)
-	var pages: Array = (b.get("pages", []) as Array).filter(func(pg): return not pg.has("requires_knowledge") or WorldState.knowledge.has(pg.requires_knowledge))
+	var pages: Array = (b.get("pages", []) as Array).filter(func(pg): return not pg.has("requires_knowledge") or m.knowledge.has(pg.requires_knowledge))
 	var res := {"ok": true, "book": book_id, "title": b.title, "pages_read": [], "learned": [], "spoken": [], "interrupted": false}
 	var look_at: Vector3 = (anchor as Transform3D).origin if anchor != null else c.global_position + -c.global_transform.basis.z * 1.0 + Vector3(0, 1.4, 0)
-	current = {"book": book_id, "page": 0, "pages": pages.size(), "anchor": look_at}
+	current = {"book": book_id, "page": 0, "pages": pages.size(), "anchor": look_at, "reader": who}
 	c.look_head_at(look_at)
 	if anchor != null and style != "inscription":
 		_book = OpenBook.new()
 		_book.name = "OpenBook_" + book_id
 		main.world.add_child(_book)
 		_book.global_transform = anchor
+		_book.reader = who
 		_book.build(book_id)
 		MagicEvents.emit_phase(c, "book", "book_open", style, look_at)
 		await _book.open_book(0.9)
@@ -88,7 +94,9 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 		if _hands:
 			await c.handler.rest_hands(lh, rh, 0.7)
 	var overlay: BookOverlay = main.book_overlay
-	var already: Array = BookLibrary.pages_read(book_id).duplicate()
+	var already: Array = BookLibrary.pages_read(book_id, who).duplicate()
+	# the page card is for viewers: shown when the camera is on this reader
+	var show_card: bool = main.director == null or main.director.mika == c
 	for i in pages.size():
 		if _stop:
 			res.interrupted = true
@@ -99,8 +107,9 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 			MagicEvents.emit_phase(c, "book", "page_turn", style, look_at)
 			await _turn_page(c, i)
 		for l in p.get("latin", []):
-			main.voice.prefetch("mika", String(l.text))
-		overlay.show_page(style, String(b.title), p, i, pages.size())
+			main.voice.prefetch(voice_id, String(l.text))
+		if show_card:
+			overlay.show_page(style, String(b.title), p, i, pages.size())
 		page_shown.emit(book_id, i, p)
 		var words := String(p.get("text", "")).split(" ", false).size() + String(p.get("heading", "")).split(" ", false).size()
 		var t := clampf(words / WORDS_PER_SECOND + 1.5, 4.5, 18.0) * float(opts.get("time_scale", 1.0))
@@ -110,7 +119,7 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 			await get_tree().create_timer(minf(2.5, t * 0.3)).timeout
 			if _stop:
 				break
-			var spoken: Dictionary = await main.voice.say("mika", String(l.text), {"latin": true})
+			var spoken: Dictionary = await main.voice.say(voice_id, String(l.text), {"latin": true})
 			res.spoken.append({"latin": l.text, "translation": l.translation, "audio": spoken.get("audio", false), "seconds": spoken.get("seconds", 0)})
 		# her eyes travel down the page she is reading, line by line, with small pauses
 		var side := i % 2
@@ -137,12 +146,13 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 			know[k] = 1
 		if not already.has(i):
 			already.append(i)
-		WorldState.knowledge["read:" + book_id] = already.duplicate()
-		var ch := WorldState.record_activity({"id": "read:%s:%d" % [book_id, i], "verb": "read", "label": "%s, page %d" % [b.title, i + 1]}, {"knowledge": know})
+		m.knowledge["read:" + book_id] = already.duplicate()
+		var ch := WorldState.record_activity({"id": "read:%s:%d" % [book_id, i], "verb": "read", "label": "%s, page %d" % [b.title, i + 1]}, {"knowledge": know}, who)
 		for k in know:
 			res.learned.append(k)
 		res.pages_read.append({"page": i + 1, "heading": p.get("heading", ""), "changes": ch})
-	overlay.hide_page()
+	if show_card:
+		overlay.hide_page()
 	if _hands:
 		await c.handler.release_hands(0.5)
 		_hands = false

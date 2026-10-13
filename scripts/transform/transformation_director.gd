@@ -9,7 +9,10 @@ extends Node
 ## camera follows authored beats around her (every position is checked against the world so it never
 ## sits inside geometry) and hands control back to the gameplay camera at the end. The form VRM is loaded
 ## on a worker thread during the buildup and swapped at the flash peak, where the music lands its hit.
-## A form lasts duration_s, then she settles back into her base form with a short shimmer.
+## A reached form is PERMANENT: it becomes her saved appearance (progress.appearance) and is what she wears from
+## then on, through restarts. The cinematic plays once (full) at the unlock; F7 previews replay it without
+## changing anything. Separately, an "Orbit Surge" (the short sequence when she already wears her form) is a
+## TEMPORARY power effect (+spell power, orbit ring) that simply expires; it never touches her outfit.
 
 signal started(who: String, version: String)
 signal finished(who: String, result: Dictionary)
@@ -21,7 +24,7 @@ static var data := {}
 var main: Node
 var playing := ""                  # mage id while a sequence runs
 var seq_t := -1.0                  # seconds into the running sequence (-1 while staging / idle)
-var transformed := {}              # who -> {form, until, avatar}
+var surges := {}                   # who -> {until}: temporary Orbit Surge (power + orbit ring), never the outfit
 var queue: Array = []              # pending first-time sequences {who, level}
 var log: Array = []
 var cam: Camera3D
@@ -30,7 +33,7 @@ var _overlay: CanvasLayer
 var _flash: ColorRect
 var _title: Label
 var _check := 0.0
-var _orbits := {}                  # who -> persistent orbit ring node while transformed
+var _orbits := {}                  # who -> orbit ring node while a surge lasts
 
 
 static func load_data() -> Dictionary:
@@ -79,18 +82,49 @@ func form_avatar(who: String, level := 10) -> String:
 	return String(Progression.mages.get(who, {}).get("forms", {}).get(str(level), {}).get("avatar", ""))
 
 
+## The permanent appearance: the form she has taken ("" = base). Saved in her mind.
+static func appearance(who: String) -> String:
+	return String(WorldState.mind(who).progress.get("appearance", ""))
+
+
+## Avatar path for her saved appearance (base avatar when none / when the form's file is missing).
+static func avatar_for(who: String) -> String:
+	Progression.load_data()
+	var mp: Dictionary = Progression.mages.get(who, {})
+	var form := appearance(who)
+	for lvl in mp.get("forms", {}):
+		var f: Dictionary = mp.forms[lvl]
+		if String(f.id) == form and ResourceLoader.exists(String(f.avatar)):
+			return String(f.avatar)
+	return String(mp.get("base_avatar", "res://assets/characters/mika/Mika.vrm"))
+
+
 func is_transformed(who: String) -> bool:
-	return transformed.has(who)
+	return appearance(who) != ""
 
 
+func has_surge(who: String) -> bool:
+	return surges.has(who)
+
+
+## A surge needs an unlocked form that she already wears and no surge running.
+func can_surge(who: String) -> bool:
+	return playing == "" and not surges.has(who) and is_transformed(who)
+
+
+## Backward-compatible name (planner/bridge): "transform" before a fight now means an Orbit Surge.
 func can_transform(who: String) -> bool:
-	return playing == "" and not transformed.has(who) and (WorldState.mind(who).progress.forms_unlocked as Array).size() > 0
+	return can_surge(who)
+
+
+func surge(who: String) -> Dictionary:
+	return await play(who, "short", false)
 
 
 func _process(delta: float) -> void:
-	for who in transformed.keys():
-		if Time.get_ticks_msec() / 1000.0 > float(transformed[who].until) and playing == "":
-			revert(who)
+	for who in surges.keys():
+		if Time.get_ticks_msec() / 1000.0 > float(surges[who].until) and playing == "":
+			end_surge(who)
 	_check -= delta
 	if _check > 0.0 or queue.is_empty() or playing != "":
 		return
@@ -204,10 +238,14 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 				warm = null
 		if t >= swap_t and not swapped:
 			swapped = true
+			if c.avatar_path == form_path:
+				ghost = null            # already in her form (Orbit Surge): the flash, no costume change
 			if warm:
 				warm.queue_free()
 				warm = null
-			if ghost:
+			if c.avatar_path == form_path:
+				pass
+			elif ghost:
 				c.swap_avatar(form_path, null, ghost)
 			else:
 				c.swap_avatar(form_path, ResourceLoader.load_threaded_get(form_path))
@@ -247,36 +285,39 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 		"avatar": c.avatar_path.get_file()}
 	if preview:
 		await get_tree().create_timer(1.5).timeout
-		c.swap_avatar(base_path)
+		if c.avatar_path != base_path:
+			c.swap_avatar(base_path)          # back to whatever she wore before the preview (base OR her form)
 		res["reverted"] = true
-	else:
-		transformed[who] = {"form": sp.form, "until": Time.get_ticks_msec() / 1000.0 + float(sp.duration_s), "base": base_path}
-		c.set_meta("form_power", float(sp.power))
-		_add_orbit(c, who, col, acc)
+	elif version == "full":
+		# the unlock: her new form is permanent from now on (saved appearance)
+		var m := WorldState.mind(who)
+		m.progress["appearance"] = String(sp.form)
 		WorldState.record_activity({"id": "transform:" + String(sp.form), "verb": "transform", "label": "Became %s" % sp.title},
 			{"knowledge": {"form:" + String(sp.form): 1}}, who)
+		res["permanent"] = true
+	else:
+		# Orbit Surge: temporary power, nothing about her appearance changes
+		surges[who] = {"until": Time.get_ticks_msec() / 1000.0 + float(sp.get("surge_s", 60.0))}
+		c.set_meta("form_power", float(sp.power))
+		_add_orbit(c, who, col, acc)
+		res["surge"] = true
 	log.append(res)
 	finished.emit(who, res)
 	return res
 
 
-## Settle back into the base form (form time over): a short shimmer, no camera takeover.
-func revert(who: String) -> void:
-	var st: Dictionary = transformed.get(who, {})
-	transformed.erase(who)
+## An Orbit Surge has run its course: the extra power and the orbit ring fade. Her outfit stays as it is.
+func end_surge(who: String) -> void:
+	surges.erase(who)
 	var c: WorldCharacter = main.characters.get(who)
-	if c == null or st.is_empty():
+	if c == null:
 		return
-	if c.casting:
-		transformed[who] = st.merged({"until": Time.get_ticks_msec() / 1000.0 + 2.0}, true)
-		return
-	FX.burst(c.get_parent(), c.global_position + Vector3(0, 1.0, 0), 50, 1.0, FX.pm_motes("self", "burst"), FX.mote_mesh(0.05))
-	c.swap_avatar(String(st.base))
+	FX.burst(c.get_parent(), c.global_position + Vector3(0, 1.0, 0), 30, 1.0, FX.pm_motes("self", "burst"), FX.mote_mesh(0.04))
 	c.remove_meta("form_power")
 	if _orbits.has(who) and is_instance_valid(_orbits[who]):
 		_orbits[who].queue_free()
 	_orbits.erase(who)
-	log.append({"who": who, "reverted": true})
+	log.append({"who": who, "surge_ended": true})
 
 
 ## Tiny spheres in front of the transformation camera, one per material of `model` (incl. next passes).
@@ -560,6 +601,10 @@ func _show_title(text: String, col: Color) -> void:
 
 func describe() -> Dictionary:
 	var tr := {}
-	for who in transformed:
-		tr[who] = {"form": transformed[who].form, "seconds_left": snappedf(float(transformed[who].until) - Time.get_ticks_msec() / 1000.0, 0.1)}
-	return {"playing": playing, "transformed": tr, "queued": queue.map(func(q): return q.who), "recent": log.slice(maxi(0, log.size() - 4))}
+	for who in WorldState.minds:
+		if appearance(who) != "":
+			tr[who] = {"form": appearance(who)}
+	var su := {}
+	for who in surges:
+		su[who] = snappedf(float(surges[who].until) - Time.get_ticks_msec() / 1000.0, 0.1)
+	return {"playing": playing, "transformed": tr, "surges": su, "queued": queue.map(func(q): return q.who), "recent": log.slice(maxi(0, log.size() - 4))}

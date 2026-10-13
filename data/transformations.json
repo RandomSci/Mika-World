@@ -1,5 +1,5 @@
 {
- "_note": "Original Mika World transformation language: an Aether Orbit sigil opens under the mage, light gathers in her hands while she speaks her words, an aura column rises as she lifts off the ground, a flash carries the form change, the mage's own orbit ring forms around her, a finishing pose, then back to play. Times in seconds; 'swap' is the flash peak where the avatar changes (the music cue's reveal hit is composed to land there). Camera shots are relative to the mage (radius/height in metres, yaw degrees from her facing, look = 'face' | 'chest' | 'hands' | 'feet'). No third-party sequences, symbols, poses or music. Gestures/poses avoid clips that rotate the hips (wide_arm_spell), and each shot is anchored to the mage's visual facing (from her shoulders) when the shot begins.",
+ "_note": "Original Mika World transformation language: an Aether Orbit sigil opens under the mage, light gathers in her hands while she speaks her words, an aura column rises as she lifts off the ground, a flash carries the form change, the mage's own orbit ring forms around her, a finishing pose, then back to play. Times in seconds; 'swap' is the flash peak where the avatar changes (the music cue's reveal hit is composed to land there). Camera shots are relative to the mage (radius/height in metres, yaw degrees from her facing, look = 'face' | 'chest' | 'hands' | 'feet'). No third-party sequences, symbols, poses or music. Gestures/poses avoid clips that rotate the hips (wide_arm_spell), and each shot is anchored to the mage's visual facing (from her shoulders) when the shot begins. The form reached at a tenth level is PERMANENT (saved appearance); 'surge_s' is the length of the temporary Orbit Surge (power + orbit ring) a mage may call before a strong fight.",
  "versions": {
   "full": {
    "length": 14.5,
@@ -211,8 +211,8 @@
     "expression": "happy",
     "motes": "bloom",
     "petals": true,
-    "duration_s": 180.0,
-    "power": 0.2
+    "power": 0.2,
+    "surge_s": 60.0
    }
   },
   "luna": {
@@ -236,8 +236,8 @@
     "expression": "relaxed",
     "motes": "umbral",
     "petals": false,
-    "duration_s": 180.0,
-    "power": 0.2
+    "power": 0.2,
+    "surge_s": 60.0
    }
   }
  }

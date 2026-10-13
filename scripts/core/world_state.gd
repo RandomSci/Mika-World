@@ -88,7 +88,7 @@ func register_mind(who: String, starting_skills := {}) -> MageMind:
 
 const _TEST_FLAGS := ["fresh", "physicstest", "posetest", "magictest", "readtest", "alchemytest", "audiotest", "lifetest",
 	"storytest", "brainrun", "sanctuarytour", "worldtour", "facetest", "tour", "mock-commands", "viewertest", "chattest", "perfrun",
-	"persisttest", "mhtest"]
+	"persisttest", "mhtest", "mitest"]
 
 
 func _ready() -> void:
@@ -142,7 +142,8 @@ func save_data() -> Dictionary:
 		"discovered_locations": discovered_locations, "visited_locations": visited_locations, "seen_landmarks": seen_landmarks,
 		"knowledge": knowledge, "inventory": inventory, "skills": skills, "trials_done": trials_done, "prefix_counts": _prefix_counts,
 		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_seq": activity_seq, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200)),
-		"progress": minds["mika"].progress, "agents": _agents_data()}
+		"progress": minds["mika"].progress, "agents": _agents_data(),
+		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred}
 
 
 func _agents_data() -> Dictionary:
@@ -257,6 +258,9 @@ func _apply_save(d: Dictionary) -> void:
 	if knowledge.has("journal_cursor"):
 		knowledge["journal_cursor"] = int(knowledge.journal_cursor)
 	minds["mika"].load_progress(d.get("progress", {}))
+	minds["mika"].location = d.get("mika_location", {}) if d.get("mika_location") is Dictionary else {}
+	minds["mika"].music = d.get("mika_music", {}) if d.get("mika_music") is Dictionary else {}
+	minds["mika"].deferred = d.get("mika_deferred", []) if d.get("mika_deferred") is Array else []
 	_saved_agents = d.get("agents", {}) if d.get("agents") is Dictionary else {}
 	for who in _saved_agents:
 		if minds.has(who) and not (minds[who] as MageMind).legacy:

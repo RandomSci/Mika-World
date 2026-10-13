@@ -18,8 +18,9 @@ static func book(id: String) -> Dictionary:
 	return data().books.get(id, {})
 
 
-static func pages_read(id: String) -> Array:
-	return WorldState.knowledge.get("read:" + id, [])
+## Pages THIS mage has read (each mage reads for herself; nothing is shared).
+static func pages_read(id: String, who := "mika") -> Array:
+	return WorldState.mind(who).knowledge.get("read:" + id, [])
 
 
 static func summary(id: String) -> Dictionary:

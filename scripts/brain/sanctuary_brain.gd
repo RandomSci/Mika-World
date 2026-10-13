@@ -87,6 +87,11 @@ func is_lead() -> bool:
 	return agent_id == "mika"
 
 
+## The followed mage: the only one allowed to cause an area change (travel).
+func is_foreground() -> bool:
+	return main.sim_mode(agent_id) == "foreground" if main.has_method("sim_mode") else is_lead()
+
+
 func set_enabled(v: bool) -> void:
 	enabled = v
 	_cancel = not v
@@ -120,12 +125,19 @@ func options() -> Array:
 	for bid in BookLibrary.data().books:
 		var b := BookLibrary.book(bid)
 		var visible := (b.pages as Array).filter(func(pg): return not pg.has("requires_knowledge") or mind.knowledge.has(pg.requires_knowledge))
-		var unread := visible.size() - BookLibrary.pages_read(bid).filter(func(i): return i < visible.size()).size()
+		var unread := visible.size() - BookLibrary.pages_read(bid, agent_id).filter(func(i): return i < visible.size()).size()
 		if unread <= 0:
 			continue
 		var loc := _book_location(bid)
 		if loc.is_empty():
 			continue
+		# only books she has actually seen (or already started) - no knowledge of what she never noticed
+		if not mind.knowledge.has("noticed:" + String(loc.interactable)) and BookLibrary.pages_read(bid, agent_id).is_empty():
+			continue
+		if not is_foreground() and loc.area != here:
+			continue          # only the followed mage may cause an area change
+		if main.book_reader.reading() and main.book_reader.current.get("reader", "") != agent_id:
+			continue          # one reader at a time (the lectern book is a single physical object)
 		out.append({"kind": "research", "key": "research:" + bid, "book": bid, "interactable": loc.interactable, "area": loc.area,
 			"label": "read %s" % b.title, "unread": unread})
 	# magic: castable spells x fitting reactive targets in this area
@@ -402,16 +414,15 @@ func _loop() -> void:
 		if main.streaming.state != "idle" or not main.travel.journey.is_empty():
 			await get_tree().create_timer(0.5).timeout
 			continue
-		if not is_lead() and (main.streaming.current_id != "sanctuary" or not me.visible):
-			current = {"kind": "away", "label": "waiting in the Sanctuary"}
-			await get_tree().create_timer(1.0).timeout     # she lives in the Sanctuary: paused while it is not loaded
+		if main.sim_mode(agent_id) == "background":
+			await _background_step()       # her area is not loaded: honest abstract simulation (no free rewards)
 			continue
-		if is_lead() and not _in_region():
+		if is_foreground() and not _in_region():
 			current = {"kind": "travel", "label": "return home"}
 			await _travel("ritual_sanctuary")
 			continue
-		if main.curiosity and is_lead():
-			await main.curiosity.consult(self)
+		if main.curiosity and is_lead() and is_foreground():
+			await main.curiosity.consult(self)        # LLM-capable: only for the followed mage
 		var scored := ranked()
 		if scored.is_empty():
 			await get_tree().create_timer(2.0).timeout
@@ -587,7 +598,7 @@ func _explore(o: Dictionary) -> Dictionary:
 	needs.energy = clampf(needs.energy - 0.03, 0.0, 1.0)
 	for id in ["gate_inscription", "chamber_tablet"]:
 		var it = main.world.interactables.get(id)
-		if it and it.global_position.distance_to(me.global_position) < 9.0 and BookLibrary.pages_read(it.book_id).is_empty():
+		if it and it.global_position.distance_to(me.global_position) < 9.0 and BookLibrary.pages_read(it.book_id, agent_id).is_empty():
 			await _use(id)
 	# standing at the Watchpoint for the first time: actually survey the realm from it (the plaque is right there)
 	var survey = main.world.interactables.get("watchpoint_survey")
@@ -706,9 +717,9 @@ func _hunt(o: Dictionary) -> Dictionary:
 		WorldState.record_activity({"id": "sight:" + m.kind, "verb": "observe", "label": "Saw a %s" % m.def.name}, {"knowledge": {"bestiary:" + m.kind: 1}}, agent_id)
 		_maybe_say(_lines("first_sight", ["What is that?", "Something is moving out there."]), 0.9)
 	# a strong creature and an unlocked form: transform first (the short sequence), if not already
-	if m.tier() in ["medium", "rare"] and main.transformer and main.transformer.can_transform(agent_id) and mind.vigor > 0.4:
-		current.stage = "transforming"
-		await main.transformer.play(agent_id, "short")
+	if m.tier() in ["medium", "rare"] and main.transformer and main.transformer.can_surge(agent_id) and mind.vigor > 0.4:
+		current.stage = "calling an Orbit Surge"
+		await main.transformer.surge(agent_id)
 		if not is_instance_valid(m) or not m.alive():
 			return {"ok": true, "detail": "it was gone when she finished transforming"}
 	var casts := 0
@@ -779,14 +790,146 @@ func _recover() -> Dictionary:
 	return {"ok": true, "detail": "recovered to %d%% vigor" % int(mind.vigor * 100.0)}
 
 
-## Slow natural recovery of vigor; faster inside the ward.
+## Slow natural recovery of vigor; faster inside the ward. Also her senses: what she can see nearby.
+var _sense_t := 0.0
+
 func _process(delta: float) -> void:
 	if mind == null or not enabled:
 		return
+	_sense_t -= delta
+	if _sense_t <= 0.0 and me.visible and main.world:
+		_sense_t = 2.0
+		perceive()
 	var inside: bool = main.streaming.current_id == "sanctuary" and Vector2(me.global_position.x, me.global_position.z).length() < 12.0
 	mind.vigor = clampf(mind.vigor + delta * (0.012 if inside else 0.004), 0.0, 1.0)
 	if threat and (not is_instance_valid(threat) or not threat.alive()):
 		threat = null
+
+
+## Things she can actually see right now: interactables within 12 m with a clear line from her eyes. Each is
+## remembered as "noticed:<id>" in HER mind (no XP; it only makes those things available to her plans).
+func perceive() -> Array:
+	var seen := []
+	var eyes := me.global_position + Vector3(0, 1.5, 0)
+	var space := me.get_world_3d().direct_space_state
+	# kinds of magic-reactive objects she has seen in this area (what background practice may use)
+	for r in main.magic.reactives().values():
+		if r is Monster:
+			continue
+		var key := "noticed_kind:%s:%s" % [main.streaming.current_id, (r as ReactiveElement).kind]
+		if not mind.knowledge.has(key) and eyes.distance_to((r as ReactiveElement).aim_point()) < 18.0:
+			mind.knowledge[key] = 1
+	for id in main.world.interactables:
+		if mind.knowledge.has("noticed:" + String(id)):
+			continue
+		var it: Node3D = main.world.interactables[id]
+		var p := it.global_position + Vector3(0, 0.6, 0)
+		if eyes.distance_to(p) > 12.0:
+			continue
+		var q := PhysicsRayQueryParameters3D.create(eyes, p)
+		q.exclude = [me.get_rid()]
+		q.collision_mask = 1
+		var hit := space.intersect_ray(q)
+		if hit.is_empty() or (hit.position as Vector3).distance_to(p) < 1.2:
+			mind.knowledge["noticed:" + String(id)] = 1
+			seen.append(id)
+	return seen
+
+
+# ------------------------------------------------------------------ background simulation (honest)
+## Her area is not loaded. She may only do what can be represented without the physical world, under the
+## SAME rules as in the foreground, at real-time pace:
+##   rest     - recovers energy and vigor at the normal rates
+##   practice - repeat a reaction she has ALREADY observed, on a kind of object she has seen in this area;
+##              success is a bounded chance from her mastery (0.7..0.95); success = the same mastery gain and
+##              repeat-practice XP as a real cast; a miss gains nothing
+##   journal  - writes from her real activity log (only if there is something new)
+##   wander   - walks about places she knows: tiredness only, nothing new is learned
+## Anything needing the world (new pages or reactions, creatures, alchemy, meetings, new places) is deferred:
+## remembered in mind.deferred and offered again once she is in view. No LLM calls in the background.
+var _bg_rng := RandomNumberGenerator.new()
+var bg_log: Array = []
+
+func _background_step() -> void:
+	var area := String(mind.location.get("area", "sanctuary"))
+	var practice := []
+	for k in mind.knowledge:
+		var ks := String(k)
+		if not ks.begins_with("reaction:"):
+			continue
+		var parts := ks.split(":")
+		if parts.size() < 4 or parts[3] in ["none", "defeated", "struck"] or Spawner.load_data().monsters.has(parts[2]):
+			continue
+		if mind.knowledge.has("noticed_kind:%s:%s" % [area, parts[2]]) and main.magic.can_cast(parts[1], agent_id).ok:
+			practice.append(parts)
+	var w := {"rest": 0.2 + (1.0 - needs.energy) * 1.2 + (1.0 - mind.vigor), "practice": (0.3 + needs.mastery * 0.6) if not practice.is_empty() else 0.0,
+		"journal": 0.6 if not Journal.compose(mind).is_empty() else 0.0, "wander": 0.25 + needs.curiosity * 0.2}
+	var total := 0.0
+	for k in w:
+		total += float(w[k])
+	var r := _bg_rng.randf() * total
+	var pick := "wander"
+	for k in w:
+		r -= float(w[k])
+		if r <= 0.0:
+			pick = k
+			break
+	# what she would rather be doing, if only she were in view (deferred, never simulated)
+	var want := ""
+	if needs.curiosity > 0.75:
+		want = "explore somewhere new"
+	elif needs.mastery > 0.8 and mind.vigor > 0.7:
+		want = "find something to fight"
+	if want != "" and (mind.deferred.is_empty() or String(mind.deferred[-1].get("want", "")) != want):
+		mind.deferred.append({"want": want, "unix": int(Time.get_unix_time_from_system()), "area": area})
+		if mind.deferred.size() > 20:
+			mind.deferred.pop_front()
+	current = {"kind": "background", "label": {"rest": "resting", "practice": "practising", "journal": "writing her journal", "wander": "walking about"}[pick] + " (out of view)", "stage": pick}
+	var entry := {"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.1), "area": area, "activity": pick}
+	match pick:
+		"rest":
+			await _bg_wait(_bg_rng.randf_range(20.0, 35.0))
+			needs.energy = clampf(needs.energy + 0.3, 0.0, 1.0)
+		"practice":
+			var p: Array = practice[_bg_rng.randi() % practice.size()]
+			await _bg_wait(_bg_rng.randf_range(8.0, 14.0))
+			var chance := clampf(0.7 + 0.08 * MagicSystem.mastery(p[1], agent_id), 0.7, 0.95)
+			var ok := _bg_rng.randf() < chance
+			entry["spell"] = p[1]
+			entry["on"] = p[2]
+			entry["success"] = ok
+			if ok:
+				var m0 := MagicSystem.mastery(p[1], agent_id)
+				var gain := 0.08 / (1.0 + m0 * 0.8)          # same formula as MagicSystem._award (no "first" bonus)
+				entry["changes"] = WorldState.record_activity({"id": "spell:%s" % p[1], "verb": "practice", "label": "%s (%s, out of view)" % [MagicSystem.spell(p[1]).name, p[3]], "sim": "background"},
+					{"skills": {p[1]: gain}, "knowledge": {"reaction:%s:%s:%s" % [p[1], p[2], p[3]]: 1}}, agent_id)
+			needs.energy = clampf(needs.energy - 0.07, 0.0, 1.0)
+			needs.mastery = clampf(needs.mastery - 0.08, 0.0, 1.0)
+		"journal":
+			var e := Journal.compose(mind)
+			await _bg_wait(clampf(String(e.get("text", "")).split(" ").size() / 2.5, 4.0, 14.0))
+			if not e.is_empty() and not Journal.compose(mind).is_empty():
+				var j: Array = mind.knowledge.get("journal", []).duplicate()
+				j.append({"heading": e.heading, "text": e.text, "unix": int(Time.get_unix_time_from_system())})
+				mind.knowledge["journal"] = j
+				mind.knowledge["journal_cursor"] = e.cursor
+				entry["changes"] = WorldState.record_activity({"id": "journal_write", "verb": "write", "label": e.heading, "sim": "background"}, {}, agent_id)
+		"wander":
+			await _bg_wait(_bg_rng.randf_range(15.0, 30.0))
+			needs.energy = clampf(needs.energy - 0.03, 0.0, 1.0)
+			needs.curiosity = clampf(needs.curiosity + 0.05, 0.0, 1.0)
+	needs.social = clampf(needs.social + 0.02, 0.0, 1.0)
+	bg_log.append(entry)
+	if bg_log.size() > 100:
+		bg_log.pop_front()
+	current = {}
+
+
+## Waits in 1 s steps; returns early if she comes into view (her area got loaded) or is released.
+func _bg_wait(seconds: float) -> void:
+	var t0 := Time.get_ticks_msec()
+	while (Time.get_ticks_msec() - t0) / 1000.0 < seconds and enabled and main.sim_mode(agent_id) == "background":
+		await get_tree().create_timer(1.0).timeout
 
 
 ## Per-mage line overrides (data/mages.json "lines"); falls back to the given defaults.

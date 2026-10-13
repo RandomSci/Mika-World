@@ -20,6 +20,9 @@ var discovered := {}             # places SHE has seen (sub-areas / locations), 
 ## progression (both mages; Mika's lives here too and is saved as "progress")
 var progress := {"xp": 0.0, "level": 1, "awarded": {}, "repeats": {}, "gates": {}, "forms_unlocked": [], "orbits": []}
 var vigor := 1.0                 # 0..1 battle stamina (not saved: she recovers between sessions)
+var location := {}               # {area, pos:[x,y,z]} where she is in the world (saved; drives simulation tiers)
+var deferred: Array = []         # activities she wanted while in the background that need the real world
+var music := {}                  # performance preferences / history (Milestone I; saved, never shared)
 
 var knowledge: Dictionary:
 	get: return WorldState.knowledge if legacy else _knowledge
@@ -72,6 +75,15 @@ static func create(p_id: String, p_legacy := false, starting_skills := {}) -> Ma
 	return m
 
 
+func location_pos() -> Vector3:
+	var p: Array = location.get("pos", [])
+	return Vector3(float(p[0]), float(p[1]), float(p[2])) if p.size() == 3 else Vector3.INF
+
+
+func set_location(area: String, pos: Vector3) -> void:
+	location = {"area": area, "pos": [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), snappedf(pos.z, 0.01)]}
+
+
 func level() -> int:
 	return int(progress.get("level", 1))
 
@@ -86,7 +98,8 @@ func note_activity(kind: String) -> void:
 func to_dict() -> Dictionary:
 	return {"knowledge": _knowledge, "inventory": _inventory, "skills": _skills, "trials_done": _trials_done,
 		"prefix_counts": _prefix_counts, "activity_counts": _activity_counts, "activity_seq": _activity_seq,
-		"activity_log": _activity_log.slice(maxi(0, _activity_log.size() - 200)), "discovered": discovered, "progress": progress}
+		"activity_log": _activity_log.slice(maxi(0, _activity_log.size() - 200)), "discovered": discovered, "progress": progress,
+		"location": location, "deferred": deferred.slice(maxi(0, deferred.size() - 20)), "music": music}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -100,6 +113,9 @@ func from_dict(d: Dictionary) -> void:
 	_activity_log.assign(d.get("activity_log", []))
 	discovered = d.get("discovered", {})
 	load_progress(d.get("progress", {}))
+	location = d.get("location", {}) if d.get("location") is Dictionary else {}
+	deferred = d.get("deferred", []) if d.get("deferred") is Array else []
+	music = d.get("music", {}) if d.get("music") is Dictionary else {}
 
 
 ## Restores progression with JSON floats turned back into ints where they are counters.

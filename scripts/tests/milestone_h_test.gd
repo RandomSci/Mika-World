@@ -191,6 +191,11 @@ func _combat() -> void:
 	var m := WorldState.mind(who)
 	var other := "mika" if who == "luna" else "luna"
 	var other_inv: Dictionary = WorldState.mind(other).inventory.duplicate() if main.characters.has(other) else {}
+	# her own planner must not drive her at the same time as the test (one controller per character)
+	b.hold = true
+	var tw0 := Time.get_ticks_msec()
+	while not b.current.is_empty() and Time.get_ticks_msec() - tw0 < 30000:
+		await get_tree().process_frame
 	# stand her outside the ward first (east, by the training grounds)
 	var map: RID = c.get_world_3d().navigation_map
 	c.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(26, 0, 6)) + Vector3(0, 0.1, 0)
@@ -397,13 +402,16 @@ func _levelup() -> void:
 			_shot("levelup_%d" % int((shot_t - t0) / 1000))
 	var last: Dictionary = main.transformer.log[-1] if not main.transformer.log.is_empty() else {}
 	_check(last.get("version", "") == "full" and not last.get("preview", true) and last.get("ok", false), "it was the full first-time version", last)
-	_check(main.transformer.is_transformed("mika") and mika.avatar_path.ends_with("Mika_Level10.vrm") and mika.has_meta("form_power"), "she stays in Bloom Form (stronger spells)", mika.avatar_path)
-	_check(m.knowledge.has("form:bloom") and mika.has_node("AetherOrbit"), "the form is in her memory; her First Orbit circles her")
+	_check(main.transformer.is_transformed("mika") and mika.avatar_path.ends_with("Mika_Level10.vrm") and String(m.progress.get("appearance", "")) == "bloom", "Bloom Form is now her permanent appearance", mika.avatar_path)
+	_check(m.knowledge.has("form:bloom"), "the form is in her memory")
 	await _wait(2.0)
 	_shot("bloom_after")
-	# the form lasts duration_s; fast-forward the clock and see her settle back
-	main.transformer.transformed["mika"].until = 0.0
+	# a later strong fight: the short sequence is an Orbit Surge (temporary power) - her outfit never changes
+	await main.transformer.surge("mika")
+	_check(main.transformer.has_surge("mika") and mika.has_meta("form_power") and mika.has_node("AetherOrbit"), "Orbit Surge: extra power + orbit ring")
+	main.transformer.surges["mika"].until = 0.0
 	await _wait(1.5)
-	_check(not main.transformer.is_transformed("mika") and mika.avatar_path == base and not mika.has_meta("form_power"), "the form times out and she returns to her base form", mika.avatar_path)
+	_check(not main.transformer.has_surge("mika") and not mika.has_meta("form_power") and mika.avatar_path.ends_with("Mika_Level10.vrm"), "the surge expires; she keeps her Bloom Form", mika.avatar_path)
+	_check(base != mika.avatar_path, "(base model preserved on disk for future forms)", base)
 	_check(m.level() == 10 and (m.progress.forms_unlocked as Array).has("bloom"), "Level 10 and the unlocked form remain")
 	report["end"] = {"level": m.level(), "xp": m.progress.xp, "transform_log": main.transformer.log}

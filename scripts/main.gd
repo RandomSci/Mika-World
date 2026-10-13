@@ -40,7 +40,6 @@ var mage_talk: MageTalk
 var transformer: TransformationDirector
 var overlay_ui: MageOverlay
 var quiet_test := false                      # older single-mage tests: no Luna / creatures unless asked
-var _luna_pos = null                         # where Luna was when the Sanctuary unloaded
 var _spot_t := 0.0
 var _spot_since := 0.0
 var _comment_until := 0.0
@@ -74,18 +73,18 @@ func _ready() -> void:
 	var chars := Node3D.new()
 	chars.name = "Characters"
 	add_child(chars)
-	var mika := spawn_character("mika", "Mika", "res://assets/characters/mika/Mika.vrm", Transform3D.IDENTITY, chars)
+	# each mage appears in her saved appearance (a form reached at a tenth level is permanent)
+	var mika := spawn_character("mika", "Mika", TransformationDirector.avatar_for("mika"), Transform3D.IDENTITY, chars)
 	mika.add_to_group("player_character")
 	mika.set_physics_process(false)
 	mika.sword = SwordLayer.attach(mika)
 	Progression.load_data()
 	quiet_test = WorldState._TEST_FLAGS.any(func(f): return RenderProfile.options.has(f) and f != "brainrun")
 	if not RenderProfile.options.has("no-luna") and (not quiet_test or RenderProfile.options.has("luna")):
-		var lp: Dictionary = Progression.mages.get("luna", {})
-		var luna := spawn_character("luna", "Luna", String(lp.get("base_avatar", "")), Transform3D.IDENTITY, chars)
+		WorldState.register_mind("luna")
+		var luna := spawn_character("luna", "Luna", TransformationDirector.avatar_for("luna"), Transform3D.IDENTITY, chars)
 		luna.set_physics_process(false)
 		luna.visible = false
-		WorldState.register_mind("luna")
 		mages.append("luna")
 
 	camera_rig = ThirdPersonCamera.new()
@@ -237,11 +236,11 @@ func _ready() -> void:
 	# region-specific portal effects: departing as the travel mask closes, arriving as the next area appears
 	streaming.transition_started.connect(func(_from, to):
 		if characters.has("mika"):
-			PortalFX.play(self, characters["mika"].global_position, WorldState.areas.get(to, {}).get("region", ""), false))
+			PortalFX.play(self, characters[focus].global_position, WorldState.areas.get(to, {}).get("region", ""), false))
 	streaming.area_activated.connect(func(a, _r):
 		await get_tree().create_timer(0.15).timeout
 		if world and characters.has("mika"):
-			PortalFX.play(world, characters["mika"].global_position, WorldState.areas.get(a, {}).get("region", ""), true))
+			PortalFX.play(world, characters[focus].global_position, WorldState.areas.get(a, {}).get("region", ""), true))
 	if RenderProfile.options.has("viewer"):
 		set_viewer_mode(true)
 	curiosity = CuriosityModule.new()
@@ -260,6 +259,11 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("mitest"):
+		travel._cooldown_until = 1e12
+		var mi := MilestoneITest.new()
+		mi.main = self
+		add_child(mi)
 	elif RenderProfile.options.has("mhtest"):
 		travel._cooldown_until = 1e12
 		var mh := MilestoneHTest.new()
@@ -414,41 +418,132 @@ func _build_hud() -> void:
 	layer.add_child(comment_label)
 
 
-## Mages other than Mika live in the Sanctuary: hidden and frozen while another area is loaded, back where
-## they were (or at their spawn) when it returns. Nothing about them is simulated off-screen.
+## ---------------------------------------------------------------- simulation tiers (Milestone I)
+## Only ONE area is ever loaded: the area of the FOCUS mage (the one the camera follows).
+##   foreground - the focus mage: full simulation; the only mage who may cause an area change
+##   nearby     - another mage whose saved location is the loaded area: full physics, animation and planning
+##   background - a mage whose area is not loaded: hidden and frozen; her planner runs an honest abstract
+##                simulation (see SanctuaryBrain._background_step) and defers what needs the real world
+## Every mage's location is kept in her mind (saved), so she is rebuilt exactly where she was.
+var focus := "mika"
+var _loc_t := 0.0
+
+
+func sim_mode(who: String) -> String:
+	if who == focus:
+		return "foreground"
+	var c: WorldCharacter = characters.get(who)
+	return "nearby" if c and c.visible else "background"
+
+
+func _home_area(who: String) -> String:
+	return String(Progression.mages.get(who, {}).get("home_area", "sanctuary"))
+
+
+## Before an area unloads: remember where everyone in it stands; hide every mage but the focus (who travels).
 func _park_mages() -> void:
 	for who in mages:
-		if who == "mika":
-			continue
 		var c: WorldCharacter = characters[who]
-		if c.visible and streaming.current_id == "sanctuary":
-			_luna_pos = c.global_position
+		if c.visible and world:
+			WorldState.mind(who).set_location(streaming.current_id, c.global_position)
+		if who == focus:
+			continue
 		c.set_physics_process(false)
 		c.visible = false
 
 
+## After an area is built: the focus mage is placed by the streaming manager; every other mage whose saved
+## location is this area reappears where she was (or at her spawn), the rest stay in the background.
 func _on_area_for_mages(area_id: String) -> void:
 	for who in mages:
-		if who == "mika":
-			continue
 		var c: WorldCharacter = characters[who]
-		if area_id != "sanctuary" or world == null:
+		var m := WorldState.mind(who)
+		if who == focus:
+			c.visible = true
+			m.set_location(area_id, c.global_position)
+			continue
+		var her_area := String(m.location.get("area", _home_area(who)))
+		if her_area != area_id or world == null:
 			c.visible = false
 			c.set_physics_process(false)
 			continue
-		var at: Vector3
-		if _luna_pos is Vector3:
-			at = _luna_pos
-		else:
+		var at := m.location_pos()
+		if at == Vector3.INF:
 			var sp: Array = Progression.mages.get(who, {}).get("spawn", [20, 0, 8])
 			at = Vector3(sp[0], 0, sp[2])
 			at.y = world.ground_at(at.x, at.z) if world.has_method("ground_at") else 0.0
-			at = NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, at)
+		var snapped := NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, at)
+		# a map that has not synchronised yet answers (0,0,0): never teleport her there
+		at = snapped if snapped != Vector3.ZERO and snapped.distance_to(at) < 3.0 else at
 		c.global_position = at + Vector3(0, 0.1, 0)
 		c.world = world
 		c.velocity = Vector3.ZERO
 		c.visible = true
 		c.set_physics_process(true)
+		m.set_location(area_id, c.global_position)
+
+
+## Nearest walkable point to `at`, waiting for the navigation map to synchronise after a load (it answers
+## (0,0,0) until then). Falls back to `at` itself rather than ever placing a mage somewhere arbitrary.
+func snap_to_nav(at: Vector3) -> Vector3:
+	for i in 12:
+		var p := NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, at)
+		if p != Vector3.ZERO and p.distance_to(at) < 3.0:
+			return p
+		await get_tree().physics_frame
+	return at
+
+
+## Follow another mage. Same area: the camera simply changes subject. Another area: everyone in the current
+## area is first allowed to finish what she is doing (nothing unloads mid-action), then the masked travel
+## card loads her area and she is rebuilt exactly where she was; the others continue in the background.
+func focus_mage(who: String) -> Dictionary:
+	if who == focus or not characters.has(who):
+		return {"ok": who == focus, "focus": focus}
+	var c: WorldCharacter = characters[who]
+	var m := WorldState.mind(who)
+	var her_area := streaming.current_id if c.visible else String(m.location.get("area", _home_area(who)))
+	if her_area == streaming.current_id:
+		focus = who
+		if director:
+			director.set_subject(c)
+		camera_rig.target = c
+		return {"ok": true, "focus": who, "area_change": false}
+	if streaming.state != "idle" or (transformer and transformer.playing != ""):
+		return {"ok": false, "error": "busy (%s)" % streaming.state}
+	var held := []
+	for w in mages:
+		if characters[w].visible and mage_brains.has(w) and mage_brains[w].enabled:
+			mage_brains[w].hold = true
+			mage_brains[w].interrupt("focus")
+			held.append(w)
+	var t0 := Time.get_ticks_msec()
+	while held.any(func(w): return not mage_brains[w].current.is_empty() and mage_brains[w].current.get("kind", "") != "away") and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().process_frame
+	if held.any(func(w): return not mage_brains[w].current.is_empty()):
+		for w in held:
+			mage_brains[w].hold = false
+		return {"ok": false, "error": "the mages here are in the middle of something; try again shortly"}
+	var old_focus := focus
+	var at := m.location_pos()            # read BEFORE loading: arrival records the gate position as her location
+	focus = who
+	var r: Dictionary = await streaming.travel(her_area, c)
+	if not r.get("ok", false):
+		focus = old_focus
+		for w in held:
+			mage_brains[w].hold = false
+		return {"ok": false, "error": r.get("reason", "travel failed")}
+	if at != Vector3.INF:
+		c.global_position = await snap_to_nav(at) + Vector3(0, 0.1, 0)
+	c.visible = true
+	m.set_location(her_area, c.global_position)
+	camera_rig.target = c
+	camera_rig.snap_behind()
+	if director:
+		director.set_subject(c)
+	for w in held:
+		mage_brains[w].hold = false
+	return {"ok": true, "focus": who, "area_change": true, "area": her_area}
 
 
 ## Spotlight: while the director runs, it follows whichever mage is doing the most watchable thing
@@ -457,8 +552,8 @@ func _spotlight(delta: float) -> void:
 	_spot_since += delta
 	_spot_t -= delta
 	if not director or not director.enabled:
-		if director and director.mika != characters["mika"]:
-			director.set_subject(characters["mika"])
+		if focus != "mika" and characters["mika"].visible:
+			focus_mage("mika")             # the player controls Mika: the camera is hers
 		return
 	if _spot_t > 0.0:
 		return
@@ -479,8 +574,8 @@ func _spotlight(delta: float) -> void:
 		if v > best_v:
 			best_v = v
 			best = who
-	if best != "" and characters[best] != director.mika and _spot_since > 20.0:
-		director.set_subject(characters[best])
+	if best != "" and best != focus and _spot_since > 20.0:
+		focus_mage(best)                    # same area (both visible): an instant change of subject
 		_spot_since = 0.0
 
 
@@ -601,8 +696,14 @@ func _process(delta: float) -> void:
 		tw.tween_interval(10.0)
 		tw.tween_property(rank_tag, "modulate:a", 0.0, 2.0)
 	var loc := world.location_at(mika.global_position)
-	if streaming.state == "idle":
-		WorldState.enter_location(loc)
+	if streaming.state == "idle" and mika.visible:
+		WorldState.enter_location(loc)        # Mika's map of the world (only while she is actually here)
+	_loc_t -= delta
+	if _loc_t <= 0.0 and streaming.state == "idle":
+		_loc_t = 1.0
+		for who in mages:
+			if characters[who].visible:
+				WorldState.mind(who).set_location(streaming.current_id, characters[who].global_position)
 	if _fps_acc >= 0.5 and hud.visible:
 		var lname: String = WorldState.locations[loc].name if WorldState.locations.has(loc) else loc
 		var sub := ""

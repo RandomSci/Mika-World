@@ -1,5 +1,5 @@
 {
- "_note": "Autonomous mages. Each has her own mind (WorldState.mind(id)), planner instance, voice, forms and growth path. Forms: the avatar shown from a level onward when transformed (base form otherwise). Orbit gates: the real milestones needed to cross each 10th level. Temperament scales the planner's option utilities (1.0 = neutral). Activities: which planner activity kinds she uses (story/book reading is Mika's in this slice).",
+ "_note": "Autonomous mages. Each has her own mind (WorldState.mind(id)), planner instance, voice, forms and growth path. Forms: the avatar shown from a level onward when transformed (base form otherwise). Orbit gates: the real milestones needed to cross each 10th level. Temperament scales the planner's option utilities (1.0 = neutral). Activities: which planner activity kinds she uses (story/book reading is Mika's in this slice). Both mages can use every activity kind (Mika additionally follows her Heartstone story leads and talks with the travellers, whose authored lines are written for her).",
  "mages": {
   "mika": {
    "name": "Mika",
@@ -33,14 +33,18 @@
     "journal",
     "attune",
     "hunt",
-    "meet"
+    "meet",
+    "gather",
+    "perform"
    ],
    "temperament": {
     "research": 1.1,
     "hunt": 0.85,
     "explore": 1.0,
     "magic": 1.0,
-    "meet": 1.0
+    "meet": 1.0,
+    "gather": 1.0,
+    "perform": 1.0
    },
    "orbit_gates": {
     "10": [
@@ -149,19 +153,28 @@
     9.0
    ],
    "activities": [
+    "research",
     "magic",
     "explore",
     "rest",
+    "alchemy",
+    "attune",
     "hunt",
     "meet",
-    "journal"
+    "journal",
+    "gather",
+    "perform"
    ],
    "temperament": {
     "hunt": 1.35,
     "explore": 1.1,
     "magic": 1.1,
     "rest": 0.85,
-    "meet": 0.8
+    "meet": 0.8,
+    "research": 0.9,
+    "alchemy": 1.05,
+    "gather": 1.0,
+    "perform": 0.9
    },
    "orbit_gates": {
     "10": [

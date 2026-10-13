@@ -1,0 +1,40 @@
+{
+ "_note": "Facts from the file's own tags (title, artist, generator, lyrics/style notes) or measured by tools/audio/analyze_song.py. 'dance_styles' and eligibility are assignments made for Mika World, not properties of the recording.",
+ "id": "mika_magical_world",
+ "title": "ミカの魔法世界！",
+ "title_en": "Mika's Magical World!",
+ "artist_tag": "jaymeselwyn",
+ "file": "original.mp3",
+ "duration": 227.12,
+ "language": "ja",
+ "has_vocals": true,
+ "vocal_stem": null,
+ "vocal_timing": "estimated_mixed_track",
+ "mood_tags_from_file": [
+  "bright",
+  "playful",
+  "cheerful",
+  "bouncy",
+  "joyful"
+ ],
+ "genre": "J-pop (per lyrics style notes)",
+ "bpm_measured": 172.27,
+ "performers": [
+  "mika",
+  "luna"
+ ],
+ "dance_styles": [
+  "step_hip_hop",
+  "snake_hip_hop",
+  "booty_hip_hop",
+  "belly"
+ ],
+ "casual_eligible": true,
+ "special_eligible": true,
+ "preferred_sections": [],
+ "licensing": {
+  "source": "Generated with Suno (embedded comment: 'made with suno', created 2026-10-12, id 14353b48-af11-4dfd-b914-1905550b32a0)",
+  "commercial_use": "UNCONFIRMED - depends on the Suno plan active when it was generated; confirm before any public broadcast",
+  "upload_policy": "local only; not uploaded anywhere"
+ }
+}

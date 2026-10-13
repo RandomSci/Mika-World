@@ -2,7 +2,7 @@
 # Restart/persistence regression suite (headless, bounded, no API calls, no voice, no bridge).
 # Uses only disposable saves (user://test_regress_*.json). The real save is never written; "realcopy" tests a byte copy of it.
 #   tools/run_regression.sh            all suites
-#   tools/run_regression.sh integrity  one suite: integrity | npc | realcopy | trials | mh (all Milestone H suites)
+#   tools/run_regression.sh integrity  one suite: integrity | npc | realcopy | trials | mh | mi (Milestone H / I suites)
 # A suite fails on a FAIL line, a non-zero exit, a timeout or ANY "SCRIPT ERROR" in its log.
 set -u
 cd "$(dirname "$0")/.."
@@ -19,12 +19,12 @@ run() {   # run <name> <timeout_s> <user args...>
   timeout "$t" "$GODOT" --headless --path . -- "${COMMON[@]}" "$@" >"$log" 2>&1
   local code=$?
   local errs; errs=$(grep -c "SCRIPT ERROR" "$log")
-  if [ $code -ne 0 ] || [ "$errs" -ne 0 ] || ! grep -qE "^\[(persisttest|mhtest)\] PASS" "$log"; then
+  if [ $code -ne 0 ] || [ "$errs" -ne 0 ] || ! grep -qE "^\[(persisttest|mhtest|mitest)\] PASS" "$log"; then
     echo "FAIL  $name (exit $code, script errors $errs) -> $log"
-    grep -E "^\[(persisttest|mhtest)\]   FAIL|SCRIPT ERROR" -A2 "$log" | head -20
+    grep -E "^\[(persisttest|mhtest|mitest)\]   FAIL|SCRIPT ERROR" -A2 "$log" | head -20
     fails=$((fails + 1))
   else
-    echo "PASS  $name ($(grep -cE '^\[(persisttest|mhtest)\]   ok' "$log") checks)"
+    echo "PASS  $name ($(grep -cE '^\[(persisttest|mhtest|mitest)\]   ok' "$log") checks)"
   fi
 }
 
@@ -62,6 +62,16 @@ if [ "$want" = all ] || [ "$want" = mh ]; then
   run mh_combat_luna 300 --mhtest=combat --who=luna --kind=gloomwisp --luna --monsters --save-path=user://test_regress_mh.json
   run mh_combat_mika 300 --mhtest=combat --who=mika --kind=thornback --luna --monsters --no-luna-brain --save-path=user://test_regress_mh.json
   run mh_fusion 300 --mhtest=fusion --luna --monsters --save-path=user://test_regress_mh.json
+fi
+if [ "$want" = all ] || [ "$want" = mi ]; then
+  clean mif
+  run mi_form1 180 --mitest=form1 --luna --no-luna-brain --persist --save-path=user://test_regress_mif.json
+  run mi_form2 180 --mitest=form2 --luna --no-luna-brain --persist --save-path=user://test_regress_mif.json
+  clean mif
+  run mi_background 400 --mitest=background --luna --seconds=150 --save-path=user://test_regress_mi.json
+  run mi_focus 300 --mitest=focus --luna --save-path=user://test_regress_mi.json
+  run mi_luna_read 300 --mitest=luna_read --luna --save-path=user://test_regress_mi.json
+  run mi_luna_alchemy 300 --mitest=luna_alchemy --luna --save-path=user://test_regress_mi.json
 fi
 echo "regression: $fails failing suite(s)"
 exit $((fails > 0))

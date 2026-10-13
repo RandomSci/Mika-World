@@ -23,6 +23,7 @@ var bowl := []                  # ingredients poured, in order
 var bowl_state := "empty"
 var busy := false
 var _reset_at := -1.0
+var _who := "mika"              # the mage at the table: the results are HER discovery
 
 
 func build(area: Node3D, pos: Vector3, yaw: float) -> void:
@@ -115,7 +116,7 @@ func remember_homes() -> void:
 
 func describe() -> Dictionary:
 	return {"bowl": bowl.duplicate(), "bowl_state": bowl_state, "vessels": vessels.values().map(func(v): return v.describe()),
-		"known_recipes": RECIPES.keys().filter(func(k): return WorldState.knowledge.has("recipe:" + k))}
+		"known_recipes": RECIPES.keys().filter(func(k): return WorldState.mind(_who).knowledge.has("recipe:" + k))}
 
 
 ## A whole experiment by `c`. ingredients = [] lets the table choose: the known recipe if she knows one,
@@ -126,9 +127,10 @@ func experiment(c: WorldCharacter, ingredients: Array = [], stir = null) -> Dict
 	if bowl_state != "empty":
 		return {"ok": false, "detail": "the bowl still holds the last mixture (%s); it drains soon" % bowl_state}
 	busy = true
+	_who = c.character_id
 	var h: ObjectHandler = c.handler
 	var steps := []
-	var knows: bool = WorldState.knowledge.has("recipe:luminous_draught")
+	var knows: bool = WorldState.mind(_who).knowledge.has("recipe:luminous_draught")
 	if ingredients.is_empty():
 		if knows:
 			ingredients = RECIPES.luminous_draught.ingredients.duplicate()
@@ -221,7 +223,7 @@ func _resolve(stirred: bool) -> Dictionary:
 		bowl_mat.albedo_color = Color(0.45, 0.32, 0.2, 0.9)
 		FX.burst(self, bowl_pos + Vector3(0, 0.12, 0), 40, 1.6, FX.pm_motes("fire", "burst"), FX.mote_mesh(0.025))
 		FX.burst(self, bowl_pos + Vector3(0, 0.15, 0), 24, 2.6, FX.pm_puff("smoke"), FX.puff_mesh(0.3))
-		var ch := WorldState.record_activity({"id": "alchemy_fizz", "verb": "craft", "label": "Ember salt with moonwater"}, {"knowledge": {"alchemy:ember_salt_fizz": 1}})
+		var ch := WorldState.record_activity({"id": "alchemy_fizz", "verb": "craft", "label": "Ember salt with moonwater"}, {"knowledge": {"alchemy:ember_salt_fizz": 1}}, _who)
 		return {"ok": true, "outcome": "fizz", "detail": "the mixture fizzed, spat orange sparks and smoked; nothing usable", "changes": ch}
 	var rec: Array = RECIPES.luminous_draught.ingredients.duplicate()
 	rec.sort()
@@ -233,7 +235,7 @@ func _resolve(stirred: bool) -> Dictionary:
 		tw.tween_property(bowl_light, "light_energy", 1.6, 1.2)
 		FX.burst(self, bowl_pos + Vector3(0, 0.15, 0), 40, 1.6, FX.pm_motes("water", "rise"), FX.mote_mesh(0.03))
 		var ch2 := WorldState.record_activity({"id": "alchemy_luminous_draught", "verb": "craft", "label": "Brewed a Luminous Draught"},
-			{"items": {"luminous_draught": 1}, "knowledge": {"alchemy:luminous_draught_brewed": 1}})
+			{"items": {"luminous_draught": 1}, "knowledge": {"alchemy:luminous_draught_brewed": 1}}, _who)
 		return {"ok": true, "outcome": "luminous_draught", "detail": "the mixture began to glow softly and smelled of rain: one Luminous Draught", "changes": ch2}
 	bowl_state = "cloudy"
 	var why := "it was not stirred with arcane light" if set_ == rec else "this combination does not react"

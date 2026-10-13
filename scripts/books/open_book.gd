@@ -18,6 +18,7 @@ const BLOCK := 0.016 # page block thickness per side
 
 var book_id := ""
 var book := {}
+var reader := "mika"          # whose knowledge decides which hidden pages are visible
 var style := "book"
 var _views: Array[BookPageView] = []
 var _vps: Array[SubViewport] = []
@@ -179,7 +180,7 @@ func _apply_open(v: float) -> void:
 
 
 func show_spread(first_page: int) -> void:
-	var pages: Array = (book.get("pages", []) as Array).filter(func(pg): return not pg.has("requires_knowledge") or WorldState.knowledge.has(pg.requires_knowledge))
+	var pages: Array = (book.get("pages", []) as Array).filter(func(pg): return not pg.has("requires_knowledge") or WorldState.mind(reader).knowledge.has(pg.requires_knowledge))
 	var title: String = book.get("title", book_id)
 	for side in 2:
 		var i := first_page + side

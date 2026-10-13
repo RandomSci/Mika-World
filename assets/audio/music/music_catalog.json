@@ -1,0 +1,10 @@
+{
+ "_note": "Music library index. Each song lives in library/<id>/ with metadata.json (+ timing.json from tools/audio/analyze_song.py). MusicLibrary also discovers song folders that are not listed here, so adding a song = add its folder (and run the analyser). Playback history and preferences are per mage (saved in each mind), never here.",
+ "version": 1,
+ "songs": [
+  {
+   "id": "mika_magical_world",
+   "path": "library/mika_magical_world"
+  }
+ ]
+}

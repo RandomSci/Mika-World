@@ -155,8 +155,8 @@ func _compose(a: String, b: String) -> Array:
 ## Optional LLM phrasing: one call per meeting, each speaker described only by her own facts.
 func _phrase(a: String, b: String, lines: Array) -> Array:
 	var llm: LLMClient = main.llm
-	if llm == null or llm.provider == "mock":
-		return lines
+	if llm == null or llm.provider == "mock" or not (main.get("focus") in [a, b]):
+		return lines          # API calls only when the conversation is on camera
 	var facts := {}
 	for who in [a, b]:
 		var m := WorldState.mind(who)

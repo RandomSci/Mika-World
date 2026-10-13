@@ -1,0 +1,38 @@
+{
+ "_note": "Music performance settings (PerformanceController). Totals include the spoken intro and closing remark. limits cap every performance at 60-90 s for Milestone I; longer special performances need a future approved change here. phrase_bars: dance clip / camera changes happen on bar lines every N bars. outro_reserve_s: time kept for the closing remark. Remarks are chosen without repeating the last few (no LLM).",
+ "limits": {"min_total_s": 60.0, "max_total_s": 90.0},
+ "mix": {"music_db": 6.0},
+ "cooldown_s": {"casual": 900.0, "special": 2400.0},
+ "modes": {
+  "casual": {"total_s": [60.0, 90.0], "phrase_bars": 8, "outro_reserve_s": 4.0, "camera": "casual"},
+  "special": {"total_s": [72.0, 90.0], "phrase_bars": 8, "outro_reserve_s": 6.0, "camera": "special", "venue": [0.0, 0.0, 1.5],
+   "venue_name": "the ritual circle"}
+ },
+ "dances": {
+  "dance_step": {"label": "step hip-hop"}, "dance_snake": {"label": "snake hip-hop"},
+  "dance_booty": {"label": "bouncy hip-hop"}, "dance_belly": {"label": "belly dance"}
+ },
+ "performers": {
+  "mika": {
+   "dances": ["dance_step", "dance_snake", "dance_belly"], "fx_palette": "bloom", "smile": 0.55, "sing_chance": 0.7,
+   "lines": {
+    "perform_intro_casual": ["I feel like dancing for a bit!", "Maybe a little music would be nice.", "I haven't listened to this one in a while.",
+     "Okay, a short break. Music!", "My feet want to move."],
+    "perform_outro_casual": ["That was refreshing!", "I really like that song.", "Okay, back to my studies.", "I think I needed that.", "Hehe. Again later, maybe."],
+    "perform_intro_special": ["This one is for everyone watching. I've been practising!", "A little celebration, in the circle. Here goes!"],
+    "perform_outro_special": ["Thank you for watching!", "I hope you enjoyed that as much as I did."],
+    "perform_outro_interrupted": ["Ah, not now, something's out there.", "Sorry, music later!"]
+   }
+  },
+  "luna": {
+   "dances": ["dance_snake", "dance_booty", "dance_step"], "fx_palette": "umbral", "smile": 0.3, "sing_chance": 0.35,
+   "lines": {
+    "perform_intro_casual": ["Fine. A few minutes of music.", "Nobody's watching. Probably.", "I need to clear my head.", "Let's see if I still remember this."],
+    "perform_outro_casual": ["Hm. Not bad.", "Back to training.", "That'll do.", "Better than last time."],
+    "perform_intro_special": ["Watch closely. I won't do this twice.", "I've practised this one. Don't blink."],
+    "perform_outro_special": ["...You can applaud now.", "That's how it's done."],
+    "perform_outro_interrupted": ["Tch. Company.", "Later. Something's here."]
+   }
+  }
+ }
+}
