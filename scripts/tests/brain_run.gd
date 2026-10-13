@@ -82,6 +82,24 @@ func _run() -> void:
 	report["voice"] = main.voice.log.map(func(v): return {"speaker": v.speaker, "text": v.text, "audio": v.audio})
 	report["skills"] = WorldState.skills.duplicate()
 	report["inventory"] = WorldState.inventory.duplicate()
+	# Milestone H: every mage's own record (decisions, level, inventory) + creatures, talks, transformations
+	var mages := {}
+	for who in main.mage_brains:
+		var bh: Array = main.mage_brains[who].history
+		var kinds2 := {}
+		for e in bh:
+			kinds2[e.kind] = kinds2.get(e.kind, 0) + 1
+		var mm := WorldState.mind(who)
+		mages[who] = {"activities": bh.size(), "kinds": kinds2, "ok_rate": snappedf(float(bh.filter(func(e): return e.ok).size()) / maxi(bh.size(), 1), 0.01),
+			"progress": Progression.describe(who), "inventory": mm.inventory.duplicate(), "skills": mm.skills.duplicate(),
+			"knowledge_count": mm.knowledge.size(), "vigor": snappedf(mm.vigor, 0.01), "decisions": bh}
+	report["mages"] = mages
+	report["creatures"] = main.spawner.log.duplicate() if main.spawner else []
+	report["talks"] = main.mage_talk.log.duplicate() if main.mage_talk else []
+	report["transformations"] = main.transformer.log.duplicate() if main.transformer else []
+	report["fusions"] = main.magic.fusion.log.duplicate() if main.magic.fusion else []
+	report["xp_events"] = main.progression.recent.duplicate() if main.progression else []
+	report["script_note"] = "decisions/history above (report.decisions) are Mika's for backward compatibility"
 	var f := FileAccess.open("%s/brain_run_%s.json" % [dir, RenderProfile.profile.to_lower()], FileAccess.WRITE)
 	f.store_string(JSON.stringify(report, "  "))
 	f.close()

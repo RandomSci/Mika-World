@@ -21,6 +21,8 @@ const DEFAULT_PYTHON := "/home/selwyn/Documents/Mika-Live/tools/kokoro/.venv/bin
 const DEFAULT_MODELS := "/home/selwyn/Documents/Mika-Live/models/kokoro"
 const VOICES := {
 	"mika": {"voice": "af_bella:0.6,jf_alpha:0.4", "gain": 0.7, "speed": 1.0},
+	# Luna: youthful, confident, a little cooler than Mika (Kokoro blend; distinct from every other speaker)
+	"luna": {"voice": "af_kore:0.6,af_sky:0.4", "gain": 0.75, "speed": 0.97},
 	"wandering_mage": {"voice": "bf_isabella", "gain": 0.8, "speed": 0.95},
 	"travelling_scholar": {"voice": "bf_emma", "gain": 0.8, "speed": 0.95},
 	"wandering_merchant": {"voice": "bm_george", "gain": 0.8, "speed": 1.05},

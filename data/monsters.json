@@ -1,0 +1,227 @@
+{
+ "_note": "Original Mika World creatures (procedural meshes, no external assets). They roam the Sanctuary's wild edges; the ritual circle's ward keeps them out (ward_radius from the circle's centre). tier: weak | medium | rare. hp in 'spell units' (a novice Arcane Orb deals ~0.55 x damage x 100). resist: element -> multiplier (missing = 1). attack: what they do to a mage's vigor (stamina, never death). loot: dropped as physical pickups the mage has to collect. stagger_s: how long a creature reels after being struck (no moving or attacking), which gives a caster time between spells.",
+ "ward_radius": 12.0,
+ "max_alive": 3,
+ "respawn_s": [
+  45.0,
+  90.0
+ ],
+ "spawn_anchors": [
+  [
+   12.0,
+   -24.0
+  ],
+  [
+   38.0,
+   -9.0
+  ],
+  [
+   40.0,
+   27.0
+  ],
+  [
+   -29.0,
+   7.0
+  ],
+  [
+   8.0,
+   40.0
+  ]
+ ],
+ "monsters": {
+  "gloomwisp": {
+   "name": "Gloomwisp",
+   "tier": "weak",
+   "weight": 0.6,
+   "hp": 60.0,
+   "speed": 2.2,
+   "float": 1.4,
+   "radius": 0.45,
+   "aggro_radius": 9.0,
+   "leash": 16.0,
+   "color": [
+    0.35,
+    0.55,
+    1.0
+   ],
+   "eye": [
+    0.75,
+    0.9,
+    1.0
+   ],
+   "attack": {
+    "kind": "bolt",
+    "range": 7.0,
+    "vigor": 0.06,
+    "cooldown": 3.2
+   },
+   "resist": {
+    "umbral": 0.8,
+    "wind": 1.4,
+    "arcane": 1.0
+   },
+   "loot": [
+    {
+     "item": "wisp_ember",
+     "chance": 0.9,
+     "count": [
+      1,
+      2
+     ]
+    },
+    {
+     "item": "aether_dust",
+     "chance": 0.25,
+     "count": [
+      1,
+      1
+     ]
+    }
+   ],
+   "describe": "a cold blue light that drifts like a moth and spits frost",
+   "stagger_s": 0.5
+  },
+  "thornback": {
+   "name": "Thornback",
+   "tier": "medium",
+   "weight": 0.35,
+   "hp": 130.0,
+   "speed": 2.8,
+   "float": 0.0,
+   "radius": 0.75,
+   "aggro_radius": 8.0,
+   "leash": 14.0,
+   "color": [
+    0.32,
+    0.36,
+    0.18
+   ],
+   "eye": [
+    1.0,
+    0.6,
+    0.15
+   ],
+   "attack": {
+    "kind": "lunge",
+    "range": 1.9,
+    "vigor": 0.08,
+    "cooldown": 3.0
+   },
+   "resist": {
+    "umbral": 1.25,
+    "fire": 1.5,
+    "water": 0.6,
+    "arcane": 0.9
+   },
+   "loot": [
+    {
+     "item": "thorn_carapace",
+     "chance": 1.0,
+     "count": [
+      1,
+      1
+     ]
+    },
+    {
+     "item": "aether_dust",
+     "chance": 0.5,
+     "count": [
+      1,
+      2
+     ]
+    }
+   ],
+   "describe": "a low, many-legged crawler armoured in thorny bark",
+   "stagger_s": 1.0
+  },
+  "hollow_sentinel": {
+   "name": "Hollow Sentinel",
+   "tier": "rare",
+   "weight": 0.05,
+   "hp": 380.0,
+   "speed": 1.2,
+   "float": 0.0,
+   "radius": 1.0,
+   "aggro_radius": 7.0,
+   "leash": 10.0,
+   "color": [
+    0.5,
+    0.48,
+    0.44
+   ],
+   "eye": [
+    1.0,
+    0.82,
+    0.4
+   ],
+   "attack": {
+    "kind": "slam",
+    "range": 2.6,
+    "vigor": 0.17,
+    "cooldown": 4.0
+   },
+   "resist": {
+    "umbral": 1.4,
+    "arcane": 0.8,
+    "wind": 0.4,
+    "water": 0.7
+   },
+   "min_session_s": 420.0,
+   "rare_cooldown_s": 1200.0,
+   "loot": [
+    {
+     "item": "sentinel_core",
+     "chance": 1.0,
+     "count": [
+      1,
+      1
+     ]
+    },
+    {
+     "item": "aether_dust",
+     "chance": 1.0,
+     "count": [
+      2,
+      3
+     ]
+    }
+   ],
+   "describe": "a hollow construct of old ruin-stone, a lantern of gold light where its heart should be",
+   "stagger_s": 0.4
+  }
+ },
+ "items": {
+  "wisp_ember": {
+   "name": "Wisp Ember",
+   "color": [
+    0.55,
+    0.75,
+    1.0
+   ]
+  },
+  "thorn_carapace": {
+   "name": "Thorn Carapace",
+   "color": [
+    0.55,
+    0.5,
+    0.25
+   ]
+  },
+  "aether_dust": {
+   "name": "Aether Dust",
+   "color": [
+    1.0,
+    0.9,
+    0.6
+   ]
+  },
+  "sentinel_core": {
+   "name": "Sentinel Core",
+   "color": [
+    1.0,
+    0.8,
+    0.35
+   ]
+  }
+ }
+}

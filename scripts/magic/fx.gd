@@ -15,6 +15,9 @@ const PALETTES := {
 	"rune": [Color(0.55, 0.85, 1.0), Color(0.95, 0.85, 0.5)],
 	"self": [Color(0.95, 0.85, 0.55), Color(0.6, 0.8, 1.0)],
 	"mist": [Color(0.8, 0.92, 1.0), Color(0.6, 0.85, 0.95)],
+	"umbral": [Color(1.0, 0.76, 0.3), Color(0.55, 0.25, 0.95)],
+	"eclipse": [Color(1.0, 0.86, 0.5), Color(0.62, 0.42, 1.0)],
+	"bloom": [Color(1.0, 0.82, 0.93), Color(0.72, 0.9, 1.0)],
 }
 
 

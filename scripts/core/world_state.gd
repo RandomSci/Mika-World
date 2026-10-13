@@ -11,6 +11,8 @@ signal trial_completed(trial: Dictionary)
 signal rank_changed(rank: String)
 signal interaction_started(interactable: Node, character: Node)
 signal interaction_finished(interactable: Node, character: Node, result: Dictionary)
+## Per-mage progress events: kind = "trial" | "rank" | "activity" (data = the trial / rank / log entry).
+signal mage_event(who: String, kind: String, data: Variant)
 
 var registry := {}
 var regions := {}
@@ -44,6 +46,9 @@ var persistent := false          # true when this run loads/saves (normal play);
 var _dirty := false
 var _save_timer := 0.0
 var _prefix_counts := {}         # activity prefix -> distinct activity ids done
+## Every mage's private state. "mika" is a live view onto the fields above; others own their data.
+var minds := {}
+var _saved_agents := {}          # loaded "agents" save data, applied when that mage's mind is registered
 
 
 func _init() -> void:
@@ -62,11 +67,28 @@ func _init() -> void:
 	var sf := FileAccess.open("res://data/sanctuary.json", FileAccess.READ)
 	if sf:
 		sanctuary = JSON.parse_string(sf.get_as_text())
+	minds["mika"] = MageMind.create("mika", true)
+
+
+## The mind of mage `who` (registered by main when the mage is spawned). Unknown ids fall back to Mika.
+func mind(who := "mika") -> MageMind:
+	return minds.get(who, minds["mika"])
+
+
+## Register a non-legacy mage; restores her saved state if the save had one.
+func register_mind(who: String, starting_skills := {}) -> MageMind:
+	if minds.has(who):
+		return minds[who]
+	var m := MageMind.create(who, false, starting_skills)
+	if _saved_agents.has(who):
+		m.from_dict(_saved_agents[who])
+	minds[who] = m
+	return m
 
 
 const _TEST_FLAGS := ["fresh", "physicstest", "posetest", "magictest", "readtest", "alchemytest", "audiotest", "lifetest",
 	"storytest", "brainrun", "sanctuarytour", "worldtour", "facetest", "tour", "mock-commands", "viewertest", "chattest", "perfrun",
-	"persisttest"]
+	"persisttest", "mhtest"]
 
 
 func _ready() -> void:
@@ -119,7 +141,16 @@ func save_data() -> Dictionary:
 	return {"version": SAVE_VERSION, "saved_unix": int(Time.get_unix_time_from_system()),
 		"discovered_locations": discovered_locations, "visited_locations": visited_locations, "seen_landmarks": seen_landmarks,
 		"knowledge": knowledge, "inventory": inventory, "skills": skills, "trials_done": trials_done, "prefix_counts": _prefix_counts,
-		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_seq": activity_seq, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200))}
+		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_seq": activity_seq, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200)),
+		"progress": minds["mika"].progress, "agents": _agents_data()}
+
+
+func _agents_data() -> Dictionary:
+	var out := _saved_agents.duplicate()       # keep mages not spawned this session
+	for who in minds:
+		if not (minds[who] as MageMind).legacy:
+			out[who] = (minds[who] as MageMind).to_dict()
+	return out
 
 
 func save_game() -> bool:
@@ -127,6 +158,12 @@ func save_game() -> bool:
 	_save_timer = 0.0
 	var d := save_data()
 	for k in _loaded_floor:
+		if k.begins_with("agent:"):
+			var who: String = String(k).trim_prefix("agent:")
+			if (d.agents.get(who, {}).get("knowledge", {}) as Dictionary).size() < int(_loaded_floor[k]):
+				push_warning("[save] refused: %s's knowledge would shrink (state reset?); %s left untouched" % [who, save_path])
+				return false
+			continue
 		if (d[k] as Dictionary).size() < int(_loaded_floor[k]):
 			push_warning("[save] refused: %s would shrink from %d to %d entries (state reset?); %s left untouched" % [k, _loaded_floor[k], (d[k] as Dictionary).size(), save_path])
 			return false
@@ -182,6 +219,8 @@ func load_game() -> bool:
 			return false
 	_apply_save(r.data)
 	_loaded_floor = {"knowledge": knowledge.size(), "trials_done": trials_done.size(), "discovered_locations": discovered_locations.size()}
+	for who in _saved_agents:
+		_loaded_floor["agent:" + who] = (_saved_agents[who].get("knowledge", {}) as Dictionary).size()
 	load_report["result"] = "loaded"
 	load_report["knowledge"] = knowledge.size()
 	load_report["trials"] = trials_done.size()
@@ -217,6 +256,11 @@ func _apply_save(d: Dictionary) -> void:
 		e["seq"] = int(e.get("seq", 0))
 	if knowledge.has("journal_cursor"):
 		knowledge["journal_cursor"] = int(knowledge.journal_cursor)
+	minds["mika"].load_progress(d.get("progress", {}))
+	_saved_agents = d.get("agents", {}) if d.get("agents") is Dictionary else {}
+	for who in _saved_agents:
+		if minds.has(who) and not (minds[who] as MageMind).legacy:
+			(minds[who] as MageMind).from_dict(_saved_agents[who])
 
 
 ## {ok, data} or {ok: false, why, newer?}. Never prints parser errors.
@@ -266,10 +310,8 @@ static func _abs(p: String) -> String:
 	return ProjectSettings.globalize_path(p)
 
 
-func note_activity(kind: String) -> void:
-	var a: Dictionary = activity_counts.get_or_add(kind, {"count": 0, "last_unix": 0})
-	a.count += 1
-	a.last_unix = int(Time.get_unix_time_from_system())
+func note_activity(kind: String, who := "mika") -> void:
+	mind(who).note_activity(kind)
 	_dirty = true
 
 
@@ -325,39 +367,50 @@ func discover(kind: String, id: String) -> void:
 			discover("location", landmarks[id].location)
 
 
-## Apply an activity's effects and return a truthful description of what changed.
-func record_activity(activity: Dictionary, effects: Dictionary) -> Dictionary:
+## Apply an activity's effects to the mind of mage `who` and return a truthful description of what changed.
+func record_activity(activity: Dictionary, effects: Dictionary, who := "mika") -> Dictionary:
+	var m := mind(who)
 	var changes := {}
 	for k in effects.get("knowledge", {}):
-		var before = knowledge.get(k, 0)
+		var before = m.knowledge.get(k, 0)
 		var v = effects.knowledge[k]
-		knowledge[k] = (before + v) if typeof(v) in [TYPE_INT, TYPE_FLOAT] and typeof(before) in [TYPE_INT, TYPE_FLOAT] else v
-		changes["knowledge." + k] = [before, knowledge[k]]
+		m.knowledge[k] = (before + v) if typeof(v) in [TYPE_INT, TYPE_FLOAT] and typeof(before) in [TYPE_INT, TYPE_FLOAT] else v
+		changes["knowledge." + k] = [before, m.knowledge[k]]
 	for k in effects.get("items", {}):
-		var before: int = inventory.get(k, 0)
-		inventory[k] = before + int(effects.items[k])
-		changes["inventory." + k] = [before, inventory[k]]
+		var before: int = int(m.inventory.get(k, 0))
+		m.inventory[k] = before + int(effects.items[k])
+		changes["inventory." + k] = [before, m.inventory[k]]
 	for k in effects.get("skills", {}):
-		var before: float = skills.get(k, 0)
-		skills[k] = before + float(effects.skills[k])
-		changes["skills." + k] = [before, skills[k]]
+		var before: float = float(m.skills.get(k, 0))
+		m.skills[k] = before + float(effects.skills[k])
+		changes["skills." + k] = [before, m.skills[k]]
 	for loc in effects.get("discover", []):
-		if not discovered_locations.has(loc):
-			discover("location", loc)
+		if m.legacy:
+			if not discovered_locations.has(loc):
+				discover("location", loc)
+				changes["discovered." + loc] = [false, true]
+		elif not m.discovered.has(loc):
+			m.discovered[loc] = true
 			changes["discovered." + loc] = [false, true]
-	var rank_before := mage_rank()
-	for tr in _update_trials(String(activity.get("id", "")), String(activity.get("target", ""))):
+	var rank_before := mage_rank(who)
+	for tr in _update_trials(String(activity.get("id", "")), String(activity.get("target", "")), who):
 		changes["trial." + tr.id] = [false, true]
-	if mage_rank() != rank_before:
-		changes["rank"] = [rank_before, mage_rank()]
-		rank_changed.emit(mage_rank())
-	activity_seq += 1
-	var entry := {"seq": activity_seq, "unix": int(Time.get_unix_time_from_system()), "t": snappedf(Time.get_ticks_msec() / 1000.0, 0.01),
-		"location": current_location, "activity": activity, "changes": changes}
-	activity_log.append(entry)
-	if activity_log.size() > ACTIVITY_LOG_MAX:
-		activity_log = activity_log.slice(activity_log.size() - ACTIVITY_LOG_MAX)
-	state_changed.emit(entry)
+	if mage_rank(who) != rank_before:
+		changes["rank"] = [rank_before, mage_rank(who)]
+		if m.legacy:
+			rank_changed.emit(mage_rank(who))
+		mage_event.emit(who, "rank", mage_rank(who))
+	m.activity_seq += 1
+	var entry := {"seq": m.activity_seq, "unix": int(Time.get_unix_time_from_system()), "t": snappedf(Time.get_ticks_msec() / 1000.0, 0.01),
+		"location": current_location, "activity": activity, "changes": changes, "who": who}
+	m.activity_log.append(entry)
+	if m.activity_log.size() > ACTIVITY_LOG_MAX:
+		m.activity_log = m.activity_log.slice(m.activity_log.size() - ACTIVITY_LOG_MAX)
+	if m.legacy:
+		state_changed.emit(entry)     # Mika's story, audio, bridge listeners (unchanged)
+	else:
+		_dirty = true
+	mage_event.emit(who, "activity", entry)
 	return changes
 
 
@@ -379,10 +432,11 @@ func snapshot() -> Dictionary:
 ## A trial names an activity id (or an id prefix + a count of distinct ids). `target_id` is the object a
 ## verified spell hit landed on; it only counts for prefix trials about objects (striking rune_target_2
 ## with a spell is the same deed as the E-key strike), never for exact activities like reading.
-func _update_trials(activity_id: String, target_id := "") -> Array:
+func _update_trials(activity_id: String, target_id := "", who := "mika") -> Array:
+	var m := mind(who)
 	var newly := []
 	for tr in sanctuary.get("trials", []):
-		if trials_done.has(tr.id):
+		if m.trials_done.has(tr.id):
 			continue
 		var done := false
 		if tr.has("activity") and tr.activity == activity_id:
@@ -390,35 +444,41 @@ func _update_trials(activity_id: String, target_id := "") -> Array:
 		elif tr.has("activity_prefix"):
 			for deed in [activity_id, target_id]:
 				if deed != "" and deed.begins_with(tr.activity_prefix):
-					var seen: Dictionary = _prefix_counts.get_or_add(tr.activity_prefix, {})
+					var seen: Dictionary = m.prefix_counts.get_or_add(tr.activity_prefix, {})
 					seen[deed] = true
 					done = seen.size() >= int(tr.count)
 		if done:
-			trials_done[tr.id] = true
+			m.trials_done[tr.id] = true
 			newly.append(tr)
-			trial_completed.emit(tr)
+			if m.legacy:
+				trial_completed.emit(tr)
+			mage_event.emit(who, "trial", tr)
 	return newly
 
 
-func mage_rank() -> String:
+## Mika's rank keeps its original rule (Arcane Orb practice); other mages use their best-practised spell.
+func mage_rank(who := "mika") -> String:
+	var m := mind(who)
+	var skill: float = float(m.skills.get("arcane_orb", 0.0)) if m.legacy else (float(m.skills.values().max()) if not m.skills.is_empty() else 0.0)
 	var rank := "Novice"
 	for r in sanctuary.get("ranks", []):
-		if trials_done.size() >= int(r.trials) and float(skills.get("arcane_orb", 0.0)) >= float(r.get("min_skill", 0.0)):
+		if m.trials_done.size() >= int(r.trials) and float(skill) >= float(r.get("min_skill", 0.0)):
 			rank = r.name
 	return rank
 
 
-func mission_state() -> Dictionary:
+func mission_state(who := "mika") -> Dictionary:
+	var m := mind(who)
 	var trials := []
 	for tr in sanctuary.get("trials", []):
-		var t := {"id": tr.id, "name": tr.name, "done": trials_done.has(tr.id)}
+		var t := {"id": tr.id, "name": tr.name, "done": m.trials_done.has(tr.id)}
 		if tr.has("activity_prefix"):
-			t["progress"] = "%d/%d" % [_prefix_counts.get(tr.activity_prefix, {}).size(), int(tr.count)]
+			t["progress"] = "%d/%d" % [m.prefix_counts.get(tr.activity_prefix, {}).size(), int(tr.count)]
 		trials.append(t)
 	var next_rank := ""
 	for r in sanctuary.get("ranks", []):
-		if trials_done.size() < int(r.trials):
+		if m.trials_done.size() < int(r.trials):
 			next_rank = "%s (%d trials)" % [r.name, int(r.trials)]
 			break
-	return {"mission": sanctuary.get("story", {}).get("mission", ""), "rank": mage_rank(), "next_rank": next_rank,
-		"trials_done": trials_done.size(), "trials_total": sanctuary.get("trials", []).size(), "trials": trials}
+	return {"mission": sanctuary.get("story", {}).get("mission", ""), "rank": mage_rank(who), "next_rank": next_rank,
+		"trials_done": m.trials_done.size(), "trials_total": sanctuary.get("trials", []).size(), "trials": trials}

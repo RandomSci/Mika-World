@@ -36,6 +36,25 @@ Fresh clone: run `tools/setup_local_assets.sh` (re-copies git-ignored Mixamo fil
 | walk into a route (path end, crypt stair, bridge road, cave mouth, portal…) | travel to the neighbouring area |
 | N · P · H · F12 | day-night · profile · HUD · screenshot |
 
+## Milestone H — two mages, combat, Level 10 transformations
+
+* **Luna** (`data/mages.json`) is a second autonomous mage with her **own mind** (`scripts/core/mage_mind.gd`:
+  knowledge, inventory, skills, trials, journal, XP — never shared with Mika), her own planner instance, voice
+  (Kokoro `af_kore:0.6,af_sky:0.4`) and signature spell **Umbral Lance**. She lives in the Arcane Sanctuary
+  (paused while another area is loaded). Mika and Luna may talk, ignore each other, compete or fight side by side.
+* **Progression** (`docs/PROGRESSION.md`): hybrid XP from verified firsts (discoveries, trials, mastery tiers,
+  first victories), decaying repeats, Orbit Gates every 10 levels. Mika's existing save scores to Level 9.
+* **Creatures** (`data/monsters.json`): Gloomwisp / Thornback / Hollow Sentinel roam the wild edges (the ritual
+  circle's ward keeps them out), drain vigor (never kill), drop physical loot. Same truthful spell pipeline.
+* **Magic**: incantations are spoken while learning, shortened at Adept, silent at Expert; new impact FX/SFX;
+  **Eclipse Convergence** fires when the two mages' arcane + umbral hits meet in one creature.
+* **Transformations** (`data/transformations.json`): Bloom Form (Mika) and Gilded Eclipse Form (Luna) at Level 10,
+  full / short / preview sequences with an authored camera and original music (`tools/audio/synth_milestone_h.py`).
+* Keys: **F2** developer overlay · **F7** preview a transformation (Shift+F7 short) · viewer overlay bottom-left.
+* Flags: `--no-luna`, `--no-luna-brain`, `--no-monsters`; tests: `tools/run_regression.sh mh`,
+  `--mhtest=transform --luna` (windowed). Bridge: `mages`, `transform{who,version,preview}`, `spawn_monster{kind}`,
+  `progression`. Asset log: `docs/ASSET_SOURCES.md`.
+
 ## World
 
 | Region | Area (streaming unit) | Locations |

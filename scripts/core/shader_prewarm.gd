@@ -18,7 +18,9 @@ static func run(camera: Camera3D, host: Node) -> void:
 	for path in ["res://shaders/magic/sigil.gdshader", "res://shaders/magic/energy_mote.gdshader", "res://shaders/magic/elemental_blade.gdshader",
 			"res://shaders/crystal.gdshader", "res://shaders/water.gdshader", "res://shaders/waterfall.gdshader", "res://shaders/rune_floor.gdshader",
 			"res://shaders/magic/wind_arcs.gdshader", "res://shaders/magic/water_rings.gdshader", "res://shaders/magic/flame_billboard.gdshader",
-			"res://shaders/magic/beam.gdshader", "res://shaders/magic/smoke_puff.gdshader", "res://shaders/light_shaft.gdshader"]:
+			"res://shaders/magic/beam.gdshader", "res://shaders/magic/smoke_puff.gdshader", "res://shaders/light_shaft.gdshader",
+			"res://shaders/magic/shockwave.gdshader", "res://shaders/magic/umbral_core.gdshader", "res://shaders/magic/aura_column.gdshader",
+			"res://shaders/magic/orbit_ring.gdshader"]:
 		var m := ShaderMaterial.new()
 		m.shader = load(path)
 		mats.append(m)
@@ -47,7 +49,7 @@ static func run(camera: Camera3D, host: Node) -> void:
 	# its own particle shader; trail/round/puff draw meshes compile their own pipelines)
 	var k := 0
 	var combos := []
-	for el in ["arcane", "wind", "water", "fire", "rune", "self", "mist"]:
+	for el in ["arcane", "wind", "water", "fire", "rune", "self", "mist", "umbral", "eclipse", "bloom"]:
 		for kind in ["gather", "swirl", "trail", "burst", "rise", "splash"]:
 			combos.append([FX.pm_motes(el, kind), FX.mote_mesh(0.05)])
 	for kind in ["steam", "smoke", "dust", "mist"]:

@@ -59,6 +59,28 @@ func attach(character: WorldCharacter) -> void:
 	ik_left.influence = 0.0
 
 
+## After the character's avatar was swapped (transformation): the old IK nodes died with the old skeleton;
+## build them again on the new one, reusing the same targets and poles.
+func rebind() -> void:
+	ik = _make_ik("RightArmIK", "Right", target, pole)
+	ik_left = _make_ik("LeftArmIK", "Left", target_left, pole_left)
+	_shoulder = c.skeleton.find_bone("RightUpperArm")
+
+
+func _make_ik(n: String, side: String, t: Node3D, p: Node3D) -> TwoBoneIK3D:
+	var k := TwoBoneIK3D.new()
+	k.name = n
+	c.skeleton.add_child(k)
+	k.setting_count = 1
+	k.set_root_bone_name(0, side + "UpperArm")
+	k.set_middle_bone_name(0, side + "LowerArm")
+	k.set_end_bone_name(0, side + "Hand")
+	k.set_target_node(0, k.get_path_to(t))
+	k.set_pole_node(0, k.get_path_to(p))
+	k.influence = 0.0
+	return k
+
+
 func shoulder() -> Vector3:
 	return (c.skeleton.global_transform * c.skeleton.get_bone_global_pose(_shoulder)).origin
 

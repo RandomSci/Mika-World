@@ -31,6 +31,18 @@ var viewer_mode := false        # clean presentation for streaming (F1 toggles; 
 var rank_tag: Label
 var comment_label: Label
 var chat: ViewerChat
+# Milestone H: several autonomous mages, progression, creatures, transformations
+var mages: Array = ["mika"]                 # spawned mage ids (each has a mind, planner, voice)
+var mage_brains := {}                        # mage id -> SanctuaryBrain instance
+var progression: Progression
+var spawner: Spawner
+var mage_talk: MageTalk
+var transformer: TransformationDirector
+var overlay_ui: MageOverlay
+var quiet_test := false                      # older single-mage tests: no Luna / creatures unless asked
+var _luna_pos = null                         # where Luna was when the Sanctuary unloaded
+var _spot_t := 0.0
+var _spot_since := 0.0
 var _comment_until := 0.0
 var _last_rank := ""
 var _subtitle_until := 0.0
@@ -66,6 +78,15 @@ func _ready() -> void:
 	mika.add_to_group("player_character")
 	mika.set_physics_process(false)
 	mika.sword = SwordLayer.attach(mika)
+	Progression.load_data()
+	quiet_test = WorldState._TEST_FLAGS.any(func(f): return RenderProfile.options.has(f) and f != "brainrun")
+	if not RenderProfile.options.has("no-luna") and (not quiet_test or RenderProfile.options.has("luna")):
+		var lp: Dictionary = Progression.mages.get("luna", {})
+		var luna := spawn_character("luna", "Luna", String(lp.get("base_avatar", "")), Transform3D.IDENTITY, chars)
+		luna.set_physics_process(false)
+		luna.visible = false
+		WorldState.register_mind("luna")
+		mages.append("luna")
 
 	camera_rig = ThirdPersonCamera.new()
 	camera_rig.name = "CameraRig"
@@ -99,6 +120,9 @@ func _ready() -> void:
 	if start != WorldState.registry.start_location and world.points_of_interest.has(start):
 		mika.global_position = world.points_of_interest[start].position + Vector3(0, 0.1, 1.5)
 		camera_rig.snap_behind()
+	_on_area_for_mages(streaming.current_id)
+	streaming.transition_started.connect(func(_f, _t): _park_mages())
+	streaming.area_activated.connect(func(a, _r): _on_area_for_mages(a))
 
 	bridge = ActionBridge.new()
 	bridge.name = "ActionBridge"
@@ -119,6 +143,8 @@ func _ready() -> void:
 	add_child(voice)
 	voice.setup(self)
 	voice.register_speaker("mika", mika)
+	if characters.has("luna"):
+		voice.register_speaker("luna", characters["luna"])
 	book_overlay = BookOverlay.new()
 	add_child(book_overlay)
 	book_reader = BookReader.new()
@@ -145,6 +171,10 @@ func _ready() -> void:
 	story.name = "StoryManager"
 	add_child(story)
 	story.setup(self)
+	progression = Progression.new()
+	progression.name = "Progression"
+	add_child(progression)
+	progression.setup(self)
 
 	# Target-aware magic (spell catalogue, targeting, reactive world)
 	magic = MagicSystem.new()
@@ -152,6 +182,17 @@ func _ready() -> void:
 	add_child(magic)
 	magic.setup(self)
 	player.magic = magic
+	magic.fusion = SpellFusion.new()
+	magic.fusion.name = "SpellFusion"
+	add_child(magic.fusion)
+	magic.fusion.setup(self)
+	spawner = Spawner.new()
+	spawner.name = "Spawner"
+	add_child(spawner)
+	spawner.setup(self)
+	if quiet_test and not RenderProfile.options.has("monsters"):
+		spawner.enabled = false
+	spawner.mage_hit.connect(func(mage, m, _a): if mage_brains.has(mage.character_id): mage_brains[mage.character_id].on_threat(m))
 
 	# Cinematographer + Mika's own decision layer for her home region (both local, no network)
 	director = CameraDirector.new()
@@ -163,6 +204,31 @@ func _ready() -> void:
 	add_child(brain)
 	brain.setup(self)
 	brain.thought.connect(func(text, _sub): last_thought = text)   # private reasoning: developer HUD only, never spoken
+	mage_brains["mika"] = brain
+	for who in mages:
+		if who == "mika":
+			continue
+		var b := SanctuaryBrain.new()
+		b.name = "Brain_" + who
+		add_child(b)
+		b.setup(self, who)
+		mage_brains[who] = b
+	mage_talk = MageTalk.new()
+	mage_talk.name = "MageTalk"
+	add_child(mage_talk)
+	mage_talk.setup(self)
+	transformer = TransformationDirector.new()
+	transformer.name = "Transformations"
+	add_child(transformer)
+	transformer.setup(self)
+	for who in mages:
+		var got := progression.backfill(who)
+		if got > 0.0:
+			print("[progression] %s: %.0f XP from what she already knew -> Level %d" % [who, got, WorldState.mind(who).level()])
+	overlay_ui = MageOverlay.new()
+	overlay_ui.name = "MageOverlay"
+	add_child(overlay_ui)
+	overlay_ui.setup(self)
 	WorldState.interaction_finished.connect(func(_it, _c, r): if r.has("read") and not r.has("reading"): show_subtitle("%s: %s" % [r.read.title, r.read.text], 8.0))
 	chat = ViewerChat.new()
 	chat.name = "ViewerChat"
@@ -185,11 +251,20 @@ func _ready() -> void:
 	bridge.attach_brain(brain, director)
 	if RenderProfile.options.has("brain"):
 		set_brain(true)
+	# the other mages live their own lives from the start (B only hands Mika to the player and back)
+	for who in mage_brains:
+		if who != "mika" and not RenderProfile.options.has("no-luna-brain"):
+			mage_brains[who].set_enabled(true)
 
 	if RenderProfile.options.has("facetest"):
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("mhtest"):
+		travel._cooldown_until = 1e12
+		var mh := MilestoneHTest.new()
+		mh.main = self
+		add_child(mh)
 	elif RenderProfile.options.has("persisttest"):
 		travel._cooldown_until = 1e12
 		var ps := PersistTest.new()
@@ -339,6 +414,76 @@ func _build_hud() -> void:
 	layer.add_child(comment_label)
 
 
+## Mages other than Mika live in the Sanctuary: hidden and frozen while another area is loaded, back where
+## they were (or at their spawn) when it returns. Nothing about them is simulated off-screen.
+func _park_mages() -> void:
+	for who in mages:
+		if who == "mika":
+			continue
+		var c: WorldCharacter = characters[who]
+		if c.visible and streaming.current_id == "sanctuary":
+			_luna_pos = c.global_position
+		c.set_physics_process(false)
+		c.visible = false
+
+
+func _on_area_for_mages(area_id: String) -> void:
+	for who in mages:
+		if who == "mika":
+			continue
+		var c: WorldCharacter = characters[who]
+		if area_id != "sanctuary" or world == null:
+			c.visible = false
+			c.set_physics_process(false)
+			continue
+		var at: Vector3
+		if _luna_pos is Vector3:
+			at = _luna_pos
+		else:
+			var sp: Array = Progression.mages.get(who, {}).get("spawn", [20, 0, 8])
+			at = Vector3(sp[0], 0, sp[2])
+			at.y = world.ground_at(at.x, at.z) if world.has_method("ground_at") else 0.0
+			at = NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, at)
+		c.global_position = at + Vector3(0, 0.1, 0)
+		c.world = world
+		c.velocity = Vector3.ZERO
+		c.visible = true
+		c.set_physics_process(true)
+
+
+## Spotlight: while the director runs, it follows whichever mage is doing the most watchable thing
+## (transforming > fighting > talking > magic > reading > exploring > resting), switching at most every 20 s.
+func _spotlight(delta: float) -> void:
+	_spot_since += delta
+	_spot_t -= delta
+	if not director or not director.enabled:
+		if director and director.mika != characters["mika"]:
+			director.set_subject(characters["mika"])
+		return
+	if _spot_t > 0.0:
+		return
+	_spot_t = 2.0
+	if transformer and transformer.playing != "":
+		return
+	var interest := {"hunt": 5.0, "collect": 3.5, "meet": 4.0, "magic": 3.0, "investigate": 3.0, "attune": 2.5, "alchemy": 2.5, "research": 2.0,
+		"converse": 3.0, "recover": 2.0, "explore": 1.5, "journal": 1.0, "rest": 0.8}
+	var best := ""
+	var best_v := -1.0
+	for who in mage_brains:
+		var c: WorldCharacter = characters[who]
+		if not c.visible or not mage_brains[who].enabled:
+			continue
+		var v := float(interest.get(String(mage_brains[who].current.get("kind", "")), 0.5))
+		if c == director.mika:
+			v += 1.2          # hysteresis: keep the shot unless the other is clearly more interesting
+		if v > best_v:
+			best_v = v
+			best = who
+	if best != "" and characters[best] != director.mika and _spot_since > 20.0:
+		director.set_subject(characters[best])
+		_spot_since = 0.0
+
+
 func nearest_interactable(max_d := 3.0) -> Interactable:
 	if world == null:
 		return null
@@ -372,6 +517,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		set_brain(not brain.enabled)
 	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F1:
 		set_viewer_mode(not viewer_mode)
+	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F2:
+		overlay_ui.toggle_dev()
+	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F7:
+		var who: String = director.mika.character_id if director else "mika"
+		transformer.play(who, "short" if (event as InputEventKey).shift_pressed else "full", true)   # preview: no progress, reverts
 	elif event.is_action_pressed("toggle_hud"):
 		hud.visible = not hud.visible
 	elif event.is_action_pressed("interact"):
@@ -427,6 +577,7 @@ func show_subtitle(text: String, seconds: float) -> void:
 
 
 func _process(delta: float) -> void:
+	_spotlight(delta)
 	_fps_acc += delta
 	if subtitle and _subtitle_until > 0.0:
 		var left := _subtitle_until - Time.get_ticks_msec() / 1000.0

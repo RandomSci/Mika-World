@@ -52,6 +52,19 @@ func setup(m: Node) -> void:
 	WorldState.interaction_finished.connect(func(it, c, _r): if c == mika and _interaction == it: _interaction = null)
 
 
+## Follow another mage (the spotlight in main picks whoever is doing the most watchable thing).
+## The `mika` field is the current subject; the name is kept for older callers.
+func set_subject(c: WorldCharacter) -> void:
+	if c == null or c == mika:
+		return
+	mika = c
+	_interaction = null
+	_since_change = 99.0
+	_last_established.clear()
+	if rig:
+		rig.target = c
+
+
 func focus_conversation(other: Node3D, seconds := 8.0) -> void:
 	_conversation = other
 	_conversation_until = _now() + seconds

@@ -83,7 +83,27 @@ func _ready() -> void:
 	cs.position.y = 0.775
 	add_child(cs)
 
-	avatar = load(avatar_path).instantiate()
+	_build_rig()
+	handler = ObjectHandler.new()
+	handler.name = "ObjectHandler"
+	handler.process_priority = 100   # after animation + IK, so held objects follow the final hand pose
+	add_child(handler)
+	handler.attach(self)
+
+	nav_agent = NavigationAgent3D.new()
+	nav_agent.path_desired_distance = 1.0  # > navmesh voxel float (up to ~0.6 m above ground with 0.25 m cells)
+	nav_agent.target_desired_distance = 0.7
+	nav_agent.radius = 0.35
+	nav_agent.height = 1.6
+	add_child(nav_agent)
+
+
+## Everything that belongs to one avatar (model, skeleton, animation tree, expressions, look-at, hand
+## attachments). Built once in _ready and again by swap_avatar(); the body, navigation, voice and planner
+## state stay the same character.
+func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
+	avatar = instance if instance else (scene if scene else load(avatar_path)).instantiate()
+	avatar.transform = Transform3D.IDENTITY
 	_extend_skirt_colliders()
 	avatar.name = "Avatar"
 	avatar.rotation.y = PI  # VRM 1.0 faces +Z; Godot forward is -Z
@@ -98,9 +118,11 @@ func _ready() -> void:
 	pose_adjust.name = "PoseAdjust"
 	pose_adjust.influence = 0.0
 	skeleton.add_child(pose_adjust)
-	_head_target = Node3D.new()
-	_head_target.name = "HeadLookTarget"
-	add_child(_head_target)
+	if _head_target == null:
+		_head_target = Node3D.new()
+		_head_target.name = "HeadLookTarget"
+		add_child(_head_target)
+	eye_looks.clear()
 	head_look = LookAtModifier3D.new()
 	head_look.name = "HeadLook"
 	head_look.bone_name = "Head"
@@ -136,21 +158,41 @@ func _ready() -> void:
 		skeleton.add_child(el)
 		el.target_node = el.get_path_to(_head_target)
 		eye_looks.append(el)
-	handler = ObjectHandler.new()
-	handler.name = "ObjectHandler"
-	handler.process_priority = 100   # after animation + IK, so held objects follow the final hand pose
-	add_child(handler)
 	left_hand = _attach("LeftHand")
 	right_hand = _attach("RightHand")
 	chest = _attach("UpperChest")
-	handler.attach(self)
 
-	nav_agent = NavigationAgent3D.new()
-	nav_agent.path_desired_distance = 1.0  # > navmesh voxel float (up to ~0.6 m above ground with 0.25 m cells)
-	nav_agent.target_desired_distance = 0.7
-	nav_agent.radius = 0.35
-	nav_agent.height = 1.6
-	add_child(nav_agent)
+
+signal avatar_swapped(path: String)
+
+## Change her appearance to another VRM of the same humanoid (a transformation form, or back to base).
+## Refused while casting or holding something. `scene` may be a preloaded PackedScene (no hitch).
+func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = null) -> bool:
+	if casting or (handler and handler.held != null):
+		return false
+	if scene == null and instance == null:
+		if not ResourceLoader.exists(path):
+			push_warning("[character] %s: no avatar at %s" % [character_id, path])
+			return false
+		scene = load(path)
+	var old := avatar
+	old.name = "AvatarOld"
+	remove_child(old)
+	old.queue_free()
+	_expr.clear()
+	_expr_weight.clear()
+	_expr_target.clear()
+	avatar_path = path
+	_build_rig(scene, instance)
+	if handler:
+		handler.rebind()
+	if sword:
+		var had := sword
+		sword = SwordLayer.attach(self)
+		had.queue_free()
+	avatar_swapped.emit(path)
+	print("[character] %s: avatar -> %s" % [character_id, path.get_file()])
+	return true
 
 
 ## VRM 1.0 → MToon 0.x shading conversion (fixes the "black face" in point-lit interiors).
@@ -263,11 +305,33 @@ func _attach(bone: String) -> BoneAttachment3D:
 
 
 # ------------------------------------------------------------------ animation
+## Retargeted clips depend only on the skeleton's path and bone set, which every VRoid VRM here shares, so
+## the library is built once and reused (avatar swaps / a second mage cost no re-import of 13 FBX clips).
+static var _lib_cache := {}
+
+
+func skeleton_signature() -> String:
+	var names := PackedStringArray()
+	for i in skeleton.get_bone_count():
+		names.append(skeleton.get_bone_name(i))
+	return String(avatar.get_path_to(skeleton)) + "|" + str(hash(",".join(names)))
+
+
 func _setup_animation() -> void:
 	body_player = AnimationPlayer.new()
 	body_player.name = "BodyPlayer"
 	avatar.add_child(body_player)
 	body_player.root_node = body_player.get_path_to(avatar)
+	var sig := skeleton_signature()
+	var lib: AnimationLibrary = _lib_cache.get(sig)
+	if lib == null:
+		lib = _build_library()
+		_lib_cache[sig] = lib
+	body_player.add_animation_library("mx", lib)
+	_build_tree()
+
+
+func _build_library() -> AnimationLibrary:
 	var lib := AnimationLibrary.new()
 	var skel_path := String(avatar.get_path_to(skeleton))
 	for clip_name in CLIPS:
@@ -279,8 +343,10 @@ func _setup_animation() -> void:
 		_retarget_paths(anim, skel_path, spec[2])
 		anim.loop_mode = Animation.LOOP_LINEAR if spec[1] else Animation.LOOP_NONE
 		lib.add_animation(clip_name, anim)
-	body_player.add_animation_library("mx", lib)
+	return lib
 
+
+func _build_tree() -> void:
 	anim_tree = AnimationTree.new()
 	anim_tree.name = "AnimTree"
 	avatar.add_child(anim_tree)

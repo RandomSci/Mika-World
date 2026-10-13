@@ -317,6 +317,30 @@ func handle(req: Dictionary) -> Dictionary:
 			reply.merge({"ok": true, "status": "done", "chat": main.chat.describe()})
 		"story":
 			reply.merge({"ok": true, "status": "done", "story": main.story.describe()})
+		"mages":
+			var ms := {}
+			for who in main.mage_brains:
+				var mm := WorldState.mind(who)
+				ms[who] = {"progress": Progression.describe(who), "vigor": snappedf(mm.vigor, 0.01), "inventory": mm.inventory,
+					"brain": main.mage_brains[who].status(), "transformed": main.transformer.is_transformed(who) if main.transformer else false}
+			reply.merge({"ok": true, "status": "done", "mages": ms, "creatures": main.spawner.describe() if main.spawner else {},
+				"transformations": main.transformer.describe() if main.transformer else {}})
+		"transform":
+			# DEV: preview is the default (changes no progress and reverts); preview:false needs an unlocked form
+			var who2 := String(req.get("who", "mika"))
+			var preview := bool(req.get("preview", true))
+			if not preview and not main.transformer.can_transform(who2):
+				reply.merge({"ok": false, "status": "error", "error": "%s has no unlocked form or is already transformed" % who2})
+			else:
+				var r3: Dictionary = await main.transformer.play(who2, String(req.get("version", "short")), preview)
+				reply.merge(r3)
+				reply["status"] = "done" if r3.get("ok", false) else "error"
+		"spawn_monster":
+			var mon: Monster = main.spawner.spawn(String(req.get("kind", "")))
+			reply.merge({"ok": mon != null, "status": "done" if mon else "error", "monster": mon.id if mon else "", "error": "" if mon else "no valid spawn spot right now"})
+		"progression":
+			reply.merge({"ok": true, "status": "done", "recent_xp": main.progression.recent.slice(maxi(0, main.progression.recent.size() - 15)),
+				"mika": Progression.describe("mika"), "luna": Progression.describe("luna") if WorldState.minds.has("luna") else {}})
 		"region_context":
 			if brain == null:
 				reply.merge({"ok": false, "status": "error", "error": "no region brain"})

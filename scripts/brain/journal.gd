@@ -4,8 +4,8 @@ extends RefCounted
 ## (clues found, first-time magic reactions, books finished, conversations, brews, trials, rank).
 ## The journal is a readable book (BookLibrary "mika_journal") whose pages are these entries.
 
-static func entries() -> Array:
-	return WorldState.knowledge.get("journal", [])
+static func entries(m: MageMind = null) -> Array:
+	return (m if m else WorldState.mind()).knowledge.get("journal", [])
 
 
 static func book() -> Dictionary:
@@ -18,9 +18,11 @@ static func book() -> Dictionary:
 
 
 ## Compose the next entry from what happened since the last one. Returns {} if nothing worth writing.
-static func compose() -> Dictionary:
-	var log: Array = WorldState.activity_log
-	var from: int = int(WorldState.knowledge.get("journal_cursor", 0))   # seq of the last event already considered
+static func compose(m: MageMind = null) -> Dictionary:
+	if m == null:
+		m = WorldState.mind()
+	var log: Array = m.activity_log
+	var from: int = int(m.knowledge.get("journal_cursor", 0))   # seq of the last event already considered
 	var lines := []
 	var seen := {}
 	for e: Dictionary in log:
@@ -45,6 +47,15 @@ static func compose() -> Dictionary:
 			line = "I brewed a Luminous Draught. It glowed and smelled of rain, exactly like the receipt said."
 		elif id == "alchemy_fizz":
 			line = "Ember salt and moonwater fizzed and smoked. Never again, or at least not on purpose."
+		elif id.begins_with("defeat:"):
+			var kind := id.trim_prefix("defeat:")
+			var name := String(Spawner.load_data().monsters.get(kind, {}).get("name", kind)).to_lower()
+			line = ("I fought off a %s." % name) if not seen.has(id) else ""
+			seen[id] = true
+		elif id.begins_with("fusion:"):
+			line = "%s happened: our spells met inside the same creature and burst together." % String(a.get("label", "A fusion")).get_slice(" with ", 0)
+		elif id.begins_with("collect:") and ch.keys().any(func(k): return String(k).begins_with("knowledge.material:") and ch[k][0] == 0):
+			line = "I kept something new: %s." % String(a.get("label", "")).trim_prefix("Collected ").to_lower()
 		elif id.begins_with("read:"):
 			var bid := id.get_slice(":", 1)
 			if not seen.has("read:" + bid):
@@ -59,9 +70,9 @@ static func compose() -> Dictionary:
 			lines.append(line)
 	if lines.is_empty():
 		return {}
-	var n := entries().size() + 1
+	var n := entries(m).size() + 1
 	var text := " ".join(lines.slice(0, 6))
-	return {"heading": "Entry %d" % n, "text": VoiceService.clean(text), "cursor": WorldState.activity_seq}
+	return {"heading": "Entry %d" % n, "text": VoiceService.clean(text), "cursor": m.activity_seq}
 
 
 static func _reaction_line(spell: String, kind: String, effect: String) -> String:
@@ -71,7 +82,10 @@ static func _reaction_line(spell: String, kind: String, effect: String) -> Strin
 		"ripple": "sent rings across it", "ruffled": "ruffled the surface", "glow_ring": "lit a ring of light in it", "lit": "lit it up",
 		"shattered": "shattered it", "rang": "made it ring but not break", "revealed": "woke a hidden glyph", "resonance": "made it answer like a heartbeat",
 		"swayed": "made it sway", "scorched": "scorched it", "soaked": "soaked it", "pattern_reflection": "showed a seven-pointed pattern",
-		"awakened": "woke it", "charged": "filled me with gathered power", "mist_veil": "laid a veil of mist on it"}
+		"awakened": "woke it", "charged": "filled me with gathered power", "mist_veil": "laid a veil of mist on it",
+		"gilded": "made it burn gold over shadow", "ink_ring": "spread a dark ring across it", "eclipsed": "swallowed its light for a moment",
+		"pierced": "punched straight through it", "clouded": "clouded it with gold-veined shadow", "struck": "struck it hard", "defeated": "finished it"}
 	var what := {"brazier": "the brazier", "water": "the pond", "rune": "a rune target", "practice_crystal": "the practice crystal", "dummy": "the practice dummy",
-		"marked_stone": "the marked stone", "relic": "the Heartstone", "self": "myself"}
+		"marked_stone": "the marked stone", "relic": "the Heartstone", "self": "myself",
+		"gloomwisp": "a gloomwisp", "thornback": "a thornback", "hollow_sentinel": "a hollow sentinel"}
 	return "%s on %s %s." % [s, what.get(kind, kind), nice.get(effect, effect.replace("_", " "))]

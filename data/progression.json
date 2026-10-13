@@ -1,0 +1,28 @@
+{
+ "_note": "Hybrid progression (Levels 1-100). XP comes only from verified engine events (WorldState.record_activity changes). FIRST discoveries / victories / trials pay full value exactly once (keyed in progress.awarded, so nothing can be paid twice); repeats pay a small, decaying amount (repeat_base / (1 + decay * n)), and easy fights pay less once a mage has outgrown them. Every 10th level is an Orbit Gate: XP alone stops at level 9, 19, ...; the gate needs real milestones defined per mage in data/mages.json. Cumulative XP to reach level L = curve_base * (L-1) ^ curve_exp.",
+ "curve_base": 40.0,
+ "curve_exp": 1.75,
+ "max_level": 100,
+ "first_knowledge": {
+  "reaction:": 30, "clue:": 40, "lore:": 15, "fact:": 20, "incantation:": 35, "recipe:": 30, "attuned:": 40,
+  "survey:": 30, "practical:": 25, "alchemy:": 25, "story:": 60, "geography:": 20, "fusion:": 80, "defeated:": 0, "from:": 0,
+  "spell:": 15
+ },
+ "first_activity": {"read:": 6, "talk:": 15, "conversation:": 10, "trade:": 10},
+ "trial": 100,
+ "rank": 150,
+ "discovered": 25,
+ "mastery_tier": [0, 10, 30, 60, 100, 160],
+ "repeat": {
+  "spell:": {"base": 4.0, "decay": 0.35},
+  "conversation:": {"base": 2.0, "decay": 0.5},
+  "defeat:": {"base": 0.0, "decay": 0.5}
+ },
+ "defeat": {
+  "_note": "first victory over a monster kind pays `first`, later ones pay `repeat` decaying by 0.5 per previous kill of that kind; once the mage's level exceeds `outgrown_at` the repeat value halves again",
+  "gloomwisp": {"first": 50, "repeat": 10, "outgrown_at": 5},
+  "thornback": {"first": 120, "repeat": 22, "outgrown_at": 12},
+  "hollow_sentinel": {"first": 260, "repeat": 45, "outgrown_at": 25}
+ },
+ "level_titles": {"1": "Spark", "5": "Kindled", "10": "First Orbit", "20": "Second Orbit"}
+}

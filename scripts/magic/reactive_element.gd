@@ -18,6 +18,14 @@ var state := {}                    # reported verbatim to the AI
 var supports := []                 # elements that produce a real reaction (others: "no visible effect")
 var _timers := {}                  # recovery key -> seconds left
 
+## Umbral (shadow) magic on objects that have no reaction of their own for it: a visible, bounded
+## shadowing (gold-rimmed dark ring, sparks, a "shadowed" state that clears by itself). Relics and story
+## objects are deliberately not listed: shadow magic does not touch the Heartstone's mystery.
+const UMBRAL_GENERIC := {"water": ["ink_ring", "a dark ring spread across the water and faded"],
+	"rune": ["eclipsed", "the rune's light was swallowed for a moment, leaving only a gold rim"],
+	"dummy": ["pierced", "the lance punched through the straw; the hole slowly closes again"],
+	"practice_crystal": ["clouded", "gold-veined shadow clouded the crystal from inside, then cleared"]}
+
 
 static func registry_of(world: Node) -> Dictionary:
 	var out := {}
@@ -64,6 +72,8 @@ func react(element: String, power: float, point: Vector3, spell_id: String) -> D
 	var r: Dictionary
 	if supports.has(element) and has_method("_react_" + element):
 		r = call("_react_" + element, power, point)
+	elif element == "umbral" and UMBRAL_GENERIC.has(kind):
+		r = _umbral_generic(power, point)
 	else:
 		r = {"effect": "none", "detail": "%s shows no visible response to %s magic" % [label, element]}
 	r["object"] = id
@@ -76,6 +86,16 @@ func react(element: String, power: float, point: Vector3, spell_id: String) -> D
 	MagicEvents.emit_magic(global_position, element, power, r.get("effect", "none"), id)
 	reacted.emit(r)
 	return r
+
+
+func _umbral_generic(power: float, point: Vector3) -> Dictionary:
+	var e: Array = UMBRAL_GENERIC[kind]
+	var at := aim_point() if point == Vector3.ZERO else point
+	FX.burst(self, at, int(20 + 20 * power), 0.8, FX.pm_motes("umbral", "burst"), FX.mote_mesh(0.05))
+	ImpactFX.shockwave(self, at, Color(1.0, 0.76, 0.3), 0.9 + 0.6 * power)
+	state["shadowed"] = true
+	schedule("unshadow", 6.0 + 4.0 * power)
+	return {"effect": e[0], "detail": e[1]}
 
 
 func schedule(key: String, seconds: float) -> void:
@@ -93,6 +113,9 @@ func _process(delta: float) -> void:
 		_timers[k] -= delta
 		if _timers[k] <= 0.0:
 			_timers.erase(k)
+			if k == "unshadow":
+				state.erase("shadowed")
+				continue
 			_recover(k)
 
 

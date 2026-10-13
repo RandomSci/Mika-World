@@ -45,7 +45,15 @@ static func attach(c: WorldCharacter) -> SwordLayer:
 	return s
 
 
+static var _lib_cache := {}
+
+
 func _ready() -> void:
+	var sig := character.skeleton_signature()
+	if _lib_cache.has(sig):
+		character.body_player.add_animation_library("sw", _lib_cache[sig])
+		_finish_ready(_lib_cache[sig])
+		return
 	var lib := AnimationLibrary.new()
 	var skel_path := String(character.avatar.get_path_to(character.skeleton))
 	for role in CLIPS:
@@ -61,6 +69,11 @@ func _ready() -> void:
 		anim.loop_mode = Animation.LOOP_LINEAR if CLIPS[role][1] else Animation.LOOP_NONE
 		lib.add_animation(role, anim)
 	character.body_player.add_animation_library("sw", lib)
+	_lib_cache[sig] = lib
+	_finish_ready(lib)
+
+
+func _finish_ready(lib: AnimationLibrary) -> void:
 	var loco: AnimationNodeBlendSpace1D = (character.anim_tree.tree_root as AnimationNodeBlendTree).get_node("loco")
 	for i in loco.get_blend_point_count():
 		_base_loco[i] = (loco.get_blend_point_node(i) as AnimationNodeAnimation).animation

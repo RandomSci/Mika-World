@@ -72,9 +72,9 @@ func describe(from: Vector3) -> Dictionary:
 		"times_done": times_done, "available": (repeatable or times_done == 0) and not busy and _requirements_met()}
 
 
-func _requirements_met() -> bool:
+func _requirements_met(who := "mika") -> bool:
 	for k in requires.get("items", {}):
-		if WorldState.inventory.get(k, 0) < requires.items[k]:
+		if int(WorldState.mind(who).inventory.get(k, 0)) < int(requires.items[k]):
 			return false
 	return true
 
@@ -87,7 +87,7 @@ func perform(c: WorldCharacter) -> Dictionary:
 		return {"ok": false, "detail": "too far: %.1f m away (reach %.1f m, or stand at the approach point)" % [d, radius + 0.6]}
 	if not repeatable and times_done > 0:
 		return {"ok": false, "detail": "already done; not repeatable"}
-	if not _requirements_met():
+	if not _requirements_met(c.character_id):
 		return {"ok": false, "detail": "requires %s" % str(requires)}
 	busy = true
 	WorldState.interaction_started.emit(self, c)
@@ -143,9 +143,10 @@ func perform(c: WorldCharacter) -> Dictionary:
 		c.remove_collision_exception_with(seat_body)
 	busy = false
 	times_done += 1
+	var inv := WorldState.mind(c.character_id).inventory      # whoever did it pays and learns
 	for k in requires.get("items", {}):
-		WorldState.inventory[k] -= requires.items[k]
-	var changes := WorldState.record_activity({"id": id, "verb": verb, "label": label}, effects)
+		inv[k] = int(inv.get(k, 0)) - int(requires.items[k])
+	var changes := WorldState.record_activity({"id": id, "verb": verb, "label": label}, effects, c.character_id)
 	if on_done.is_valid():
 		on_done.call()
 	var result := {"ok": true, "detail": "%s: %s" % [verb, label], "changes": changes, "times_done": times_done}

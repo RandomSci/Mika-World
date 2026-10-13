@@ -1,5 +1,5 @@
 {
- "_note": "Spell catalogue. Mastery (WorldState.skills[id]) drives power and aim. A spell is only castable once Mika knows it: arcane_orb is known from the start; the others need their incantation knowledge (from reading) and become reliable through practice. Latin: classical forms, translations kept here.",
+ "_note": "Spell catalogue. Mastery (WorldState.skills[id]) drives power and aim. A spell is only castable once Mika knows it: arcane_orb is known from the start; the others need their incantation knowledge (from reading) and become reliable through practice. Latin: classical forms, translations kept here. Combat: 'damage' scales a spell's power against creatures; 'incantation_short' is what an Adept says (Expert+ casts silently). 'caster' notes whose signature a spell is (others may still learn it later).",
  "mastery_tiers": [
   {
    "name": "Untested",
@@ -41,7 +41,9 @@
    "target_kinds": [
     "*"
    ],
-   "summary": "A sphere of raw arcane light. Stirs anything that holds magic."
+   "summary": "A sphere of raw arcane light. Stirs anything that holds magic.",
+   "incantation_short": "Orbis!",
+   "damage": 1.0
   },
   "wind_gust": {
    "name": "Wind Gust",
@@ -57,7 +59,9 @@
    "target_kinds": [
     "*"
    ],
-   "summary": "A shaped push of air. A weak gust only disturbs; a strong one can put out a flame."
+   "summary": "A shaped push of air. A weak gust only disturbs; a strong one can put out a flame.",
+   "incantation_short": "Fla!",
+   "damage": 0.55
   },
   "water_ripple": {
    "name": "Water Ripple",
@@ -73,7 +77,9 @@
    "target_kinds": [
     "*"
    ],
-   "summary": "Calls water into motion: ripples on still water, steam against fire."
+   "summary": "Calls water into motion: ripples on still water, steam against fire.",
+   "incantation_short": "Surge!",
+   "damage": 0.6
   },
   "ember_control": {
    "name": "Ember Control",
@@ -93,7 +99,9 @@
     "water",
     "stone"
    ],
-   "summary": "Feeds and guides an existing flame. It cannot make fire from nothing yet."
+   "summary": "Feeds and guides an existing flame. It cannot make fire from nothing yet.",
+   "incantation_short": "Cresce!",
+   "damage": 0.8
   },
   "rune_activation": {
    "name": "Rune Activation",
@@ -112,7 +120,8 @@
     "marked_stone",
     "relic"
    ],
-   "summary": "Wakes a carved sign. Only works on runes and marked stones."
+   "summary": "Wakes a carved sign. Only works on runes and marked stones.",
+   "damage": 0.2
   },
   "elemental_charge": {
    "name": "Elemental Charge",
@@ -153,7 +162,27 @@
     "wind_gust",
     "water_ripple"
    ],
-   "summary": "The first joined breath: water lifted by wind into a veil of mist. Needs both breaths to answer reliably."
+   "summary": "The first joined breath: water lifted by wind into a veil of mist. Needs both breaths to answer reliably.",
+   "damage": 0.3
+  },
+  "umbral_lance": {
+   "name": "Umbral Lance",
+   "element": "umbral",
+   "clip": "magic_attack_1h",
+   "range": 15.0,
+   "speed": 26.0,
+   "projectile": "lance",
+   "incantation": "Umbra, perfora!",
+   "translation": "Shadow, pierce through!",
+   "incantation_short": "Umbra!",
+   "caster": "luna",
+   "base_power": 0.5,
+   "power_per_mastery": 0.3,
+   "damage": 1.15,
+   "target_kinds": [
+    "*"
+   ],
+   "summary": "A narrow spear of gathered shadow edged in gold light. Fast and precise; it cracks stone and disperses wisps."
   }
  }
 }

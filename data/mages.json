@@ -1,0 +1,252 @@
+{
+ "_note": "Autonomous mages. Each has her own mind (WorldState.mind(id)), planner instance, voice, forms and growth path. Forms: the avatar shown from a level onward when transformed (base form otherwise). Orbit gates: the real milestones needed to cross each 10th level. Temperament scales the planner's option utilities (1.0 = neutral). Activities: which planner activity kinds she uses (story/book reading is Mika's in this slice).",
+ "mages": {
+  "mika": {
+   "name": "Mika",
+   "pronoun": "she",
+   "base_avatar": "res://assets/characters/mika/Mika.vrm",
+   "forms": {
+    "10": {
+     "id": "bloom",
+     "name": "Bloom Form",
+     "avatar": "res://assets/characters/mika/forms/Mika_Level10.vrm"
+    }
+   },
+   "voice": "mika",
+   "signature_spell": "arcane_orb",
+   "starting_spells": [
+    "arcane_orb"
+   ],
+   "spawn": [
+    0.0,
+    0.0,
+    2.5
+   ],
+   "activities": [
+    "research",
+    "magic",
+    "investigate",
+    "explore",
+    "rest",
+    "alchemy",
+    "converse",
+    "journal",
+    "attune",
+    "hunt",
+    "meet"
+   ],
+   "temperament": {
+    "research": 1.1,
+    "hunt": 0.85,
+    "explore": 1.0,
+    "magic": 1.0,
+    "meet": 1.0
+   },
+   "orbit_gates": {
+    "10": [
+     {
+      "kind": "rank_at_least",
+      "value": "Apprentice",
+      "label": "reach the rank of Apprentice"
+     },
+     {
+      "kind": "defeated_tier",
+      "value": "medium",
+      "label": "win a fight against a medium-strength creature"
+     },
+     {
+      "kind": "spells_at_tier",
+      "value": 2,
+      "tier": 0.05,
+      "label": "cast two different spells successfully"
+     }
+    ]
+   },
+   "orbits": {
+    "1": {
+     "name": "Orbit of First Bloom",
+     "color": [
+      1.0,
+      0.86,
+      0.94
+     ],
+     "accent": [
+      0.75,
+      0.9,
+      1.0
+     ],
+     "glyphs": 7
+    }
+   },
+   "lines": {
+    "intro": [
+     "Hi. I'm Mika. I study here, in the old circle.",
+     "Hello! I'm Mika. I didn't know anyone else practised out here."
+    ],
+    "greet_again": [
+     "{other}! How did the hunting go?",
+     "Oh, you're back."
+    ],
+    "first_sight": [
+     "What is that? It's made of light.",
+     "Something's moving out there."
+    ],
+    "victory": [
+     "Got it. Okay. Breathe.",
+     "It came apart into light. I'm alright."
+    ],
+    "retreat": [
+     "Too much. Back to the circle.",
+     "I need to step back and breathe."
+    ],
+    "rival_up": [
+     "You've grown so fast.",
+     "You're ahead of me. For now."
+    ],
+    "rival_down": [
+     "I'll wait for you at the next orbit. Kidding. Mostly."
+    ],
+    "share_none": [
+     "Mostly reading, honestly.",
+     "Nothing exciting yet. I keep practising."
+    ],
+    "same_too": [
+     "I've fought those too.",
+     "Me too. They hit harder than they look."
+    ],
+    "not_yet": [
+     "I haven't seen one up close yet.",
+     "Huh. I should look for that."
+    ],
+    "farewell": [
+     "See you around.",
+     "Be careful out there."
+    ],
+    "decline": [
+     "Not now, sorry!"
+    ]
+   }
+  },
+  "luna": {
+   "name": "Luna",
+   "pronoun": "she",
+   "base_avatar": "res://assets/characters/luna/forms/Luna_Level01.vrm",
+   "forms": {
+    "10": {
+     "id": "eclipse",
+     "name": "Gilded Eclipse Form",
+     "avatar": "res://assets/characters/luna/forms/Luna_Level10.vrm"
+    }
+   },
+   "voice": "luna",
+   "signature_spell": "umbral_lance",
+   "starting_spells": [
+    "umbral_lance"
+   ],
+   "spawn": [
+    24.0,
+    0.0,
+    9.0
+   ],
+   "activities": [
+    "magic",
+    "explore",
+    "rest",
+    "hunt",
+    "meet",
+    "journal"
+   ],
+   "temperament": {
+    "hunt": 1.35,
+    "explore": 1.1,
+    "magic": 1.1,
+    "rest": 0.85,
+    "meet": 0.8
+   },
+   "orbit_gates": {
+    "10": [
+     {
+      "kind": "defeated_tier",
+      "value": "medium",
+      "label": "win a fight against a medium-strength creature"
+     },
+     {
+      "kind": "skill_at_least",
+      "value": "umbral_lance",
+      "min": 0.5,
+      "label": "reach Apprentice mastery of Umbral Lance"
+     },
+     {
+      "kind": "reactions_seen",
+      "value": 3,
+      "label": "observe three different magical reactions"
+     }
+    ]
+   },
+   "orbits": {
+    "1": {
+     "name": "Orbit of the Gilded Eclipse",
+     "color": [
+      1.0,
+      0.78,
+      0.32
+     ],
+     "accent": [
+      0.35,
+      0.1,
+      0.55
+     ],
+     "glyphs": 5
+    }
+   },
+   "lines": {
+    "intro": [
+     "Luna. I came for the circle's power, not for company.",
+     "I'm Luna. You must be the one who woke this place."
+    ],
+    "greet_again": [
+     "You again. Still reading?",
+     "{other}. Keep up."
+    ],
+    "first_sight": [
+     "There you are.",
+     "Something worth testing myself against."
+    ],
+    "victory": [
+     "Too slow.",
+     "Done. Next."
+    ],
+    "retreat": [
+     "Tch. Pull back, regroup.",
+     "Not like this. Back to the circle."
+    ],
+    "rival_up": [
+     "Don't expect me to wait for you.",
+     "You're behind. I'm not slowing down."
+    ],
+    "rival_down": [
+     "Enjoy the lead while it lasts."
+    ],
+    "share_none": [
+     "Nothing worth saying yet.",
+     "Training. As always."
+    ],
+    "same_too": [
+     "I've put down a few of those.",
+     "Easy prey."
+    ],
+    "not_yet": [
+     "I haven't met one of those. Yet.",
+     "Hm. I'll go and find one."
+    ],
+    "farewell": [
+     "Don't fall behind.",
+     "We'll see who reaches the next orbit first."
+    ],
+    "decline": [
+     "Not now."
+    ]
+   }
+  }
+ }
+}
