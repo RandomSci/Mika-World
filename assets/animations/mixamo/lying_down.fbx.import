@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://cj7dx2umy0lyt"
+path="res://.godot/imported/lying_down.fbx-3c27c797918cdcf33204b498f8b1e7ae.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/lying_down.fbx"
+dest_files=["res://.godot/imported/lying_down.fbx-3c27c797918cdcf33204b498f8b1e7ae.scn"]
 
 [params]
 

@@ -234,4 +234,176 @@ func dispatch() -> void:
 		"focus": await _focus()
 		"luna_read": await _luna_read()
 		"luna_alchemy": await _luna_alchemy()
+		"explore": await _explore()
+		"collision": await _collision()
+		"interact": await _interact()
 		_: _check(false, "unknown mode " + mode)
+
+
+# ------------------------------------------------------------------ Stage C: spatial curiosity
+func _explore() -> void:
+	var who := String(RenderProfile.options.get("who", "mika"))
+	var c: WorldCharacter = main.characters[who]
+	var b: SanctuaryBrain = main.mage_brains[who]
+	await _hold(b)
+	await main.focus_mage(who, true)
+	var other := "luna" if who == "mika" else "mika"
+	if main.mage_brains.has(other):
+		await _hold(main.mage_brains[other])
+	var map: RID = c.get_world_3d().navigation_map
+	var results := []
+	for k in 3:
+		var opts := b.options().filter(func(o): return o.kind == "roam")
+		var off := opts.filter(func(o): return o.cand.off_path and float(o.cand.novelty) >= 1.0)
+		if off.is_empty():
+			continue
+		var o: Dictionary = off[0].merged(b.score(off[0]))
+		var cells0 := int(b.explore_map.coverage())
+		var start := c.global_position
+		var path := NavigationServer3D.map_get_path(map, start, o.pos, true)
+		_shot("before_%d" % k)
+		var walked := 0.0
+		var last := start
+		var res := {}
+		var done := [false]
+		var run := func(): res.merge(await b.run_activity(o)); done[0] = true
+		run.call()
+		var t0 := Time.get_ticks_msec()
+		var arrived_shot := false
+		while not done[0] and Time.get_ticks_msec() - t0 < 60000:
+			await get_tree().physics_frame
+			walked += c.global_position.distance_to(last)
+			last = c.global_position
+			if not arrived_shot and c.global_position.distance_to(o.pos) < 2.0:
+				arrived_shot = true
+				_shot("arrived_%d" % k)
+		var on_mesh := NavigationServer3D.map_get_closest_point(map, c.global_position).distance_to(c.global_position) < 0.8
+		results.append({"label": o.label, "why": o.why, "dest": str(o.pos), "start_dist": snappedf(start.distance_to(o.pos), 0.1), "path_points": path.size(),
+			"walked_m": snappedf(walked, 0.1), "res": res.get("detail", ""), "off_path": o.cand.off_path, "features": o.cand.features,
+			"cells_before": cells0, "cells_after": int(b.explore_map.coverage()), "noticed": res.get("noticed", []), "on_navmesh": on_mesh})
+	report["roams"] = results
+	_check(not results.is_empty(), "%s's planner offered unvisited off-path places she can see" % who, results.size())
+	if results.is_empty():
+		return
+	var r0: Dictionary = results[0]
+	_check(r0.off_path and r0.path_points >= 2 and float(r0.walked_m) >= float(r0.start_dist) * 0.8, "she walked there along a real navigation path (%.1f m walked for %.1f m away)" % [r0.walked_m, r0.start_dist], r0)
+	_check(results.all(func(x): return x.on_navmesh), "she stayed on walkable ground")
+	_check(results.all(func(x): return String(x.res).begins_with("looked around")), "she looked around at what was actually there", results.map(func(x): return x.res))
+	_check(int(results[-1].cells_after) > int(results[0].cells_before), "her own coverage map grew", [results[0].cells_before, results[-1].cells_after])
+	var places := WorldState.mind(who).knowledge.keys().filter(func(k): return String(k).begins_with("place:"))
+	report["places"] = places
+	_check(true, "notable places remembered: %d (only spots with something there count)" % places.size())
+	var other_places := WorldState.mind(other).knowledge.keys().filter(func(k): return String(k).begins_with("place:")) if main.mage_brains.has(other) else []
+	_check(other_places.is_empty(), "the other mage learned nothing about these places")
+
+
+# ------------------------------------------------------------------ Stage C: collision
+func _collision() -> void:
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	await _hold(main.mage_brains["luna"])
+	var map: RID = mika.get_world_3d().navigation_map
+	var a := NavigationServer3D.map_get_closest_point(map, Vector3(18, 0, 2))
+	var bpos := NavigationServer3D.map_get_closest_point(map, Vector3(28, 0, 2))
+	mika.global_position = a + Vector3(0, 0.1, 0)
+	luna.global_position = bpos + Vector3(0, 0.1, 0)
+	await _wait(1.0)
+	# swap places head-on
+	mika.navigate_to(bpos)
+	luna.navigate_to(a)
+	var min_d := 99.0
+	var t0 := Time.get_ticks_msec()
+	while (mika.current_action == "navigate_to" or luna.current_action == "navigate_to") and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().physics_frame
+		min_d = minf(min_d, Vector2(mika.global_position.x - luna.global_position.x, mika.global_position.z - luna.global_position.z).length())
+		if absf(min_d - 1.4) < 0.3 and not report.has("pass_shot"):
+			report["pass_shot"] = true
+			_shot("passing")
+	report["mages_min_distance"] = snappedf(min_d, 0.01)
+	_check(min_d >= 0.5, "the mages never walked through each other (closest %.2f m; bodies are 0.28 m radius)" % min_d)
+	_check(mika.global_position.distance_to(bpos) < 2.0 and luna.global_position.distance_to(a) < 2.0, "both still reached the other side",
+		[snappedf(mika.global_position.distance_to(bpos), 0.1), snappedf(luna.global_position.distance_to(a), 0.1)])
+	# a creature standing in the way
+	var mid := NavigationServer3D.map_get_closest_point(map, (a + bpos) * 0.5)
+	var mon: Monster = main.spawner.spawn("thornback", mid)
+	mon.set_physics_process(false)
+	await _wait(0.5)
+	mika.global_position = a + Vector3(0, 0.1, 0)
+	await get_tree().physics_frame
+	mika.navigate_to(bpos)
+	var min_m := 99.0
+	t0 = Time.get_ticks_msec()
+	while mika.current_action == "navigate_to" and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().physics_frame
+		min_m = minf(min_m, Vector2(mika.global_position.x - mon.global_position.x, mika.global_position.z - mon.global_position.z).length())
+	report["creature_min_distance"] = snappedf(min_m, 0.01)
+	_check(min_m >= float(mon.def.radius) * 0.8 + 0.2, "she went around the creature, not through it (closest %.2f m)" % min_m)
+	_check(mika.global_position.distance_to(bpos) < 2.5, "and still arrived", snappedf(mika.global_position.distance_to(bpos), 0.1))
+
+
+# ------------------------------------------------------------------ Stage C: physical interaction
+func _interact() -> void:
+	var luna: WorldCharacter = main.characters["luna"]
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	await _hold(lb)
+	main.mage_brains["mika"].set_enabled(false)
+	var plants := get_tree().get_nodes_in_group("gatherable")
+	_check(not plants.is_empty(), "gatherable plants exist in the Sanctuary", plants.size())
+	if plants.is_empty():
+		return
+	var g: GatherNode = plants[0]
+	var map: RID = luna.get_world_3d().navigation_map
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, g.global_position + Vector3(3, 0, 2)) + Vector3(0, 0.1, 0)
+	await main.focus_mage("luna", true)          # the camera follows the mage under test
+	main.camera_rig.snap_behind()
+	await _wait(0.8)
+	_check(lb.options().filter(func(o): return o.kind == "gather").is_empty() or WorldState.mind("luna").knowledge.has("noticed:gather:" + g.gid), "she plans gathering only for plants she noticed")
+	lb.perceive()
+	var opts := lb.options().filter(func(o): return o.kind == "gather" and o.node == g)
+	_check(not opts.is_empty(), "having seen it, she can choose to pick the %s" % g.label())
+	if opts.is_empty():
+		return
+	var inv0 := int(WorldState.mind("luna").inventory.get(g.def.item, 0))
+	var done := [false]
+	var res := {}
+	var run := func(): res.merge(await lb.run_activity(opts[0])); done[0] = true
+	run.call()
+	var shots := 0
+	var last_shot := 0
+	var t0 := Time.get_ticks_msec()
+	var item_before_pick := -1
+	while not done[0] and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+		if lb.current.get("stage", "").begins_with("picking") and shots < 4 and Time.get_ticks_msec() - last_shot > 650:
+			last_shot = Time.get_ticks_msec()
+			_shot("pick_%d" % shots)
+			shots += 1
+		if item_before_pick < 0 and lb.current.get("stage", "").begins_with("picking"):
+			item_before_pick = int(WorldState.mind("luna").inventory.get(g.def.item, 0))
+	report["gather"] = res
+	_check(res.get("ok", false), "she picked it", res.get("detail", ""))
+	_check(item_before_pick == inv0 and int(WorldState.mind("luna").inventory.get(g.def.item, 0)) == inv0 + 1, "the item counted only after her hand reached it", [inv0, item_before_pick, WorldState.mind("luna").inventory])
+	_check(float(res.get("pickup", {}).get("reach_at_s", -1.0)) > 0.2 and String(res.get("pickup", {}).get("clip", "")) != "", "a real pick-up: Mixamo clip + arm reach at %.2f s" % float(res.get("pickup", {}).get("reach_at_s", -1.0)), res.get("pickup", {}))
+	_check(not g.available(), "the plant is gone until it regrows")
+	# sitting with real transitions
+	var seat: Interactable = main.world.interactables.get("garden_meditate")
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, seat.approach_point()) + Vector3(0, 0.1, 0)
+	await _wait(0.5)
+	seat.duration_override = 6.0
+	var done2 := [false]
+	var played := []
+	var run2 := func(): await seat.perform(luna); done2[0] = true
+	run2.call()
+	report["clip_lengths"] = {"stand_to_sit": luna.animation_length("stand_to_sit"), "sit_to_stand": luna.animation_length("sit_to_stand")}
+	t0 = Time.get_ticks_msec()
+	var k := 0
+	while not done2[0] and Time.get_ticks_msec() - t0 < 60000:
+		await get_tree().process_frame
+		var cur := String((luna.anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast_anim").animation)
+		if played.is_empty() or played[-1] != cur:
+			played.append(cur)
+			_shot("sit_%d_%s" % [k, cur.get_file()])
+			k += 1
+	report["sit_clips"] = played
+	_check(played.has("mx/stand_to_sit") and played.has("mx/sit_loop") and played.has("mx/sit_to_stand"), "sit-down, seated loop and stand-up transitions all played", played)
+	_check(not luna.seated, "she is standing again")

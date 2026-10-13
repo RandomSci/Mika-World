@@ -25,6 +25,22 @@ const CLIPS := {
 	"magic_attack_1h": ["standing_1h_magic_attack_03.fbx", false, true],
 	"sit": ["sitting_idle.fbx", false, true],
 	"sit_loop": ["sitting_idle.fbx", true, true],
+	# Milestone I: transitions, handling, leisure, dances (all retargeted through mixamo_bonemap)
+	"stand_to_sit": ["stand_to_sit.fbx", false, true],
+	"sit_to_stand": ["sit_to_stand.fbx", false, true],
+	"lie_down": ["lying_down.fbx", false, true],
+	"pick_floor": ["picking_up_floor.fbx", false, true],
+	"pick_chest": ["picking_up_object_chest_level.fbx", false, true],
+	"put_down": ["putting_down.fbx", false, true],
+	"pointing": ["pointing.fbx", false, true],
+	"stretch_arms": ["arm_stretching.fbx", false, true],
+	"stretch_neck": ["neck_stretching.fbx", false, true],
+	"waking": ["waking.fbx", false, true],
+	"waving": ["waving.fbx", false, true],
+	"dance_step": ["step_hip_hop_dance.fbx", true, true],
+	"dance_snake": ["snake_hip_hop_dance.fbx", true, true],
+	"dance_booty": ["booty_hip_hop_dance.fbx", true, true],
+	"dance_belly": ["belly_dance.fbx", true, true],
 }
 
 @export var character_id := "mika"
@@ -82,7 +98,8 @@ func _ready() -> void:
 	cs.shape = shape
 	cs.position.y = 0.775
 	add_child(cs)
-
+	add_to_group("avoid")              # other walkers steer around her
+	set_collision_mask_value(2, true)  # creatures' bodies (layer 2) are solid for her
 	_build_rig()
 	handler = ObjectHandler.new()
 	handler.name = "ObjectHandler"
@@ -336,6 +353,9 @@ func _build_library() -> AnimationLibrary:
 	var skel_path := String(avatar.get_path_to(skeleton))
 	for clip_name in CLIPS:
 		var spec: Array = CLIPS[clip_name]
+		if not ResourceLoader.exists(MIXAMO_DIR + spec[0]):
+			push_warning("[character] missing clip %s (run tools/setup_local_assets.sh); '%s' unavailable" % [spec[0], clip_name])
+			continue
 		var src: Node = load(MIXAMO_DIR + spec[0]).instantiate()
 		var ap: AnimationPlayer = src.find_child("AnimationPlayer", true, false)
 		var anim: Animation = ap.get_animation("mixamo_com").duplicate(true)
@@ -367,6 +387,8 @@ func _build_tree() -> void:
 	var cast_anim := AnimationNodeAnimation.new()
 	cast_anim.animation = "mx/prepare_and_cast"
 	bt.add_node("cast_anim", cast_anim, Vector2(200, 200))
+	var gspeed := AnimationNodeTimeScale.new()
+	bt.add_node("gesture_speed", gspeed, Vector2(300, 200))
 	var shot := AnimationNodeOneShot.new()
 	shot.fadein_time = 0.35
 	shot.fadeout_time = 0.55
@@ -374,10 +396,12 @@ func _build_tree() -> void:
 	bt.add_node("cast", shot, Vector2(400, 0))
 	bt.connect_node("loco_speed", 0, "loco")
 	bt.connect_node("cast", 0, "loco_speed")
-	bt.connect_node("cast", 1, "cast_anim")
+	bt.connect_node("gesture_speed", 0, "cast_anim")
+	bt.connect_node("cast", 1, "gesture_speed")
 	bt.connect_node("output", 0, "cast")
 	anim_tree.tree_root = bt
 	anim_tree.active = true
+	anim_tree.set("parameters/gesture_speed/scale", 1.0)
 
 
 ## Point tracks at Mika's skeleton, drop bones she doesn't have, and make clips in-place.
@@ -394,6 +418,15 @@ func _retarget_paths(anim: Animation, skel_path: String, in_place: bool) -> void
 			for k in anim.track_get_key_count(t):
 				var v: Vector3 = anim.track_get_key_value(t, k)
 				anim.track_set_key_value(t, k, Vector3(first.x, v.y, first.z))
+
+
+## Playback rate of the current gesture / dance clip (1 = authored speed).
+func set_gesture_speed(scale: float) -> void:
+	anim_tree.set("parameters/gesture_speed/scale", scale)
+
+
+func has_clip(clip: String) -> bool:
+	return body_player.has_animation("mx/" + clip)
 
 
 func animation_length(clip: String) -> float:
@@ -466,6 +499,29 @@ func set_move_input(dir: Vector3, run: bool) -> void:
 		_finish_action(false, "interrupted by player input")
 
 
+## Local avoidance while walking a path: a sideways push away from nearby characters / creatures (group
+## "avoid"), strongest when close and when they are ahead of her, so two mages pass instead of shoving.
+func _steer_around(desired: Vector3) -> Vector3:
+	var push := Vector3.ZERO
+	for n in get_tree().get_nodes_in_group("avoid"):
+		if n == self or not (n as Node3D).is_visible_in_tree():
+			continue
+		var away := global_position - (n as Node3D).global_position
+		away.y = 0
+		var d := away.length()
+		var reach := 1.7 if n is WorldCharacter else 1.0 + float(n.get("def").get("radius", 0.5) if n.get("def") else 0.5)
+		if d < 0.01 or d > reach:
+			continue
+		var ahead := maxf(0.0, -away.normalized().dot(desired))
+		var side := Vector3(-desired.z, 0, desired.x)
+		if side.dot(away) < 0.0:
+			side = -side
+		push += (away.normalized() * 0.5 + side * ahead) * (1.0 - d / reach)
+	if push == Vector3.ZERO:
+		return desired
+	return (desired + push * 1.4).normalized()
+
+
 func navigate_to(target: Vector3, run := false) -> void:
 	if casting:
 		action_finished.emit("navigate_to", false, "busy casting")
@@ -507,6 +563,7 @@ func stop_action() -> void:
 
 ## Begins a cast; the spell node drives the visuals and calls `end_cast()` when resolved.
 func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
+	anim_tree.set("parameters/gesture_speed/scale", 1.0)   # a dance tempo must never slow a spell
 	if casting or not is_on_floor():
 		action_finished.emit("cast_spell", false, "already casting" if casting else "not on the ground")
 		return null
@@ -530,7 +587,7 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 
 ## Play a one-off body gesture (study, practice, look around...) through the same one-shot slot as casting.
 func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
-	if casting or not CLIPS.has(clip):
+	if casting or not CLIPS.has(clip) or not has_clip(clip):
 		return false
 	var bt := anim_tree.tree_root as AnimationNodeBlendTree
 	var shot := bt.get_node("cast") as AnimationNodeOneShot
@@ -590,6 +647,7 @@ func _physics_process(delta: float) -> void:
 			desired = (next - global_position)
 			desired.y = 0
 			desired = desired.normalized()
+			desired = _steer_around(desired)
 			# window-based progress check: less than 0.5 m in 3 s while trying to move = stuck
 			_nav_stuck_time += delta
 			if _nav_stuck_time >= 3.0:

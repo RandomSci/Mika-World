@@ -47,6 +47,22 @@ func setup_monster(p_main: Node, kind_id: String, uid: String, at: Vector3, d: D
 	supports = ["arcane", "umbral", "wind", "water", "fire", "mist", "rune", "eclipse"]
 	_rng.seed = hash(uid)
 	_build()
+	add_to_group("avoid")
+	# a solid body on physics layer 2: mages cannot walk through it; navmesh baking and the camera ignore it
+	var bodyc := AnimatableBody3D.new()
+	bodyc.name = "Animated_Collider"
+	bodyc.sync_to_physics = false
+	bodyc.collision_layer = 2
+	bodyc.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = float(d.radius) * 0.8
+	cap.height = maxf(cap.radius * 2.0 + 0.1, 1.0 if kind_id != "hollow_sentinel" else 2.2)
+	cs.shape = cap
+	cs.position.y = cap.height * 0.5 + (float(d.float) - 0.4 if float(d.float) > 0.0 else 0.0)
+	bodyc.add_child(cs)
+	add_child(bodyc)
+	bodies.append(bodyc)
 	global_position = at
 	_wander_to = at
 	_sync()

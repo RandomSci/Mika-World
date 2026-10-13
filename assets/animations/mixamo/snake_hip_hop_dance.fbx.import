@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://brpibc0vomhx0"
+path="res://.godot/imported/snake_hip_hop_dance.fbx-94e58169fe05ac56f25bfa1383925b1c.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/snake_hip_hop_dance.fbx"
+dest_files=["res://.godot/imported/snake_hip_hop_dance.fbx-94e58169fe05ac56f25bfa1383925b1c.scn"]
 
 [params]
 

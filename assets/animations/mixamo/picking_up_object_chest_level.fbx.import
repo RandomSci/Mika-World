@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://iw6y8lgnb0rk"
+path="res://.godot/imported/picking_up_object_chest_level.fbx-b37c2eb6fb0bd7dbbd6c7f76b4e0fc37.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/picking_up_object_chest_level.fbx"
+dest_files=["res://.godot/imported/picking_up_object_chest_level.fbx-b37c2eb6fb0bd7dbbd6c7f76b4e0fc37.scn"]
 
 [params]
 

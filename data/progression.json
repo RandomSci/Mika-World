@@ -4,25 +4,78 @@
  "curve_exp": 1.75,
  "max_level": 100,
  "first_knowledge": {
-  "reaction:": 30, "clue:": 40, "lore:": 15, "fact:": 20, "incantation:": 35, "recipe:": 30, "attuned:": 40,
-  "survey:": 30, "practical:": 25, "alchemy:": 25, "story:": 60, "geography:": 20, "fusion:": 80, "defeated:": 0, "from:": 0,
-  "spell:": 15
+  "reaction:": 30,
+  "clue:": 40,
+  "lore:": 15,
+  "fact:": 20,
+  "incantation:": 35,
+  "recipe:": 30,
+  "attuned:": 40,
+  "survey:": 30,
+  "practical:": 25,
+  "alchemy:": 25,
+  "story:": 60,
+  "geography:": 20,
+  "fusion:": 80,
+  "defeated:": 0,
+  "from:": 0,
+  "spell:": 15,
+  "place:": 8,
+  "noticed:": 0
  },
- "first_activity": {"read:": 6, "talk:": 15, "conversation:": 10, "trade:": 10},
+ "first_activity": {
+  "read:": 6,
+  "talk:": 15,
+  "conversation:": 10,
+  "trade:": 10
+ },
  "trial": 100,
  "rank": 150,
  "discovered": 25,
- "mastery_tier": [0, 10, 30, 60, 100, 160],
+ "mastery_tier": [
+  0,
+  10,
+  30,
+  60,
+  100,
+  160
+ ],
  "repeat": {
-  "spell:": {"base": 4.0, "decay": 0.35},
-  "conversation:": {"base": 2.0, "decay": 0.5},
-  "defeat:": {"base": 0.0, "decay": 0.5}
+  "spell:": {
+   "base": 4.0,
+   "decay": 0.35
+  },
+  "conversation:": {
+   "base": 2.0,
+   "decay": 0.5
+  },
+  "defeat:": {
+   "base": 0.0,
+   "decay": 0.5
+  }
  },
  "defeat": {
   "_note": "first victory over a monster kind pays `first`, later ones pay `repeat` decaying by 0.5 per previous kill of that kind; once the mage's level exceeds `outgrown_at` the repeat value halves again",
-  "gloomwisp": {"first": 50, "repeat": 10, "outgrown_at": 5},
-  "thornback": {"first": 120, "repeat": 22, "outgrown_at": 12},
-  "hollow_sentinel": {"first": 260, "repeat": 45, "outgrown_at": 25}
+  "gloomwisp": {
+   "first": 50,
+   "repeat": 10,
+   "outgrown_at": 5
+  },
+  "thornback": {
+   "first": 120,
+   "repeat": 22,
+   "outgrown_at": 12
+  },
+  "hollow_sentinel": {
+   "first": 260,
+   "repeat": 45,
+   "outgrown_at": 25
+  }
  },
- "level_titles": {"1": "Spark", "5": "Kindled", "10": "First Orbit", "20": "Second Orbit"}
+ "level_titles": {
+  "1": "Spark",
+  "5": "Kindled",
+  "10": "First Orbit",
+  "20": "Second Orbit"
+ }
 }

@@ -35,7 +35,8 @@
     "hunt",
     "meet",
     "gather",
-    "perform"
+    "perform",
+    "roam"
    ],
    "temperament": {
     "research": 1.1,
@@ -44,7 +45,8 @@
     "magic": 1.0,
     "meet": 1.0,
     "gather": 1.0,
-    "perform": 1.0
+    "perform": 1.0,
+    "roam": 1.0
    },
    "orbit_gates": {
     "10": [
@@ -129,6 +131,11 @@
     "decline": [
      "Not now, sorry!"
     ]
+   },
+   "explore_taste": {
+    "water": 0.8,
+    "props": 0.5,
+    "relief": 0.2
    }
   },
   "luna": {
@@ -163,7 +170,8 @@
     "meet",
     "journal",
     "gather",
-    "perform"
+    "perform",
+    "roam"
    ],
    "temperament": {
     "hunt": 1.35,
@@ -174,7 +182,8 @@
     "research": 0.9,
     "alchemy": 1.05,
     "gather": 1.0,
-    "perform": 0.9
+    "perform": 0.9,
+    "roam": 1.15
    },
    "orbit_gates": {
     "10": [
@@ -259,6 +268,11 @@
     "decline": [
      "Not now."
     ]
+   },
+   "explore_taste": {
+    "relief": 0.9,
+    "props": 0.4,
+    "water": 0.1
    }
   }
  }

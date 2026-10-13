@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://d37krosin4627"
+path="res://.godot/imported/neck_stretching.fbx-4e154dadfd49391de99daa91bdea1ccf.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/neck_stretching.fbx"
+dest_files=["res://.godot/imported/neck_stretching.fbx-4e154dadfd49391de99daa91bdea1ccf.scn"]
 
 [params]
 

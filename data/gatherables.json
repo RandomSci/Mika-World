@@ -1,0 +1,13 @@
+{
+ "_note": "Gatherable plants (original procedural meshes). A mage must notice one (perception) before she can plan to gather it; picking is physical (PickupAction) and only a successful pick adds the item. Plants regrow after regrow_s. Spots are fixed per area (validated against the navmesh at load).",
+ "kinds": {
+  "moonpetal": {"name": "Moonpetal", "item": "moonpetal", "color": [0.78, 0.86, 1.0], "glow": 1.6, "regrow_s": 600.0},
+  "embercap": {"name": "Embercap", "item": "embercap", "color": [1.0, 0.55, 0.22], "glow": 1.2, "regrow_s": 600.0}
+ },
+ "spots": {
+  "sanctuary": [
+   {"kind": "moonpetal", "pos": [11.5, 22.0]}, {"kind": "moonpetal", "pos": [20.5, 12.5]}, {"kind": "moonpetal", "pos": [-5.5, 30.0]},
+   {"kind": "embercap", "pos": [31.0, -3.0]}, {"kind": "embercap", "pos": [-26.0, -6.0]}, {"kind": "embercap", "pos": [6.0, -25.0]}
+  ]
+ }
+}

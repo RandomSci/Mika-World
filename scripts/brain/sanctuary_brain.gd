@@ -35,6 +35,9 @@ var mind: MageMind                # HER knowledge, inventory, skills and trials 
 var profile := {}                 # data/mages.json entry: activities, temperament, voice, signature spell
 var threat: Monster = null        # a creature attacking her right now (set by the spawner)
 var hold := false                 # another mage asked to talk: finish nothing new until released
+var explore_map: ExplorationMap   # her own spatial curiosity (coverage, candidates)
+var last_roam := {}               # the most recent roam (for tests / the developer overlay)
+var _mark_t := 0.0
 var _speak_lines := {}
 var enabled := false
 var busy := false
@@ -73,6 +76,7 @@ func setup(m: Node, who := "mika") -> void:
 	Progression.load_data()
 	profile = Progression.mages.get(who, {})
 	rng.seed = 2026 + hash(who) % 1000
+	explore_map = ExplorationMap.new(main, me, mind, profile.get("explore_taste", {}))
 
 
 func _voice() -> String:
@@ -187,6 +191,15 @@ func options() -> Array:
 		if sid == "ancient_spell_library":
 			continue
 		out.append({"kind": "explore", "key": "explore:" + sid, "sub_area": sid, "label": "explore the %s" % WorldState.sanctuary.sub_areas[sid].name})
+	# roam: somewhere she has NOT been that she can see from here (spatial curiosity, real navmesh)
+	if main.world and me.visible:
+		for c in explore_map.candidates(2):
+			out.append({"kind": "roam", "key": "roam:" + ExplorationMap.cell_key(c.pos), "pos": c.pos, "cand": c, "label": "look at %s" % c.describe})
+	# gather: plants she has noticed that are there to pick
+	for g in get_tree().get_nodes_in_group("gatherable"):
+		if (g as GatherNode).available() and mind.knowledge.has("noticed:gather:" + String(g.gid)):
+			out.append({"kind": "gather", "key": "gather:" + String(g.gid), "node": g, "item": String(g.def.get("item", g.kind)),
+				"label": "pick the %s" % String(g.label()).to_lower()})
 	# rest
 	var rest_labels := {"garden_meditate": "meditate on the Still Stone", "watchpoint_rest": "rest on the watchpoint bench", "pond_reflect": "watch the pond"}
 	for seat in rest_labels:
@@ -334,6 +347,17 @@ func score(o: Dictionary) -> Dictionary:
 			if o.attacking_me:
 				u += 0.65 * mind.vigor
 				why.append("it is attacking me")
+		"roam":
+			var cs: Dictionary = o.cand
+			u = 0.2 + needs.curiosity * 0.45 + float(cs.score) * 0.3
+			why.append("novelty %.2f" % float(cs.novelty))
+			if cs.off_path:
+				why.append("off the usual paths")
+		"gather":
+			var new_item: bool = not mind.knowledge.has("material:" + String(o.item))
+			u = 0.25 + needs.curiosity * 0.2 + (0.3 if new_item else 0.0) - me.global_position.distance_to((o.node as Node3D).global_position) * 0.01
+			if new_item:
+				why.append("never gathered one")
 		"collect":
 			u = 0.7
 			why.append("it fell right here")
@@ -490,6 +514,8 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"collect": return await _collect(o.loot)
 		"recover": return await _recover()
 		"meet": return await main.mage_talk.meet(self, String(o.other))
+		"roam": return await _roam(o)
+		"gather": return await _gather(o)
 	return {"ok": false, "detail": "unknown activity"}
 
 
@@ -606,6 +632,57 @@ func _explore(o: Dictionary) -> Dictionary:
 		current.stage = "surveying the realm"
 		await _use("watchpoint_survey")
 	return {"ok": true, "detail": "looked at %d places in the %s" % [looked, sub.name]}
+
+
+## Walk (real navigation) to a spot she chose out of curiosity, look at what is actually there, notice
+## things nearby, remember the place if something was there.
+func _roam(o: Dictionary) -> Dictionary:
+	var c: Dictionary = o.cand
+	var dest: Vector3 = o.pos
+	current.stage = "heading for %s" % c.describe
+	me.look_head_at(dest + Vector3(0, 0.8, 0))
+	await get_tree().create_timer(0.6).timeout
+	if not await _walk(dest):
+		return {"ok": false, "detail": "could not get to %s" % c.describe}
+	current.stage = "looking around"
+	# look at the things that are really there (solid props near the spot, the water's edge)
+	var targets := []
+	var space := me.get_world_3d().direct_space_state
+	var sq := PhysicsShapeQueryParameters3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 4.0
+	sq.shape = sph
+	sq.transform = Transform3D(Basis.IDENTITY, me.global_position + Vector3(0, 1.0, 0))
+	sq.collision_mask = 1
+	for h in space.intersect_shape(sq, 12):
+		var col = h.collider
+		if col is Node3D and col is StaticBody3D and not (col as Node).is_in_group("cat_terrain") and col != me:
+			targets.append((col as Node3D).global_position)
+	for r in main.magic.reactives().values():
+		if (r as ReactiveElement).kind == "water" and (r as ReactiveElement).global_position.distance_to(me.global_position) < 10.0:
+			targets.append((r as ReactiveElement).global_position)
+	targets.shuffle()
+	if targets.is_empty():
+		for k in 2:
+			var a := rng.randf() * TAU
+			targets.append(me.global_position + Vector3(cos(a), 0, sin(a)) * 6.0)
+	var looked := 0
+	for p in targets.slice(0, rng.randi_range(2, 3)):
+		me.look_head_at((p as Vector3) + Vector3(0, 0.6, 0))
+		await get_tree().create_timer(rng.randf_range(1.6, 3.0)).timeout
+		looked += 1
+	me.look_head_at(null)
+	var noticed := perceive()
+	explore_map.mark(me.global_position)
+	needs.curiosity = clampf(needs.curiosity - 0.15, 0.0, 1.0)
+	needs.energy = clampf(needs.energy - 0.03, 0.0, 1.0)
+	var res := {"ok": true, "detail": "looked around %s (%d things%s)" % [c.describe, looked, (", noticed " + ", ".join(noticed)) if not noticed.is_empty() else ""],
+		"pos": [snappedf(dest.x, 0.1), snappedf(dest.y, 0.1), snappedf(dest.z, 0.1)], "off_path": c.off_path, "features": c.features, "noticed": noticed}
+	if ExplorationMap.notable(c.features):
+		res["changes"] = WorldState.record_activity({"id": "roam:%s:%s" % [main.streaming.current_id, ExplorationMap.cell_key(dest)], "verb": "explore", "label": "Looked at %s" % c.describe},
+			{"knowledge": {"place:%s:%s" % [main.streaming.current_id, ExplorationMap.cell_key(dest)]: 1}}, agent_id)
+	last_roam = res
+	return res
 
 
 func _rest(o: Dictionary) -> Dictionary:
@@ -763,13 +840,48 @@ func _collect(l) -> Dictionary:
 	if l == null or not is_instance_valid(l) or l.claimed:
 		return {"ok": false, "detail": "nothing left to pick up"}
 	current.stage = "picking up %s" % l.label()
-	me.navigate_to(l.global_position, false)
-	var t0 := Time.get_ticks_msec()
-	while me.current_action == "navigate_to" and Time.get_ticks_msec() - t0 < 12000 and is_instance_valid(l) and not _cancel:
-		await get_tree().process_frame
-	if not is_instance_valid(l):
+	await _approach(l.global_position, 0.55)
+	if not is_instance_valid(l) or l.claimed:
 		return {"ok": false, "detail": "someone else took it"}
+	var label: String = l.label()
+	var pk: Dictionary = await PickupAction.pick(me, l)          # the hand really has to reach it
+	if not pk.ok or not is_instance_valid(l):
+		return {"ok": false, "detail": "could not reach %s" % label}
 	return l.collect(me)
+
+
+func _gather(o: Dictionary) -> Dictionary:
+	var g: GatherNode = o.node
+	if not is_instance_valid(g) or not g.available():
+		return {"ok": false, "detail": "it was already picked"}
+	current.stage = "walking to the %s" % g.label().to_lower()
+	await _approach(g.global_position, 0.5)
+	if not g.available():
+		return {"ok": false, "detail": "it was already picked"}
+	current.stage = "picking the %s" % g.label().to_lower()
+	var tok := g.token()
+	var pk: Dictionary = await PickupAction.pick(me, tok)
+	if is_instance_valid(tok):
+		tok.queue_free()
+	if not pk.ok:
+		return {"ok": false, "detail": "could not reach the %s" % g.label().to_lower()}
+	var r := g.harvest(me)
+	r["pickup"] = pk
+	return r
+
+
+## Walk to stand `dist` m in front of a small object (facing it), through normal navigation.
+func _approach(p: Vector3, dist: float) -> void:
+	var from := Vector3(me.global_position.x - p.x, 0, me.global_position.z - p.z)
+	var stand := p + (from.normalized() if from.length() > 0.1 else Vector3.BACK) * dist
+	var map := me.get_world_3d().navigation_map
+	await _walk(NavigationServer3D.map_get_closest_point(map, stand))
+	if me.global_position.distance_to(stand) > 0.5:
+		var d := Vector3(stand.x - me.global_position.x, 0, stand.z - me.global_position.z)
+		if d.length() < 1.6 and not me.test_move(me.global_transform, d):
+			var tw := me.create_tween()
+			tw.tween_property(me, "global_position", me.global_position + d, 0.4)
+			await tw.finished
 
 
 ## Withdraw inside the ritual circle (creatures will not cross its ward) and recover vigor there.
@@ -800,6 +912,10 @@ func _process(delta: float) -> void:
 	if _sense_t <= 0.0 and me.visible and main.world:
 		_sense_t = 2.0
 		perceive()
+	_mark_t -= delta
+	if _mark_t <= 0.0 and me.visible and main.world and main.streaming.state == "idle":
+		_mark_t = 1.0
+		explore_map.mark(me.global_position)
 	var inside: bool = main.streaming.current_id == "sanctuary" and Vector2(me.global_position.x, me.global_position.z).length() < 12.0
 	mind.vigor = clampf(mind.vigor + delta * (0.012 if inside else 0.004), 0.0, 1.0)
 	if threat and (not is_instance_valid(threat) or not threat.alive()):
@@ -812,6 +928,17 @@ func perceive() -> Array:
 	var seen := []
 	var eyes := me.global_position + Vector3(0, 1.5, 0)
 	var space := me.get_world_3d().direct_space_state
+	# plants she can see (gathering is only planned for things she has noticed)
+	for g in get_tree().get_nodes_in_group("gatherable"):
+		var gk := "noticed:gather:" + String(g.gid)
+		if not mind.knowledge.has(gk) and eyes.distance_to((g as Node3D).global_position) < 12.0:
+			var qg := PhysicsRayQueryParameters3D.create(eyes, (g as Node3D).global_position + Vector3(0, 0.2, 0))
+			qg.exclude = [me.get_rid()]
+			qg.collision_mask = 1
+			var hg := space.intersect_ray(qg)
+			if hg.is_empty() or (hg.position as Vector3).distance_to((g as Node3D).global_position) < 1.0:
+				mind.knowledge[gk] = 1
+				seen.append("gather:" + String(g.gid))
 	# kinds of magic-reactive objects she has seen in this area (what background practice may use)
 	for r in main.magic.reactives().values():
 		if r is Monster:

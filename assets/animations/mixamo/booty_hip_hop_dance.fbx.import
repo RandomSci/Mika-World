@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://xydyp5ovnum3"
+path="res://.godot/imported/booty_hip_hop_dance.fbx-c1d3f83acba78db8c45872c3655fc4db.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/booty_hip_hop_dance.fbx"
+dest_files=["res://.godot/imported/booty_hip_hop_dance.fbx-c1d3f83acba78db8c45872c3655fc4db.scn"]
 
 [params]
 

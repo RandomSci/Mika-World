@@ -173,6 +173,7 @@ func bake_navigation() -> void:
 	nav_region.name = "Navigation"
 	var nm := NavigationMesh.new()
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	nm.geometry_collision_mask = 1          # world geometry only (creatures' bodies live on layer 2)
 	nm.agent_radius = 0.5
 	nm.agent_height = 1.75
 	nm.agent_max_climb = nav_agent_climb

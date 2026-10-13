@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://cyu038kd08m82"
+path="res://.godot/imported/belly_dance.fbx-ead58b292928f647635b32e2d28ff1f5.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/belly_dance.fbx"
+dest_files=["res://.godot/imported/belly_dance.fbx-ead58b292928f647635b32e2d28ff1f5.scn"]
 
 [params]
 

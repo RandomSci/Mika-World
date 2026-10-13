@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://c1fee6bxk1d34"
+path="res://.godot/imported/step_hip_hop_dance.fbx-1759b40d339d7a59857f4605068e3dfe.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/step_hip_hop_dance.fbx"
+dest_files=["res://.godot/imported/step_hip_hop_dance.fbx-1759b40d339d7a59857f4605068e3dfe.scn"]
 
 [params]
 

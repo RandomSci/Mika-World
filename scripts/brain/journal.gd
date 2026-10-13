@@ -52,6 +52,14 @@ static func compose(m: MageMind = null) -> Dictionary:
 			var name := String(Spawner.load_data().monsters.get(kind, {}).get("name", kind)).to_lower()
 			line = ("I fought off a %s." % name) if not seen.has(id) else ""
 			seen[id] = true
+		elif id.begins_with("roam:"):
+			line = "I wandered off the path to %s." % String(a.get("label", "")).trim_prefix("Looked at ")
+		elif id.begins_with("gather:"):
+			line = ("I gathered %s." % String(a.get("label", "")).trim_prefix("Gathered ").to_lower()) if not seen.has(id) else ""
+			seen[id] = true
+		elif id.begins_with("perform:"):
+			line = ("I danced to %s for a while." % String(a.get("label", "")).trim_prefix("Danced to ")) if not seen.has("perform") else ""
+			seen["perform"] = true
 		elif id.begins_with("fusion:"):
 			line = "%s happened: our spells met inside the same creature and burst together." % String(a.get("label", "A fusion")).get_slice(" with ", 0)
 		elif id.begins_with("collect:") and ch.keys().any(func(k): return String(k).begins_with("knowledge.material:") and ch[k][0] == 0):

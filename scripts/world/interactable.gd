@@ -107,11 +107,22 @@ func perform(c: WorldCharacter) -> Dictionary:
 	if sitting:
 		# lower onto the seat: the root (and so the pelvis) slides back over the seat while the pose blends in.
 		# The seated clip loops for as long as she sits (meditation length is decided by the caller).
-		c.play_gesture("sit_loop", 0.7, 0.7)
-		c.set_seated(true, 0.8)
+		# a real sit-down: the "Stand To Sit" transition while she lowers onto the seat, then the seated loop
 		var sp: Vector3 = get_parent().to_global(sit_point)
-		var tws := c.create_tween()
-		tws.tween_property(c, "global_position", Vector3(sp.x, c.global_position.y, sp.z), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		var down := c.animation_length("stand_to_sit") if c.has_clip("stand_to_sit") else 0.0
+		if down > 0.0:
+			c.play_gesture("stand_to_sit", 0.3, 0.3)
+			var tws := c.create_tween()
+			tws.tween_interval(down * 0.25)
+			tws.tween_property(c, "global_position", Vector3(sp.x, c.global_position.y, sp.z), down * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			c.set_seated(true, down * 0.7)
+			await get_tree().create_timer(down * 0.82).timeout
+			c.play_gesture("sit_loop", 0.35, 0.7)
+		else:
+			c.play_gesture("sit_loop", 0.7, 0.7)
+			c.set_seated(true, 0.8)
+			var tws2 := c.create_tween()
+			tws2.tween_property(c, "global_position", Vector3(sp.x, c.global_position.y, sp.z), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	elif gesture != "" and book_id == "":
 		c.play_gesture(gesture)
 	if on_begin.is_valid():
@@ -133,8 +144,14 @@ func perform(c: WorldCharacter) -> Dictionary:
 	if seat_body:
 		# stand up: rise forward off the seat, clear of it, before it becomes solid for her again
 		if sitting:
-			c.end_gesture()
-			c.set_seated(false, 0.6)
+			var up := c.animation_length("sit_to_stand") if c.has_clip("sit_to_stand") else 0.0
+			if up > 0.0:
+				c.play_gesture("sit_to_stand", 0.3, 0.4)     # a real stand-up, then she steps off the seat
+				c.set_seated(false, up * 0.6)
+				await get_tree().create_timer(up * 0.55).timeout
+			else:
+				c.end_gesture()
+				c.set_seated(false, 0.6)
 		var fwd := -c.global_transform.basis.z
 		fwd.y = 0
 		var tw2 := c.create_tween()

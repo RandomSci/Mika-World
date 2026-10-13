@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://dnql6o34pp3sg"
+path="res://.godot/imported/stand_to_sit.fbx-b3639d7869c6bf372f463f39f2255c89.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/stand_to_sit.fbx"
+dest_files=["res://.godot/imported/stand_to_sit.fbx-b3639d7869c6bf372f463f39f2255c89.scn"]
 
 [params]
 

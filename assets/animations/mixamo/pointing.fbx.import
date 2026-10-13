@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://bid3upq2yma3l"
+path="res://.godot/imported/pointing.fbx-c95ae108f6426d8f008c4a6ad59490cc.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/pointing.fbx"
+dest_files=["res://.godot/imported/pointing.fbx-c95ae108f6426d8f008c4a6ad59490cc.scn"]
 
 [params]
 

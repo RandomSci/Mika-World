@@ -120,8 +120,9 @@ func _ready() -> void:
 		mika.global_position = world.points_of_interest[start].position + Vector3(0, 0.1, 1.5)
 		camera_rig.snap_behind()
 	_on_area_for_mages(streaming.current_id)
+	GatherNode.populate(world, streaming.current_id)
 	streaming.transition_started.connect(func(_f, _t): _park_mages())
-	streaming.area_activated.connect(func(a, _r): _on_area_for_mages(a))
+	streaming.area_activated.connect(func(a, _r): _on_area_for_mages(a); GatherNode.populate(world, a))
 
 	bridge = ActionBridge.new()
 	bridge.name = "ActionBridge"
@@ -426,6 +427,7 @@ func _build_hud() -> void:
 ##                simulation (see SanctuaryBrain._background_step) and defers what needs the real world
 ## Every mage's location is kept in her mind (saved), so she is rebuilt exactly where she was.
 var focus := "mika"
+var focus_locked := false          # an explicit request (F3, bridge, tests) holds the focus until released
 var _loc_t := 0.0
 
 
@@ -497,7 +499,9 @@ func snap_to_nav(at: Vector3) -> Vector3:
 ## Follow another mage. Same area: the camera simply changes subject. Another area: everyone in the current
 ## area is first allowed to finish what she is doing (nothing unloads mid-action), then the masked travel
 ## card loads her area and she is rebuilt exactly where she was; the others continue in the background.
-func focus_mage(who: String) -> Dictionary:
+func focus_mage(who: String, lock := false) -> Dictionary:
+	if lock:
+		focus_locked = who != "mika"
 	if who == focus or not characters.has(who):
 		return {"ok": who == focus, "focus": focus}
 	var c: WorldCharacter = characters[who]
@@ -551,6 +555,8 @@ func focus_mage(who: String) -> Dictionary:
 func _spotlight(delta: float) -> void:
 	_spot_since += delta
 	_spot_t -= delta
+	if focus_locked:
+		return
 	if not director or not director.enabled:
 		if focus != "mika" and characters["mika"].visible:
 			focus_mage("mika")             # the player controls Mika: the camera is hers
@@ -614,6 +620,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		set_viewer_mode(not viewer_mode)
 	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F2:
 		overlay_ui.toggle_dev()
+	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F3:
+		# follow the next mage (across areas if needed); F3 again cycles back, ending on Mika releases the lock
+		var i := mages.find(focus)
+		focus_mage(mages[(i + 1) % mages.size()], true)
 	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F7:
 		var who: String = director.mika.character_id if director else "mika"
 		transformer.play(who, "short" if (event as InputEventKey).shift_pressed else "full", true)   # preview: no progress, reverts

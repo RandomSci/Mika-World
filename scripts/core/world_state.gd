@@ -143,7 +143,8 @@ func save_data() -> Dictionary:
 		"knowledge": knowledge, "inventory": inventory, "skills": skills, "trials_done": trials_done, "prefix_counts": _prefix_counts,
 		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_seq": activity_seq, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200)),
 		"progress": minds["mika"].progress, "agents": _agents_data(),
-		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred}
+		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred,
+		"mika_explored": minds["mika"].explored}
 
 
 func _agents_data() -> Dictionary:
@@ -261,6 +262,7 @@ func _apply_save(d: Dictionary) -> void:
 	minds["mika"].location = d.get("mika_location", {}) if d.get("mika_location") is Dictionary else {}
 	minds["mika"].music = d.get("mika_music", {}) if d.get("mika_music") is Dictionary else {}
 	minds["mika"].deferred = d.get("mika_deferred", []) if d.get("mika_deferred") is Array else []
+	minds["mika"].explored = d.get("mika_explored", {}) if d.get("mika_explored") is Dictionary else {}
 	_saved_agents = d.get("agents", {}) if d.get("agents") is Dictionary else {}
 	for who in _saved_agents:
 		if minds.has(who) and not (minds[who] as MageMind).legacy:

@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://bx4vebqcq6878"
+path="res://.godot/imported/putting_down.fbx-d15efab6d2886df770d703c2c632f09c.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/putting_down.fbx"
+dest_files=["res://.godot/imported/putting_down.fbx-d15efab6d2886df770d703c2c632f09c.scn"]
 
 [params]
 

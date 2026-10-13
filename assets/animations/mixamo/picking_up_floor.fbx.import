@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://cve4ubdl3eiyv"
+path="res://.godot/imported/picking_up_floor.fbx-c96d224150cf02944aa567e88d2f6cec.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/picking_up_floor.fbx"
+dest_files=["res://.godot/imported/picking_up_floor.fbx-c96d224150cf02944aa567e88d2f6cec.scn"]
 
 [params]
 

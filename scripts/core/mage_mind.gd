@@ -23,6 +23,7 @@ var vigor := 1.0                 # 0..1 battle stamina (not saved: she recovers 
 var location := {}               # {area, pos:[x,y,z]} where she is in the world (saved; drives simulation tiers)
 var deferred: Array = []         # activities she wanted while in the background that need the real world
 var music := {}                  # performance preferences / history (Milestone I; saved, never shared)
+var explored := {}               # area -> {cell "x,z": unix} her own coverage map (ExplorationMap)
 
 var knowledge: Dictionary:
 	get: return WorldState.knowledge if legacy else _knowledge
@@ -99,7 +100,7 @@ func to_dict() -> Dictionary:
 	return {"knowledge": _knowledge, "inventory": _inventory, "skills": _skills, "trials_done": _trials_done,
 		"prefix_counts": _prefix_counts, "activity_counts": _activity_counts, "activity_seq": _activity_seq,
 		"activity_log": _activity_log.slice(maxi(0, _activity_log.size() - 200)), "discovered": discovered, "progress": progress,
-		"location": location, "deferred": deferred.slice(maxi(0, deferred.size() - 20)), "music": music}
+		"location": location, "deferred": deferred.slice(maxi(0, deferred.size() - 20)), "music": music, "explored": explored}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -116,6 +117,7 @@ func from_dict(d: Dictionary) -> void:
 	location = d.get("location", {}) if d.get("location") is Dictionary else {}
 	deferred = d.get("deferred", []) if d.get("deferred") is Array else []
 	music = d.get("music", {}) if d.get("music") is Dictionary else {}
+	explored = d.get("explored", {}) if d.get("explored") is Dictionary else {}
 
 
 ## Restores progression with JSON floats turned back into ints where they are counters.

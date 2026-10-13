@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://cyjnxxxdrsiln"
+path="res://.godot/imported/waking.fbx-7d54a887f5476a7bdf0fdb0cf36f8dfb.scn"
 
 [deps]
 
 source_file="res://assets/animations/mixamo/waking.fbx"
+dest_files=["res://.godot/imported/waking.fbx-7d54a887f5476a7bdf0fdb0cf36f8dfb.scn"]
 
 [params]
 
