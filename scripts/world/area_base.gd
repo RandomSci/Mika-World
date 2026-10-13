@@ -22,6 +22,9 @@ var visible_landmarks: Array = []  # [{id, position}] actually rendered in this 
 var nav_region: NavigationRegion3D
 var nav_aabb := AABB(Vector3(-45, -10, -45), Vector3(90, 40, 90))
 var nav_agent_climb := 0.25
+## Navmesh partitioning. WATERSHED (default) builds fewer polygons; MONOTONE keeps narrow walkable strips connected
+## when an area has thousands of small obstacles (the Whispering Woods' trunks cut the ridge trail under WATERSHED).
+var nav_partition := NavigationMesh.SAMPLE_PARTITION_WATERSHED
 var magic_receivers: Array = []
 var rng := RandomNumberGenerator.new()
 var _sky_day: Sky
@@ -180,9 +183,31 @@ func bake_navigation() -> void:
 	nm.agent_max_slope = 30.0  # keep nav well inside the controller's 46° floor limit (rounded rock flanks)
 	nm.cell_size = 0.25
 	nm.cell_height = 0.25
+	nm.sample_partition_type = nav_partition
+	# bake diagnostics (tests only): --ev_partition=layers|monotone --ev_cell=0.35 --ev_minregion=1
+	match String(RenderProfile.options.get("ev_partition", "")):
+		"layers": nm.sample_partition_type = NavigationMesh.SAMPLE_PARTITION_LAYERS
+		"monotone": nm.sample_partition_type = NavigationMesh.SAMPLE_PARTITION_MONOTONE
+	if RenderProfile.options.has("ev_cell"):
+		nm.cell_size = float(RenderProfile.options.ev_cell)
+		nm.cell_height = float(RenderProfile.options.ev_cell)
+	if RenderProfile.options.has("ev_minregion"):
+		nm.region_min_size = float(RenderProfile.options.ev_minregion)
+		nm.region_merge_size = 40.0
+	if RenderProfile.options.has("ev_edgeerr"):
+		nm.edge_max_error = float(RenderProfile.options.ev_edgeerr)
+	if RenderProfile.options.has("ev_edgelen"):
+		nm.edge_max_length = float(RenderProfile.options.ev_edgelen)
+	if RenderProfile.options.has("ev_merge"):
+		nm.region_merge_size = float(RenderProfile.options.ev_merge)
+	if RenderProfile.options.has("ev_vpp"):
+		nm.vertices_per_polygon = float(RenderProfile.options.ev_vpp)
 	nm.filter_baking_aabb = nav_aabb
 	add_child(nav_region)
 	var src := NavigationMeshSourceGeometryData3D.new()
+	# finer edge-merge cells: dense navmeshes (hundreds of carved obstacles) otherwise report
+	# "navmesh edge merge errors" and lose connections (Godot's own advice for that warning)
+	NavigationServer3D.map_set_merge_rasterizer_cell_scale(get_world_3d().navigation_map, 0.5)
 	NavigationServer3D.parse_source_geometry_data(nm, src, self)
 	var done := [false]
 	NavigationServer3D.bake_from_source_geometry_data_async(nm, src, func(): done[0] = true)

@@ -18,6 +18,20 @@ extends RefCounted
 var a: WhisperingWoods
 var stone: ShaderMaterial
 var stats := {}
+var walls: Array = []            # [a, b, height, thick] of every wall built (ivy, vines hang off them)
+var arches: Array = []           # [centre at the springing line, span, crown y, yaw]
+var ruin_tree := Transform3D.IDENTITY
+
+
+## Wall / arch wrappers that remember what was built (the features pass grows ivy and vines on them).
+func _wall(sb: StoneBuilder, p0: Vector3, p1: Vector3, h: float, t: float, ruin := 0.0, course := 0.5) -> void:
+	walls.append([p0, p1, h, t])
+	sb.wall(p0, p1, h, t, ruin, course)
+
+
+func _arch(sb: StoneBuilder, c: Vector3, yaw: float, span: float, pier_h: float, pier_w: float, depth: float, pointed := false, broken := 0.0) -> void:
+	arches.append([c + Vector3(0, pier_h, 0), span, c.y + pier_h + span * 0.5 * (1.3 if pointed else 1.0), yaw])
+	sb.arch(c, yaw, span, pier_h, pier_w, depth, pointed, broken)
 
 
 func _init(area: WhisperingWoods) -> void:
@@ -65,12 +79,12 @@ func build() -> void:
 func _entry(root: Node3D) -> void:
 	var c := _v(Vector2(0, 121))
 	var sb := _builder(11, c.y - 0.3, c.y + 6.0)
-	sb.arch(c, 0.0, 4.4, 4.2, 1.1, 1.1, false, 0.0)
+	_arch(sb, c, 0.0, 4.4, 4.2, 1.1, 1.1, false, 0.0)
 	# the old boundary wall running off into the trees on both sides, mostly fallen
-	sb.wall(_v(Vector2(-3.4, 121)), _v(Vector2(-16, 123)), 1.9, 0.75, 0.55)
-	sb.wall(_v(Vector2(-16.5, 123)), _v(Vector2(-27, 128)), 1.4, 0.75, 0.8)
-	sb.wall(_v(Vector2(3.4, 121)), _v(Vector2(15, 119.5)), 2.1, 0.75, 0.5)
-	sb.wall(_v(Vector2(15.5, 119.5)), _v(Vector2(25, 115)), 1.2, 0.75, 0.85)
+	_wall(sb, _v(Vector2(-3.4, 121)), _v(Vector2(-16, 123)), 1.9, 0.75, 0.55)
+	_wall(sb, _v(Vector2(-16.5, 123)), _v(Vector2(-27, 128)), 1.4, 0.75, 0.8)
+	_wall(sb, _v(Vector2(3.4, 121)), _v(Vector2(15, 119.5)), 2.1, 0.75, 0.5)
+	_wall(sb, _v(Vector2(15.5, 119.5)), _v(Vector2(25, 115)), 1.2, 0.75, 0.85)
 	sb.finish(root, _mat(), "EntryArch")
 	stats.entry_blocks = sb.blocks
 
@@ -122,13 +136,13 @@ func _stairway(root: Node3D) -> void:
 	# the left fork: a narrow worn flight up the shelf to the alcove
 	sb.steps(_v(a.STAIR_LANDING + Vector2(-3.0, -0.5)), _v(a.ALCOVE + Vector2(3.5, 2.5)), 1.8, 0.55, 0.14)
 	# three pointed arches over the main flight; the middle one has partly fallen
-	sb.arch(_v(Vector2(0, -1.5)), 0.0, 5.4, 3.6, 0.95, 1.0, true, 0.0)
-	sb.arch(_v(Vector2(0, -14.0)), 0.0, 5.4, 3.4, 0.95, 1.0, true, 0.45)
-	sb.arch(_v(Vector2(0, -24.0)), 0.0, 5.4, 3.2, 0.95, 1.0, true, 0.0)
+	_arch(sb, _v(Vector2(0, -1.5)), 0.0, 5.4, 3.6, 0.95, 1.0, true, 0.0)
+	_arch(sb, _v(Vector2(0, -14.0)), 0.0, 5.4, 3.4, 0.95, 1.0, true, 0.45)
+	_arch(sb, _v(Vector2(0, -24.0)), 0.0, 5.4, 3.2, 0.95, 1.0, true, 0.0)
 	# low retaining walls flanking the upper flight
 	for s: float in [-1.0, 1.0]:
-		sb.wall(_v(Vector2(s * 3.9, -16.0)), _v(Vector2(s * 3.9, -22.5)), 1.3, 0.6, 0.45)
-		sb.wall(_v(Vector2(s * 3.9, 0.5)), _v(Vector2(s * 3.9, -5.5)), 1.1, 0.6, 0.5)
+		_wall(sb, _v(Vector2(s * 3.9, -16.0)), _v(Vector2(s * 3.9, -22.5)), 1.3, 0.6, 0.45)
+		_wall(sb, _v(Vector2(s * 3.9, 0.5)), _v(Vector2(s * 3.9, -5.5)), 1.1, 0.6, 0.5)
 	# fallen voussoirs lying beside the broken arch
 	for k in 3:
 		sb.block(Transform3D(Basis.from_euler(Vector3(0.3 * k, 0.9 * k, 1.2)), _v(Vector2(4.8 + k * 0.7, -13.0 - k * 0.9)) + Vector3(0, 0.2, 0)), Vector3(0.9, 0.85, 0.95), 0.7)
@@ -140,24 +154,24 @@ func _stairway(root: Node3D) -> void:
 func _ruins(root: Node3D) -> void:
 	var gate := _v(a.RUIN_GATE)
 	var sb := _builder(41, gate.y - 0.4, gate.y + 7.0)
-	sb.arch(gate, 0.0, 4.0, 4.6, 1.3, 1.4, false, 0.0)
+	_arch(sb, gate, 0.0, 4.0, 4.6, 1.3, 1.4, false, 0.0)
 	# the enclosure: a rectangle of collapsed walls (gaps where it has fallen completely)
 	var x0 := -16.0
 	var x1 := 16.0
 	var z0 := a.RUIN_GATE.y
 	var z1 := a.RUIN_GATE.y - 27.0
 	var wall_h := 3.6
-	sb.wall(_v(Vector2(-3.3, z0)), _v(Vector2(-9.5, z0)), wall_h, 0.9, 0.35)
-	sb.wall(_v(Vector2(-11.5, z0)), _v(Vector2(x0, z0 + 0.3)), wall_h, 0.9, 0.7)
-	sb.wall(_v(Vector2(3.3, z0)), _v(Vector2(x1, z0 - 0.2)), wall_h, 0.9, 0.5)
-	sb.wall(_v(Vector2(x0, z0 + 0.3)), _v(Vector2(x0 - 0.3, z0 - 11.0)), wall_h, 0.9, 0.6)
-	sb.wall(_v(Vector2(x0 - 0.4, z0 - 15.5)), _v(Vector2(x0, z1)), wall_h, 0.9, 0.75)   # gap: the frontier road leaves west
-	sb.wall(_v(Vector2(x1, z0 - 0.2)), _v(Vector2(x1, z0 - 8.0)), wall_h, 0.9, 0.4)
-	sb.wall(_v(Vector2(x1 + 0.2, z0 - 12.5)), _v(Vector2(x1, z1)), wall_h * 0.8, 0.9, 0.85)  # gap: the viewpoint path
-	sb.wall(_v(Vector2(x0, z1)), _v(Vector2(-4.0, z1 - 0.4)), wall_h * 1.25, 0.9, 0.3)
-	sb.wall(_v(Vector2(2.0, z1 - 0.4)), _v(Vector2(x1, z1)), wall_h * 1.1, 0.9, 0.55)
+	_wall(sb, _v(Vector2(-3.3, z0)), _v(Vector2(-9.5, z0)), wall_h, 0.9, 0.35)
+	_wall(sb, _v(Vector2(-11.5, z0)), _v(Vector2(x0, z0 + 0.3)), wall_h, 0.9, 0.7)
+	_wall(sb, _v(Vector2(3.3, z0)), _v(Vector2(x1, z0 - 0.2)), wall_h, 0.9, 0.5)
+	_wall(sb, _v(Vector2(x0, z0 + 0.3)), _v(Vector2(x0 - 0.3, z0 - 11.0)), wall_h, 0.9, 0.6)
+	_wall(sb, _v(Vector2(x0 - 0.4, z0 - 15.5)), _v(Vector2(x0, z1)), wall_h, 0.9, 0.75)   # gap: the frontier road leaves west
+	_wall(sb, _v(Vector2(x1, z0 - 0.2)), _v(Vector2(x1, z0 - 8.0)), wall_h, 0.9, 0.4)
+	_wall(sb, _v(Vector2(x1 + 0.2, z0 - 12.5)), _v(Vector2(x1, z1)), wall_h * 0.8, 0.9, 0.85)  # gap: the viewpoint path
+	_wall(sb, _v(Vector2(x0, z1)), _v(Vector2(-4.0, z1 - 0.4)), wall_h * 1.25, 0.9, 0.3)
+	_wall(sb, _v(Vector2(2.0, z1 - 0.4)), _v(Vector2(x1, z1)), wall_h * 1.1, 0.9, 0.55)
 	# a pointed arch standing alone at the back (the old sanctum's doorway)
-	sb.arch(_v(Vector2(-1.0, z1 - 0.2)), 0.0, 3.4, 4.4, 1.0, 1.2, true, 0.0)
+	_arch(sb, _v(Vector2(-1.0, z1 - 0.2)), 0.0, 3.4, 4.4, 1.0, 1.2, true, 0.0)
 	# colonnade: two rows of columns, most broken
 	var heights := [4.6, 2.1, 3.4, 1.2, 4.2, 2.8, 0.9, 3.9]
 	for i in 4:
@@ -179,9 +193,10 @@ func _ruins(root: Node3D) -> void:
 	_runes(root, ins + Vector3(0, 1.55, 0.07))
 	# a great tree has grown up inside the enclosure, its crown over the wall
 	var tp := Vector2(-11.5, z0 - 6.5)
-	var tx := Transform3D(Basis(Vector3.UP, 2.2).scaled(Vector3.ONE * 0.75), _v(tp) - Vector3(0, 0.2, 0))
+	var tx := Transform3D(Basis(Vector3.UP, 2.2).scaled(Vector3.ONE * 1.0), _v(tp) - Vector3(0, 0.2, 0))
 	NatureKit.scatter(root, NatureKit.mesh("TwistedTree_3"), [tx], {"shadow": true, "vis_end": 200.0, "name": "RuinTree"})
 	NatureKit.trunk_colliders(root, [tx], 0.7)
+	ruin_tree = tx
 
 
 ## Faint runes carved on the stele: a glowing band (night) + carved marks.
@@ -259,11 +274,11 @@ func _viewpoint(root: Node3D) -> void:
 		var L := dirv.length()
 		var k := 0.0
 		while k < L - 0.1:
-			var bl := minf(sb.rng.randf_range(0.7, 1.1), L - k)
+			var bl := minf(sb.rng.randf_range(0.55, 0.85), L - k)
 			var pc := q0 + dirv.normalized() * (k + bl * 0.5)
-			sb.block(Transform3D(Basis(Vector3.UP, yaw) * sb._jit(1.0), Vector3(pc.x, level + 0.42, pc.y)), Vector3(bl - 0.04, 0.84, 0.5), 0.6)
+			sb.block(Transform3D(Basis(Vector3.UP, yaw) * sb._jit(1.0), Vector3(pc.x, level + 0.26, pc.y)), Vector3(bl - 0.04, 0.5, 0.42), 0.6)
 			k += bl
-		sb.collider(Transform3D(Basis(Vector3.UP, yaw), Vector3(mid.x, level + 0.5, mid.y)), Vector3(L, 1.0, 0.5))
+		sb.collider(Transform3D(Basis(Vector3.UP, yaw), Vector3(mid.x, level + 0.5, mid.y)), Vector3(L, 1.0, 0.42))
 	sb.column(Vector3(a.VIEWPOINT.x - 1.5, level, a.VIEWPOINT.y - 6.0), 0.36, 2.2)
 	sb.column(Vector3(a.VIEWPOINT.x - 1.5, level, a.VIEWPOINT.y + 6.0), 0.36, 3.1)
 	sb.finish(root, _mat(), "Viewpoint")
@@ -343,11 +358,17 @@ func _bridge(root: Node3D) -> void:
 			sb.block(Transform3D(bb * sb._jit(0.4), mid + Vector3(0, -0.2, zz - z)), Vector3(0.93, 0.4, 1.16), sb.rng.randf() * 0.3, 0.04)
 		var on_span := x0 > a.BRIDGE_W - 3.5 and x1 < a.BRIDGE_E + 3.5
 		if on_span:
+			var slice_i := int(round((x0 - (a.BRIDGE_W - 6.0)) / 0.95))
 			for side2: float in [-1.0, 1.0]:
-				if sb.rng.randf() < 0.07:
-					continue
-				sb.block(Transform3D(bb * sb._jit(0.8), mid + Vector3(0, 0.38, side2 * (depth * 0.5 + 0.05))), Vector3(0.93, 0.78, 0.42), 0.55)
-				sb.collider(Transform3D(bb, mid + Vector3(0, 0.5, side2 * (depth * 0.5 + 0.05))), Vector3(1.0, 1.0, 0.42))
+				var edge := mid + Vector3(0, 0, side2 * (depth * 0.5 + 0.05))
+				# curb along the whole edge
+				sb.block(Transform3D(bb * sb._jit(0.5), edge + Vector3(0, 0.11, 0)), Vector3(0.93, 0.22, 0.42), 0.45)
+				# a post every other slice (a few have fallen), a rail between them
+				if slice_i % 2 == 0 and sb.rng.randf() > 0.08:
+					sb.block(Transform3D(bb * sb._jit(0.8), edge + Vector3(0, 0.62, 0)), Vector3(0.3, 0.8, 0.3), 0.3)
+					sb.block(Transform3D(bb, edge + Vector3(0, 1.06, 0)), Vector3(0.38, 0.08, 0.38), 0.6)
+				sb.block(Transform3D(bb * sb._jit(0.3), edge + Vector3(0, 0.94, 0)), Vector3(0.95, 0.14, 0.18), 0.5)
+				sb.collider(Transform3D(bb, edge + Vector3(0, 0.55, 0)), Vector3(1.0, 1.1, 0.42))
 		# walking surface: one box per slice, pitched to meet its neighbours
 		sb.collider(Transform3D(bb, mid - Vector3(0, 0.2, 0)), Vector3(Vector2(x1 - x0, y1 - y0).length() + 0.04, 0.4, depth))
 		x = x1
@@ -631,10 +652,7 @@ func _den(root: Node3D) -> void:
 	var inner := MeshInstance3D.new()
 	inner.name = "DenInterior"
 	inner.mesh = _rock_dome(Vector3(4.7, 4.7, 4.9), 72, false, win)
-	var dark := StandardMaterial3D.new()
-	dark.vertex_color_use_as_albedo = true
-	dark.roughness = 1.0
-	inner.material_override = dark
+	inner.material_override = Kit.shader_mat("res://shaders/nature/cave_interior.gdshader", {"noise_tex": Kit.noise(), "floor_y": mouth.y})
 	inner.position = centre
 	root.add_child(inner)
 	# no luminous fog inside the cave (volumetric fog would light the darkness up)

@@ -69,6 +69,7 @@ var _hidden_mask := PackedFloat32Array()
 var mats := {}
 var dress: WoodsDressing
 var marks: WoodsLandmarks
+var feats: WoodsFeatures
 
 
 static func resources() -> Array:
@@ -77,10 +78,11 @@ static func resources() -> Array:
 
 func env_preset() -> Dictionary:
 	return {
-		"day": {"sun_rot": Vector3(-42, 155, 0), "sun_energy": 1.9, "sun_color": Color(1.0, 0.93, 0.8), "fog": 0.0055, "fog_color": Color(0.66, 0.80, 0.82),
+		"day": {"sun_rot": Vector3(-42, 155, 0), "sun_energy": 1.9, "sun_color": Color(1.0, 0.93, 0.8), "fog": 0.002, "fog_color": Color(0.66, 0.80, 0.82),
 			"fog_sky": 0.0, "vol_fog": 0.008, "vol_albedo": Color(0.92, 0.96, 0.9), "ambient": 0.75, "exposure": 1.0, "bg_energy": 1.0, "saturation": 1.1},
-		"night": {"fog": 0.008, "fog_color": Color(0.04, 0.08, 0.12), "fog_sky": 0.0, "vol_fog": 0.014, "ambient": 1.3, "exposure": 1.35, "bg_energy": 1.0},
-		"vista": {"mountains": false, "ridge_height": 300.0, "ridge_seed": 19, "green": Color(0.30, 0.46, 0.40), "haze": Color(0.70, 0.84, 0.92), "max_haze": 0.72, "snow_line": 330.0},
+		"night": {"fog": 0.0032, "fog_color": Color(0.06, 0.10, 0.17), "fog_sky": 0.0, "vol_fog": 0.012, "ambient": 1.9, "exposure": 1.55, "bg_energy": 1.0,
+			"sun_energy": 0.55, "sun_color": Color(0.55, 0.68, 1.0), "sun_rot": Vector3(-50, 120, 0), "saturation": 1.0},
+		"vista": {"mountains": false, "ridge": true, "ridge_height": 300.0, "ridge_seed": 19, "ridge_base": -30.0, "green": Color(0.30, 0.46, 0.40), "haze": Color(0.70, 0.84, 0.92), "max_haze": 0.72, "snow_line": 330.0},
 	}
 
 
@@ -250,8 +252,10 @@ func _precompute() -> void:
 func build_steps() -> Array:
 	dress = WoodsDressing.new(self)
 	marks = WoodsLandmarks.new(self)
-	return [_precompute, _painted_sky, _terrain, _water, dress.compute_trail_distance, dress.trees, dress.undergrowth,
-		dress.grass, dress.rocks, dress.cliffs, dress.atmosphere, marks.build, _links]
+	feats = WoodsFeatures.new(self)
+	return [_precompute, _painted_sky, _terrain, _water, dress.compute_trail_distance, dress.trees, dress.understory,
+		dress.undergrowth, dress.grass, dress.rocks, dress.cliffs, dress.atmosphere, marks.build, feats.floor_features,
+		feats.leaf_fall, feats.mushroom_grove, feats.banks, feats.pond_identity, feats.den_hollow, feats.ruin_growth, _links]
 
 
 ## The photographic panoramas clash with the painted forest: a procedural stylized sky instead (day + night).
@@ -270,6 +274,9 @@ func _painted_sky() -> void:
 		else:
 			_sky_day = s
 	env.fog_aerial_perspective = 0.55   # distant forest takes the sky's colour: painterly depth
+	# one shadow split over the whole shadow distance: half the shadow-pass cost of two cascades, and at 30 m the
+	# 2048 map still gives ~1.5 cm texels
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 
 
 ## Painterly shadows: part of the ambient comes from a warm green-grey (light bounced off the forest), not only
@@ -278,8 +285,10 @@ func set_night(v: bool) -> void:
 	super.set_night(v)
 	if env == null:
 		return
-	env.ambient_light_sky_contribution = 0.5
-	env.ambient_light_color = Color(0.13, 0.2, 0.3) if v else Color(0.6, 0.66, 0.52)
+	env.ambient_light_sky_contribution = 0.35 if v else 0.5
+	env.ambient_light_color = Color(0.22, 0.30, 0.46) if v else Color(0.6, 0.66, 0.52)
+	if RenderProfile.profile == RenderProfile.LIVE_OPTIMIZED:
+		env.ssao_enabled = false   # measured 7 ms on the stream machine's iGPU under the canopy; the painted crowns carry their own AO
 	NatureKit.set_night_glow(v)
 	if marks:
 		marks.set_night(v)
@@ -304,17 +313,17 @@ func _terrain_mask(x: float, z: float) -> Color:
 	var tr := _trail_mask[iz * _n + ix]
 	var hid := _hidden_mask[iz * _n + ix] * 0.45
 	var forest := _forest_density(p)
-	var bank := (1.0 - smoothstep(5.0, 9.0, absf(x - river_x(z)))) + (1.0 - smoothstep(POND_R - 1.0, POND_R + 3.0, p.distance_to(POND)))
+	var bank := (1.0 - smoothstep(6.0, 10.5, absf(x - river_x(z)))) + (1.0 - smoothstep(POND_R - 1.0, POND_R + 3.5, p.distance_to(POND)))
 	return Color(maxf(tr, hid), forest * 0.85, clampf(bank, 0.0, 1.0), 0.0)
 
 
 ## How wooded a spot is (0 open meadow .. 1 deep forest). Drives the forest floor colour and the scatter.
 func _forest_density(p: Vector2) -> float:
 	var f := 0.55 + 0.25 * sin(p.x * 0.031 + 0.7) * cos(p.y * 0.027)
-	f += 0.35 * (1.0 - smoothstep(30.0, 60.0, absf(p.x - 0.0))) * smoothstep(110.0, 70.0, p.y) * smoothstep(30.0, 50.0, p.y)  # the enchanted forest band
+	f += 0.45 * (1.0 - smoothstep(34.0, 60.0, absf(p.x - 0.0))) * smoothstep(114.0, 70.0, p.y) * smoothstep(36.0, 50.0, p.y)  # the enchanted forest band
 	f -= 0.6 * (1.0 - smoothstep(10.0, 22.0, p.distance_to(ENTRY + Vector2(0, -6))))   # open glade at the entry
 	f -= 0.5 * (1.0 - smoothstep(8.0, 16.0, p.distance_to(CROSS)))
-	f -= 0.7 * (1.0 - smoothstep(22.0, 34.0, p.distance_to(PLATEAU)))                  # the ruins plateau is open
+	f -= 0.45 * (1.0 - smoothstep(18.0, 30.0, p.distance_to(PLATEAU)))                 # the ruin court is half open
 	f += 0.25 * smoothstep(80.0, 100.0, p.x)                                           # monster territory: dense
 	return clampf(f, 0.0, 1.0)
 
@@ -420,7 +429,7 @@ func _nav_hole(pts: Array, y: float, h: float) -> void:
 
 
 func _links() -> void:
-	print("[woods] dressing ", dress.stats, " landmarks ", marks.stats)
+	print("[woods] dressing ", dress.stats, " landmarks ", marks.stats, " features ", feats.stats)
 	add_location("whispering_woods", Vector3(-4, 0, 80), 50.0, Vector3(-4, height(-4, 80), 80), "a winding trail through the Whispering Woods")
 	add_gate("sanctuary", Vector3(0, height(0, 136), 136), Vector3(0, height(0, 128) + 0.05, 128), 0.0, 3.0)
 	add_gate("ancient_grove", Vector3(-136, height(-136, -6), -6), Vector3(-126, height(-126, -6) + 0.05, -6), -PI * 0.5, 3.0)

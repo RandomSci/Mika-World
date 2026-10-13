@@ -42,6 +42,9 @@ static func build(area: AreaBase) -> Vista:
 			else:
 				Kit.mesh_node(v, _ridge_ring(opts.get("ridge_height", 260.0), opts.get("ridge_seed", 7)), mat, Transform3D(Basis.IDENTITY, Vector3(0, opts.get("ridge_base", -40.0), 0)), false)
 				break
+	if opts.get("ridge", false) and not opts.get("mountains", false):
+		# painterly procedural ridges (no scanned rock): the forest's horizon
+		Kit.mesh_node(v, _ridge_ring(opts.get("ridge_height", 260.0), opts.get("ridge_seed", 7)), mat, Transform3D(Basis.IDENTITY, Vector3(0, opts.get("ridge_base", -40.0), 0)), false)
 	if opts.has("cloud_sea"):
 		var cs := MeshInstance3D.new()
 		var pm := PlaneMesh.new()
@@ -152,6 +155,19 @@ static func _impostor(kind: String, mat: Material, s: float, area: AreaBase) -> 
 		"floating_rock":
 			Kit.mesh_node(root, Kit.rock_mesh(70.0, 21, 0.4, Vector3(1.2, 0.7, 1.0), 3), stone, Transform3D(Basis(Vector3.RIGHT, PI), Vector3(0, 0, 0)), false)
 			Kit.mesh_node(root, Kit.lathe([Vector2(8, 0), Vector2(7, 60), Vector2(0, 85)], 8, false), stone, Transform3D(Basis.IDENTITY, Vector3(20, 60, 0)), false)
+		"crystal_valley":
+			# a valley floor of pale rock with a forest of giant crystal spires, violet, softly luminous
+			var r2 := RandomNumberGenerator.new()
+			r2.seed = 505
+			Kit.mesh_node(root, Kit.rock_mesh(240.0, 17, 0.35, Vector3(1.8, 0.35, 1.2), 3), stone, Transform3D(Basis.IDENTITY, Vector3(0, -60, 0)), false)
+			var cmat := Kit.crystal(Color(0.72, 0.5, 1.0), 2.4)
+			for i in 26:
+				var px := r2.randf_range(-260.0, 260.0)
+				var pz := r2.randf_range(-120.0, 120.0)
+				var L := r2.randf_range(90.0, 300.0) * (1.4 if absf(px) < 80.0 else 1.0)
+				var rad := L * r2.randf_range(0.09, 0.16)
+				var tilt := Basis(Vector3(r2.randf_range(-1, 1), 0, r2.randf_range(-1, 1)).normalized(), r2.randf_range(0.0, 0.3)) * Basis(Vector3.UP, r2.randf() * TAU)
+				Kit.mesh_node(root, Kit.crystal_mesh(L, rad, 600 + i), cmat, Transform3D(tilt, Vector3(px, -20.0, pz)), false)
 		"ruin_silhouette":
 			for i in 4:
 				var h := 25.0 + i * 12.0

@@ -118,6 +118,7 @@ func _ready() -> void:
 	add_child(cs)
 	add_to_group("avoid")              # other walkers steer around her
 	set_collision_mask_value(2, true)  # creatures' bodies (layer 2) are solid for her
+	set_collision_mask_value(3, true)  # vegetation and boulders (layer 3; carved out of the navmesh separately)
 	_build_rig()
 	handler = ObjectHandler.new()
 	handler.name = "ObjectHandler"
@@ -126,6 +127,7 @@ func _ready() -> void:
 	handler.attach(self)
 
 	nav_agent = NavigationAgent3D.new()
+	NavQuery.configure_agent(nav_agent)   # big forest navmeshes exceed the default 4096-polygon search limit
 	nav_agent.path_desired_distance = 1.0  # > navmesh voxel float (up to ~0.6 m above ground with 0.25 m cells)
 	nav_agent.target_desired_distance = 0.7
 	nav_agent.radius = 0.35

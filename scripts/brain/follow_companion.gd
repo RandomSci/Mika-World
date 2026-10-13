@@ -46,7 +46,7 @@ func _physics_process(delta: float) -> void:
 		# her place: beside the leader, a little behind while walking, level with her when stopped
 		_slot = leader.global_position + right * side * 1.05 - _fwd * (0.5 if moving else 0.0)
 		var map := follower.get_world_3d().navigation_map
-		_path = NavigationServer3D.map_get_path(map, follower.global_position, NavigationServer3D.map_get_closest_point(map, _slot), true)
+		_path = NavQuery.path(map, follower.global_position, NavigationServer3D.map_get_closest_point(map, _slot), true)
 		_pi = 1
 	var d := gap()
 	var to_slot := Vector2(_slot.x - follower.global_position.x, _slot.z - follower.global_position.z).length()

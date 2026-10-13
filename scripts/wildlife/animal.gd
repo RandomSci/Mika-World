@@ -83,7 +83,7 @@ func _goto(target: Vector3) -> bool:
 	var map := get_world_3d().navigation_map
 	if NavigationServer3D.map_get_iteration_id(map) == 0:
 		return false
-	path = NavigationServer3D.map_get_path(map, NavigationServer3D.map_get_closest_point(map, global_position), NavigationServer3D.map_get_closest_point(map, target), true)
+	path = NavQuery.path(map, NavigationServer3D.map_get_closest_point(map, global_position), NavigationServer3D.map_get_closest_point(map, target), true)
 	path_i = 0
 	return path.size() > 1
 

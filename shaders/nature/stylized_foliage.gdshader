@@ -24,6 +24,7 @@ uniform float wind_strength = 0.12;
 uniform float wind_speed = 1.1;
 uniform float flutter = 0.025;
 uniform float variation_strength = 0.12;
+uniform float two_sided : hint_range(0.0, 1.0) = 0.0;   // 1: light hanging cards (vines, ivy, willow) from whichever side faces the viewer
 
 varying float v_height;
 varying float v_var;
@@ -45,6 +46,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (two_sided > 0.5 && !FRONT_FACING) {
+		NORMAL = -NORMAL;
+	}
 	vec4 t = texture(albedo_tex, UV);
 	// leaves right in front of the camera dissolve (dithered) instead of filling the frame
 	float near_keep = smoothstep(0.7, 2.0, length(VERTEX));

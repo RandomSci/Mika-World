@@ -10,7 +10,12 @@ const CHUNK := 40.0
 
 static var _meshes := {}
 static var _tex := {}
+static var _aabbs := {}        # mesh key -> {whole, leaf}
+static var _lods := {}
+static var _shadow_meshes := {}
+static var _white: ImageTexture
 static var _mushroom_mat: StandardMaterial3D
+static var _mushroom_glow_mat: StandardMaterial3D
 
 
 ## Drop cached meshes/materials/textures (called with Kit.release_unused when an area unloads).
@@ -18,21 +23,27 @@ static func release() -> int:
 	var n := _meshes.size() + _tex.size()
 	_meshes.clear()
 	_tex.clear()
+	_aabbs.clear()
+	_lods.clear()
+	_shadow_meshes.clear()
 	_mushroom_mat = null
+	_mushroom_glow_mat = null
 	return n
 
 
-## Night: the forest's mushrooms glow (bioluminescent teal) — day: barely.
+## Night: only the GROVE's mushrooms (crown "glow") turn bioluminescent — the rest of the forest's fungi stay
+## ordinary, so the glow is a place, not a texture.
 static func set_night_glow(v: bool) -> void:
-	if _mushroom_mat == null:
+	if _mushroom_glow_mat == null:
 		return
-	_mushroom_mat.emission = Color(0.15, 0.85, 0.75) if v else Color(1, 1, 1)
-	_mushroom_mat.emission_energy_multiplier = 1.1 if v else 0.15
+	_mushroom_glow_mat.emission = Color(0.12, 0.75, 0.7) if v else Color(1, 1, 1)
+	_mushroom_glow_mat.emission_energy_multiplier = 0.85 if v else 0.12
+	_mushroom_glow_mat.albedo_color = Color(0.55, 0.85, 0.9) if v else Color(0.85, 0.95, 1.0)
 
 ## Palette presets an area can pass to mesh(): crown tints per tree family.
 const CROWNS := {
-	"common": {"top": Color(0.60, 0.84, 0.34), "bottom": Color(0.13, 0.30, 0.17), "trans": Color(0.8, 1.0, 0.4)},
-	"twisted": {"top": Color(0.52, 0.80, 0.40), "bottom": Color(0.10, 0.26, 0.19), "trans": Color(0.7, 1.0, 0.5)},
+	"common": {"top": Color(0.60, 0.84, 0.34), "bottom": Color(0.17, 0.34, 0.19), "trans": Color(0.8, 1.0, 0.4)},
+	"twisted": {"top": Color(0.52, 0.80, 0.40), "bottom": Color(0.14, 0.30, 0.21), "trans": Color(0.7, 1.0, 0.5)},
 	"pine": {"top": Color(0.36, 0.58, 0.34), "bottom": Color(0.07, 0.19, 0.15), "trans": Color(0.5, 0.8, 0.4)},
 	"blossom": {"top": Color(1.0, 0.72, 0.9), "bottom": Color(0.62, 0.36, 0.66), "trans": Color(1.0, 0.7, 0.9)},
 	"bush": {"top": Color(0.50, 0.78, 0.30), "bottom": Color(0.12, 0.30, 0.14), "trans": Color(0.7, 1.0, 0.4)},
@@ -70,7 +81,97 @@ static func mesh(id: String, crown := "") -> ArrayMesh:
 	for i in m.get_surface_count():
 		m.surface_set_material(i, _material(id, _surf_name(m, i), crown, whole, leaf_aabb))
 	_meshes[key] = m
+	_aabbs[key] = {"whole": whole, "leaf": leaf_aabb}
 	return m
+
+
+static func white_tex() -> ImageTexture:
+	if _white == null:
+		var img := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+		img.fill(Color(1, 1, 1, 1))
+		_white = ImageTexture.create_from_image(img)
+	return _white
+
+
+## The far version of mesh(id, crown): a soft lumpy crown and a trunk, opaque, about 1/20 of the triangles.
+## Same palettes and shaders, so a tree keeps its colour when it swaps at distance (the foliage shader already
+## shades crowns as volumes, which is why a blob reads right at 60 m+).
+static func lod_mesh(id: String, crown := "") -> ArrayMesh:
+	var key := id + "|" + crown + "|lod"
+	if _lods.has(key):
+		return _lods[key]
+	var full := mesh(id, crown)
+	var ab: Dictionary = _aabbs[id + "|" + crown]
+	var whole: AABB = ab.whole
+	var leaf: AABB = ab.leaf
+	var out := ArrayMesh.new()
+	var has_crown := leaf.size != Vector3.ZERO
+	if has_crown:
+		var sm := SphereMesh.new()
+		sm.radial_segments = 12
+		sm.rings = 7
+		sm.radius = 0.5
+		sm.height = 1.0
+		var st := SurfaceTool.new()
+		st.create_from(sm, 0)
+		var arr := st.commit_to_arrays()
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var n: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+		var c := leaf.get_center()
+		var half := leaf.size * 0.5
+		for i in v.size():
+			var d := v[i] * 2.0
+			var bump := 1.0 + 0.12 * sin(d.x * 7.1 + d.y * 3.3) * cos(d.z * 5.7 + d.x * 2.1)
+			v[i] = c + Vector3(d.x * half.x, d.y * half.y, d.z * half.z) * bump
+			n[i] = d.normalized()
+		arr[Mesh.ARRAY_VERTEX] = v
+		arr[Mesh.ARRAY_NORMAL] = n
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		var leaf_mat: ShaderMaterial = null
+		for si in full.get_surface_count():
+			var m := full.surface_get_material(si)
+			if m is ShaderMaterial and String((m as ShaderMaterial).shader.resource_path).ends_with("stylized_foliage.gdshader"):
+				leaf_mat = m
+		var lm := leaf_mat.duplicate() as ShaderMaterial
+		lm.set_shader_parameter("albedo_tex", white_tex())
+		lm.set_shader_parameter("tint_texture_mix", Vector4(0.0, 0, 0, 0))
+		lm.set_shader_parameter("flutter", 0.0)
+		lm.set_shader_parameter("spherize", 1.0)
+		lm.set_shader_parameter("alpha_cut", 0.0)
+		out.surface_set_material(out.get_surface_count() - 1, lm)
+	if not id.begins_with("Bush"):
+		var top_y := leaf.get_center().y if has_crown else whole.end.y
+		var r := maxf(whole.size.x, whole.size.z) * (0.06 if has_crown else 0.05)
+		var cyl := Kit.lathe([Vector2(r * 1.3, whole.position.y), Vector2(r, whole.position.y + 0.6), Vector2(r * 0.75, top_y)], 7, true, false)
+		var st2 := SurfaceTool.new()
+		st2.create_from(cyl, 0)
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, st2.commit_to_arrays())
+		var bark: Material = null
+		for si in full.get_surface_count():
+			var m2 := full.surface_get_material(si)
+			if m2 is ShaderMaterial and String((m2 as ShaderMaterial).shader.resource_path).ends_with("stylized_bark.gdshader"):
+				bark = m2
+		out.surface_set_material(out.get_surface_count() - 1, bark if bark else StandardMaterial3D.new())
+	_lods[key] = out
+	return out
+
+
+## The shadow-only version of a plant: the LOD crown blob with a dappled (noise-holed) shadow material, plus the
+## trunk. Cast from this instead of the leaf cards (see shaders/nature/canopy_shadow.gdshader).
+static func shadow_mesh(id: String, crown := "") -> ArrayMesh:
+	var key := id + "|" + crown + "|shadow"
+	if _shadow_meshes.has(key):
+		return _shadow_meshes[key]
+	var lod := lod_mesh(id, crown)
+	var out := ArrayMesh.new()
+	var dapple := Kit.shader_mat("res://shaders/nature/canopy_shadow.gdshader", {"noise_tex": Kit.noise()})
+	for si in lod.get_surface_count():
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, lod.surface_get_arrays(si))
+		var m := lod.surface_get_material(si)
+		var is_crown := m is ShaderMaterial and String((m as ShaderMaterial).shader.resource_path).ends_with("stylized_foliage.gdshader")
+		out.surface_set_material(si, dapple if is_crown else m)
+	_shadow_meshes[key] = out
+	return out
 
 
 static func _surf_name(m: ArrayMesh, i: int) -> String:
@@ -166,17 +267,28 @@ static func _material(id: String, surf: String, crown: String, whole: AABB, leaf
 			"canopy_top": leaf.end.y if leaf.size != Vector3.ZERO else whole.end.y,
 			"wind_strength": 0.03 * whole.size.y if bf != "DeadTree" else 0.01, "moss_amount": 0.5})
 	if surf == "Rocks" or surf == "PathRocks":
+		if crown == "wet":   # stones in and beside water: darker, little moss
+			return Kit.shader_mat("res://shaders/nature/stylized_rock.gdshader", {"albedo_tex": tex("Rocks_Diffuse.png" if surf == "Rocks" else "PathRocks_Diffuse.png"),
+				"noise_tex": noise, "moss_amount": 0.25, "tint": Color(0.5, 0.56, 0.6)})
 		return Kit.shader_mat("res://shaders/nature/stylized_rock.gdshader", {"albedo_tex": tex("Rocks_Diffuse.png" if surf == "Rocks" else "PathRocks_Diffuse.png"),
 			"noise_tex": noise, "moss_amount": 0.7 if surf == "Rocks" else 0.2, "tint": Color(1.0, 0.96, 0.9)})
 	if surf == "Mushrooms":
+		if crown == "glow":
+			if _mushroom_glow_mat == null:
+				_mushroom_glow_mat = StandardMaterial3D.new()
+				_mushroom_glow_mat.albedo_texture = tex("Mushrooms.png")
+				_mushroom_glow_mat.albedo_color = Color(0.85, 0.95, 1.0)
+				_mushroom_glow_mat.roughness = 0.6
+				_mushroom_glow_mat.emission_enabled = true
+				_mushroom_glow_mat.emission_texture = tex("Mushrooms.png")
+				_mushroom_glow_mat.emission = Color(1, 1, 1)
+				_mushroom_glow_mat.emission_energy_multiplier = 0.12
+			return _mushroom_glow_mat
 		if _mushroom_mat == null:
 			_mushroom_mat = StandardMaterial3D.new()
 			_mushroom_mat.albedo_texture = tex("Mushrooms.png")
 			_mushroom_mat.roughness = 0.7
-			_mushroom_mat.emission_enabled = true
-			_mushroom_mat.emission_texture = tex("Mushrooms.png")
-			_mushroom_mat.emission = Color(1, 1, 1)
-			_mushroom_mat.emission_energy_multiplier = 0.15
+			_mushroom_mat.emission_enabled = false
 		return _mushroom_mat
 	var fb := StandardMaterial3D.new()
 	fb.albedo_color = Color(0.5, 0.6, 0.4)
@@ -185,10 +297,13 @@ static func _material(id: String, surf: String, crown: String, whole: AABB, leaf
 
 # ------------------------------------------------------------------ placement
 ## Places `xforms` of one mesh as chunked MultiMeshes. opts: vis_end (m), shadow (bool), colors (Array[Color]),
-## chunk (m), name. Each instance gets INSTANCE_CUSTOM = (variation -1..1, wind phase 0..1).
+## chunk (m), name, lod {"mesh": far mesh, "detail_end": m} (the detailed mesh fades out at detail_end and the
+## far mesh fades in, up to vis_end), shadow_mesh (a cheap shadow-only caster used instead of the detailed mesh).
+## Each instance gets INSTANCE_CUSTOM = (variation -1..1, wind phase 0..1).
 static func scatter(parent: Node3D, m: Mesh, xforms: Array, opts := {}) -> Array:
 	var chunk: float = opts.get("chunk", CHUNK)
 	var cols: Array = opts.get("colors", [])
+	var lod: Dictionary = opts.get("lod", {})
 	var buckets := {}
 	for i in xforms.size():
 		var t: Transform3D = xforms[i]
@@ -201,24 +316,58 @@ static func scatter(parent: Node3D, m: Mesh, xforms: Array, opts := {}) -> Array
 	rng.seed = hash(str(m.get_rid()) + str(xforms.size()))
 	for k in buckets:
 		var idx: Array = buckets[k]
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.use_custom_data = true
-		mm.use_colors = not cols.is_empty()
-		mm.mesh = m
-		mm.instance_count = idx.size()
+		var customs := []
 		for j in idx.size():
-			var t2: Transform3D = xforms[idx[j]]
-			mm.set_instance_transform(j, t2)
-			mm.set_instance_custom_data(j, Color(rng.randf_range(-1.0, 1.0), rng.randf(), 0, 0))
-			if mm.use_colors:
-				mm.set_instance_color(j, cols[idx[j]])
+			customs.append(Color(rng.randf_range(-1.0, 1.0), rng.randf(), 0, 0))
+		var fill := func(mesh: Mesh) -> MultiMesh:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_custom_data = true
+			mm.use_colors = not cols.is_empty()
+			mm.mesh = mesh
+			mm.instance_count = idx.size()
+			for j in idx.size():
+				mm.set_instance_transform(j, xforms[idx[j]])
+				mm.set_instance_custom_data(j, customs[j])
+				if mm.use_colors:
+					mm.set_instance_color(j, cols[idx[j]])
+			return mm
 		var mmi := MultiMeshInstance3D.new()
 		mmi.name = "%s_%d_%d" % [opts.get("name", "scatter"), k.x, k.y]
-		mmi.multimesh = mm
+		mmi.multimesh = fill.call(m)
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if opts.get("shadow", false) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var ve: float = opts.get("vis_end", 0.0)
-		if ve > 0.0:
+		if opts.get("shadow", false) and opts.has("shadow_mesh"):
+			# the detailed mesh does not cast; a cheap shadow-only stand-in does, over the detailed range
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var caster := MultiMeshInstance3D.new()
+			caster.name = mmi.name + "_shadow"
+			caster.multimesh = fill.call(opts.shadow_mesh)
+			caster.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+			var ce: float = lod.detail_end if not lod.is_empty() else ve
+			if ce > 0.0:
+				caster.visibility_range_end = ce
+				caster.visibility_range_end_margin = 6.0
+			parent.add_child(caster)
+			out.append(caster)
+		if not lod.is_empty():
+			var de: float = lod.detail_end
+			mmi.visibility_range_end = de
+			mmi.visibility_range_end_margin = 6.0
+			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			var far := MultiMeshInstance3D.new()
+			far.name = mmi.name + "_far"
+			far.multimesh = fill.call(lod.mesh)
+			far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			far.visibility_range_begin = de
+			far.visibility_range_begin_margin = 6.0
+			if ve > 0.0:
+				far.visibility_range_end = ve
+				far.visibility_range_end_margin = minf(8.0, ve * 0.15)
+			far.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			parent.add_child(far)
+			out.append(far)
+		elif ve > 0.0:
 			mmi.visibility_range_end = ve
 			mmi.visibility_range_end_margin = minf(8.0, ve * 0.15)
 			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
@@ -227,10 +376,46 @@ static func scatter(parent: Node3D, m: Mesh, xforms: Array, opts := {}) -> Array
 	return out
 
 
-## Trunk colliders (one static body, cylinders) so trees block walking and carve the navmesh.
-static func trunk_colliders(parent: Node3D, xforms: Array, radius: float, height := 3.0) -> StaticBody3D:
+## Vegetation and boulders are solid for the characters but are NOT parsed into the navmesh as geometry: a
+## thousand cylinder caps would be a thousand tiny walkable polygons, which overflow the navmesh edge-merge
+## rasterizer and silently disconnect routes elsewhere (Milestone K, the frontier trail). Instead their colliders
+## live on physics layer 3 (characters collide with it) and each one carves the navmesh through a
+## NavigationObstacle3D prism — no caps, no slivers.
+const VEG_LAYER := 4   # layer 3
+
+static func vegetation_body(parent: Node3D, name := "Vegetation") -> StaticBody3D:
 	var body := StaticBody3D.new()
-	body.name = "TreeTrunks"
+	body.name = name
+	body.collision_layer = VEG_LAYER
+	body.collision_mask = 0
+	parent.add_child(body)
+	return body
+
+
+## A navmesh carve: a hexagonal prism of `radius` and `height` at `pos` (marks the area unwalkable in the bake;
+## eroded by the agent radius like any obstacle).
+static func nav_obstacle(parent: Node3D, pos: Vector3, radius: float, height := 2.5) -> NavigationObstacle3D:
+	var ob := NavigationObstacle3D.new()
+	ob.avoidance_enabled = false
+	ob.affect_navigation_mesh = true
+	ob.carve_navigation_mesh = false
+	ob.position = pos - Vector3(0, 0.6, 0)
+	ob.height = height + 0.6
+	var v := PackedVector3Array()
+	for i in 6:
+		var a := TAU * i / 6.0
+		v.append(Vector3(cos(a) * radius, 0, sin(a) * radius))
+	ob.vertices = v
+	parent.add_child(ob)
+	return ob
+
+
+## Trunk colliders (layer 3 cylinders + navmesh carves) so trees block walking and routes go round them.
+static func trunk_colliders(parent: Node3D, xforms: Array, radius: float, height := 3.0) -> StaticBody3D:
+	var body := vegetation_body(parent, "TreeTrunks")
+	var holes := Node3D.new()
+	holes.name = "TreeTrunkCarves"
+	parent.add_child(holes)
 	for t in xforms:
 		var tr: Transform3D = t
 		var cs := CollisionShape3D.new()
@@ -241,5 +426,5 @@ static func trunk_colliders(parent: Node3D, xforms: Array, radius: float, height
 		cs.shape = cy
 		cs.position = tr.origin + Vector3(0, height * 0.5 - 0.2, 0)
 		body.add_child(cs)
-	parent.add_child(body)
+		nav_obstacle(holes, tr.origin, radius * s, height)
 	return body

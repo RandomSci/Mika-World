@@ -12,6 +12,9 @@ var failed := false
 var report := {}
 var dir := ""
 var _frame_ms: Array = []
+var _gpu_ms: Array = []
+var _cpu_ms: Array = []
+var _vp_rid: RID
 var _game_t := 0.0
 
 
@@ -19,12 +22,22 @@ func _ready() -> void:
 	mode = String(RenderProfile.options.get("mktest", ""))
 	dir = RenderProfile.shots_dir + "/mktest"
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
+	_vp_rid = get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(_vp_rid, true)
 	_run.call_deferred()
 
 
 func _process(delta: float) -> void:
 	_frame_ms.append(delta * 1000.0)
+	_gpu_ms.append(RenderingServer.viewport_get_measured_render_time_gpu(_vp_rid))
+	_cpu_ms.append(RenderingServer.viewport_get_measured_render_time_cpu(_vp_rid) + RenderingServer.get_frame_setup_time_cpu())
 	_game_t += delta
+
+
+func _reset_frames() -> void:
+	_frame_ms.clear()
+	_gpu_ms.clear()
+	_cpu_ms.clear()
 
 
 func _gms() -> int:
@@ -85,9 +98,19 @@ func _fps_stats() -> Dictionary:
 	var total := 0.0
 	for x in s:
 		total += float(x)
+	var gsum := 0.0
+	for g in _gpu_ms:
+		gsum += float(g)
+	var csum := 0.0
+	for c in _cpu_ms:
+		csum += float(c)
 	return {"frames": s.size(), "avg_fps": snappedf(1000.0 * s.size() / maxf(total, 1.0), 0.1), "p50_ms": snappedf(float(s[s.size() / 2]), 0.1),
 		"p95_ms": snappedf(float(s[int(s.size() * 0.95)]), 0.1), "worst_ms": snappedf(float(s[s.size() - 1]), 0.1),
-		"hitches_over_50ms": s.filter(func(x): return float(x) > 50.0).size()}
+		"hitches_over_50ms": s.filter(func(x): return float(x) > 50.0).size(),
+		"gpu_ms": snappedf(gsum / maxf(_gpu_ms.size(), 1), 0.01), "render_cpu_ms": snappedf(csum / maxf(_cpu_ms.size(), 1), 0.01),
+		"draw_calls": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+		"primitives": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
+		"video_mem_mb": snappedf(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0, 0.1)}
 
 
 func _finish() -> void:
@@ -519,6 +542,8 @@ const ENV_VIEWS := {
 	"16_den_top": {"cam": [104.0, 14.0, -20.0], "look": [118.7, 0.0, -32.8]},
 	"06_monster_habitat": {"cam": [98, 2.6, -15], "look": [118, 3.0, -33]},
 	"08_elevated_trail": {"cam": [-30, 2.0, -64], "look": [-70, 3.0, -100]},
+	"17_mushroom_grove": {"cam": [-17, 1.7, 47], "look": [-30, 1.2, 40]},
+	"18_crystal_vale_from_viewpoint": {"cam": [38.5, 1.9, -36], "cam_h_from": [40, -34], "look": [120, 6.0, -60]},
 }
 
 
@@ -535,6 +560,14 @@ func _env() -> void:
 	await _wait(1.5)
 	report["build"] = main.streaming.last_report
 	var w = main.world
+	if RenderProfile.options.has("ev_hardshadow"):
+		RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
+	if RenderProfile.options.has("ev_scale"):
+		get_viewport().scaling_3d_scale = float(RenderProfile.options.ev_scale)
+	if RenderProfile.options.has("ev_nossao"):
+		w.env.ssao_enabled = false
+	if RenderProfile.options.has("ev_noglow"):
+		w.env.glow_enabled = false
 	var nmesh: NavigationMesh = w.nav_region.navigation_mesh
 	var vs := nmesh.get_vertices()
 	var vb := AABB(vs[0], Vector3.ZERO) if vs.size() > 0 else AABB()
@@ -547,7 +580,7 @@ func _env() -> void:
 	for pair in [[Vector2(2, 38), Vector2(-20, 46)], [Vector2(2, 38), Vector2(2, 60)], [Vector2(0, 100), Vector2(0, 90)], [Vector2(0, 126), Vector2(0, 120)], [Vector2(36, 18), Vector2(48, 9)]]:
 		var a3 := NavigationServer3D.map_get_closest_point(mp, Vector3(pair[0].x, w.height(pair[0].x, pair[0].y), pair[0].y))
 		var b3 := NavigationServer3D.map_get_closest_point(mp, Vector3(pair[1].x, w.height(pair[1].x, pair[1].y), pair[1].y))
-		var pth := NavigationServer3D.map_get_path(mp, a3, b3, true)
+		var pth := NavQuery.path(mp, a3, b3, true)
 		print("[mktest] navpair ", pair, " a=", a3, " b=", b3, " n=", pth.size(), " end=", pth[pth.size() - 1] if pth.size() > 0 else Vector3.INF)
 	var map: RID = mika.get_world_3d().navigation_map
 	await get_tree().physics_frame
@@ -563,7 +596,7 @@ func _env() -> void:
 		if k == "bridge_deck":
 			qy = w.marks._deck_y(m2.x, maxf(w.height(w.BRIDGE_W - 6.0, m2.y), w.height(w.BRIDGE_E + 6.0, m2.y))) + 0.2   # on the deck, not the riverbed
 		var to := NavigationServer3D.map_get_closest_point(map, Vector3(m2.x, qy, m2.y))
-		var path := NavigationServer3D.map_get_path(map, start, to, true)
+		var path := NavQuery.path(map, start, to, true)
 		var reach := path.size() > 0 and path[path.size() - 1].distance_to(to) < 1.5 and to.distance_to(Vector3(m2.x, to.y, m2.y)) < 4.0
 		var length := 0.0
 		for i in range(1, path.size()):
@@ -571,6 +604,74 @@ func _env() -> void:
 		conn[k] = {"reachable": reach, "path_m": snappedf(length, 0.1), "snap_err": snappedf(to.distance_to(Vector3(m2.x, to.y, m2.y)), 0.1)}
 	report["connectivity"] = conn
 	if RenderProfile.options.has("navprobe"):
+		# the frontier trail: the first point that cannot be reached from the entry
+		var start0 := NavigationServer3D.map_get_closest_point(map, Vector3(0, w.height(0, 126), 126))
+		var ft: Array = w.trails[8][0]
+		for i in ft.size() - 1:
+			var f0: Vector2 = ft[i]
+			var f1: Vector2 = ft[i + 1]
+			var k2 := 0.0
+			while k2 <= f0.distance_to(f1):
+				var q2 := f0.lerp(f1, k2 / maxf(f0.distance_to(f1), 0.01))
+				k2 += 3.0
+				var tq := NavigationServer3D.map_get_closest_point(map, Vector3(q2.x, w.height(q2.x, q2.y), q2.y))
+				var pth2 := NavQuery.path(map, start0, tq, true)
+				var okq := pth2.size() > 0 and pth2[pth2.size() - 1].distance_to(tq) < 1.5
+				if not okq:
+					print("[mktest] frontier trail unreachable from ", q2.snapped(Vector2.ONE * 0.1), " (nav ", tq.snapped(Vector3.ONE * 0.1), ")")
+					# the terrain along the broken stretch: slope (deg) and the navmesh polygons under it
+					var pq := f0.lerp(f1, maxf(k2 - 6.0, 0.0) / maxf(f0.distance_to(f1), 0.01))
+					var worst_deg := 0.0
+					for si in 13:
+						var sp := pq.lerp(q2, si / 12.0)
+						var hx: float = w.height(sp.x + 0.5, sp.y) - w.height(sp.x - 0.5, sp.y)
+						var hz: float = w.height(sp.x, sp.y + 0.5) - w.height(sp.x, sp.y - 0.5)
+						worst_deg = maxf(worst_deg, rad_to_deg(atan(Vector2(hx, hz).length())))
+					print("[mktest]   terrain slope along the stretch: worst %.1f deg; trail_at mid %.2f" % [worst_deg, w.trail_at(pq.lerp(q2, 0.5).x, pq.lerp(q2, 0.5).y)])
+					var nverts := nmesh.get_vertices()
+					var npoly := 0
+					for pi in nmesh.get_polygon_count():
+						var poly := nmesh.get_polygon(pi)
+						var cen := Vector3.ZERO
+						for vi in poly:
+							cen += nverts[vi]
+						cen /= poly.size()
+						if w._seg_dist(Vector2(cen.x, cen.z), pq, q2) < 2.5:
+							npoly += 1
+							var vs2 := []
+							for vi in poly:
+								vs2.append(nverts[vi].snapped(Vector3.ONE * 0.01))
+							print("[mktest]   navpoly ", vs2)
+					print("[mktest]   navmesh polygons within 2.5 m of the stretch: ", npoly)
+					# what solid geometry sits along the broken stretch (the last reachable point was 3 m back)?
+					var prevq := f0.lerp(f1, maxf(k2 - 6.0, 0.0) / maxf(f0.distance_to(f1), 0.01))
+					for sh in w.find_children("*", "CollisionShape3D", true, false):
+						var cs3 := sh as CollisionShape3D
+						var gp := cs3.global_position
+						if w._seg_dist(Vector2(gp.x, gp.z), prevq, q2) < 15.0:
+							var shp := cs3.shape
+							var desc := shp.get_class()
+							if shp is SphereShape3D: desc += " r=%.2f" % (shp as SphereShape3D).radius
+							elif shp is CylinderShape3D: desc += " r=%.2f h=%.2f" % [(shp as CylinderShape3D).radius, (shp as CylinderShape3D).height]
+							elif shp is BoxShape3D: desc += " size=%s" % (shp as BoxShape3D).size
+							print("[mktest]   near: ", cs3.get_parent().name, "/", cs3.name, " at ", gp.snapped(Vector3.ONE * 0.1), " ", desc,
+								" trail_d=%.1f ground=%.1f" % [w.dress.trail_dist(gp.x, gp.z), w.height(gp.x, gp.z)])
+					break
+		# every trail polyline, 4 m steps: report where the navmesh is not under the path
+		for t in w.trails:
+			var pts: Array = t[0]
+			for i in pts.size() - 1:
+				var p0: Vector2 = pts[i]
+				var p1: Vector2 = pts[i + 1]
+				var L := p0.distance_to(p1)
+				var k := 0.0
+				while k <= L:
+					var q := p0.lerp(p1, k / maxf(L, 0.01))
+					k += 4.0
+					var gq := Vector3(q.x, w.height(q.x, q.y), q.y)
+					var cq := NavigationServer3D.map_get_closest_point(map, gq)
+					if cq.distance_to(gq) > 1.0:
+						print("[mktest] trail gap at ", q.snapped(Vector2.ONE * 0.1), " nav ", cq.snapped(Vector3.ONE * 0.1), " d=", snappedf(cq.distance_to(gq), 0.1))
 		for i in 13:
 			var q2: Vector2 = Vector2(104, -19).lerp(w.DEN_MOUTH - w.DEN_FACE * 4.0, i / 12.0)
 			var gq := Vector3(q2.x, w.height(q2.x, q2.y), q2.y)
@@ -594,7 +695,7 @@ func _env() -> void:
 			cp.y = w.height(hf[0], hf[1]) + c[1]
 		var lp := Vector3(l[0], w.height(l[0], l[2]) + l[1], l[2])
 		main.camera_rig.set_shot(cp, lp, 55.0)
-		_frame_ms.clear()
+		_reset_frames()
 		await _wait(2.0)
 		var st := _fps_stats()
 		views[k] = st
@@ -607,9 +708,12 @@ func _env() -> void:
 		WorldState.night = true
 		w.set_night(true)
 		await _wait(1.0)
-		main.camera_rig.set_shot(Vector3(-2, w.height(-2, 96) + 2.0, 96), Vector3(-8, w.height(-8, 70) + 2.2, 70), 55.0)
+		main.camera_rig.set_shot(Vector3(-5.5, w.height(-5.5, 103) + 1.7, 103), Vector3(3, w.height(3, 86) + 2.4, 86), 55.0)
 		await _wait(2.0)
 		_shot("09_after_sunset")
+		main.camera_rig.set_shot(Vector3(-17, w.height(-17, 47) + 1.7, 47), Vector3(-30, w.height(-30, 40) + 1.2, 40), 55.0)
+		await _wait(1.5)
+		_shot("09c_grove_night")
 		main.camera_rig.set_shot(Vector3(-56, w.height(-56, 56) + 2.6, 56), Vector3(-76, w.height(-76, 42) + 0.5, 42), 55.0)
 		await _wait(1.5)
 		_shot("09b_pond_night")

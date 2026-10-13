@@ -493,6 +493,17 @@
    ],
    "impostor": "ruin_silhouette",
    "note": "Visible ruin across the southern marsh. Planned destination; no playable scene exists yet."
+  },
+  "crystal_vale": {
+   "name": "The Crystal Vale",
+   "kind": "scenic",
+   "global_pos": [
+    760,
+    50,
+    -430
+   ],
+   "impostor": "crystal_valley",
+   "note": "East of the Sanctuary toward the Crystal Caverns' hills: a valley of giant violet crystal spires, seen from the Whispering Woods' high ground. Scenic landmark only; no playable scene exists yet."
   }
  }
 }

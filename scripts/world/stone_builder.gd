@@ -25,8 +25,9 @@ func _init(ground_fn: Callable, seed := 1) -> void:
 # ------------------------------------------------------------------ primitive
 ## One chamfered block. `moss` biases moss (0..1).
 func block(xf: Transform3D, size: Vector3, moss := 0.0, bevel := 0.06) -> void:
+	size *= Vector3(rng.randf_range(0.97, 1.03), rng.randf_range(0.96, 1.04), rng.randf_range(0.97, 1.03))
 	var h := size * 0.5
-	var b := minf(bevel, minf(h.x, minf(h.y, h.z)) * 0.45)
+	var b := minf(bevel * rng.randf_range(0.5, 2.4), minf(h.x, minf(h.y, h.z)) * 0.45)
 	var tone := rng.randf_range(-1.0, 1.0)
 	var polys := []
 	for a in 3:
@@ -216,6 +217,10 @@ func column(p: Vector3, radius: float, h: float, sides := 10) -> void:
 		var dh := minf(rng.randf_range(0.7, 1.1), h - y)
 		_drum(Vector3(p.x, gy + y, p.z), radius * rng.randf_range(0.97, 1.0), dh - 0.02, sides, rng.randf() * TAU, 0.6 if y + dh >= h - 0.05 else 0.05)
 		y += dh
+	if h >= 3.0:
+		# a flared capital and a square abacus
+		_drum(Vector3(p.x, gy + y - 0.02, p.z), radius * 1.3, 0.26, sides, 0.0, 0.3)
+		block(Transform3D(_jit(0.4), Vector3(p.x, gy + y + 0.34, p.z)), Vector3(radius * 3.0, 0.22, radius * 3.0), 0.7)
 	collider(Transform3D(Basis.IDENTITY, Vector3(p.x, gy + h * 0.5, p.z)), Vector3(radius * 2.0, h, radius * 2.0))
 
 
