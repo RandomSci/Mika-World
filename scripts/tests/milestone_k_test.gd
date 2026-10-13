@@ -70,6 +70,7 @@ func _run() -> void:
 	match mode:
 		"face": await _face()
 		"companions": await _companions()
+		"duel": await _duel()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -357,3 +358,73 @@ func _companions() -> void:
 	_check(float(report.rel_mika.camaraderie) > 0.0, "their bond grew from real shared time", report.rel_mika)
 	# 4) persistence of the relationship memories
 	_check(WorldState.save_game(), "saved (disposable)")
+
+
+# ------------------------------------------------------------------ duel
+func _duel() -> void:
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	for m in main.spawner.alive:
+		if is_instance_valid(m):
+			m.queue_free()
+	var map: RID = mika.get_world_3d().navigation_map
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(18, 0, 2)) + Vector3(0, 0.1, 0)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(19.5, 0, 3.5)) + Vector3(0, 0.1, 0)
+	for w in ["mika", "luna"]:
+		WorldState.mind(w).vigor = 1.0
+		main.mage_brains[w].needs.energy = 0.9
+	# consent: a tired mage declines
+	WorldState.mind("luna").vigor = 0.3
+	var tired: Dictionary = main.companionship.consider("luna", "mika", "train_together")
+	_check(not tired.accept and tired.reason == "tired", "a tired Luna declines to spar", tired)
+	WorldState.mind("luna").vigor = 1.0
+	var tr := {"frames": 0, "both_in": 0, "modes": {}}
+	var vp := get_viewport()
+	var tracker := func():
+		var n := 0
+		while not main.duel.busy():
+			await get_tree().process_frame
+		while main.duel.busy():
+			await get_tree().process_frame
+			tr.frames += 1
+			n += 1
+			tr.modes[main.director.mode] = int(tr.modes.get(main.director.mode, 0)) + 1
+			var cam := vp.get_camera_3d()
+			if cam and not cam.is_position_behind(mika.global_position + Vector3(0, 1, 0)) and not cam.is_position_behind(luna.global_position + Vector3(0, 1, 0)):
+				var r := vp.get_visible_rect()
+				var pa := cam.unproject_position(mika.global_position + Vector3(0, 1, 0))
+				var pb := cam.unproject_position(luna.global_position + Vector3(0, 1, 0))
+				if r.has_point(pa) and r.has_point(pb):
+					tr.both_in += 1
+			if n % 90 == 45 and n < 1300:
+				_shot("duel_%02d" % (n / 90))
+	tracker.call()
+	var res: Dictionary = await main.companionship.invite(mb, "luna", "train_together", {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}})
+	await _wait(1.0)
+	var d: Dictionary = main.duel.log.back() if not main.duel.log.is_empty() else {}
+	report["invite"] = res.get("entry", {})
+	report["duel"] = d
+	report["camera_modes"] = tr.modes
+	report["both_in_frame"] = [tr.both_in, tr.frames]
+	var frames: int = tr.frames
+	var both_in: int = tr.both_in
+	_check(res.get("entry", {}).get("accepted", false), "Luna (rested) accepts the invitation to spar", res.get("entry", {}))
+	_check(not d.is_empty(), "a duel took place", d.get("detail", ""))
+	if d.is_empty():
+		return
+	var casts := int(d.casts.mika) + int(d.casts.luna)
+	var dodges := int(d.dodges.mika) + int(d.dodges.luna)
+	_check(casts >= 4, "both cast spar bolts (%d)" % casts, d.casts)
+	_check(dodges >= 1, "real dodges happened (%d)" % dodges, d.dodges)
+	_check(int(d.dodged.mika) + int(d.dodged.luna) >= 1, "at least one dodge really avoided a bolt", d.dodged)
+	_check(String(d.stop) != "", "it stopped safely (%s)" % d.stop)
+	_check(float(d.seconds) <= TrainingDuel.MAX_S + 2.0, "bounded length (%.0f s)" % float(d.seconds))
+	_check(WorldState.mind("mika").vigor > 0.5 and WorldState.mind("luna").vigor > 0.5, "nonlethal: both still well", [WorldState.mind("mika").vigor, WorldState.mind("luna").vigor])
+	_check(WorldState.mind("mika").knowledge.has("sparred:luna") and WorldState.mind("luna").knowledge.has("sparred:mika"), "each remembers the bout")
+	_check(both_in >= frames * 0.8, "the camera kept both duelists in frame (%d/%d)" % [both_in, frames])
+	_check(main.focus == "mika", "Mika stayed the camera's subject")

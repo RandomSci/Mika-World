@@ -42,6 +42,7 @@ var overlay_ui: MageOverlay
 var attention: AttentionDirector
 var affect: Affect
 var companionship: Companionship
+var duel: TrainingDuel
 var performance: PerformanceController
 var quiet_test := false                      # older single-mage tests: no Luna / creatures unless asked
 var _spot_t := 0.0
@@ -248,6 +249,10 @@ func _ready() -> void:
 	companionship.name = "Companionship"
 	add_child(companionship)
 	companionship.setup(self)
+	duel = TrainingDuel.new()
+	duel.name = "TrainingDuel"
+	add_child(duel)
+	duel.setup(self)
 	performance = PerformanceController.new()
 	performance.name = "Performance"
 	add_child(performance)

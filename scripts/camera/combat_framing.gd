@@ -14,6 +14,14 @@ extends RefCounted
 ## Everything the shot must include: [{p: Vector3, w: weight}] plus the main axis.
 static func subjects(dir_node, main: Node, mage: WorldCharacter) -> Dictionary:
 	var pts := [{"p": mage.global_position + Vector3(0, 1.0, 0), "w": 2.0}]
+	# a friendly duel she is part of: her sparring partner is the "opponent" of the shot (both always in frame)
+	if main.get("duel") and main.duel.busy():
+		var da: SanctuaryBrain = main.duel.active.a
+		var db: SanctuaryBrain = main.duel.active.b
+		if mage == da.me or mage == db.me:
+			var opp: WorldCharacter = db.me if mage == da.me else da.me
+			pts.append({"p": opp.global_position + Vector3(0, 1.0, 0), "w": 1.6})
+			return {"points": pts, "foes": [opp], "axis": Vector3(opp.global_position.x - mage.global_position.x, 0, opp.global_position.z - mage.global_position.z), "target": opp, "duel": true}
 	var foes := []
 	var brain = main.mage_brains.get(mage.character_id)
 	var fight_target: Node3D = null
@@ -84,7 +92,7 @@ static func shot(main: Node, mage: WorldCharacter, s: Dictionary, side: float) -
 	axis = Vector3(axis.x, 0, axis.z).normalized()
 	var perp := Vector3(-axis.z, 0, axis.x) * side
 	var out := {}
-	if (s.foes as Array).size() <= 1 and foe_d > 3.2:
+	if (s.foes as Array).size() <= 1 and foe_d > 3.2 and not s.get("duel", false):
 		var back := clampf(3.4 + foe_d * 0.12, 3.4, 4.8)
 		var pos := base - axis * back + perp * 1.6 + Vector3(0, 1.8 + foe_d * 0.03, 0)
 		var look := mp + axis * clampf(foe_d * 0.4, 1.2, 5.5) + Vector3(0, -0.1, 0)
@@ -103,12 +111,39 @@ static func shot(main: Node, mage: WorldCharacter, s: Dictionary, side: float) -
 		var spread := 0.0
 		for e in pts:
 			spread = maxf(spread, Vector2((e.p as Vector3).x - c.x, (e.p as Vector3).z - c.z).length())
-		var dist := clampf(spread * 1.15 + 3.0, 4.2, 9.5)
-		out = {"pos": c + perp * dist - axis * dist * 0.45 + Vector3(0, clampf(1.3 + dist * 0.14, 1.5, 2.8), 0),
-			"look": c.lerp(mp, 0.35), "fov": clampf(48.0 + spread * 1.0, 48.0, 58.0)}
+		var dist := clampf(spread * 1.15 + 3.0, 4.2, 9.5) if not s.get("duel", false) else clampf(spread * 0.95 + 2.2, 4.0, 7.5)
+		# candidates around the lateral position: the one with the most clear lines to every subject's body wins
+		# (props in the foreground cut a fight in half); the current side gets a small preference
+		var best_sc := -INF
+		var best_pos := Vector3.ZERO
+		for sd in [side, -side]:
+			for sw in [0.0, 0.4, -0.4]:
+				var pr: Vector3 = Vector3(-axis.z, 0, axis.x).rotated(Vector3.UP, sw) * sd
+				var cp: Vector3 = c + pr * dist - axis * dist * 0.45 * (1.0 if sw == 0.0 else 0.6) + Vector3(0, clampf(1.3 + dist * 0.14, 1.5, 2.8), 0)
+				var sc: float = (0.6 if sd == side else 0.0) - absf(sw) * 0.4 + _clear_score(mage, cp, pts)
+				if sc > best_sc:
+					best_sc = sc
+					best_pos = cp
+		out = {"pos": best_pos, "look": c.lerp(mp, 0.35), "fov": clampf(48.0 + spread * 1.0, 48.0, 58.0), "side": side}
 	if main.world and main.world.has_method("ground_at"):
 		out.pos.y = maxf(out.pos.y, float(main.world.ground_at(out.pos.x, out.pos.z)) + 0.6)
 	return out
+
+
+## How many lines from the camera to points along each subject (feet, chest, head) are clear (weighted).
+static func _clear_score(mage: WorldCharacter, cam: Vector3, pts: Array) -> float:
+	var space := mage.get_world_3d().direct_space_state
+	var sc := 0.0
+	for e in pts:
+		var base: Vector3 = (e.p as Vector3) - Vector3(0, 1.0, 0)
+		for h in [0.3, 1.0, 1.5]:
+			var q := PhysicsRayQueryParameters3D.create(cam, base + Vector3(0, h, 0))
+			q.collision_mask = 1
+			q.exclude = [mage.get_rid()]
+			var hit := space.intersect_ray(q)
+			if hit.is_empty() or (hit.position as Vector3).distance_to(base + Vector3(0, h, 0)) < 0.5:
+				sc += float(e.w)
+	return sc
 
 
 ## Is the line from the camera to the mage (and to her main opponent) clear?
@@ -116,7 +151,7 @@ static func clear(mage: WorldCharacter, pos: Vector3, s: Dictionary) -> bool:
 	var space := mage.get_world_3d().direct_space_state
 	var targets := [mage.global_position + Vector3(0, 1.2, 0)]
 	if s.target and is_instance_valid(s.target):
-		targets.append((s.target as Monster).aim_point())
+		targets.append((s.target as Monster).aim_point() if s.target is Monster else (s.target as Node3D).global_position + Vector3(0, 1.2, 0))
 	for t in targets:
 		var q := PhysicsRayQueryParameters3D.create(pos, t)
 		q.exclude = [mage.get_rid()]

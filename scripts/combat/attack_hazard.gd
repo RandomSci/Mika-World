@@ -12,6 +12,7 @@ signal resolved(hazard: AttackHazard, struck: Array)
 
 var kind := "area"
 var owner_monster: Node3D = null
+var owner_mage: Node3D = null      # a training bolt's caster: never struck by her own spell
 var center := Vector3.ZERO
 var dir := Vector3.FORWARD
 var radius := 2.0
@@ -179,6 +180,8 @@ func _physics_process(delta: float) -> void:
 	_travelled += step.length()
 	var struck := []
 	for c in _mages():
+		if c == owner_mage:
+			continue
 		var cp: Vector3 = c.global_position + Vector3(0, 1.0, 0)
 		var seg := Geometry3D.get_closest_point_to_segment(cp, from, to)
 		if seg.distance_to(cp) < 0.55 and not c.has_meta("transforming"):
@@ -196,7 +199,7 @@ func _physics_process(delta: float) -> void:
 func _resolve_ground() -> void:
 	var struck := []
 	for c in _mages():
-		if c.has_meta("transforming"):
+		if c.has_meta("transforming") or c == owner_mage:
 			continue
 		if threatens(c.global_position, 0.0):
 			struck.append(c)

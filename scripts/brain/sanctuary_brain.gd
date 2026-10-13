@@ -273,6 +273,9 @@ func options() -> Array:
 			if not cands.is_empty():
 				out.append({"kind": "together", "key": "together:explore:" + other_id, "other": other_id, "sub": "explore_together",
 					"target": {"pos": cands[0].pos, "fill": {"place": String(cands[0].describe)}}, "label": "ask %s to explore %s together" % [MagicSystem.display_name(other_id), cands[0].describe]})
+			if mind.vigor > 0.75 and float(needs.energy) > 0.6 and main.get("duel") and main.streaming.current_id == "sanctuary":
+				out.append({"kind": "together", "key": "together:spar:" + other_id, "other": other_id, "sub": "train_together",
+					"target": {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}}, "label": "ask %s to spar at the training grounds" % MagicSystem.display_name(other_id)})
 			if (mind.vigor < 0.7 or float(needs.energy) < 0.55) and main.world and main.world.interactables.has("watchpoint_rest"):
 				out.append({"kind": "together", "key": "together:rest:" + other_id, "other": other_id, "sub": "rest_together",
 					"target": {"pos": main.world.interactables.watchpoint_rest.global_position, "fill": {}}, "label": "ask %s to rest together at the watchpoint" % MagicSystem.display_name(other_id)})
@@ -411,6 +414,8 @@ func score(o: Dictionary) -> Dictionary:
 				u += 0.15 * needs.curiosity
 			if String(o.sub) == "rest_together":
 				u += (1.0 - needs.energy) * 0.4
+			if String(o.sub) == "train_together":
+				u += needs.mastery * 0.3 - 0.1
 			var declined := float(mind.knowledge.get("declined_by:%s:%s" % [o.other, o.sub], 0.0))
 			if Time.get_unix_time_from_system() - declined < 900.0:
 				u -= 0.5

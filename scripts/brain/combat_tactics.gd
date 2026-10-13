@@ -20,7 +20,7 @@ static func incoming(me: WorldCharacter, world: Node) -> AttackHazard:
 	var best_t := INF
 	for h in AttackHazard.active(world):
 		var hz := h as AttackHazard
-		if hz == null or hz.done or not hz.threatens(me.global_position) or not hz.perceived_by(me):
+		if hz == null or hz.done or hz.owner_mage == me or not hz.threatens(me.global_position) or not hz.perceived_by(me):
 			continue
 		var tt := hz.time_to(me.global_position)
 		if tt < best_t:
