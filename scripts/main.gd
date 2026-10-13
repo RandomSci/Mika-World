@@ -39,6 +39,8 @@ var spawner: Spawner
 var mage_talk: MageTalk
 var transformer: TransformationDirector
 var overlay_ui: MageOverlay
+var attention: AttentionDirector
+var performance: PerformanceController
 var quiet_test := false                      # older single-mage tests: no Luna / creatures unless asked
 var _spot_t := 0.0
 var _spot_since := 0.0
@@ -225,6 +227,14 @@ func _ready() -> void:
 		var got := progression.backfill(who)
 		if got > 0.0:
 			print("[progression] %s: %.0f XP from what she already knew -> Level %d" % [who, got, WorldState.mind(who).level()])
+	attention = AttentionDirector.new()
+	attention.name = "Attention"
+	add_child(attention)
+	attention.setup(self)
+	performance = PerformanceController.new()
+	performance.name = "Performance"
+	add_child(performance)
+	performance.setup(self)
 	overlay_ui = MageOverlay.new()
 	overlay_ui.name = "MageOverlay"
 	add_child(overlay_ui)
@@ -501,7 +511,7 @@ func snap_to_nav(at: Vector3) -> Vector3:
 ## card loads her area and she is rebuilt exactly where she was; the others continue in the background.
 func focus_mage(who: String, lock := false) -> Dictionary:
 	if lock:
-		focus_locked = who != "mika"
+		focus_locked = true
 	if who == focus or not characters.has(who):
 		return {"ok": who == focus, "focus": focus}
 	var c: WorldCharacter = characters[who]
@@ -555,6 +565,11 @@ func focus_mage(who: String, lock := false) -> Dictionary:
 func _spotlight(delta: float) -> void:
 	_spot_since += delta
 	_spot_t -= delta
+	if performance and performance.busy():
+		var pw := String(performance.active.get("who", ""))
+		if pw != "" and pw != focus and characters[pw].visible:
+			focus_mage(pw)                 # whoever performs owns the camera (like a transformation)
+		return
 	if focus_locked:
 		return
 	if not director or not director.enabled:
@@ -620,10 +635,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		set_viewer_mode(not viewer_mode)
 	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F2:
 		overlay_ui.toggle_dev()
+	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F9:
+		# DEV only: inject a fake viewer comment (cycles through a few addressed to Mika / Luna / anyone)
+		var samples := [["Mika, what are you doing?", "dev_alex", "Alex"], ["Luna, what level are you?", "dev_rin", "Rin"], ["hi everyone!", "dev_sam", "Sam"],
+			["Luna can you show me your lance?", "dev_kai", "Kai"], ["hi Mika!", "dev_alex", "Alex"]]
+		var smp: Array = samples[int(Time.get_ticks_msec() / 1000) % samples.size()]
+		chat.receive({"message_id": "f9_%d" % Time.get_ticks_usec(), "text": smp[0], "author_id": smp[1], "author": smp[2]})
+	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F8:
+		# DEV preview of a music performance by the followed mage (no memory, no XP); Shift = special
+		performance.perform(focus, "special" if (event as InputEventKey).shift_pressed else "casual", {"preview": true})
 	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F3:
 		# follow the next mage (across areas if needed); F3 again cycles back, ending on Mika releases the lock
-		var i := mages.find(focus)
-		focus_mage(mages[(i + 1) % mages.size()], true)
+		if (event as InputEventKey).shift_pressed:
+			focus_locked = false               # Shift+F3: let the spotlight choose again
+		else:
+			var i := mages.find(focus)
+			focus_mage(mages[(i + 1) % mages.size()], true)
 	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F7:
 		var who: String = director.mika.character_id if director else "mika"
 		transformer.play(who, "short" if (event as InputEventKey).shift_pressed else "full", true)   # preview: no progress, reverts

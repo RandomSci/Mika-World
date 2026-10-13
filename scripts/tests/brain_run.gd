@@ -99,6 +99,15 @@ func _run() -> void:
 	report["transformations"] = main.transformer.log.duplicate() if main.transformer else []
 	report["fusions"] = main.magic.fusion.log.duplicate() if main.magic.fusion else []
 	report["xp_events"] = main.progression.recent.duplicate() if main.progression else []
+	report["performances"] = main.performance.log.duplicate() if main.performance else []
+	report["attention"] = main.attention.log.duplicate() if main.attention else []
+	report["chat"] = main.chat.log.duplicate() if main.chat else []
+	report["llm"] = main.llm.describe() if main.llm else {}
+	report["roams"] = {}
+	for who in main.mage_brains:
+		report["roams"][who] = {"coverage_cells": int(main.mage_brains[who].explore_map.coverage()), "last": main.mage_brains[who].last_roam,
+			"places": WorldState.mind(who).knowledge.keys().filter(func(k): return String(k).begins_with("place:")).size(),
+			"background_steps": main.mage_brains[who].bg_log.size(), "appearance": TransformationDirector.appearance(who)}
 	report["script_note"] = "decisions/history above (report.decisions) are Mika's for backward compatibility"
 	var f := FileAccess.open("%s/brain_run_%s.json" % [dir, RenderProfile.profile.to_lower()], FileAccess.WRITE)
 	f.store_string(JSON.stringify(report, "  "))

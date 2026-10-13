@@ -53,6 +53,11 @@ func _ready() -> void:
 	add_child(l)
 
 
+## Where a hand closes on it: the hovering gem, not the spot on the ground below.
+func grasp_point() -> Vector3:
+	return _gem.global_position if _gem else global_position + Vector3(0, 0.35, 0)
+
+
 func label() -> String:
 	return "%d %s" % [count, String(Spawner.load_data().items.get(item, {}).get("name", item))]
 

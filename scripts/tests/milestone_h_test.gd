@@ -52,6 +52,10 @@ func _shot(tag: String) -> void:
 
 
 func _run() -> void:
+	# a windowed test takes keyboard focus: keys typed meanwhile must not drive the mages or the game
+	main.player.enabled = false
+	main.player.set_process_unhandled_input(false)
+	main.set_process_unhandled_input(false)
 	print("[mhtest] mode=%s save=%s persistent=%s mages=%s" % [mode, WorldState.save_path, WorldState.persistent, main.mages])
 	if WorldState.persistent and not WorldState.save_path.begins_with("user://test_regress_"):
 		_check(false, "refusing to run persistently against a non-test save", WorldState.save_path)

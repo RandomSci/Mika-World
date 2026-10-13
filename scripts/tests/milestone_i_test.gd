@@ -47,6 +47,10 @@ func _shot(tag: String) -> void:
 
 
 func _run() -> void:
+	# a windowed test takes keyboard focus: keys typed meanwhile must not drive the mages or the game
+	main.player.enabled = false
+	main.player.set_process_unhandled_input(false)
+	main.set_process_unhandled_input(false)
 	print("[mitest] mode=%s save=%s persistent=%s mages=%s" % [mode, WorldState.save_path, WorldState.persistent, main.mages])
 	if not WorldState.save_path.begins_with("user://test_regress_"):
 		_check(false, "refusing to run: tests need a disposable user://test_regress_*.json save", WorldState.save_path)
@@ -237,6 +241,11 @@ func dispatch() -> void:
 		"explore": await _explore()
 		"collision": await _collision()
 		"interact": await _interact()
+		"audience": await _audience()
+		"music_lib": _music_lib()
+		"perform": await _perform()
+		"perform_interrupt": await _perform_interrupt()
+		"perf_ab": await _perf_ab()
 		_: _check(false, "unknown mode " + mode)
 
 
@@ -357,7 +366,7 @@ func _interact() -> void:
 	await main.focus_mage("luna", true)          # the camera follows the mage under test
 	main.camera_rig.snap_behind()
 	await _wait(0.8)
-	_check(lb.options().filter(func(o): return o.kind == "gather").is_empty() or WorldState.mind("luna").knowledge.has("noticed:gather:" + g.gid), "she plans gathering only for plants she noticed")
+	_check(lb.options().filter(func(o): return o.kind == "gather").all(func(o): return WorldState.mind("luna").knowledge.has("noticed:gather:" + String(o.node.gid))), "she plans gathering only for plants she noticed")
 	lb.perceive()
 	var opts := lb.options().filter(func(o): return o.kind == "gather" and o.node == g)
 	_check(not opts.is_empty(), "having seen it, she can choose to pick the %s" % g.label())
@@ -407,3 +416,237 @@ func _interact() -> void:
 	report["sit_clips"] = played
 	_check(played.has("mx/stand_to_sit") and played.has("mx/sit_loop") and played.has("mx/sit_to_stand"), "sit-down, seated loop and stand-up transitions all played", played)
 	_check(not luna.seated, "she is standing again")
+
+
+# ------------------------------------------------------------------ Stage D: audience
+func _audience() -> void:
+	var chat: ViewerChat = main.chat
+	await _hold(main.mage_brains["luna"])
+	var sc := StreamContext.describe(main)
+	_check(sc.mode == "dev" and not sc.live, "stream context is honest: DEV, no livestream", sc)
+	var mk0 := WorldState.mind("mika").knowledge.keys().filter(func(k): return String(k).begins_with("viewer:"))
+	var lk0 := WorldState.mind("luna").knowledge.keys().filter(func(k): return String(k).begins_with("viewer:"))
+	var c := [{"message_id": "a1", "author_id": "v_alex", "author": "Alex", "text": "Mika, what are you doing right now?"},
+		{"message_id": "a2", "author_id": "v_rin", "author": "Rin", "text": "Luna, what level are you?"},
+		{"message_id": "a3", "author_id": "v_sam", "author": "Sam", "text": "hi everyone, how is the sanctuary today?"}]
+	for m in c:
+		_check(chat.receive(m).get("accepted", false), "accepted: %s" % m.text)
+	_check(chat.queue.map(func(e): return e.to) == ["mika", "luna", "general"], "addressees detected", chat.queue.map(func(e): return e.to))
+	_check(not chat.receive({"message_id": "a1", "author_id": "v_alex", "text": "dup"}).accepted, "duplicate message id rejected")
+	chat.receive({"message_id": "r1", "author_id": "v_x", "text": "spam"})
+	chat.receive({"message_id": "r2", "author_id": "v_y", "text": "spam"})
+	_check(not chat.receive({"message_id": "r3", "author_id": "v_z", "text": "spam"}).accepted, "the same text a third time inside the window is rejected")
+	var t0 := Time.get_ticks_msec()
+	while chat.log.filter(func(l): return not l.get("expired", false)).size() < 3 and Time.get_ticks_msec() - t0 < 90000:
+		await get_tree().process_frame
+	var answered: Array = chat.log.filter(func(l): return not l.get("expired", false))
+	report["answers"] = answered.map(func(l): return {"to": l.to, "speaker": l.speaker, "reply": l.reply, "audio": l.audio})
+	var by := {}
+	for l in answered:
+		by[l.message_id] = l
+	_check(by.has("a1") and by.a1.speaker == "mika", "the comment to Mika was answered by Mika", by.get("a1", {}).get("reply", ""))
+	_check(by.has("a2") and by.a2.speaker == "luna", "the comment to Luna was answered by Luna (in her voice)", by.get("a2", {}).get("reply", ""))
+	_check(by.has("a3") and by.a3.speaker == main.focus, "the general comment was answered by the followed mage (%s)" % main.focus)
+	var glances: Array = main.attention.log.filter(func(e): return e.event == "camera_glance")
+	_check(glances.any(func(e): return e.who == "luna") and glances.any(func(e): return e.who == "mika"), "each looked at the camera while answering", glances.map(func(e): return e.who))
+	var mk := WorldState.mind("mika").knowledge.keys().filter(func(k): return String(k).begins_with("viewer:") and not mk0.has(k))
+	var lk := WorldState.mind("luna").knowledge.keys().filter(func(k): return String(k).begins_with("viewer:") and not lk0.has(k))
+	_check(mk.has("viewer:v_alex") and not mk.has("viewer:v_rin") and lk.has("viewer:v_rin") and not lk.has("viewer:v_alex"), "each remembers only the viewers she answered", [mk, lk])
+	# a comment for a mage who is busy waits; it is answered once she is free
+	var luna: WorldCharacter = main.characters["luna"]
+	main.mage_brains["luna"].current = {"kind": "hunt", "label": "test: busy"}
+	chat.receive({"message_id": "d1", "author_id": "v_kai", "author": "Kai", "text": "Luna, nice dress!"})
+	await _wait(4.0)
+	_check(chat.log.filter(func(l): return l.message_id == "d1").is_empty(), "while Luna is busy, the comment for her waits")
+	main.mage_brains["luna"].current = {}
+	t0 = Time.get_ticks_msec()
+	while chat.log.filter(func(l): return l.message_id == "d1").is_empty() and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+	_check(not chat.log.filter(func(l): return l.message_id == "d1" and l.get("speaker", "") == "luna").is_empty(), "and is answered once she is free")
+	# idle camera awareness is occasional, not constant
+	var n0: int = main.attention.log.filter(func(e): return e.event == "camera_glance").size()
+	await _wait(60.0)
+	var idle_glances: int = main.attention.log.filter(func(e): return e.event == "camera_glance").size() - n0
+	report["idle_glances_per_min"] = idle_glances
+	_check(idle_glances <= 2, "idle eye contact stays occasional (%d in 60 s)" % idle_glances)
+
+
+# ------------------------------------------------------------------ Stage E: music library + planning
+func _music_lib() -> void:
+	MusicLibrary.reload()
+	var songs := MusicLibrary.songs()
+	_check(songs.has("mika_magical_world"), "the library indexes the first song", songs.keys())
+	var t := MusicLibrary.timing("mika_magical_world")
+	_check(float(t.get("bpm", 0)) > 60.0 and (t.get("endings", []) as Array).size() > 3, "timing loaded: %.1f BPM, %d endings" % [float(t.get("bpm", 0)), (t.get("endings", []) as Array).size()])
+	_check(MusicLibrary.stream("mika_magical_world") is AudioStream, "the audio loads locally")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var plans := []
+	for k in 40:
+		var total := rng.randf_range(60.0, 90.0)
+		var music_s := total - 4.0 - 4.0
+		var p := MusicLibrary.plan_segment("mika_magical_world", music_s, rng, "casual" if k % 2 == 0 else "special")
+		plans.append({"total": snappedf(total, 0.1), "music_s": snappedf(music_s, 0.1), "len": snappedf(float(p.end) - float(p.start), 0.1), "ending": p.ending})
+	report["plans"] = plans
+	_check(plans.all(func(x): return float(x.len) >= float(x.music_s) - 6.0 and float(x.len) <= float(x.music_s) + 2.5), "every planned segment fits its time budget (-6..+2.5 s)")
+	var musical := plans.filter(func(x): return x.ending in ["section_end", "phrase_end"]).size()
+	_check(musical >= 30, "%d/40 end on a musical close (the rest fade at a bar line)" % musical)
+	var totals: Array = plans.map(func(x): return float(x.total))
+	_check(totals.min() < 66.0 and totals.max() > 84.0, "durations are spread across 60-90 s", [totals.min(), totals.max()])
+	# selection avoids repeats when there is a choice (synthetic second entry, in memory only)
+	MusicLibrary._songs["test_song_b"] = {"id": "test_song_b", "performers": ["mika", "luna"], "casual_eligible": true, "duration": 120.0}
+	var mu := {"history": [{"song": "mika_magical_world"}, {"song": "mika_magical_world"}]}
+	var picks := {}
+	for k in 30:
+		var id := MusicLibrary.pick("mika", "casual", rng, mu)
+		picks[id] = int(picks.get(id, 0)) + 1
+	_check(int(picks.get("test_song_b", 0)) > int(picks.get("mika_magical_world", 0)), "a just-played song is avoided when another exists", picks)
+	MusicLibrary.reload()
+
+
+# ------------------------------------------------------------------ Stage E: performances
+func _perform() -> void:
+	var who := String(RenderProfile.options.get("who", "mika"))
+	var mode := String(RenderProfile.options.get("mode", "casual"))
+	var preview := RenderProfile.options.has("preview")
+	var c: WorldCharacter = main.characters[who]
+	for w in main.mage_brains:
+		await _hold(main.mage_brains[w])
+	await main.focus_mage(who, true)
+	main.director.enabled = true
+	var m := WorldState.mind(who)
+	var other := "luna" if who == "mika" else "mika"
+	var hist0: int = (m.music.get("history", []) as Array).size()
+	var ohist0: int = (WorldState.mind(other).music.get("history", []) as Array).size()
+	var xp0 := float(m.progress.xp)
+	var llm0: int = int(main.llm.describe().stats.real_calls)
+	var samples := {"frames": 0, "frame_ms": [], "overlap_tts": 0, "mouth_vocal": [], "mouth_quiet": [], "cam_blocked": 0, "cam_frames": 0, "clips": [], "cuts": 0}
+	var done := [false]
+	var res := {}
+	var run := func(): res.merge(await main.performance.perform(who, mode, {"preview": preview})); done[0] = true
+	var cuts := [0]
+	main.director.shot_changed.connect(func(s): if String(s).begins_with("performance"): cuts[0] += 1)
+	run.call()
+	var t0 := Time.get_ticks_msec()
+	var next_shot := 0.0
+	var k := 0
+	while not done[0] and Time.get_ticks_msec() - t0 < 120000:
+		await get_tree().process_frame
+		var el := (Time.get_ticks_msec() - t0) / 1000.0
+		var pa: Dictionary = main.performance.active
+		var mt: float = main.performance.music_time()
+		if mt >= 0.0:
+			samples.frames += 1
+			samples.frame_ms.append(get_process_delta_time() * 1000.0)
+			if main.voice.busy():
+				samples.overlap_tts += 1
+			var mouth := float(c._expr_target.get("aa", 0.0))
+			if pa.get("singing", false):
+				if MusicLibrary.vocal_at(pa.song, mt) > 0.3:
+					samples.mouth_vocal.append(mouth)
+				elif MusicLibrary.vocal_at(pa.song, mt) == 0.0:
+					samples.mouth_quiet.append(mouth)
+			var clip := String((c.anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast_anim").animation)
+			if samples.clips.is_empty() or samples.clips[-1] != clip:
+				samples.clips.append(clip)
+			var cam := get_viewport().get_camera_3d()
+			var q := PhysicsRayQueryParameters3D.create(c.chest.global_position, cam.global_position)
+			q.exclude = main.characters.values().map(func(x): return (x as CollisionObject3D).get_rid())
+			q.collision_mask = 1
+			samples.cam_frames += 1
+			if not c.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+				samples.cam_blocked += 1
+		if el >= next_shot and not RenderProfile.options.has("no-shots"):
+			next_shot += 6.0
+			_shot("%s_%s_%02d" % [who, mode, k])
+			k += 1
+	var ft: Array = samples.frame_ms
+	ft.sort()
+	report["result"] = res
+	report["perf"] = {"frames": samples.frames, "avg_ms": snappedf(ft.reduce(func(a, b): return a + b, 0.0) / maxf(ft.size(), 1), 0.1),
+		"p95_ms": snappedf(ft[int(ft.size() * 0.95)] if not ft.is_empty() else 0.0, 0.1), "worst_ms": snappedf(ft[-1] if not ft.is_empty() else 0.0, 0.1)}
+	report["clips"] = samples.clips
+	report["camera_cuts"] = cuts[0]
+	_check(res.get("ok", false), "%s %s performance completed" % [who, mode], res.get("detail", ""))
+	_check(float(res.get("actual_total", 0)) >= 58.0 and float(res.get("actual_total", 0)) <= 90.0, "total %.1f s within 60-90 s (planned %.1f)" % [float(res.get("actual_total", 0)), float(res.get("planned_total", 0))])
+	_check(String(res.get("ending", "")) in ["section_end", "phrase_end", "fade", "natural_end"], "ended on: %s" % res.get("ending", ""))
+	_check(samples.overlap_tts <= 3, "no speech over the music (%d overlapping frames)" % samples.overlap_tts)
+	_check(samples.clips.filter(func(x): return String(x).begins_with("mx/dance")).size() >= 2, "dance clips changed with the music phrases", samples.clips)
+	_check(cuts[0] >= 3, "the camera changed shots on musical phrases (%d cuts)" % cuts[0])
+	_check(samples.cam_blocked <= int(samples.cam_frames * 0.05), "camera line to her clear (%d/%d frames blocked)" % [samples.cam_blocked, samples.cam_frames])
+	if res.get("singing", false):
+		var mv: float = samples.mouth_vocal.reduce(func(a, b): return a + b, 0.0) / maxf(samples.mouth_vocal.size(), 1)
+		var mq: float = samples.mouth_quiet.reduce(func(a, b): return a + b, 0.0) / maxf(samples.mouth_quiet.size(), 1)
+		report["mouth"] = {"vocal_avg": snappedf(mv, 0.02), "instrumental_avg": snappedf(mq, 0.02)}
+		_check(mv > 0.15 and mq < 0.05, "mouth moves with the (estimated) vocals and rests in instrumental parts (%.2f vs %.2f)" % [mv, mq])
+	_check(int(main.llm.describe().stats.real_calls) == llm0, "no API calls for a cached song")
+	var hist: int = (m.music.get("history", []) as Array).size()
+	if preview:
+		_check(hist == hist0 and float(m.progress.xp) == xp0, "preview: no memory, no XP")
+	else:
+		_check(hist == hist0 + 1 and float(m.progress.xp) == xp0, "her own performance history grew; no XP for leisure")
+		_check((WorldState.mind(other).music.get("history", []) as Array).size() == ohist0, "%s's music history untouched" % other)
+	await _wait(2.0)
+	_check(main.director.mode != "performance" and not main.performance.busy() and not main.performance.player.playing, "back to normal: camera, no music playing")
+
+
+func _perform_interrupt() -> void:
+	var who := "luna"
+	var c: WorldCharacter = main.characters[who]
+	for w in main.mage_brains:
+		await _hold(main.mage_brains[w])
+	await main.focus_mage(who, true)
+	var done := [false]
+	var res := {}
+	var run := func(): res.merge(await main.performance.perform(who, "casual", {"preview": true})); done[0] = true
+	run.call()
+	var t0 := Time.get_ticks_msec()
+	while main.performance.music_time() < 6.0 and Time.get_ticks_msec() - t0 < 30000:
+		await get_tree().process_frame
+	var t_int := Time.get_ticks_msec()
+	main.mage_brains[who].threat = main.spawner.spawn("gloomwisp", c.global_position + Vector3(6, 0, 0))
+	while not done[0] and Time.get_ticks_msec() - t0 < 60000:
+		await get_tree().process_frame
+	var stop_s := (Time.get_ticks_msec() - t_int) / 1000.0
+	report["result"] = res
+	_check(not res.get("ok", true) and String(res.get("ending", "")).begins_with("interrupted"), "a creature interrupted the performance", res.get("ending", ""))
+	_check(stop_s < 6.0, "music faded and she stopped within %.1f s (incl. her short remark)" % stop_s)
+	_check(not main.performance.player.playing and not main.performance.busy(), "no stuck audio")
+	main.mage_brains[who].threat = null
+	main.mage_brains[who].hold = false
+	await _wait(8.0)
+	_check(not main.mage_brains[who].history.is_empty() or not main.mage_brains[who].current.is_empty(), "her planner carries on afterwards", main.mage_brains[who].current)
+
+
+## Same session, same window: frame times with the director on and the mage idle/walking (A) vs. during a
+## casual performance (B), so the music feature's own cost is separated from window size / machine load.
+func _sample(seconds: float) -> Dictionary:
+	var ft := []
+	var t0 := Time.get_ticks_msec()
+	while (Time.get_ticks_msec() - t0) / 1000.0 < seconds:
+		await get_tree().process_frame
+		ft.append(get_process_delta_time() * 1000.0)
+	ft.sort()
+	return {"frames": ft.size(), "avg_ms": snappedf(ft.reduce(func(a, b): return a + b, 0.0) / maxf(ft.size(), 1), 0.1),
+		"p95_ms": snappedf(ft[int(ft.size() * 0.95)], 0.1), "worst_ms": snappedf(ft[-1], 0.1)}
+
+
+func _perf_ab() -> void:
+	var who := "mika"
+	for w in main.mage_brains:
+		await _hold(main.mage_brains[w])
+	await main.focus_mage(who, true)
+	main.director.enabled = true
+	await _wait(3.0)
+	report["window"] = str(get_viewport().get_visible_rect().size)
+	report["A_idle"] = await _sample(40.0)
+	var done := [false]
+	var run := func(): await main.performance.perform(who, "casual", {"preview": true, "total": 75.0}); done[0] = true
+	run.call()
+	var t0 := Time.get_ticks_msec()
+	while main.performance.music_time() < 1.0 and Time.get_ticks_msec() - t0 < 20000:
+		await get_tree().process_frame
+	report["B_performance"] = await _sample(40.0)
+	while not done[0]:
+		await get_tree().process_frame
+	_check(true, "A idle %s  vs  B performing %s  (window %s)" % [JSON.stringify(report.A_idle), JSON.stringify(report.B_performance), report.window])

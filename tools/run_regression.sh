@@ -2,7 +2,7 @@
 # Restart/persistence regression suite (headless, bounded, no API calls, no voice, no bridge).
 # Uses only disposable saves (user://test_regress_*.json). The real save is never written; "realcopy" tests a byte copy of it.
 #   tools/run_regression.sh            all suites
-#   tools/run_regression.sh integrity  one suite: integrity | npc | realcopy | trials | mh | mi (Milestone H / I suites)
+#   tools/run_regression.sh integrity  one suite: integrity | npc | realcopy | trials | mh | mi | visual (windowed: music, audience, transformation)
 # A suite fails on a FAIL line, a non-zero exit, a timeout or ANY "SCRIPT ERROR" in its log.
 set -u
 cd "$(dirname "$0")/.."
@@ -29,6 +29,23 @@ run() {   # run <name> <timeout_s> <user args...>
 }
 
 clean() { rm -f "$USERDIR"/test_regress_"$1"*; }
+
+# windowed suites (real rendering / audio device): music performances, audience, transformation previews.
+# They open a 1600x900 window and take keyboard focus (the tests ignore keyboard input).
+runw() {
+  local name="$1" t="$2"; shift 2
+  local log="$OUT/$name.log"
+  timeout "$t" "$GODOT" --path . --resolution 1600x900 -- --profile=live --no-bridge --no-visitors "$@" >"$log" 2>&1
+  local code=$?
+  local errs; errs=$(grep -c "SCRIPT ERROR" "$log")
+  if [ $code -ne 0 ] || [ "$errs" -ne 0 ] || ! grep -qE "^\[(persisttest|mhtest|mitest)\] PASS" "$log"; then
+    echo "FAIL  $name (exit $code, script errors $errs) -> $log"
+    grep -E "^\[(persisttest|mhtest|mitest)\]   FAIL|SCRIPT ERROR" -A2 "$log" | head -20
+    fails=$((fails + 1))
+  else
+    echo "PASS  $name ($(grep -cE '^\[(persisttest|mhtest|mitest)\]   ok' "$log") checks)"
+  fi
+}
 
 want="${1:-all}"
 if [ "$want" = all ] || [ "$want" = integrity ]; then
@@ -76,6 +93,16 @@ if [ "$want" = all ] || [ "$want" = mi ]; then
   run mi_explore_luna 300 --mitest=explore --who=luna --luna --save-path=user://test_regress_mi.json
   run mi_collision 240 --mitest=collision --luna --save-path=user://test_regress_mi.json
   run mi_interact 300 --mitest=interact --luna --save-path=user://test_regress_mi.json
+  run mi_music_lib 120 --mitest=music_lib --save-path=user://test_regress_mi.json
+fi
+if [ "$want" = visual ]; then
+  runw vis_mh_transform 400 --mhtest=transform --luna --no-luna-brain --save-path=user://test_regress_mh.json
+  runw vis_audience 400 --mitest=audience --luna --no-monsters --save-path=user://test_regress_mi.json
+  runw vis_perform_mika 360 --mitest=perform --who=mika --mode=casual --no-shots --luna --no-monsters --save-path=user://test_regress_mi.json
+  runw vis_perform_luna_special 360 --mitest=perform --who=luna --mode=special --no-shots --luna --no-monsters --save-path=user://test_regress_mi.json
+  runw vis_perform_preview 360 --mitest=perform --who=luna --mode=casual --preview --no-shots --luna --no-monsters --save-path=user://test_regress_mi.json
+  runw vis_perform_interrupt 300 --mitest=perform_interrupt --luna --save-path=user://test_regress_mi.json
+  runw vis_perf_ab 300 --mitest=perf_ab --luna --no-monsters --save-path=user://test_regress_mi.json
 fi
 echo "regression: $fails failing suite(s)"
 exit $((fails > 0))

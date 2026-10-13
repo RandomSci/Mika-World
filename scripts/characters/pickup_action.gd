@@ -15,7 +15,8 @@ static func pick(c: WorldCharacter, item: Node3D) -> Dictionary:
 	while c.current_action == "look_at" and Time.get_ticks_msec() - t0 < 1500:
 		await tree.process_frame
 	c.look_head_at(item.global_position)
-	var low := item.global_position.y - c.global_position.y < 0.7
+	var gp := func() -> Vector3: return item.grasp_point() if item.has_method("grasp_point") else item.global_position + Vector3(0, 0.12, 0)
+	var low: bool = (gp.call() as Vector3).y - c.global_position.y < 0.7
 	var clip := "pick_floor" if low else "pick_chest"
 	if not c.has_clip(clip):
 		clip = "pick_chest" if c.has_clip("pick_chest") else ""
@@ -30,11 +31,12 @@ static func pick(c: WorldCharacter, item: Node3D) -> Dictionary:
 		if not is_instance_valid(item):
 			break
 		var t := (Time.get_ticks_msec() - t_start) / 1000.0
-		if not got and t > length * 0.22 and c.handler.can_reach(item.global_position):
-			got = await c.handler.reach(item.global_position + Vector3(0, 0.03, 0), 0.28)
+		if not got and t > length * 0.22 and c.handler.can_reach(gp.call()):
+			got = await c.handler.reach(gp.call(), 0.28)
 			reach_at = (Time.get_ticks_msec() - t_start) / 1000.0
 		if got and is_instance_valid(item):
-			item.global_position = c.handler.palm()        # it rides in her hand while she straightens
+			# it rides in her hand while she straightens (the part she grasped sits in her palm)
+			item.global_position += c.handler.palm() - (gp.call() as Vector3)
 		if t > length * (0.72 if got else 0.6):
 			break
 	if got and is_instance_valid(item):

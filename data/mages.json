@@ -136,7 +136,40 @@
     "water": 0.8,
     "props": 0.5,
     "relief": 0.2
-   }
+   },
+   "expressions": {
+    "level_up": [
+     "happy",
+     0.9,
+     3.0
+    ],
+    "victory": [
+     "happy",
+     0.6,
+     2.5
+    ],
+    "discovery": [
+     "surprised",
+     0.45,
+     1.8
+    ],
+    "hit": [
+     "surprised",
+     0.7,
+     0.8
+    ],
+    "fusion": [
+     "happy",
+     0.8,
+     2.5
+    ],
+    "camera": [
+     "happy",
+     0.35,
+     1.8
+    ]
+   },
+   "home_area": "sanctuary"
   },
   "luna": {
    "name": "Luna",
@@ -273,7 +306,40 @@
     "relief": 0.9,
     "props": 0.4,
     "water": 0.1
-   }
+   },
+   "expressions": {
+    "level_up": [
+     "relaxed",
+     0.6,
+     3.0
+    ],
+    "victory": [
+     "relaxed",
+     0.5,
+     2.0
+    ],
+    "discovery": [
+     "surprised",
+     0.3,
+     1.4
+    ],
+    "hit": [
+     "angry",
+     0.5,
+     1.0
+    ],
+    "fusion": [
+     "happy",
+     0.4,
+     2.0
+    ],
+    "camera": [
+     "relaxed",
+     0.25,
+     1.6
+    ]
+   },
+   "home_area": "sanctuary"
   }
  }
 }

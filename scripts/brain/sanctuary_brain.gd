@@ -37,6 +37,7 @@ var threat: Monster = null        # a creature attacking her right now (set by t
 var hold := false                 # another mage asked to talk: finish nothing new until released
 var explore_map: ExplorationMap   # her own spatial curiosity (coverage, candidates)
 var last_roam := {}               # the most recent roam (for tests / the developer overlay)
+var _celebrate_until := 0.0       # a recent level-up makes a special performance tempting
 var _mark_t := 0.0
 var _speak_lines := {}
 var enabled := false
@@ -77,6 +78,8 @@ func setup(m: Node, who := "mika") -> void:
 	profile = Progression.mages.get(who, {})
 	rng.seed = 2026 + hash(who) % 1000
 	explore_map = ExplorationMap.new(main, me, mind, profile.get("explore_taste", {}))
+	if main.progression:
+		main.progression.leveled.connect(func(w, _l): if w == agent_id: _celebrate_until = Time.get_unix_time_from_system() + 900.0)
 
 
 func _voice() -> String:
@@ -195,6 +198,16 @@ func options() -> Array:
 	if main.world and me.visible:
 		for c in explore_map.candidates(2):
 			out.append({"kind": "roam", "key": "roam:" + ExplorationMap.cell_key(c.pos), "pos": c.pos, "cand": c, "label": "look at %s" % c.describe})
+	# perform: a leisure option (casual) or, now and then, a special performance (celebration / evening)
+	if main.performance and _allowed("perform") and me.visible and threat == null and not main.performance.busy():
+		var cd: Dictionary = PerformanceController.load_cfg().cooldown_s
+		var last := float(mind.music.get("last_unix", 0))
+		var now_u := Time.get_unix_time_from_system()
+		if now_u - last > float(cd.casual) and not MusicLibrary.eligible(agent_id, "casual").is_empty():
+			out.append({"kind": "perform", "key": "perform:casual", "mode": "casual", "label": "dance to some music for a bit"})
+		var last_sp := float(mind.music.get("last_special_unix", 0))
+		if now_u - last_sp > float(cd.special) and (now_u < _celebrate_until or WorldState.night) and not MusicLibrary.eligible(agent_id, "special").is_empty():
+			out.append({"kind": "perform", "key": "perform:special", "mode": "special", "label": "give a little performance in the circle" + (" to celebrate" if now_u < _celebrate_until else "")})
 	# gather: plants she has noticed that are there to pick
 	for g in get_tree().get_nodes_in_group("gatherable"):
 		if (g as GatherNode).available() and mind.knowledge.has("noticed:gather:" + String(g.gid)):
@@ -349,10 +362,19 @@ func score(o: Dictionary) -> Dictionary:
 				why.append("it is attacking me")
 		"roam":
 			var cs: Dictionary = o.cand
-			u = 0.2 + needs.curiosity * 0.45 + float(cs.score) * 0.3
+			u = 0.12 + needs.curiosity * 0.45 + float(cs.score) * 0.3
 			why.append("novelty %.2f" % float(cs.novelty))
 			if cs.off_path:
 				why.append("off the usual paths")
+		"perform":
+			# leisure after a stretch of work; needs some energy, never when tired out or unsafe
+			var since := mind.activity_seq - int(mind.music.get("seq_at_last", 0))
+			u = 0.1 + minf(since, 20) * 0.02 + needs.energy * 0.15 - (0.3 if needs.energy < 0.3 else 0.0)
+			if o.mode == "special":
+				u += 0.35
+				why.append("celebrating" if Time.get_unix_time_from_system() < _celebrate_until else "an evening performance")
+			if since >= 12:
+				why.append("a long stretch of work")
 		"gather":
 			var new_item: bool = not mind.knowledge.has("material:" + String(o.item))
 			u = 0.25 + needs.curiosity * 0.2 + (0.3 if new_item else 0.0) - me.global_position.distance_to((o.node as Node3D).global_position) * 0.01
@@ -516,6 +538,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"meet": return await main.mage_talk.meet(self, String(o.other))
 		"roam": return await _roam(o)
 		"gather": return await _gather(o)
+		"perform": return await _perform(o)
 	return {"ok": false, "detail": "unknown activity"}
 
 
@@ -632,6 +655,18 @@ func _explore(o: Dictionary) -> Dictionary:
 		current.stage = "surveying the realm"
 		await _use("watchpoint_survey")
 	return {"ok": true, "detail": "looked at %d places in the %s" % [looked, sub.name]}
+
+
+func _perform(o: Dictionary) -> Dictionary:
+	current.stage = "performing"
+	var r: Dictionary = await main.performance.perform(agent_id, String(o.mode))
+	mind.music["seq_at_last"] = mind.activity_seq
+	if String(o.mode) == "special" and r.get("ok", false):
+		mind.music["last_special_unix"] = int(Time.get_unix_time_from_system())
+	if r.get("ok", false):
+		needs.energy = clampf(needs.energy + 0.1, 0.0, 1.0)      # it was relaxing
+		needs.curiosity = clampf(needs.curiosity + 0.1, 0.0, 1.0)
+	return r
 
 
 ## Walk (real navigation) to a spot she chose out of curiosity, look at what is actually there, notice
@@ -828,11 +863,14 @@ func _hunt(o: Dictionary) -> Dictionary:
 		_maybe_say(_lines("victory", ["Got it.", "That's done. Breathe."]), 0.8)
 		await get_tree().create_timer(0.8).timeout
 		var picked := 0
+		var tries_loot := []
 		for l in LootPickup.all_in(main.world):
 			if not l.claimed and me.global_position.distance_to(l.global_position) < 10.0:
-				if (await _collect(l)).get("ok", false):
+				var cr: Dictionary = await _collect(l)
+				tries_loot.append(String(cr.get("detail", "")))
+				if cr.get("ok", false):
 					picked += 1
-		return {"ok": true, "detail": "won after %d cast(s), %d hit(s); picked up %d thing(s)" % [casts, hits, picked], "hits": hits}
+		return {"ok": true, "detail": "won after %d cast(s), %d hit(s); picked up %d thing(s)" % [casts, hits, picked], "hits": hits, "loot": tries_loot}
 	return {"ok": false, "detail": "%d cast(s), %d hit(s); it is still there" % [casts, hits], "hits": hits}
 
 
@@ -845,6 +883,9 @@ func _collect(l) -> Dictionary:
 		return {"ok": false, "detail": "someone else took it"}
 	var label: String = l.label()
 	var pk: Dictionary = await PickupAction.pick(me, l)          # the hand really has to reach it
+	if not pk.ok and is_instance_valid(l) and not l.claimed:
+		await _approach(l.global_position, 0.3)                    # step in closer and try once more
+		pk = await PickupAction.pick(me, l)
 	if not pk.ok or not is_instance_valid(l):
 		return {"ok": false, "detail": "could not reach %s" % label}
 	return l.collect(me)
@@ -876,6 +917,12 @@ func _approach(p: Vector3, dist: float) -> void:
 	var stand := p + (from.normalized() if from.length() > 0.1 else Vector3.BACK) * dist
 	var map := me.get_world_3d().navigation_map
 	await _walk(NavigationServer3D.map_get_closest_point(map, stand))
+	# _walk accepts 2.5 m; picking something up needs her right there: a short precise second approach
+	if Vector2(me.global_position.x - stand.x, me.global_position.z - stand.z).length() > 0.9:
+		me.navigate_to(NavigationServer3D.map_get_closest_point(map, stand), false)
+		var t0 := Time.get_ticks_msec()
+		while me.current_action == "navigate_to" and Time.get_ticks_msec() - t0 < 6000 and not _cancel:
+			await get_tree().process_frame
 	if me.global_position.distance_to(stand) > 0.5:
 		var d := Vector3(stand.x - me.global_position.x, 0, stand.z - me.global_position.z)
 		if d.length() < 1.6 and not me.test_move(me.global_transform, d):

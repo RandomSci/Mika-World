@@ -42,6 +42,28 @@ var _last_established := {}
 var _side := 1.0
 var _conversation: Node3D = null
 var _conversation_until := 0.0
+var _perf := {}                  # music performance: {mode, shot, t0, yaw0, last}
+
+## Performance shot profiles (radius / height in metres, yaw degrees from her facing at the cut; yaw_to
+## makes a slow orbit across the shot; look = face | chest | hands | feet).
+const PERF_SHOTS := {
+	"casual": [
+		{"name": "medium_front", "radius": 3.0, "height": 1.35, "yaw": 15.0, "look": "chest", "fov": 44.0},
+		{"name": "full_body", "radius": 4.3, "height": 1.05, "yaw": -32.0, "look": "chest", "fov": 50.0},
+		{"name": "face_close", "radius": 1.4, "height": 1.5, "yaw": 12.0, "look": "face", "fov": 36.0},
+		{"name": "slow_orbit", "radius": 3.6, "height": 1.25, "yaw": -70.0, "yaw_to": 10.0, "look": "chest", "fov": 47.0},
+		{"name": "wide_env", "radius": 7.5, "height": 2.3, "yaw": 38.0, "look": "chest", "fov": 54.0},
+		{"name": "low_hero", "radius": 2.9, "height": 0.55, "yaw": -18.0, "look": "face", "fov": 50.0},
+	],
+	"special": [
+		{"name": "establishing", "radius": 9.0, "height": 3.0, "yaw": 25.0, "look": "chest", "fov": 55.0},
+		{"name": "slow_orbit", "radius": 3.8, "height": 1.3, "yaw": -90.0, "yaw_to": 20.0, "look": "chest", "fov": 46.0},
+		{"name": "hands", "radius": 1.7, "height": 1.3, "yaw": 30.0, "look": "hands", "fov": 40.0},
+		{"name": "face_close", "radius": 1.35, "height": 1.52, "yaw": -10.0, "look": "face", "fov": 35.0},
+		{"name": "full_body_low", "radius": 4.0, "height": 0.7, "yaw": 20.0, "look": "chest", "fov": 50.0},
+		{"name": "finale_pullback", "radius": 4.5, "height": 1.6, "yaw": 0.0, "look": "chest", "fov": 50.0, "pull": 2.5},
+	],
+}
 
 
 func setup(m: Node) -> void:
@@ -50,6 +72,56 @@ func setup(m: Node) -> void:
 	mika = main.characters["mika"]
 	WorldState.interaction_started.connect(func(it, c): if c == mika: _interaction = it)
 	WorldState.interaction_finished.connect(func(it, c, _r): if c == mika and _interaction == it: _interaction = null)
+
+
+# ------------------------------------------------------------------ music performances
+func start_performance(c: WorldCharacter, mode: String) -> void:
+	set_subject(c)
+	_perf = {"mode": mode, "i": -1, "t0": _now(), "yaw0": 0.0, "shot": {}}
+	performance_cut()
+
+
+## A new shot (called by the PerformanceController on musical phrase changes).
+func performance_cut() -> void:
+	if _perf.is_empty():
+		return
+	var shots: Array = PERF_SHOTS.get(_perf.mode, PERF_SHOTS.casual)
+	var i := int(_perf.i) + 1
+	if _perf.mode == "casual" and i > 0:
+		i = (int(_perf.i) + 1 + randi() % (shots.size() - 1)) % shots.size()   # vary, never the same twice
+	if _perf.mode == "special":
+		i = mini(i, shots.size() - 2)                                         # the finale is kept for the end
+	_perf.i = i
+	_perf.shot = shots[i]
+	_perf.t0 = _now()
+	_perf.yaw0 = main.transformer.visual_yaw(mika) if main.transformer else mika.rotation.y
+	_since_change = 0.0
+	shot_changed.emit("performance:" + String(_perf.shot.name))
+
+
+func performance_finale() -> void:
+	if _perf.is_empty():
+		return
+	var shots: Array = PERF_SHOTS.get(_perf.mode, PERF_SHOTS.casual)
+	_perf.shot = shots[-1]
+	_perf.t0 = _now()
+	_perf.yaw0 = main.transformer.visual_yaw(mika) if main.transformer else mika.rotation.y
+	_since_change = 0.0
+
+
+func end_performance() -> void:
+	_perf = {}
+	_since_change = 99.0
+
+
+func _perf_look(what: String) -> Vector3:
+	match what:
+		"face":
+			var hi := mika.skeleton.find_bone("Head")
+			return (mika.skeleton.global_transform * mika.skeleton.get_bone_global_pose(hi)).origin + Vector3(0, 0.06, 0) if hi >= 0 else mika.global_position + Vector3(0, 1.5, 0)
+		"hands":
+			return (mika.left_hand.global_position + mika.right_hand.global_position) * 0.5
+	return mika.chest.global_position
 
 
 ## Follow another mage (the spotlight in main picks whoever is doing the most watchable thing).
@@ -105,6 +177,8 @@ func _process(delta: float) -> void:
 
 
 func _choose() -> String:
+	if not _perf.is_empty():
+		return "performance"
 	if mika.casting:
 		return "spell"
 	if _interaction != null:
@@ -140,6 +214,22 @@ func _frame(delta: float) -> void:
 	var look := Vector3.ZERO
 	var fov := 50.0
 	match mode:
+		"performance":
+			var sh: Dictionary = _perf.shot
+			var age := _now() - float(_perf.t0)
+			if String(sh.look) in ["face", "hands"] and main.transformer:
+				# close shots keep finding her face as she turns in the dance (smoothly, never snapping)
+				_perf.yaw0 = lerp_angle(float(_perf.yaw0), main.transformer.visual_yaw(mika), 1.0 - exp(-1.6 * delta))
+			var yaw: float = float(_perf.yaw0) + deg_to_rad(lerpf(float(sh.yaw), float(sh.get("yaw_to", sh.yaw)), clampf(age / 12.0, 0.0, 1.0)))
+			var r: float = float(sh.radius) + float(sh.get("pull", 0.0)) * clampf(age / 5.0, 0.0, 1.0)
+			look = _perf_look(String(sh.look))
+			pos = p + Vector3(-sin(yaw), 0, -cos(yaw)) * r + Vector3(0, float(sh.height), 0)
+			if main.world and main.world.has_method("ground_at"):
+				pos.y = maxf(pos.y, float(main.world.ground_at(pos.x, pos.z)) + 0.25)
+			fov = float(sh.fov)
+			pos = _clear_line(_perf_look("chest"), _clear_line(look, pos))
+			_apply(pos, look, fov, delta)
+			return
 		"chase":
 			# the rig's spring arm handles collisions; we only steer its yaw/pitch behind her heading
 			var moving := Vector2(mika.velocity.x, mika.velocity.z).length() > 0.3

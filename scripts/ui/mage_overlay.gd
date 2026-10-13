@@ -124,7 +124,14 @@ func _process(delta: float) -> void:
 	v_name.text = "%s  ·  Level %d %s%s" % [MagicSystem.display_name(who), pd.level, ("(" + pd.title + ")") if pd.title != "" else "", form]
 	v_bar.value = pd.fraction
 	var doing := String(brain.current.get("label", "")) if brain and brain.enabled else ""
-	v_doing.text = ("Now: " + doing) if doing != "" else "Now: taking a moment"
+	var where := ""
+	if main.world:
+		var sid := SanctuaryBrain.sub_area(main.world, subject.global_position)
+		where = String(WorldState.sanctuary.sub_areas[sid].name) if sid != "" else String(WorldState.locations.get(main.world.location_at(subject.global_position), {}).get("name", ""))
+	v_doing.text = (("Now: " + doing) if doing != "" else "Now: taking a moment") + ((" · " + where) if where != "" else "")
+	if main.performance and main.performance.busy() and String(main.performance.active.get("who", "")) == who:
+		var pa: Dictionary = main.performance.active
+		v_doing.text = "♪ %s · %s%s" % [pa.title, "Singing & dancing" if pa.get("singing", false) else "Dancing", " (special performance)" if pa.mode == "special" else ""]
 	v_goal.text = "Goal: " + _objective(who, pd)
 	var recent := events.filter(func(e): return Time.get_ticks_msec() / 1000.0 - float(e.t) < 90.0)
 	v_event.text = ("Latest: " + String(recent[-1].text)) if not recent.is_empty() else ""
@@ -145,8 +152,14 @@ func _objective(who: String, pd: Dictionary) -> String:
 
 
 func _dev_text() -> String:
-	var lines := ["DEV  fps %.0f  |  LLM %s  |  creatures %d  |  transform %s" % [Engine.get_frames_per_second(), main.llm.describe().provider if main.llm else "-",
-		main.spawner.alive.size() if main.spawner else 0, JSON.stringify(main.transformer.describe().transformed) if main.transformer else "-"]]
+	var ld: Dictionary = main.llm.describe() if main.llm else {}
+	var lines := ["DEV  fps %.0f  |  LLM %s (%d calls/h)  |  creatures %d  |  forms %s  |  focus %s%s" % [Engine.get_frames_per_second(), ld.get("provider", "-"), int(ld.get("calls_last_hour", 0)),
+		main.spawner.alive.size() if main.spawner else 0, JSON.stringify(main.transformer.describe().transformed) if main.transformer else "-", main.focus, " (locked)" if main.focus_locked else ""]]
+	var sc := StreamContext.describe(main)
+	lines.append("stream: %s live=%s  pending %s" % [sc.mode, sc.live, JSON.stringify(sc.pending_comments)])
+	if main.performance and main.performance.busy():
+		var pa: Dictionary = main.performance.active
+		lines.append("music: %s by %s [%s] t=%.1f s  seg %s  clip speed %s  stage %s" % [pa.song, pa.who, pa.mode, main.performance.music_time(), JSON.stringify(pa.get("segment", {})), str(pa.get("speed", 1.0)), pa.stage])
 	for who in main.mage_brains:
 		var b = main.mage_brains[who]
 		var m := WorldState.mind(who)
@@ -156,8 +169,9 @@ func _dev_text() -> String:
 			var e: Dictionary = m.activity_log[-1]
 			last_mem = "%s %s" % [e.activity.get("id", ""), str((e.changes as Dictionary).keys()).left(80)]
 		var c: WorldCharacter = main.characters[who]
-		lines.append("— %s  L%d xp %.0f  vigor %.0f%%  energy %.0f%%  %s" % [MagicSystem.display_name(who), m.level(), float(m.progress.xp), m.vigor * 100.0,
-			b.needs.energy * 100.0, "CASTING" if c.casting else ""])
+		lines.append("— %s [%s]  L%d xp %.0f  vigor %.0f%%  energy %.0f%%  coverage %d cells  anim %s  %s" % [MagicSystem.display_name(who), main.sim_mode(who), m.level(), float(m.progress.xp), m.vigor * 100.0,
+			b.needs.energy * 100.0, int(b.explore_map.coverage()) if b.explore_map else 0,
+			String((c.anim_tree.tree_root as AnimationNodeBlendTree).get_node("cast_anim").animation).get_file() if c.anim_tree else "-", "CASTING" if c.casting else ""])
 		lines.append("   doing: %s [%s]  stage: %s" % [b.current.get("label", "-"), b.current.get("kind", ""), b.current.get("stage", "")])
 		lines.append("   chose: %s  u=%s  why: %s" % [d.get("label", "-"), str(d.get("utility", "")), ", ".join(d.get("why", []))])
 		lines.append("   threat: %s  |  memory: %s" % [b.threat.id if b.threat and is_instance_valid(b.threat) else "-", last_mem])

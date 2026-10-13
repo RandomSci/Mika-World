@@ -32,3 +32,15 @@ local-only, as documented in `ASSETS.md`).
 ## Open licence question for the developer
 All three new VRMs carry `commercialUsage: personalNonProfit` in their VRM metadata (VRoid's default).
 If the channel is monetised, re-export them from VRoid Studio with the intended licence settings.
+
+
+# Milestone I additions
+
+| Asset | Source | Licence / usage notes | Placed at |
+|---|---|---|---|
+| ミカの魔法世界！ (song) | Developer's file `~/Downloads/ミカの魔法世界！.mp3` (copied, original untouched). Embedded tags: "made with suno", created 2026-10-12 | **Rights unconfirmed**: depends on the Suno plan it was generated under. Kept local (git-ignored), not uploaded anywhere | `assets/audio/music/library/mika_magical_world/original.mp3` |
+| Song timing / metadata | Measured by `tools/audio/analyze_song.py`; facts from the file's tags | Derived data | `.../metadata.json`, `.../timing.json` |
+| Mixamo clips: Step / Snake / Booty Hip Hop Dance, Belly Dance, Stand To Sit, Sit To Stand, Lying Down, Picking Up (floor / chest), Putting Down, Pointing, Arm / Neck Stretching, Waking | Developer's Mixamo downloads in `~/Downloads` (copied) | Adobe Mixamo: use in projects; raw FBX not redistributed (git-ignored; `tools/setup_local_assets.sh` re-copies) | `assets/animations/mixamo/` |
+| Gatherable plants (Moonpetal, Embercap) | Procedural meshes in `scripts/world/gather_node.gd` | Original | — |
+
+Not used: Macarena / YMCA / Chicken dance clips (recognisable meme choreography, not suited to original performances).
