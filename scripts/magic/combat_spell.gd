@@ -162,6 +162,9 @@ func _process(delta: float) -> void:
 		_lance_mat.set_shader_parameter("intensity", 0.4 + 0.8 * grow)
 	if t >= L and not _fired.has("release"):
 		_fired.release = true
+		if target and is_instance_valid(target):
+			var la := MagicSystem.lead_aim(target, hand, float(def.get("speed", 24.0)) * (1.0 + 0.1 * tier), float(get_meta("mastery", 0.0)), get_meta("aim_err", Vector3.ZERO))
+			to_aim = (la - hand).normalized()
 		_release(hand, to_aim)
 	if _flying:
 		_fly(delta)
@@ -228,6 +231,12 @@ func _land(point: Vector3, collider: Object, on_target := false) -> void:
 	if collider is Node and outcome != "hit":
 		_impact["blocked_by"] = String((collider as Node).name)
 	_announce("impact" if outcome == "hit" else outcome, point)
+	if not _fired.has("dissipate"):
+		# the outcome is known at the moment it lands: resolve now (the visuals fade on their own)
+		_fired.dissipate = true
+		caster.end_cast(true, "%s resolved (%s)" % [spell_id, outcome])
+		resolved.emit(_impact)
+		_done_t = t
 	if not (target is Monster and outcome == "hit"):      # creature hits get ImpactFX from MagicSystem
 		FX.burst(get_parent(), point, 34 if outcome == "hit" else 18, 0.6, FX.pm_motes(element, "burst"), FX.mote_mesh(0.05, true))
 		ImpactFX.shockwave(get_parent(), point, FX.palette(element)[0], 0.9 if outcome == "hit" else 0.5)

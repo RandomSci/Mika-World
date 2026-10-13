@@ -1,5 +1,5 @@
 {
- "_note": "Original Mika World creatures (procedural meshes, no external assets). They roam the Sanctuary's wild edges; the ritual circle's ward keeps them out (ward_radius from the circle's centre). tier: weak | medium | rare. hp in 'spell units' (a novice Arcane Orb deals ~0.55 x damage x 100). resist: element -> multiplier (missing = 1). attack: what they do to a mage's vigor (stamina, never death). loot: dropped as physical pickups the mage has to collect. stagger_s: how long a creature reels after being struck (no moving or attacking), which gives a caster time between spells.",
+ "_note": "Original Mika World creatures (procedural meshes, no external assets). They roam the Sanctuary's wild edges; the ritual circle's ward keeps them out (ward_radius from the circle's centre). tier: weak | medium | rare. hp in 'spell units' (a novice Arcane Orb deals ~0.55 x damage x 100). resist: element -> multiplier (missing = 1). attack: what they do to a mage's vigor (stamina, never death). loot: dropped as physical pickups the mage has to collect. stagger_s: how long a creature reels after being struck (no moving or attacking), which gives a caster time between spells. Milestone J: creatures with a 'body' and an 'attacks' list fight with telegraphed attacks (windup -> strike -> recover), stamina, poise (a hit of at least poise x max hp interrupts a windup), 'exposed_mult' extra damage during the recovery window, and flyers that keep their distance ('keep_at'), strafe and retreat once when badly hurt ('retreat_below'). body.type: sentinel (original articulated stone golem, tools/models/build_sentinel.py) | clip (an animated GLB, see docs/ASSET_SOURCES.md).",
  "ward_radius": 12.0,
  "max_alive": 3,
  "respawn_s": [
@@ -186,8 +186,289 @@
      ]
     }
    ],
-   "describe": "a hollow construct of old ruin-stone, a lantern of gold light where its heart should be",
-   "stagger_s": 0.4
+   "describe": "a hulking guardian of old rune-stone, its heart a lantern of gold light; slow, but its fists shake the ground",
+   "stagger_s": 0.4,
+   "body": {
+    "type": "sentinel"
+   },
+   "height": 2.3,
+   "turn": 2.2,
+   "alert_s": 1.0,
+   "poise": 0.22,
+   "exposed_mult": 1.5,
+   "stamina_regen": 0.07,
+   "attacks": [
+    {
+     "kind": "slam",
+     "range": 3.4,
+     "radius": 2.3,
+     "windup": 1.15,
+     "strike_s": 0.35,
+     "recover": 1.7,
+     "vigor": 0.17,
+     "heavy": true,
+     "cooldown": 4.5,
+     "stamina": 0.35,
+     "priority": 2.0,
+     "anim_windup": "windup_slam",
+     "anim_strike": "strike_slam",
+     "anim_recover": "recover",
+     "color": [
+      1.0,
+      0.75,
+      0.35
+     ]
+    },
+    {
+     "kind": "sweep",
+     "range": 2.6,
+     "half_angle_deg": 70.0,
+     "windup": 0.7,
+     "strike_s": 0.3,
+     "recover": 0.5,
+     "vigor": 0.1,
+     "heavy": false,
+     "cooldown": 3.2,
+     "stamina": 0.2,
+     "priority": 1.0,
+     "anim_windup": "windup_sweep",
+     "anim_strike": "strike_sweep",
+     "anim_recover": "idle",
+     "color": [
+      1.0,
+      0.6,
+      0.3
+     ]
+    },
+    {
+     "kind": "hurl",
+     "range": 12.0,
+     "min_range": 4.5,
+     "windup": 1.0,
+     "strike_s": 0.45,
+     "recover": 0.8,
+     "speed": 9.0,
+     "vigor": 0.12,
+     "heavy": true,
+     "cooldown": 6.5,
+     "stamina": 0.3,
+     "priority": 0.8,
+     "lock_aim": false,
+     "style": "stone",
+     "anim_windup": "windup_slam",
+     "anim_strike": "strike_sweep",
+     "anim_recover": "idle",
+     "color": [
+      0.85,
+      0.75,
+      0.6
+     ]
+    },
+    {
+     "kind": "charge",
+     "range": 8.0,
+     "min_range": 3.6,
+     "half_angle_deg": 13.0,
+     "windup": 1.1,
+     "strike_s": 0.7,
+     "recover": 1.4,
+     "vigor": 0.15,
+     "heavy": true,
+     "cooldown": 9.0,
+     "stamina": 0.4,
+     "priority": 1.2,
+     "anim_windup": "alert",
+     "anim_strike": "strike_sweep",
+     "anim_recover": "recover",
+     "color": [
+      1.0,
+      0.7,
+      0.35
+     ]
+    }
+   ]
+  },
+  "emberwing": {
+   "name": "Emberwing",
+   "tier": "medium",
+   "weight": 0.45,
+   "hp": 230.0,
+   "speed": 3.4,
+   "float": 1.7,
+   "radius": 0.55,
+   "height": 1.0,
+   "aggro_radius": 11.0,
+   "leash": 18.0,
+   "color": [
+    0.22,
+    0.12,
+    0.2
+   ],
+   "eye": [
+    1.0,
+    0.6,
+    0.25
+   ],
+   "turn": 5.0,
+   "alert_s": 0.6,
+   "poise": 0.0,
+   "exposed_mult": 1.35,
+   "stamina_regen": 0.06,
+   "keep_at": 8.0,
+   "retreat_below": 0.35,
+   "retreat_s": 4.0,
+   "attacks": [
+    {
+     "kind": "ember_bolt",
+     "range": 11.0,
+     "windup": 0.75,
+     "strike_s": 0.4,
+     "recover": 0.0,
+     "speed": 9.5,
+     "vigor": 0.07,
+     "cooldown": 4.2,
+     "stamina": 0.18,
+     "priority": 1.0,
+     "lock_aim": false,
+     "color": [
+      1.0,
+      0.55,
+      0.2
+     ]
+    },
+    {
+     "kind": "dive",
+     "range": 7.5,
+     "min_range": 3.5,
+     "half_angle_deg": 11.0,
+     "windup": 0.95,
+     "strike_s": 0.45,
+     "recover": 1.3,
+     "vigor": 0.11,
+     "heavy": true,
+     "cooldown": 8.0,
+     "stamina": 0.35,
+     "priority": 1.5,
+     "color": [
+      1.0,
+      0.45,
+      0.2
+     ]
+    }
+   ],
+   "resist": {
+    "fire": 0.3,
+    "water": 1.6,
+    "wind": 1.3,
+    "arcane": 1.0,
+    "umbral": 0.9,
+    "mist": 1.2
+   },
+   "loot": [
+    {
+     "item": "ember_scale",
+     "chance": 1.0,
+     "count": [
+      1,
+      2
+     ]
+    },
+    {
+     "item": "aether_dust",
+     "chance": 0.4,
+     "count": [
+      1,
+      1
+     ]
+    }
+   ],
+   "describe": "a small drake with ember-lit wings that circles at a distance and spits sparks; it swoops when it sees an opening",
+   "stagger_s": 0.6,
+   "body": {
+    "type": "clip",
+    "glb": "res://assets/creatures/emberwing/emberwing.glb",
+    "scale": 0.42,
+    "yaw_offset": 0.0,
+    "aim_y": 0.55,
+    "mouth": [
+     0.0,
+     0.75,
+     0.75
+    ],
+    "clips": {
+     "idle": [
+      "Dragon_Flying",
+      1.0,
+      true
+     ],
+     "move": [
+      "Dragon_Flying",
+      1.35,
+      true
+     ],
+     "alert": [
+      "Dragon_Hit",
+      0.7,
+      false
+     ],
+     "windup": [
+      "Dragon_Attack2",
+      0.8,
+      false
+     ],
+     "strike": [
+      "Dragon_Attack",
+      1.2,
+      false
+     ],
+     "recover": [
+      "Dragon_Flying",
+      0.6,
+      true
+     ],
+     "hit": [
+      "Dragon_Hit",
+      1.2,
+      false
+     ],
+     "defeat": [
+      "Dragon_Death",
+      1.0,
+      false
+     ]
+    },
+    "recolor": {
+     "Main": [
+      0.24,
+      0.12,
+      0.2
+     ],
+     "Belly": [
+      0.95,
+      0.5,
+      0.18,
+      0.6
+     ],
+     "Wings": [
+      0.45,
+      0.12,
+      0.08,
+      0.35
+     ],
+     "Claws": [
+      0.12,
+      0.1,
+      0.1
+     ],
+     "Eyes": [
+      1.0,
+      0.75,
+      0.3,
+      2.5
+     ]
+    },
+    "source": "Quaternius LowPoly Animated Monsters - Dragon (CC0)"
+   }
   }
  },
  "items": {
@@ -221,6 +502,14 @@
     1.0,
     0.8,
     0.35
+   ]
+  },
+  "ember_scale": {
+   "name": "Ember Scale",
+   "color": [
+    1.0,
+    0.5,
+    0.2
    ]
   }
  }

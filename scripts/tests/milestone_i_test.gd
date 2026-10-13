@@ -99,6 +99,18 @@ func _form1() -> void:
 	await main.transformer.play("mika", "short", true)
 	await _wait(2.0)
 	_check(mika.avatar_path.ends_with("Mika_Level10.vrm"), "a preview returns her to Bloom Form (not the base)", mika.avatar_path)
+	# Milestone J: Luna's own first awakening is permanent for her too (and never touches Mika's)
+	if main.characters.has("luna"):
+		var lm := WorldState.mind("luna")
+		var luna: WorldCharacter = main.characters["luna"]
+		if main.mage_brains.has("luna"):
+			main.mage_brains["luna"].hold = true
+		lm.progress.level = 10
+		(lm.progress.forms_unlocked as Array).append("eclipse")
+		await main.focus_mage("luna", true)
+		var lr: Dictionary = await main.transformer.play("luna", "full", false)
+		_check(lr.get("permanent", false) and TransformationDirector.appearance("luna") == "eclipse" and luna.avatar_path.ends_with("Luna_Level10.vrm"), "Luna's unlock makes Gilded Eclipse Form her appearance", lr)
+		_check(TransformationDirector.appearance("mika") == "bloom", "Mika's appearance is untouched by Luna's awakening")
 	_check(WorldState.save_game(), "saved")
 
 
@@ -106,7 +118,7 @@ func _form2() -> void:
 	var mika: WorldCharacter = main.characters["mika"]
 	_check(WorldState.load_report.get("result", "") == "loaded", "restart loaded the save", WorldState.load_report)
 	_check(TransformationDirector.appearance("mika") == "bloom" and mika.avatar_path.ends_with("Mika_Level10.vrm"), "after the restart she is still in Bloom Form", mika.avatar_path)
-	_check(main.characters.has("luna") and main.characters["luna"].avatar_path.ends_with("Luna_Level01.vrm"), "Luna keeps her own (base) appearance")
+	_check(main.characters.has("luna") and TransformationDirector.appearance("luna") == "eclipse" and main.characters["luna"].avatar_path.ends_with("Luna_Level10.vrm"), "after the restart Luna is still in Gilded Eclipse Form", main.characters["luna"].avatar_path if main.characters.has("luna") else "")
 	var res: Dictionary = await main.transformer.surge("mika")
 	_check(res.get("surge", false) and mika.avatar_path.ends_with("Mika_Level10.vrm") and mika.has_meta("form_power"), "Orbit Surge: power, no costume change", res)
 	main.transformer.surges["mika"].until = 0.0
@@ -166,7 +178,7 @@ func _focus() -> void:
 	var mika_lib_pos := mika.global_position
 	report["loc_before"] = WorldState.mind("mika").location.duplicate()
 	report["pos_before"] = str(mika_lib_pos)
-	var res: Dictionary = await main.focus_mage("luna")
+	var res: Dictionary = await main.focus_mage("luna", true)       # an explicit (developer) focus: held until released
 	report["loc_after_switch"] = WorldState.mind("mika").location.duplicate()
 	report["to_luna"] = res
 	_check(res.get("ok", false) and res.get("area_change", false) and main.streaming.current_id == "sanctuary", "focus Luna: her area (the Sanctuary) loaded", res)
@@ -174,7 +186,8 @@ func _focus() -> void:
 	_check(main.director.mika == luna and main.camera_rig.target == luna, "camera follows Luna")
 	await _wait(20.0)
 	_shot("luna_focus")
-	var res2: Dictionary = await main.focus_mage("mika")
+	var res2: Dictionary = await main.focus_mage("mika", true)
+	main.focus_locked = false
 	report["to_mika"] = res2
 	report["pos_after"] = str(mika.global_position)
 	report["loc_after_return"] = WorldState.mind("mika").location.duplicate()

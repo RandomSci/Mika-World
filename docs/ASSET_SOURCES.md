@@ -44,3 +44,30 @@ If the channel is monetised, re-export them from VRoid Studio with the intended 
 | Gatherable plants (Moonpetal, Embercap) | Procedural meshes in `scripts/world/gather_node.gd` | Original | — |
 
 Not used: Macarena / YMCA / Chicken dance clips (recognisable meme choreography, not suited to original performances).
+
+
+# Milestone J additions
+
+| Asset | Source | Licence / usage notes | Placed at |
+|---|---|---|---|
+| Emberwing creature (mesh, rig, 5 clips: Flying, Attack, Attack2, Hit, Death) | Quaternius **LowPoly Animated Monsters** — "Dragon" — https://quaternius.itch.io/lowpoly-animated-monsters (free download, 2026-10-13); listed as CC0 at https://quaternius.com/packs/animatedmonster.html | **CC0 1.0** (public domain dedication; no attribution required — credited anyway). Converted FBX → GLB in Blender (actions as NLA tracks); recoloured in-game (ember palette) | `assets/creatures/emberwing/emberwing.glb` (+ `LICENSE_CC0.txt`) |
+| Hollow Sentinel (articulated stone golem) | **Original** — modelled by script in Blender (`tools/models/build_sentinel.py`): rigid rune-stones on named joint pivots; procedural stone material `shaders/creature_stone.gdshader`; animation is authored joint poses + springs in `scripts/combat/sentinel_rig.gd` | Original | `assets/creatures/sentinel/hollow_sentinel.glb` |
+| Combat animation clips: Roll, Hit_Chest, Hit_Head, Hit_Knockback, Spell_Simple_Enter / Idle / Shoot / Exit, Sword_Block, Idle_Shield(+Break), Yes, Idle_FoldArms, Jump_Start/Land, Sprint | Quaternius **Universal Animation Library** 1 & 2 (Standard), https://quaternius.itch.io/universal-animation-library and …-2 (free downloads, 2026-10-13); also listed on store.godotengine.org | **CC0 1.0** (the packs' own `License.txt`, copied to `assets/animations/ual/LICENSE_UAL_CC0.txt`). Only the 16 needed clips were extracted (no mannequin mesh) into one 1 MB GLB; retargeted onto the VRMs through `assets/animations/ual_bonemap.tres` (UE-mannequin bone names → Godot humanoid profile) | `assets/animations/ual/ual_combat.glb` |
+| All new / replaced sound (spell layers, impacts, cues, gather hums, Level 10 awakening scores) | **Original** procedural synthesis: `tools/audio/synth_milestone_j.py` (originals backed up to `.backups/audio_pre_milestone_j/`) | Original | `assets/audio/synth/` |
+| Mika's and Luna's speaking voices | Microsoft Edge neural voices **en-US-AvaNeural** (Mika, +25 Hz, +5 %) and **ja-JP-NanamiNeural** (Luna, +30 Hz, +5 %) as confirmed by the developer in Mika-Voice-Lab, generated at runtime through the `edge-tts` package (7.2.8, LGPL-3.0, local venv `.venv-voice`, not committed) | **Usage terms not confirmed for a monetised stream**: `edge-tts` uses the consumer "Read Aloud" endpoint; Microsoft's licensed route for these exact voices is Azure AI Speech. Text of new lines is sent to Microsoft's service; audio is cached locally (`~/.cache/mika-godot-dev/edge_voice`), nothing is committed. Kokoro remains the automatic fallback | `tools/voice/edge_service.py`, `data/voices.json` |
+| Laugh / giggle reactions | Rendered at runtime in each mage's own Edge voice from short non-word syllables (`data/voices.json` → reactions) | As above; **candidates for the developer to audition** | (runtime cache only) |
+
+## Inspected but not used (Milestone J)
+* **Quaternius Ultimate Monsters** (CC0, 50 animated monsters, https://quaternius.com/packs/ultimatemonsters.html):
+  the best visual match (incl. a golem, ghost and mushroom king), but its only download is a Google Drive folder
+  that returned "Quota exceeded" on every attempt today. Worth retrying later; nothing from it is in the project.
+* **Quaternius Cute Animated Monsters** (CC0): same Drive-hosted download; not obtained.
+* **Quaternius Bestiary Dungeon Monsters Kit**: licensed under Quaternius' own "QAL" licence with paid source
+  tiers and humanoid weapon-wielding enemies — not CC0; not used.
+* **LowPoly Animated Monsters** Bat / Skeleton / Slime: CC0 and downloaded with the Dragon, but older flat style
+  (Slime/Skeleton read as cartoon filler next to the VRMs) — not imported.
+* **Sketchfab** animated-monster listings: per-model licences vary (many CC-BY / editorial / paid) and downloads
+  need an account — not used. **OpenGameArt**: only CC0 *laugh* packs of other people's voices were found;
+  rejected because they would not match Mika's or Luna's voice.
+* **Mixamo**: needs an Adobe login (not available to the agent); the developer's existing Mixamo clips were
+  reused. No new Mixamo downloads.

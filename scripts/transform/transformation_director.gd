@@ -1,8 +1,9 @@
 class_name TransformationDirector
 extends Node
 ## Stages a mage's transformation (data/transformations.json) and keeps track of who is transformed.
-##   full    - the first time a form is reached (~14.5 s): sigil, hands, words, rise, flash + form change,
-##             the mage's own Aether Orbit forms, finishing pose, title, back to play
+##   full    - the first time a form is reached (11.6 s, five stages - Milestone J): awakening, build-up,
+##             clothing reveal through a cocoon of light (AwakeningFX: wraps feet-to-head, unravels
+##             head-to-feet), Aether Orbit assembly, final reveal pose on the musical climax
 ##   short   - later uses before a hard fight (~5 s)
 ##   preview - either version on demand for testing; changes no progress and reverts afterwards
 ## While it plays: her planner holds, creatures ignore her, the other mage may turn to watch; a dedicated
@@ -179,6 +180,13 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 	var col := Color(sp.color[0], sp.color[1], sp.color[2])
 	var acc := Color(sp.accent[0], sp.accent[1], sp.accent[2])
 	var fx := _build_fx(c, sp, col, acc, who)
+	var stages: Dictionary = v.get("stages", {})
+	var awk: AwakeningFX = null
+	if not stages.is_empty():
+		awk = AwakeningFX.new()
+		awk.name = "Animated_Awakening"
+		c.get_parent().add_child(awk)
+		awk.build(c, col, acc, bool(sp.get("petals", false)))
 	# the other mage notices
 	for other in main.characters:
 		if other != who and main.characters[other].visible and main.characters[other].global_position.distance_to(c.global_position) < 25.0:
@@ -203,10 +211,25 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 	var warm: Node3D = null
 	var ghost_frames := 0
 	var t := 0.0
+	var prev_t := 0.0
 	while t < length:
 		await get_tree().process_frame
-		t = (Time.get_ticks_msec() - t_start) / 1000.0
+		t += get_process_delta_time()            # sequence time = frame time (stays in step with the score, also when recorded)
 		seq_t = t
+		if awk:
+			var ao := awk.update(t, stages, t - prev_t)
+			if ao.get("locked", false) and AudioDirector.instance:
+				log.append({"who": who, "t": snappedf(t, 0.01), "orbit_locked": true})
+			# stage 1: she senses it - a glance down at her hands, then up as the build-up begins
+			if t > 0.25 and not fired.has("sense"):
+				fired.sense = true
+				c.look_head_at(c.global_position - c.global_transform.basis.z * 0.5 + Vector3(0, 0.95, 0))
+				c.set_expression("surprised", 0.35)
+			if t > float(stages.build) and not fired.has("look_up"):
+				fired.look_up = true
+				c.look_head_at(null)
+				c.set_expression("surprised", 0.0)
+		prev_t = t
 		var k := clampf(t / length, 0.0, 1.0)
 		# lift off during the buildup, settle after the reveal
 		var lift := smoothstep(0.15 * length, swap_t, t) * (1.0 - smoothstep(swap_t + 2.4, length * 0.8, t))
@@ -222,7 +245,7 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 		if t >= swap_t - 0.25 and not fired.has("flash_in"):
 			fired.flash_in = true
 			var tw := create_tween()
-			tw.tween_property(_flash, "color", Color(col.lerp(Color.WHITE, 0.6), 0.85), 0.25)
+			tw.tween_property(_flash, "color", Color(col.lerp(Color.WHITE, 0.6), float(v.get("flash_alpha", 0.85))), 0.25)
 		# prewarm: instantiate the form early (never adding it to the tree, so its spring bones initialise
 		# normally later) and draw each of its materials on a tiny sphere in front of the camera for a few
 		# frames, so the pipelines compile now instead of on the reveal frame; the instance goes to the swap
@@ -251,7 +274,11 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 				c.swap_avatar(form_path, ResourceLoader.load_threaded_get(form_path))
 			ghost = null
 			c.set_physics_process(false)        # (swap re-enables nothing, but be explicit)
-			_reveal_burst(c, col, acc)
+			if awk:
+				awk.swapped_at = t
+				_reveal_soft(c, col)             # inside the cocoon: motes, no white-out, no shake
+			else:
+				_reveal_burst(c, col, acc)
 			var tw2 := create_tween()
 			tw2.tween_property(_flash, "color", Color(col.lerp(Color.WHITE, 0.6), 0.0), 0.45).set_ease(Tween.EASE_OUT)
 			var spin := create_tween()
@@ -274,6 +301,8 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 	for other in main.characters:
 		main.characters[other].look_head_at(null)
 	_free_fx(fx)
+	if awk and is_instance_valid(awk):
+		awk.fade_out(0.8)
 	if _prev_cam and is_instance_valid(_prev_cam):
 		_prev_cam.make_current()
 	if main.director:
@@ -547,8 +576,8 @@ func _update_fx(fx: Dictionary, c: WorldCharacter, t: float, swap_t: float, leng
 	(fx.hand_r as GPUParticles3D).emitting = hands_on
 	fx.petals.global_position = c.global_position + Vector3(0, 1.2, 0)
 	(fx.petals as GPUParticles3D).emitting = t > swap_t and t < length - 1.5
-	fx.light.global_position = c.global_position + Vector3(0, 1.3, 0)
-	fx.light.light_energy = (0.35 + 1.0 * smoothstep(swap_t - 1.2, swap_t, t) * (1.0 - smoothstep(swap_t, swap_t + 1.2, t))) * end * float(RenderProfile.get_setting("magic_light_scale"))
+	fx.light.global_position = c.global_position + Vector3(0, 2.5, 0.3)
+	fx.light.light_energy = (0.2 + 0.5 * smoothstep(swap_t - 1.2, swap_t, t) * (1.0 - smoothstep(swap_t, swap_t + 1.2, t))) * end * float(RenderProfile.get_setting("magic_light_scale"))
 
 
 func _reveal_burst(c: WorldCharacter, col: Color, acc: Color) -> void:
@@ -568,6 +597,25 @@ func _reveal_burst(c: WorldCharacter, col: Color, acc: Color) -> void:
 		pm.scale_max = 1.4
 		pm.color_ramp = FX.ramp([Color(1, 1, 1, 1), Color(1, 1, 1, 0.8), Color(1, 1, 1, 0.0)], [0.0, 0.4, 1.0])), FX.mote_mesh(0.06))
 	ImpactFX.shake(host, 0.05, 0.4)
+
+
+## The reveal moment inside the cocoon (Milestone J full awakening): a gentle outward bloom of motes and a
+## ground ring - the ribbons, not a flash, carry the change.
+func _reveal_soft(c: WorldCharacter, col: Color) -> void:
+	var host: Node = c.get_parent()
+	ImpactFX.ground_ring(host, c.global_position + Vector3(0, 0.06, 0), col, 3.0)
+	FX.burst(host, c.global_position + Vector3(0, 1.1, 0), 70, 1.4, FX.process("transform_bloom", func(pm: ParticleProcessMaterial):
+		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+		pm.emission_sphere_radius = 0.5
+		pm.spread = 180.0
+		pm.initial_velocity_min = 1.5
+		pm.initial_velocity_max = 3.5
+		pm.damping_min = 2.0
+		pm.damping_max = 3.0
+		pm.gravity = Vector3(0, 0.3, 0)
+		pm.scale_min = 0.6
+		pm.scale_max = 1.3
+		pm.color_ramp = FX.ramp([Color(1, 1, 1, 0.9), Color(col, 0.7), Color(col, 0.0)], [0.0, 0.4, 1.0])), FX.mote_mesh(0.05))
 
 
 func _add_orbit(c: WorldCharacter, who: String, col: Color, acc: Color) -> void:

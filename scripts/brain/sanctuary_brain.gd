@@ -828,40 +828,74 @@ func _hunt(o: Dictionary) -> Dictionary:
 	if not mind.knowledge.has("bestiary:" + m.kind):
 		WorldState.record_activity({"id": "sight:" + m.kind, "verb": "observe", "label": "Saw a %s" % m.def.name}, {"knowledge": {"bestiary:" + m.kind: 1}}, agent_id)
 		_maybe_say(_lines("first_sight", ["What is that?", "Something is moving out there."]), 0.9)
-	# a strong creature and an unlocked form: transform first (the short sequence), if not already
+	# a strong creature and an unlocked form: an Orbit Surge first (the short sequence), if not already
 	if m.tier() in ["medium", "rare"] and main.transformer and main.transformer.can_surge(agent_id) and mind.vigor > 0.4:
 		current.stage = "calling an Orbit Surge"
 		await main.transformer.surge(agent_id)
 		if not is_instance_valid(m) or not m.alive():
 			return {"ok": true, "detail": "it was gone when she finished transforming"}
-	var casts := 0
-	var hits := 0
-	var tries := 0
-	while is_instance_valid(m) and m.alive() and casts < 8 and not _cancel:
-		current.stage = "fighting (cast %d)" % (casts + 1)
-		if mind.vigor < 0.22:
-			_maybe_say(_lines("retreat", ["Too much. I need to step back.", "Back to the circle."]), 1.0)
-			await _recover()
-			return {"ok": false, "detail": "withdrew to the circle after %d cast(s), %d hit(s)" % [casts, hits]}
-		if not await _stand_for_cast(spell, m.id):
-			tries += 1
-			if tries > 3:
-				return {"ok": false, "detail": "could not find a clear line to %s" % m.label}
-			await get_tree().create_timer(0.6).timeout
-			continue
-		var res: Dictionary = await main.magic.cast(me, spell, m.id)
-		casts += 1
-		needs.energy = clampf(needs.energy - 0.04, 0.0, 1.0)
-		if res.get("outcome", "") == "hit":
-			hits += 1
-		elif res.get("outcome", "") == "refused":
-			await get_tree().create_timer(0.5).timeout
-		await get_tree().create_timer(rng.randf_range(0.3, 0.8)).timeout
+	# Milestone J: a tactical loop. Each beat she decides from what she perceives (CombatTactics) and
+	# Godot executes it: dodges are real movement, casts go through the truthful spell pipeline.
+	me.set_combat_stance(true)
+	var st := {"casts": 0, "hits": 0, "dodges": 0, "dodged": 0, "struck": 0, "signature": 0, "assists": 0, "intents": {}}
+	var t_fight := Time.get_ticks_msec()
+	while is_instance_valid(m) and m.alive() and int(st.casts) < 12 and not _cancel and Time.get_ticks_msec() - t_fight < 90000:
+		var dec := CombatTactics.decide(self, me, m, spell)
+		var intent: String = dec.intent
+		st.intents[intent] = int(st.intents.get(intent, 0)) + 1
+		current.stage = "%s (%s)" % [intent.replace("_", " "), dec.get("why", "")]
+		_note_tactic(dec)
+		match intent:
+			"dodge":
+				st.dodges += 1
+				var hz: AttackHazard = dec.hazard
+				if hz and not hz.resolved.is_connected(_on_dodge_resolved):
+					hz.resolved.connect(_on_dodge_resolved.bind(st))
+				await me.dodge(dec.to)
+				if is_instance_valid(m):
+					me.look_at_point(m.global_position)
+			"brace":
+				me.play_gesture("brace", 0.06, 0.3)
+				await get_tree().create_timer(0.4).timeout
+			"retreat":
+				me.set_combat_stance(false)
+				_maybe_say(_lines("retreat", ["Too much. I need to step back.", "Back to the circle."]), 1.0)
+				await _recover()
+				return {"ok": false, "detail": "withdrew to the circle after %d cast(s), %d hit(s), %d dodge(s)" % [st.casts, st.hits, st.dodges], "tactics": st}
+			"assist":
+				st.assists += 1
+				m = dec.monster
+				_maybe_say(_lines("assist", ["I've got this one!", "Hold on, I'm coming!"]), 0.7)
+			"keep_distance", "approach", "reposition":
+				await _move_alert(dec.to, 2.5)
+			"steady":
+				await get_tree().create_timer(0.8).timeout
+			"cast":
+				var res: Dictionary
+				var sig := SignatureCast.can(main, agent_id, m)
+				if sig.ok and m.tier() != "weak" and (bool(dec.get("opening", false)) or m.hp > m.max_hp * 0.5) and rng.randf() < 0.7:
+					res = await SignatureCast.perform(main, me, m)
+					st.signature += 1
+				else:
+					res = await main.magic.cast(me, spell, m.id)
+				st.casts += 1
+				needs.energy = clampf(needs.energy - 0.04, 0.0, 1.0)
+				if res.get("outcome", "") == "hit":
+					st.hits += 1
+				elif res.get("outcome", "") == "refused":
+					await get_tree().create_timer(0.4).timeout
+				await get_tree().create_timer(rng.randf_range(0.15, 0.45)).timeout
+			_:
+				await get_tree().create_timer(0.3).timeout
+	me.set_combat_stance(false)
 	threat = null
 	if not is_instance_valid(m) or not m.alive():
 		needs.mastery = clampf(needs.mastery - 0.2, 0.0, 1.0)
+		me.play_gesture("victory_nod", 0.3, 0.5)
+		me.set_expression("happy", 0.6)
+		get_tree().create_timer(2.0).timeout.connect(func(): me.set_expression("happy", 0.0))
 		_maybe_say(_lines("victory", ["Got it.", "That's done. Breathe."]), 0.8)
-		await get_tree().create_timer(0.8).timeout
+		await get_tree().create_timer(1.2).timeout
 		var picked := 0
 		var tries_loot := []
 		for l in LootPickup.all_in(main.world):
@@ -870,8 +904,46 @@ func _hunt(o: Dictionary) -> Dictionary:
 				tries_loot.append(String(cr.get("detail", "")))
 				if cr.get("ok", false):
 					picked += 1
-		return {"ok": true, "detail": "won after %d cast(s), %d hit(s); picked up %d thing(s)" % [casts, hits, picked], "hits": hits, "loot": tries_loot}
-	return {"ok": false, "detail": "%d cast(s), %d hit(s); it is still there" % [casts, hits], "hits": hits}
+		return {"ok": true, "detail": "won after %d cast(s), %d hit(s), %d dodge(s); picked up %d thing(s)" % [st.casts, st.hits, st.dodges, picked],
+			"hits": st.hits, "loot": tries_loot, "tactics": st}
+	return {"ok": false, "detail": "%d cast(s), %d hit(s); it is still there" % [st.casts, st.hits], "hits": st.hits, "tactics": st}
+
+
+## Recent tactical decisions (overlay, tests, bridge): what she chose and why.
+var tactics_log: Array = []
+
+func _note_tactic(dec: Dictionary) -> void:
+	tactics_log.append({"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.1), "intent": dec.intent, "why": dec.get("why", "")})
+	if tactics_log.size() > 40:
+		tactics_log.pop_front()
+
+
+func _on_dodge_resolved(_h: AttackHazard, struck: Array, st: Dictionary) -> void:
+	if struck.has(me):
+		st.struck = int(st.struck) + 1
+	else:
+		st.dodged = int(st.dodged) + 1
+
+
+## Move toward `to` (running), but stay alert: stop the moment she perceives a blow coming at her, so
+## the next decision can be a dodge. Returns when arrived, interrupted or after `max_s`.
+func _move_alert(to: Vector3, max_s: float) -> void:
+	me.navigate_to(to, true)
+	var t0 := Time.get_ticks_msec()
+	while me.current_action == "navigate_to" and Time.get_ticks_msec() - t0 < int(max_s * 1000.0) and not _cancel:
+		await get_tree().physics_frame
+		if CombatTactics.incoming(me, main.world) != null:
+			me.stop_action()
+			return
+
+
+## Can she see this point from her eyes (no solid world geometry in between)?
+func can_see(p: Vector3) -> bool:
+	var q := PhysicsRayQueryParameters3D.create(me.global_position + Vector3(0, 1.5, 0), p)
+	q.exclude = [me.get_rid()]
+	q.collision_mask = 1
+	var hit := me.get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.is_empty() or (hit.position as Vector3).distance_to(p) < 1.0
 
 
 func _collect(l) -> Dictionary:

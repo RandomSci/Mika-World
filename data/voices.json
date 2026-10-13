@@ -1,0 +1,77 @@
+{
+ "_note": "Character voice providers (Milestone J). 'edge' = Microsoft Edge neural voices through the DEV service tools/voice/edge_service.py (port 12472, online, cached on disk); 'kokoro' = the local Kokoro-82M DEV service (port 12471, offline). Mika and Luna use the settings confirmed in Mika-Voice-Lab; their 'fallback' is used when the Edge service is unreachable or fails, and for lines spoken from fixed IPA (Latin incantations), which only Kokoro supports. Do not change the confirmed voices without the developer's approval.",
+ "speakers": {
+  "mika": {
+   "provider": "edge",
+   "voice": "en-US-AvaNeural",
+   "pitch": "+25Hz",
+   "rate": "+5%",
+   "gain": 0.85,
+   "fallback": {
+    "provider": "kokoro",
+    "voice": "af_bella:0.6,jf_alpha:0.4",
+    "gain": 0.7,
+    "speed": 1.0
+   }
+  },
+  "luna": {
+   "provider": "edge",
+   "voice": "ja-JP-NanamiNeural",
+   "pitch": "+30Hz",
+   "rate": "+5%",
+   "gain": 0.85,
+   "fallback": {
+    "provider": "kokoro",
+    "voice": "af_kore:0.6,af_sky:0.4",
+    "gain": 0.75,
+    "speed": 0.97
+   }
+  },
+  "wandering_mage": {
+   "provider": "kokoro",
+   "voice": "bf_isabella",
+   "gain": 0.8,
+   "speed": 0.95
+  },
+  "travelling_scholar": {
+   "provider": "kokoro",
+   "voice": "bf_emma",
+   "gain": 0.8,
+   "speed": 0.95
+  },
+  "wandering_merchant": {
+   "provider": "kokoro",
+   "voice": "bm_george",
+   "gain": 0.8,
+   "speed": 1.05
+  }
+ },
+ "reactions": {
+  "_note": "Laughter is never spoken as text ('hehe'). A leading/trailing laugh token in a line is removed and a short laugh clip in the SAME voice plays instead (rendered once per session through the Edge provider and cached by the service; see clips), with a happy expression. With no Edge voice available only the expression plays.",
+  "tokens": [
+   "hehe",
+   "hehehe",
+   "heehee",
+   "teehee",
+   "haha",
+   "hahaha",
+   "ahaha",
+   "lol",
+   "*giggles*",
+   "*laughs*",
+   "*giggle*",
+   "*laugh*"
+  ],
+  "clips": {
+   "_note": "Short laugh sounds rendered once per session in the speaker's own Edge voice (no words). Candidates - to be auditioned by the developer like the voices themselves.",
+   "laugh": {
+    "mika": "Ah ha ha ha!",
+    "luna": "Ah ha ha ha!"
+   },
+   "giggle": {
+    "mika": "Mm-hm-hm!",
+    "luna": "Mm-hm-hm!"
+   }
+  }
+ }
+}

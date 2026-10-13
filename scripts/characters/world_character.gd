@@ -41,7 +41,19 @@ const CLIPS := {
 	"dance_snake": ["snake_hip_hop_dance.fbx", true, true],
 	"dance_booty": ["booty_hip_hop_dance.fbx", true, true],
 	"dance_belly": ["belly_dance.fbx", true, true],
+	# Milestone J combat set: Quaternius Universal Animation Library (CC0), retargeted via ual_bonemap
+	"combat_idle": ["ual:Spell_Simple_Idle", true, true],
+	"cast_quick_enter": ["ual:Spell_Simple_Enter", false, true],
+	"cast_quick": ["ual:Spell_Simple_Shoot", false, true],
+	"cast_quick_exit": ["ual:Spell_Simple_Exit", false, true],
+	"dodge_dash": ["ual:Sprint", true, true],     # an upright evasive dash (a roll in a skirt is not stream-safe)
+	"hit_chest": ["ual:Hit_Chest", false, true],
+	"hit_head": ["ual:Hit_Head", false, true],
+	"hit_knockback": ["ual:Hit_Knockback", false, true],
+	"brace": ["ual:Sword_Block", false, true],
+	"victory_nod": ["ual:Yes", false, true],
 }
+const UAL_PACK := "res://assets/animations/ual/ual_combat.glb"
 
 @export var character_id := "mika"
 @export var display_name := "Mika"
@@ -86,6 +98,9 @@ var _expr_target := {}
 var _blink_timer := 2.0
 var _blink_phase := -1.0
 var _speed_smoothed := 0.0
+var _dash := {}            # active dodge: {dir, dist, t, dur, from}
+var combat_stance := false
+var last_hit := {}         # most recent hit taken: {t, heavy, clip}
 
 
 func _ready() -> void:
@@ -351,18 +366,33 @@ func _setup_animation() -> void:
 func _build_library() -> AnimationLibrary:
 	var lib := AnimationLibrary.new()
 	var skel_path := String(avatar.get_path_to(skeleton))
+	var ual: AnimationPlayer = null
+	var ual_src: Node = null
+	if ResourceLoader.exists(UAL_PACK):
+		ual_src = load(UAL_PACK).instantiate()
+		ual = ual_src.find_child("AnimationPlayer", true, false)
 	for clip_name in CLIPS:
 		var spec: Array = CLIPS[clip_name]
-		if not ResourceLoader.exists(MIXAMO_DIR + spec[0]):
-			push_warning("[character] missing clip %s (run tools/setup_local_assets.sh); '%s' unavailable" % [spec[0], clip_name])
-			continue
-		var src: Node = load(MIXAMO_DIR + spec[0]).instantiate()
-		var ap: AnimationPlayer = src.find_child("AnimationPlayer", true, false)
-		var anim: Animation = ap.get_animation("mixamo_com").duplicate(true)
-		src.free()
+		var anim: Animation
+		if String(spec[0]).begins_with("ual:"):
+			var an := String(spec[0]).trim_prefix("ual:")
+			if ual == null or not ual.has_animation(an):
+				push_warning("[character] missing UAL clip %s; '%s' unavailable" % [an, clip_name])
+				continue
+			anim = ual.get_animation(an).duplicate(true)
+		else:
+			if not ResourceLoader.exists(MIXAMO_DIR + spec[0]):
+				push_warning("[character] missing clip %s (run tools/setup_local_assets.sh); '%s' unavailable" % [spec[0], clip_name])
+				continue
+			var src: Node = load(MIXAMO_DIR + spec[0]).instantiate()
+			var ap: AnimationPlayer = src.find_child("AnimationPlayer", true, false)
+			anim = ap.get_animation("mixamo_com").duplicate(true)
+			src.free()
 		_retarget_paths(anim, skel_path, spec[2])
 		anim.loop_mode = Animation.LOOP_LINEAR if spec[1] else Animation.LOOP_NONE
 		lib.add_animation(clip_name, anim)
+	if ual_src:
+		ual_src.free()
 	return lib
 
 
@@ -603,6 +633,59 @@ func end_gesture() -> void:
 	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
 
 
+## Combat stance (Milestone J): her idle becomes a ready, hands-up stance while a fight is on.
+func set_combat_stance(on: bool) -> void:
+	if on == combat_stance or anim_tree == null:
+		return
+	combat_stance = on and has_clip("combat_idle")
+	var loco := (anim_tree.tree_root as AnimationNodeBlendTree).get_node("loco") as AnimationNodeBlendSpace1D
+	(loco.get_blend_point_node(0) as AnimationNodeAnimation).animation = "mx/combat_idle" if combat_stance else "mx/idle"
+
+
+## A real evasive move (Milestone J): she turns into the escape direction and rolls/steps there - the
+## body actually travels (collision + floor), it is not an animation played in place. Awaitable; returns
+## the distance really covered. Refused while casting (a cast is a commitment) or seated.
+func dodge(to: Vector3, dur := 0.6) -> float:
+	if casting or seated or not is_on_floor():
+		return 0.0
+	var d := Vector3(to.x - global_position.x, 0, to.z - global_position.z)
+	if d.length() < 0.3:
+		return 0.0
+	_finish_action(false, "superseded by dodge")
+	_nav_active = false
+	var from := global_position
+	_dash = {"dir": d.normalized(), "dist": d.length(), "t": 0.0, "dur": dur, "from": from}
+	rotation.y = atan2(-d.x, -d.z)            # commit to the direction: a burst of speed, upright
+	set_gesture_speed(1.35)
+	play_gesture("dodge_dash", 0.08, 0.25)
+	_begin_action("dodge", {"to": [to.x, to.y, to.z]})
+	while not _dash.is_empty():
+		await get_tree().physics_frame
+	end_gesture()
+	set_gesture_speed(1.0)
+	var moved := Vector2(global_position.x - from.x, global_position.z - from.z).length()
+	_finish_action(moved > 0.5, "dodged %.1f m" % moved)
+	return moved
+
+
+## Struck by a creature (Milestone J): a visible reaction - a flinch for a light blow, a stagger back for a
+## heavy one (real push-back through collision). While casting she only flinches (the cast goes on).
+func take_hit(from: Vector3, heavy := false) -> void:
+	var away := Vector3(global_position.x - from.x, 0, global_position.z - from.z)
+	away = away.normalized() if away.length() > 0.05 else global_transform.basis.z
+	set_expression("surprised", 0.9)
+	get_tree().create_timer(0.7).timeout.connect(func(): set_expression("surprised", 0.0))
+	var clip := "hit_knockback" if heavy else ("hit_chest" if randf() < 0.6 else "hit_head")
+	last_hit = {"t": Time.get_ticks_msec() / 1000.0, "heavy": heavy, "clip": clip}
+	if casting or seated or not _dash.is_empty():
+		return
+	_finish_action(false, "struck")
+	_nav_active = false
+	play_gesture(clip, 0.05, 0.35)
+	if heavy:
+		_dash = {"dir": away, "dist": 1.1, "t": 0.0, "dur": 0.45, "from": global_position, "keep_facing": true}
+
+
 func end_cast(ok: bool, detail: String) -> void:
 	casting = false
 	set_expression("happy", 0.0)
@@ -659,6 +742,23 @@ func _physics_process(delta: float) -> void:
 				_finish_action(false, "timeout")
 	if casting:
 		desired = Vector3.ZERO
+	if not _dash.is_empty():
+		# a dodge / knock-back: ease-out travel along the chosen line, through collision and floor
+		_dash.t = float(_dash.t) + delta
+		var k := clampf(float(_dash.t) / float(_dash.dur), 0.0, 1.0)
+		var v := float(_dash.dist) / float(_dash.dur) * 2.0 * (1.0 - k)      # integral of 2(1-k) over [0,1] = 1
+		velocity.x = (_dash.dir as Vector3).x * v
+		velocity.z = (_dash.dir as Vector3).z * v
+		if not is_on_floor():
+			velocity.y -= _gravity * delta
+		move_and_slide()
+		if not _dash.get("keep_facing", false):
+			rotation.y = lerp_angle(rotation.y, atan2(-(_dash.dir as Vector3).x, -(_dash.dir as Vector3).z), 1.0 - exp(-20.0 * delta))
+		anim_tree.set("parameters/loco/blend_position", 0.0)
+		if k >= 1.0:
+			_dash = {}
+			velocity = Vector3(0, velocity.y, 0)
+		return
 	var speed := run_speed if _run else walk_speed
 	var target_vel := desired * speed
 	var accel := 10.0 if desired.length() > 0.01 else 12.0

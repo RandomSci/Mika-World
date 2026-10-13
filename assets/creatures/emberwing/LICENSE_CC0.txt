@@ -1,0 +1,3 @@
+Quaternius "LowPoly Animated Monsters" (Dragon), CC0 1.0 Universal.
+Source: https://quaternius.itch.io/lowpoly-animated-monsters (downloaded 2026-10-13)
+Converted FBX -> GLB with Blender; recoloured in-game (Emberwing).

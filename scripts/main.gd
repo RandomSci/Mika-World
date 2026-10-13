@@ -72,6 +72,7 @@ func _ready() -> void:
 	streaming.overlay = overlay
 	add_child(streaming)
 
+	stream_profile = String(RenderProfile.options.get("stream-profile", "mika"))
 	var chars := Node3D.new()
 	chars.name = "Characters"
 	add_child(chars)
@@ -123,8 +124,12 @@ func _ready() -> void:
 		camera_rig.snap_behind()
 	_on_area_for_mages(streaming.current_id)
 	GatherNode.populate(world, streaming.current_id)
+	if not RenderProfile.options.has("no-polish"):
+		env_polish_report = EnvPolish.apply(world, streaming.current_id)
 	streaming.transition_started.connect(func(_f, _t): _park_mages())
 	streaming.area_activated.connect(func(a, _r): _on_area_for_mages(a); GatherNode.populate(world, a))
+	# Milestone J: targeted visual polish of the stream's home area (leaf material, meadow cover)
+	streaming.area_activated.connect(func(a, _r): if not RenderProfile.options.has("no-polish"): env_polish_report = EnvPolish.apply(world, a))
 
 	bridge = ActionBridge.new()
 	bridge.name = "ActionBridge"
@@ -177,6 +182,8 @@ func _ready() -> void:
 	progression.name = "Progression"
 	add_child(progression)
 	progression.setup(self)
+	# levelling has its own single, low cue (only for the mage the stream is following)
+	progression.leveled.connect(func(who, _lvl): if audio and who == focus: audio.play_progress("level_up", -4.0, "level_up"))
 
 	# Target-aware magic (spell catalogue, targeting, reactive world)
 	magic = MagicSystem.new()
@@ -270,6 +277,11 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("mjtest"):
+		travel._cooldown_until = 1e12
+		var mj := MilestoneJTest.new()
+		mj.main = self
+		add_child(mj)
 	elif RenderProfile.options.has("mitest"):
 		travel._cooldown_until = 1e12
 		var mi := MilestoneITest.new()
@@ -352,6 +364,7 @@ func spawn_character(id: String, display: String, avatar_path: String, at: Trans
 	c.character_id = id
 	c.display_name = display
 	c.avatar_path = avatar_path
+	c.add_to_group("mage")
 	parent.add_child(c)
 	c.global_transform = at
 	characters[id] = c
@@ -438,6 +451,15 @@ func _build_hud() -> void:
 ## Every mage's location is kept in her mind (saved), so she is rebuilt exactly where she was.
 var focus := "mika"
 var focus_locked := false          # an explicit request (F3, bridge, tests) holds the focus until released
+## Stream profile (Milestone J): which mage the automatic camera serves.
+##   mika   - the default livestream: Mika is the protagonist. The camera stays with her; Luna lives her own
+##            life but never takes the camera on her own (no Luna-only cutaways). Shared scenes (the two of
+##            them talking or fighting together) are framed by the director with both in shot.
+##   luna   - (future) the same policy centred on Luna
+##   shared - (future) the Milestone I spotlight: whoever is doing the most watchable thing
+## Set with --stream-profile=<id>; a developer's explicit focus (F3 / bridge / tests) always overrides.
+var stream_profile := "mika"
+var env_polish_report := {}
 var _loc_t := 0.0
 
 
@@ -560,18 +582,29 @@ func focus_mage(who: String, lock := false) -> Dictionary:
 	return {"ok": true, "focus": who, "area_change": true, "area": her_area}
 
 
-## Spotlight: Mika-first. While the director runs, the camera stays with Mika unless another mage is doing
-## something clearly more watchable (a fight, picking up its spoils, a meeting, a performance, a
-## transformation), and comes back to Mika once that is over. Changes at most every 20 s.
+## Spotlight. Profile "mika" (the default stream): the camera serves Mika - it returns to her after any
+## temporary change and never cuts away to another mage on its own. Profile "shared": the Milestone I
+## spotlight (another mage may take the camera for something clearly more watchable, changes at most
+## every 20 s). A developer's explicit focus (focus_locked) overrides both.
 func _spotlight(delta: float) -> void:
 	_spot_since += delta
 	_spot_t -= delta
+	var home_mage := stream_profile if stream_profile in mages else "mika"
 	if performance and performance.busy():
 		var pw := String(performance.active.get("who", ""))
-		if pw != "" and pw != focus and characters[pw].visible:
-			focus_mage(pw)                 # whoever performs owns the camera (like a transformation)
-		return
+		# the performer owns the camera only if she is the stream's mage (or in the shared profile)
+		if pw != "" and pw != focus and characters[pw].visible and (stream_profile == "shared" or pw == home_mage) and not focus_locked:
+			focus_mage(pw)
+		if stream_profile == "shared" or pw == home_mage:
+			return
 	if focus_locked:
+		return
+	if stream_profile != "shared":
+		_spot_t = maxf(_spot_t, 0.0)
+		if focus != home_mage and characters.has(home_mage) and _spot_since > 2.0 and (transformer == null or transformer.playing == ""):
+			if characters[home_mage].visible or WorldState.mind(home_mage).location.get("area", "") != "":
+				focus_mage(home_mage)      # back to the protagonist after any temporary change
+				_spot_since = 0.0
 		return
 	if not director or not director.enabled:
 		if focus != "mika" and characters["mika"].visible:

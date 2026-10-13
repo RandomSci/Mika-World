@@ -206,6 +206,9 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 	var power := power_of(id, charge if not self_spell else 0.0, who)
 	if caster.has_meta("form_power"):
 		power = minf(power + float(caster.get_meta("form_power")), 1.9)   # a transformed form casts stronger
+	if caster.has_meta("signature_power"):
+		power = minf(power + float(caster.get_meta("signature_power")), 1.9)   # a signature cast: the full channel
+		res["signature"] = true
 	# story unlock: the awakened Heartstone makes the ritual circle amplify spells cast inside it
 	var amplified: bool = WorldState.mind(who).knowledge.has("story:circle_amplified") and main.streaming.current_id == "sanctuary" \
 		and Vector2(caster.global_position.x, caster.global_position.z).length() < 7.8
@@ -213,10 +216,12 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 		power = minf(power + 0.15, 1.75)
 	var aim := Vector3.ZERO
 	var fwd := -caster.global_transform.basis.z
+	var aim_err := Vector3.ZERO
 	if target:
 		var err := aim_error(id, who)
 		var perp := fwd.cross(Vector3.UP).normalized()
-		aim = target.aim_point() + perp * rng.randf_range(-err, err) + Vector3.UP * rng.randf_range(-err, err) * 0.6
+		aim_err = perp * rng.randf_range(-err, err) + Vector3.UP * rng.randf_range(-err, err) * 0.6
+		aim = target.aim_point() + aim_err
 	else:
 		aim = caster.chest.global_position + fwd * minf(float(s.range), 6.0)
 	last_cast_dir = Vector3(aim.x - caster.global_position.x, 0, aim.z - caster.global_position.z).normalized()
@@ -226,20 +231,26 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 	if vo.text != "" and main.voice:
 		main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), vo.text, {"latin": true, "priority": 1, "subtitle": true})
 	var node: Node3D
+	# in a fight (combat stance) a spell may use its quicker combat gesture instead of the full ritual one
+	var clip := String(s.get("clip_combat", s.clip)) if (caster.combat_stance or caster.has_meta("signature")) else String(s.clip)
+	res["clip"] = clip
 	if String(s.get("projectile", "")) == "lance":
-		node = caster.cast_spell(CombatSpell, String(s.clip))
+		node = caster.cast_spell(CombatSpell, clip)
 		if node:
 			(node as CombatSpell).configure(id, s, aim, target, power, mastery(id, who))
 	elif id == "arcane_orb":
-		node = caster.cast_spell(ArcaneOrbSpell, String(s.clip))
+		node = caster.cast_spell(ArcaneOrbSpell, clip)
 		if node:
 			node.set("aim_point", aim)
 			node.set("target_ref", target)
 			node.set("spell_id", id)
 	else:
-		node = caster.cast_spell(ElementalSpell, String(s.clip))
+		node = caster.cast_spell(ElementalSpell, clip)
 		if node:
 			(node as ElementalSpell).configure(id, s, aim, target, power, mastery(id, who))
+	if node:
+		node.set_meta("aim_err", aim_err)
+		node.set_meta("mastery", mastery(id, who))
 	if node == null:
 		_casting.erase(who)
 		res["outcome"] = "refused"
@@ -292,6 +303,17 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 	res["mastery_after"] = snappedf(mastery(id, who), 0.01)
 	res["seconds"] = snappedf((Time.get_ticks_msec() - started) / 1000.0, 0.01)
 	return _finish(res)
+
+
+## Where to send a projectile at the moment of RELEASE: the target's aim point now, plus a lead for its
+## observed motion over the flight time (a practised caster leads a moving creature better), plus the
+## caster's own aim error (fixed at the start of the cast). Honest: no homing, no guaranteed hits.
+static func lead_aim(target: ReactiveElement, from: Vector3, speed: float, p_mastery: float, aim_err: Vector3) -> Vector3:
+	var p := target.aim_point()
+	var vel: Vector3 = target.get("move_vel") if target.get("move_vel") != null else Vector3.ZERO
+	var t_flight := from.distance_to(p) / maxf(speed, 1.0)
+	var skill := clampf(0.35 + 0.35 * p_mastery, 0.0, 1.0)
+	return p + vel * t_flight * skill + aim_err
 
 
 ## Mastery grows with diminishing returns; the first success of an untested spell is "practical understanding".

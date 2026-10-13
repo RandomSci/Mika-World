@@ -108,7 +108,11 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	var brain = main.mage_brains.get(who)
 	var voice_id := String(Progression.mages.get(who, {}).get("voice", who))
 	var dir_was: bool = main.director.enabled if main.director else false
-	if main.director:
+	# the camera films a performance only when it belongs to the stream's mage (Mika-first) or the shared
+	# profile is on; a mage performing on her own elsewhere is never a cutaway (Milestone J)
+	var films: bool = main.director != null and (String(main.get("stream_profile")) == "shared" or main.characters.get(main.get("focus")) == c)
+	active["filmed"] = films
+	if films:
 		main.director.enabled = true
 	# special: go to the venue, opening pose
 	if mode == "special":
@@ -132,7 +136,7 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 		if main.camera_rig and main.characters.get(main.get("focus")) == c:
 			pass
 	started.emit(active)
-	if main.director:
+	if films:
 		main.director.start_performance(c, mode)
 	# intro remark (her own voice), counted inside the total
 	var intro := _line(who, "perform_intro_" + mode, music)
@@ -261,7 +265,7 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 
 
 func _finish(c: WorldCharacter, brain, dir_was: bool, res: Dictionary, _t0: int) -> Dictionary:
-	if main.director:
+	if main.director and bool(active.get("filmed", true)):
 		main.director.end_performance()
 		main.director.enabled = dir_was
 	var who := String(res.get("who", active.get("who", "")))

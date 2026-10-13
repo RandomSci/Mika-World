@@ -63,6 +63,17 @@ var _outcome := {}
 var _flight_s := 0.45
 var _prev_orb := Vector3.ZERO
 var _light_scale: float = RenderProfile.get_setting("magic_light_scale")
+## Milestone J: a SIGNATURE cast (SignatureCast) channels the same spell fully: a slower, fuller build-up,
+## an outer formation on the ground and a vertical sigil drawn in front of her hands, a larger orb.
+var signature := false
+var _resolved_sent := false
+var _sig_k := 1.0
+var outer_sigil: MeshInstance3D
+var formation: MeshInstance3D
+## A light trail behind the orb in flight, so its path reads clearly on screen.
+var _trail_mesh: ImmediateMesh
+var _trail_node: MeshInstance3D
+var _trail_pts: Array[Vector3] = []
 
 
 func start(c: WorldCharacter, clip_name: String) -> void:
@@ -70,6 +81,11 @@ func start(c: WorldCharacter, clip_name: String) -> void:
 	clip = clip_name
 	timing = TIMING.get(clip, TIMING["prepare_and_cast"])
 	duration = caster.animation_length(clip)
+	signature = caster.has_meta("signature")
+	if signature:
+		_sig_k = 1.4
+		caster.set_gesture_speed(0.6)          # a deliberate, fuller channel on the decisive two-handed gesture
+		duration /= 0.6
 	global_position = caster.global_position
 	_build()
 	caster.cast_event.emit("awaken")
@@ -164,6 +180,37 @@ func _build() -> void:
 
 	orb_light = _light(BLUE.lerp(Color.WHITE, 0.15), 0.0, 7.0, _shadows)
 	orb_root.add_child(orb_light)
+
+	if signature:
+		outer_sigil = MeshInstance3D.new()
+		var oq := PlaneMesh.new()
+		oq.size = Vector2(6.2, 6.2)
+		outer_sigil.mesh = oq
+		outer_sigil.material_override = _sigil_mat(12, VIOLET, 0.0)
+		outer_sigil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(outer_sigil)
+		formation = MeshInstance3D.new()
+		var fq := QuadMesh.new()
+		fq.size = Vector2(1.15, 1.15)
+		formation.mesh = fq
+		formation.material_override = _sigil_mat(7, BLUE.lerp(VIOLET, 0.35), 0.0)
+		formation.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(formation)
+		(gather.process_material as ParticleProcessMaterial).emission_sphere_radius = 2.4
+		gather.amount = int(gather.amount * 1.5)
+	_trail_mesh = ImmediateMesh.new()
+	_trail_node = MeshInstance3D.new()
+	_trail_node.mesh = _trail_mesh
+	var tm := StandardMaterial3D.new()
+	tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	tm.vertex_color_use_as_albedo = true
+	tm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_trail_node.material_override = tm
+	_trail_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_trail_node.top_level = true
+	add_child(_trail_node)
 
 	shockwave = MeshInstance3D.new()
 	var sq := PlaneMesh.new()
@@ -297,6 +344,21 @@ func _process(delta: float) -> void:
 	ground_sigil.global_position = caster.global_position + Vector3(0, 0.03, 0)
 	rising.emitting = t > A + 0.2 and t < R + 0.3
 	rising.global_position = caster.global_position + Vector3(0, 0.05, 0)
+	if signature:
+		var om: ShaderMaterial = outer_sigil.material_override
+		om.set_shader_parameter("draw_progress", smoothstep(0.0, 1.0, _ramp(A + 0.2, G + 0.9)))
+		om.set_shader_parameter("intensity", 1.2 * _ramp(A + 0.2, G + 0.9) * fade_out + 1.0 * _pulse(R, 0.6))
+		outer_sigil.global_position = caster.global_position + Vector3(0, 0.035, 0)
+		outer_sigil.rotation.y = -t * 0.35
+		# the formation: drawn upright in front of her hands, facing where she will release
+		var fm: ShaderMaterial = formation.material_override
+		var fk := _ramp(G, O + 0.2) * (1.0 - _ramp(R, R + 0.35))
+		fm.set_shader_parameter("draw_progress", smoothstep(0.0, 1.0, _ramp(G, O)))
+		fm.set_shader_parameter("intensity", 1.5 * fk)
+		var fwd0 := -caster.global_transform.basis.z
+		formation.global_position = hands + fwd0 * 0.75 + Vector3(0, 0.08, 0)
+		formation.look_at(formation.global_position + fwd0, Vector3.UP)
+		formation.rotate_object_local(Vector3(0, 0, 1), t * 0.8)
 
 	# --- gather: motes converge to the hands, hand glow
 	var gather_amt := _ramp(G, O) * (1.0 - _ramp(R, R + 0.2))
@@ -331,6 +393,8 @@ func _process(delta: float) -> void:
 		_release_to = _orb_pos + fwd * 4.5 + Vector3(0, 1.6, 0)
 		if aim_point != null:
 			_release_to = aim_point
+		if target_ref and is_instance_valid(target_ref):
+			_release_to = MagicSystem.lead_aim(target_ref, _release_from, 11.0, float(get_meta("mastery", 0.0)), get_meta("aim_err", Vector3.ZERO))
 		_flight_s = clampf(_release_from.distance_to(_release_to) / 11.0, 0.25, 1.6)
 		_prev_orb = _release_from
 		caster.cast_event.emit("release")
@@ -339,7 +403,8 @@ func _process(delta: float) -> void:
 		caster.set_expression("surprised", 0.35)
 	var flight := _ramp(R, R + _flight_s)
 	if released and _outcome.is_empty():
-		_orb_pos = _release_from.lerp(_release_to, 1.0 - pow(1.0 - flight, 2.2))
+		var fk2 := 1.0 - pow(1.0 - flight, 2.2)
+		_orb_pos = _release_from.lerp(_release_to, fk2) + Vector3(0, sin(fk2 * PI) * minf(0.6, _release_from.distance_to(_release_to) * 0.05), 0)
 		# real flight: anything solid between the last and this frame stops the orb there
 		var hit := MagicSystem.sweep(caster.get_world_3d(), _prev_orb, _orb_pos, [caster.get_rid()])
 		if not hit.is_empty():
@@ -356,7 +421,7 @@ func _process(delta: float) -> void:
 			_outcome["distance_from_target_m"] = snappedf(_orb_pos.distance_to(target_ref.aim_point()), 0.01)
 		_prev_orb = _orb_pos
 	orb_root.global_position = _orb_pos
-	var s := (0.25 + 0.75 * smoothstep(0.0, 1.0, orb_amt)) * pulse * (1.0 - flight * 0.6)
+	var s := (0.25 + 0.75 * smoothstep(0.0, 1.0, orb_amt)) * pulse * (1.0 - flight * 0.6) * _sig_k
 	if t < O:
 		s = 0.25 * smoothstep(0.0, 1.0, form_amt)
 	if flight >= 1.0:
@@ -391,7 +456,16 @@ func _process(delta: float) -> void:
 		var charge := (0.35 * awaken + 0.65 * orb_amt + 0.8 * flash) * fade_out
 		caster.world.call("set_rune_charge", charge, clampf(awaken * 1.3, 0.0, 1.0))
 
-	# --- burst + shockwave on impact
+	# --- light trail behind the orb in flight (fades along its length)
+	if released and flight < 1.0:
+		_trail_pts.append(_orb_pos)
+		if _trail_pts.size() > 14:
+			_trail_pts.pop_front()
+	elif _trail_pts.size() > 0 and flight >= 1.0:
+		_trail_pts.pop_front()
+	_draw_trail()
+
+	# --- burst + ground ripple on impact
 	if flight >= 1.0 and not burst_done:
 		burst_done = true
 		burst.global_position = _release_to
@@ -400,15 +474,27 @@ func _process(delta: float) -> void:
 		shockwave.visible = true
 		caster.cast_event.emit("burst")
 		_bus("impact" if _outcome.get("outcome", "") in ["hit", "released"] else String(_outcome.get("outcome", "impact")), _release_to)
+		# the outcome is known now: the world reacts at the moment of impact (the light fades on its own)
+		if not _resolved_sent:
+			_resolved_sent = true
+			if signature:
+				caster.set_gesture_speed(1.0)
+			caster.end_cast(true, "arcane_orb resolved")
+			resolved.emit(_outcome)
 	if burst_done:
+		# a ripple across the GROUND under the impact (not a disc facing the camera); skipped when the
+		# impact is high in the air
 		var sw := _ramp(R + _flight_s, R + _flight_s + 0.85)
-		shockwave.global_position = _release_to
-		shockwave.look_at(_release_to + fwd, Vector3.UP)
-		shockwave.rotate_object_local(Vector3.RIGHT, PI * 0.5)
-		shockwave.scale = Vector3.ONE * (0.5 + sw * 7.0)
+		var gy := _release_to.y - 0.5
+		if caster.world and caster.world.has_method("ground_at"):
+			gy = float(caster.world.ground_at(_release_to.x, _release_to.z))
+		shockwave.visible = _release_to.y - gy < 1.8
+		shockwave.global_position = Vector3(_release_to.x, gy + 0.04, _release_to.z)
+		shockwave.rotation = Vector3.ZERO
+		shockwave.scale = Vector3.ONE * (0.5 + sw * (5.0 if not signature else 8.0))
 		var swm: ShaderMaterial = shockwave.material_override
 		swm.set_shader_parameter("draw_progress", 1.0)
-		swm.set_shader_parameter("intensity", 2.4 * (1.0 - sw))
+		swm.set_shader_parameter("intensity", 1.8 * (1.0 - sw))
 		orb_light.global_position = _release_to
 
 	# --- resolve
@@ -418,15 +504,44 @@ func _process(delta: float) -> void:
 			caster.world.call("set_rune_charge", 0.0, 1.0)
 		caster.cast_event.emit("resolved")
 		_bus("dissipate", _release_to)
-		caster.end_cast(true, "arcane_orb resolved")
-		if _outcome.is_empty():
-			_outcome = {"outcome": "released", "point": [snappedf(_release_to.x, 0.01), snappedf(_release_to.y, 0.01), snappedf(_release_to.z, 0.01)]}
-		resolved.emit(_outcome)
+		if not _resolved_sent:
+			if signature:
+				caster.set_gesture_speed(1.0)
+			caster.end_cast(true, "arcane_orb resolved")
+			if _outcome.is_empty():
+				_outcome = {"outcome": "released", "point": [snappedf(_release_to.x, 0.01), snappedf(_release_to.y, 0.01), snappedf(_release_to.z, 0.01)]}
+			resolved.emit(_outcome)
 		hand_glow_l.queue_free()
 		hand_glow_r.queue_free()
 		hand_sprite_l.queue_free()
 		hand_sprite_r.queue_free()
 		queue_free()
+
+
+func _draw_trail() -> void:
+	_trail_mesh.clear_surfaces()
+	if _trail_pts.size() < 2:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	_trail_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	var n := _trail_pts.size()
+	for i in n:
+		var p: Vector3 = _trail_pts[i]
+		var nxt: Vector3 = _trail_pts[mini(i + 1, n - 1)]
+		var prv: Vector3 = _trail_pts[maxi(i - 1, 0)]
+		var tangent := (nxt - prv).normalized()
+		var side := tangent.cross(cam.global_position - p).normalized()
+		var k := float(i) / float(n - 1)                    # 0 = tail, 1 = head
+		var w := 0.03 + 0.11 * k * _sig_k
+		var c := BLUE.lerp(VIOLET, 1.0 - k)
+		c.a = k * k
+		_trail_mesh.surface_set_color(c)
+		_trail_mesh.surface_add_vertex(p + side * w)
+		_trail_mesh.surface_set_color(c)
+		_trail_mesh.surface_add_vertex(p - side * w)
+	_trail_mesh.surface_end()
 
 
 func _pulse(start: float, length: float) -> float:

@@ -43,7 +43,8 @@
    ],
    "summary": "A sphere of raw arcane light. Stirs anything that holds magic.",
    "incantation_short": "Orbis!",
-   "damage": 1.0
+   "damage": 1.0,
+   "clip_combat": "magic_attack_2h"
   },
   "wind_gust": {
    "name": "Wind Gust",

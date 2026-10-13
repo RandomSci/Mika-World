@@ -1,126 +1,139 @@
 {
- "_note": "Original Mika World transformation language: an Aether Orbit sigil opens under the mage, light gathers in her hands while she speaks her words, an aura column rises as she lifts off the ground, a flash carries the form change, the mage's own orbit ring forms around her, a finishing pose, then back to play. Times in seconds; 'swap' is the flash peak where the avatar changes (the music cue's reveal hit is composed to land there). Camera shots are relative to the mage (radius/height in metres, yaw degrees from her facing, look = 'face' | 'chest' | 'hands' | 'feet'). No third-party sequences, symbols, poses or music. Gestures/poses avoid clips that rotate the hips (wide_arm_spell), and each shot is anchored to the mage's visual facing (from her shoulders) when the shot begins. The form reached at a tenth level is PERMANENT (saved appearance); 'surge_s' is the length of the temporary Orbit Surge (power + orbit ring) a mage may call before a strong fight.",
+ "_note": "Original Mika World transformation language: an Aether Orbit sigil opens under the mage, light gathers in her hands while she speaks her words, an aura column rises as she lifts off the ground, a flash carries the form change, the mage's own orbit ring forms around her, a finishing pose, then back to play. Times in seconds; 'swap' is the flash peak where the avatar changes (the music cue's reveal hit is composed to land there). Camera shots are relative to the mage (radius/height in metres, yaw degrees from her facing, look = 'face' | 'chest' | 'hands' | 'feet'). No third-party sequences, symbols, poses or music. Gestures/poses avoid clips that rotate the hips (wide_arm_spell), and each shot is anchored to the mage's visual facing (from her shoulders) when the shot begins. The form reached at a tenth level is PERMANENT (saved appearance); 'surge_s' is the length of the temporary Orbit Surge (power + orbit ring) a mage may call before a strong fight. Milestone J: the FIRST awakening (full) is an 11.6 s, five-stage sequence (versions.full.stages): 1 awakening (she senses it; ambient light gathers), 2 build-up (orbit frames rise and turn, she lifts off, speaks her words), 3 clothing reveal (a cocoon of light ribbons wraps her feet-to-head, the form changes inside it, then the ribbons unravel head-to-feet so the outfit appears progressively - never an abrupt swap or a white-out), 4 Aether Orbit awakening (arc segments and beads fly in and lock into her first orbit), 5 final reveal (landing, finishing pose on the musical climax, clear full-body shot). Music: tools/audio/synth_milestone_j.py transform. Camera rule (Milestone J): no low angles on a mage at close range - every shot is at least 1.0 m high (a skirt lifted by spring bones during the lift-off must never be framed from below).",
  "versions": {
   "full": {
-   "length": 14.5,
-   "swap": 6.05,
-   "float": 0.35,
+   "length": 11.6,
+   "swap": 5.6,
+   "float": 0.2,
    "music": "full",
    "shots": [
     {
      "from": 0.0,
-     "to": 1.3,
+     "to": 1.8,
      "radius": [
-      4.6,
-      4.0
+      5.4,
+      4.4
      ],
      "height": [
-      0.55,
-      0.7
+      1.0,
+      1.05
      ],
      "yaw": [
-      -40,
-      -10
+      -38,
+      -18
      ],
      "look": "chest",
      "fov": 50
     },
     {
-     "from": 1.3,
-     "to": 3.5,
+     "from": 1.8,
+     "to": 4.3,
      "radius": [
-      1.35,
-      1.15
+      3.3,
+      2.6
      ],
      "height": [
-      1.25,
-      1.3
+      1.0,
+      1.15
      ],
      "yaw": [
       25,
-      40
+      125
      ],
-     "look": "hands",
-     "fov": 42
-    },
-    {
-     "from": 3.5,
-     "to": 5.9,
-     "radius": [
-      1.9,
-      1.35
-     ],
-     "height": [
-      0.25,
-      1.55
-     ],
-     "yaw": [
-      60,
-      120
-     ],
-     "look_from": "feet",
-     "look": "face",
+     "look": "chest",
      "fov": 46
     },
     {
-     "from": 5.9,
-     "to": 9.0,
+     "from": 4.3,
+     "to": 5.6,
      "radius": [
-      2.9,
-      2.5
+      2.6,
+      2.3
      ],
      "height": [
-      1.05,
-      1.2
+      1.25,
+      1.35
      ],
      "yaw": [
-      140,
-      320
+      35,
+      22
+     ],
+     "look": "chest",
+     "fov": 44
+    },
+    {
+     "from": 5.6,
+     "to": 7.4,
+     "radius": [
+      2.3,
+      3.3
+     ],
+     "height": [
+      1.5,
+      1.0
+     ],
+     "yaw": [
+      -14,
+      -4
+     ],
+     "look_from": "face",
+     "look": "feet",
+     "fov": 46
+    },
+    {
+     "from": 7.4,
+     "to": 9.4,
+     "radius": [
+      3.7,
+      3.4
+     ],
+     "height": [
+      1.0,
+      1.0
+     ],
+     "yaw": [
+      28,
+      -8
      ],
      "look": "chest",
      "fov": 48
     },
     {
-     "from": 9.0,
+     "from": 9.4,
      "to": 11.6,
      "radius": [
-      1.05,
-      0.85
+      4.0,
+      4.7
      ],
      "height": [
-      1.5,
-      1.52
+      1.1,
+      1.2
      ],
      "yaw": [
-      -15,
-      5
-     ],
-     "look": "face",
-     "fov": 38
-    },
-    {
-     "from": 11.6,
-     "to": 14.5,
-     "radius": [
-      3.0,
-      4.4
-     ],
-     "height": [
-      1.0,
-      1.9
-     ],
-     "yaw": [
-      -30,
-      -45
+      0,
+      8
      ],
      "look": "chest",
-     "fov": 50
+     "fov": 46
     }
    ],
-   "incantation_at": 1.7,
-   "gesture_at": 1.1,
-   "pose_at": 9.2,
-   "title_at": 11.8
+   "incantation_at": 2.4,
+   "gesture_at": 2.0,
+   "pose_at": 9.6,
+   "title_at": 10.0,
+   "stages": {
+    "awaken": 0.0,
+    "build": 1.8,
+    "cover": 4.3,
+    "swap": 5.6,
+    "reveal_end": 7.4,
+    "orbit": 7.6,
+    "orbit_lock": 9.2,
+    "pose": 9.6,
+    "title": 10.0,
+    "length": 11.6
+   },
+   "flash_alpha": 0.22
   },
   "short": {
    "length": 5.2,
@@ -172,7 +185,7 @@
       4.2
      ],
      "height": [
-      0.9,
+      1.0,
       1.6
      ],
      "yaw": [

@@ -12,3 +12,5 @@ assets/animations/mixamo_sword/*.fbx
 # Song audio stays local until its broadcast/commercial rights are confirmed (see each metadata.json)
 assets/audio/music/library/*/*.mp3
 assets/audio/music/library/*/*.wav
+# Local voice venv (edge-tts) for tools/voice/edge_service.py
+/.venv-voice/

@@ -55,10 +55,10 @@ func setup(m: Node) -> void:
 	add_child(_night_bed)
 	MagicEvents.spell_phase.connect(_on_phase)
 	MagicEvents.magic_event.connect(_on_magic)
-	WorldState.trial_completed.connect(func(_tr): play2d("trial_complete", "UI", -2.0, "trial_completed"))
-	WorldState.rank_changed.connect(func(_r): play2d("rank_up", "UI", 0.0, "rank_changed"))
+	WorldState.trial_completed.connect(func(_tr): play_progress("trial_complete", -2.0, "trial_completed"))
+	WorldState.rank_changed.connect(func(_r): play_progress("rank_up", 0.0, "rank_changed"))
 	WorldState.state_changed.connect(_on_state)
-	WorldState.discovered.connect(func(kind, _id): if kind == "location": play2d("discovery", "UI", -6.0, "discovered"))
+	WorldState.discovered.connect(func(kind, _id): if kind == "location": play_progress("discovery", -6.0, "discovered"))
 	main.streaming.transition_started.connect(func(_a, _b): play2d("portal_whoosh", "UI", -4.0, "portal"))
 	main.streaming.area_activated.connect(func(_a, _r): _build_beds())
 
@@ -110,6 +110,19 @@ func play3d(name: String, pos: Vector3, bus := "SFX", db := 0.0, event := "", pi
 	p.play()
 	_note(name, bus, event)
 	return p
+
+
+## Progress moments (trial, rank, discovery, level): at most one cue every PROGRESS_GAP_S, so a burst of
+## achievements never becomes a string of notification sounds (Milestone J). Returns null when skipped.
+const PROGRESS_GAP_S := 4.0
+var _last_progress := -100.0
+
+func play_progress(name: String, db := 0.0, event := "") -> AudioStreamPlayer:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _last_progress < PROGRESS_GAP_S:
+		return null
+	_last_progress = now
+	return play2d(name, "UI", db, event)
 
 
 func play2d(name: String, bus := "UI", db := 0.0, event := "") -> AudioStreamPlayer:
@@ -215,7 +228,7 @@ func _on_state(entry: Dictionary) -> void:
 	var ch: Dictionary = entry.get("changes", {})
 	for k in ch:
 		if String(k).begins_with("knowledge.clue:"):
-			play2d("discovery", "UI", -6.0, "clue")
+			play_progress("discovery", -6.0, "clue")
 			return
 		if String(k) == "inventory.luminous_draught":
 			play2d("alchemy_glow", "UI", -6.0, "crafted")

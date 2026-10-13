@@ -88,7 +88,7 @@ func register_mind(who: String, starting_skills := {}) -> MageMind:
 
 const _TEST_FLAGS := ["fresh", "physicstest", "posetest", "magictest", "readtest", "alchemytest", "audiotest", "lifetest",
 	"storytest", "brainrun", "sanctuarytour", "worldtour", "facetest", "tour", "mock-commands", "viewertest", "chattest", "perfrun",
-	"persisttest", "mhtest", "mitest"]
+	"persisttest", "mhtest", "mitest", "mjtest"]
 
 
 func _ready() -> void:

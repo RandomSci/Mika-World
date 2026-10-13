@@ -240,6 +240,11 @@ static func pm_puff(kind: String) -> ParticleProcessMaterial:
 				pm.emission_sphere_radius = 0.8
 				pm.initial_velocity_max = 0.5
 				pm.gravity = Vector3(0, 0.05, 0)
+			"flare":
+				# a hot flare that rises and cools to smoke (fire impacts)
+				pm.color_ramp = ramp([Color(1.0, 0.85, 0.5, 0.0), Color(1.0, 0.6, 0.2, 0.85), Color(0.55, 0.2, 0.08, 0.35), Color(0.2, 0.18, 0.17, 0.0)], [0.0, 0.1, 0.45, 1.0])
+				pm.initial_velocity_max = 2.0
+				pm.gravity = Vector3(0, 1.2, 0)
 			"dust":
 				pm.color_ramp = ramp([Color(0.6, 0.55, 0.45, 0.0), Color(0.62, 0.58, 0.5, 0.35), Color(0.6, 0.56, 0.5, 0.0)], [0.0, 0.2, 1.0])
 				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
