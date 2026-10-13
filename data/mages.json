@@ -169,7 +169,79 @@
      1.8
     ]
    },
-   "home_area": "sanctuary"
+   "home_area": "sanctuary",
+   "face": {
+    "_note": "Stable personality of her face (Milestone K). Warm, open, quick to show what she feels.",
+    "expressiveness": 1.0,
+    "blink_mean": 3.4,
+    "bias": {
+     "curious": 1.15,
+     "excited": 1.1,
+     "happy": 1.0,
+     "surprised": 1.05,
+     "concentrating": 0.9,
+     "determined": 0.9
+    }
+   },
+   "reactions": {
+    "_note": "[emotion, intensity, hold seconds, optional 'nod']",
+    "discovery": [
+     "surprised",
+     0.65,
+     1.0
+    ],
+    "clue": [
+     "curious",
+     0.85,
+     2.5
+    ],
+    "first_sight": [
+     "surprised",
+     0.8,
+     1.2
+    ],
+    "spell_hit": [
+     "proud",
+     0.45,
+     1.2
+    ],
+    "spell_miss": [
+     "frustrated",
+     0.35,
+     0.9
+    ],
+    "struck": [
+     "surprised",
+     0.9,
+     0.6
+    ],
+    "victory": [
+     "excited",
+     0.85,
+     2.2
+    ],
+    "victory_spent": [
+     "relieved",
+     0.85,
+     2.6
+    ],
+    "level_up": [
+     "excited",
+     0.95,
+     2.8
+    ],
+    "fusion": [
+     "happy",
+     0.9,
+     2.4,
+     "nod"
+    ],
+    "camera": [
+     "happy",
+     0.4,
+     1.6
+    ]
+   }
   },
   "luna": {
    "name": "Luna",
@@ -339,7 +411,81 @@
      1.6
     ]
    },
-   "home_area": "sanctuary"
+   "home_area": "sanctuary",
+   "face": {
+    "_note": "Composed and observant: smaller, slower expressions; a dry, playful edge.",
+    "expressiveness": 0.85,
+    "blink_mean": 4.2,
+    "bias": {
+     "concentrating": 1.25,
+     "thoughtful": 1.2,
+     "determined": 1.2,
+     "playful": 1.2,
+     "excited": 0.7,
+     "surprised": 0.75,
+     "happy": 0.85
+    }
+   },
+   "reactions": {
+    "_note": "[emotion, intensity, hold seconds, optional 'nod']",
+    "discovery": [
+     "curious",
+     0.6,
+     1.4
+    ],
+    "clue": [
+     "thoughtful",
+     0.8,
+     2.6
+    ],
+    "first_sight": [
+     "concentrating",
+     0.7,
+     1.4
+    ],
+    "spell_hit": [
+     "proud",
+     0.35,
+     1.0,
+     "nod"
+    ],
+    "spell_miss": [
+     "frustrated",
+     0.3,
+     0.8
+    ],
+    "struck": [
+     "frustrated",
+     0.7,
+     0.7
+    ],
+    "victory": [
+     "playful",
+     0.7,
+     2.0
+    ],
+    "victory_spent": [
+     "relieved",
+     0.75,
+     2.4
+    ],
+    "level_up": [
+     "proud",
+     0.8,
+     2.6
+    ],
+    "fusion": [
+     "playful",
+     0.8,
+     2.2,
+     "nod"
+    ],
+    "camera": [
+     "playful",
+     0.35,
+     1.5
+    ]
+   }
   }
  }
 }

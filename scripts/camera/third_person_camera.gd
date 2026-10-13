@@ -65,6 +65,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func set_shot(pos: Vector3, look: Vector3, fov := 50.0) -> void:
 	shot_active = true
+	# the spring arm would keep re-placing its child camera every physics frame (fighting the directed shot,
+	# and giving anything that reads the camera position mid-frame the arm's position): pause it
+	arm.process_mode = Node.PROCESS_MODE_DISABLED
 	_shot_pos = pos
 	_shot_look = look
 	camera.fov = fov
@@ -83,6 +86,7 @@ func snap_behind() -> void:
 
 func clear_shot() -> void:
 	shot_active = false
+	arm.process_mode = Node.PROCESS_MODE_INHERIT
 	camera.top_level = false
 	camera.transform = Transform3D.IDENTITY
 	camera.fov = 52.0

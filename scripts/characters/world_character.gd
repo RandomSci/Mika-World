@@ -98,6 +98,8 @@ var _expr_target := {}
 var _blink_timer := 2.0
 var _blink_phase := -1.0
 var _speed_smoothed := 0.0
+var face: FaceController        # Milestone K: component-level expressive face (null = legacy presets)
+var head_posture: HeadPosture
 var _dash := {}            # active dodge: {dir, dist, t, dur, from}
 var combat_stance := false
 var last_hit := {}         # most recent hit taken: {t, heavy, clip}
@@ -144,6 +146,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_fix_vrm1_mtoon_shading()
+	_lab_hair_fix()
+	_light_balance = Vector2(-1, -1)          # a new avatar's materials need the balance again
 	_setup_animation()
 	_setup_expressions()
 	pose_adjust = PoseAdjust.new()
@@ -190,6 +194,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 		skeleton.add_child(el)
 		el.target_node = el.get_path_to(_head_target)
 		eye_looks.append(el)
+	if head_posture and is_instance_valid(head_posture):
+		skeleton.move_child(head_posture, -1)      # emotional tilt applies on top of the look-at
 	left_hand = _attach("LeftHand")
 	right_hand = _attach("RightHand")
 	chest = _attach("UpperChest")
@@ -258,6 +264,60 @@ func _fix_vrm1_mtoon_shading() -> void:
 					fixed += 1
 				mat = sm.next_pass
 	print("[character] %s: converted VRM1 MToon shading on %d materials" % [character_id, fixed])
+
+
+## Character Lab hair correction, applied at render time (the VRM files are untouched; several are marked
+## modification-prohibited): VRoid exported the hair with a strong coloured EMISSIVE and a pure-white shade colour,
+## so it renders flat, tinted and can never show form. Replace with a small neutral lift and a real shade tone
+## (the lab's values: emissive 0.14, shade a cool 0.78-0.88 tint of the hair's own colour).
+func _lab_hair_fix() -> void:
+	var n := 0
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var mat := m.get_active_material(si)
+			if mat == null or not ("_HAIR" in mat.resource_name):
+				continue
+			while mat is ShaderMaterial:
+				var sm := mat as ShaderMaterial
+				if sm.get_shader_parameter("_EmissionColor") != null:
+					sm.set_shader_parameter("_EmissionColor", Color(0.14, 0.14, 0.15))
+					sm.set_shader_parameter("_ShadeColor", Color(0.8, 0.77, 0.86))
+					n += 1
+				mat = sm.next_pass
+	if n > 0:
+		print("[character] %s: lab hair correction on %d materials" % [character_id, n])
+
+
+## Character light balance (Milestone K, from the Character Lab): MToon saturates under the sun + sky ambient that
+## the PBR world needs. Scale the sun's and the ambient's effect on HER materials toward a balanced anime key
+## (effective sun ~1.35, ambient ~0.6). Called when the light changes (area load, day/night).
+var _light_balance := Vector2(-1, -1)
+
+func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
+	var cfg: Dictionary = Progression.mages.get(character_id, {}).get("face", {}) if Progression.mages else {}
+	var sun_target := float(cfg.get("key_light", 1.35))
+	var amb_target := float(cfg.get("ambient_light", 0.6))
+	var ss := clampf(sun_target / maxf(sun_energy, 0.05), 0.3, 1.0) if sun_energy > 0.05 else 1.0
+	var am := clampf(amb_target / maxf(ambient_energy, 0.05), 0.35, 1.0)
+	var key := Vector2(snappedf(ss, 0.01), snappedf(am, 0.01))
+	if key == _light_balance or avatar == null:
+		return
+	_light_balance = key
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var mat := m.get_active_material(si)
+			while mat is ShaderMaterial:
+				var sm := mat as ShaderMaterial
+				if sm.get_shader_parameter("_ShadeShift") != null:
+					sm.set_shader_parameter("_CharSunScale", key.x)
+					sm.set_shader_parameter("_CharAmbientScale", key.y)
+				mat = sm.next_pass
 
 
 ## The VRoid skirt's spring-bone colliders are three small spheres on the upper ~0.2 m of each thigh, so
@@ -465,6 +525,17 @@ func animation_length(clip: String) -> float:
 
 # ------------------------------------------------------------------ expressions (VRM blend shapes)
 func _setup_expressions() -> void:
+	_expr.clear()
+	_expr_weight.clear()
+	_expr_target.clear()
+	var cfg: Dictionary = Progression.mages.get(character_id, {}).get("face", {}) if Progression.mages else {}
+	face = FaceController.attach(self, avatar, cfg)
+	if face:
+		head_posture = HeadPosture.new()
+		head_posture.name = "HeadPosture"
+		head_posture.face = face
+		skeleton.add_child(head_posture)
+		return
 	var vrm_ap: AnimationPlayer = avatar.find_child("AnimationPlayer", false, false)
 	if vrm_ap == null:
 		return
@@ -489,11 +560,17 @@ func _setup_expressions() -> void:
 
 
 func set_expression(ex: String, weight: float) -> void:
+	if face:
+		face.legacy(ex, weight)
+		return
 	if _expr_target.has(ex):
 		_expr_target[ex] = clampf(weight, 0.0, 1.0)
 
 
 func _update_expressions(delta: float) -> void:
+	if face:
+		face.update(delta)
+		return
 	# natural blinking
 	_blink_timer -= delta
 	if _blink_timer <= 0.0 and _blink_phase < 0.0:

@@ -51,7 +51,10 @@ func react(who: String, event: String) -> void:
 	var e: Array = table.get(event, [])
 	if e.is_empty():
 		return
-	c.set_expression(String(e[0]), float(e[1]))
+	if c.face == null:                 # Milestone K: the Affect model drives component faces; legacy presets otherwise
+		c.set_expression(String(e[0]), float(e[1]))
+	elif event == "camera" and main.get("affect"):
+		main.affect.react(who, "camera")
 	_until[who] = {"expr": String(e[0]), "t_end": Time.get_ticks_msec() / 1000.0 + float(e[2])}
 	log.append({"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.1), "who": who, "event": event, "expression": e[0]})
 	if log.size() > 60:

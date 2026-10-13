@@ -81,6 +81,11 @@ uniform float _DebugMode : hint_range(0,3,1) = 0.0;
 // MToon 1.0 shades every light between shade and lit colour; the 0.x path below uses black shade,
 // halves the light and thresholds attenuation with _ShadeShift, which blackens VRoid faces indoors.
 uniform float _Vrm1Lighting : hint_range(0,1,1) = 0.0;
+// Mika-Godot-Dev (Milestone K): character light balance. MToon saturates under the strong sun + sky ambient the PBR
+// environment needs (skin and hair clip to white); WorldCharacter scales the sun (directional) and the ambient
+// (via AO, which only affects indirect light) for the avatar's own materials. 1.0 = unchanged.
+uniform float _CharSunScale = 1.0;
+uniform float _CharAmbientScale = 1.0;
 
 uniform float _MToonVersion = 33;
 
@@ -324,6 +329,8 @@ void fragment() {
 
 	ALBEDO = albedo;
 	EMISSION = emission;
+	AO = clamp(_CharAmbientScale, 0.0, 1.0);
+	AO_LIGHT_AFFECT = 0.0;
 
 	ROUGHNESS = 1.0;
 	METALLIC = 0.0;
@@ -369,7 +376,7 @@ void light() {
 		lighting = calculateLighting(mainUv, addDotNL, lightAttenuation, shade, lit, LIGHT_COLOR, col, lightIntensity);
 
 		// base light does not darken.
-		diffuse_output = col * lighting + indirectLighting * lit.rgb;
+		diffuse_output = (col * lighting + indirectLighting * lit.rgb) * _CharSunScale;
 
 		//col = min(col, lit.rgb); // comment out if you want to PBR absolutely.
 

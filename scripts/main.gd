@@ -40,6 +40,7 @@ var mage_talk: MageTalk
 var transformer: TransformationDirector
 var overlay_ui: MageOverlay
 var attention: AttentionDirector
+var affect: Affect
 var performance: PerformanceController
 var quiet_test := false                      # older single-mage tests: no Luna / creatures unless asked
 var _spot_t := 0.0
@@ -238,6 +239,10 @@ func _ready() -> void:
 	attention.name = "Attention"
 	add_child(attention)
 	attention.setup(self)
+	affect = Affect.new()
+	affect.name = "Affect"
+	add_child(affect)
+	affect.setup(self)
 	performance = PerformanceController.new()
 	performance.name = "Performance"
 	add_child(performance)
@@ -277,6 +282,11 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("mktest"):
+		travel._cooldown_until = 1e12
+		var mk := MilestoneKTest.new()
+		mk.main = self
+		add_child(mk)
 	elif RenderProfile.options.has("mjtest"):
 		travel._cooldown_until = 1e12
 		var mj := MilestoneJTest.new()
@@ -744,7 +754,19 @@ func show_subtitle(text: String, seconds: float) -> void:
 	_subtitle_until = Time.get_ticks_msec() / 1000.0 + seconds
 
 
+var _lb_t := 0.0
+
 func _process(delta: float) -> void:
+	_lb_t -= delta
+	if _lb_t <= 0.0 and world:
+		_lb_t = 1.0
+		var sun: DirectionalLight3D = world.get("sun")
+		var we: WorldEnvironment = world.get("world_env")
+		if we and we.environment:
+			var se := sun.light_energy if sun and sun.visible else 0.0
+			for who in characters:
+				if characters[who].visible:
+					characters[who].apply_light_balance(se, we.environment.ambient_light_energy)
 	_spotlight(delta)
 	_fps_acc += delta
 	if subtitle and _subtitle_until > 0.0:
