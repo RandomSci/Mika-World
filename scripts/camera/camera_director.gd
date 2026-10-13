@@ -51,6 +51,18 @@ var _combat := {}                # CombatFraming.subjects() for this frame
 var _combat_until := 0.0         # combat framing holds a moment after the last sign of a fight
 var _combat_blocked := 0.0       # seconds the current side has been blocked
 var _sig := {}                   # signature cast: {c, target, beat, t0, impact, end_at}
+var _stargaze := {}              # quiet scene: {a, b, t0, shot}
+
+
+## V3 quiet scenes: two mages lying in the grass. Shots alternate between a low side view (bodies in the
+## foreground, the sky above the trees) and a high three-quarter from the head side (faces); never from the feet
+## (a skirt), never below hip height from behind the heads.
+func begin_stargaze(a: WorldCharacter, b: WorldCharacter) -> void:
+	_stargaze = {"a": a, "b": b, "t0": _now(), "shot": 0}
+
+
+func end_stargaze() -> void:
+	_stargaze = {}
 
 ## Performance shot profiles (radius / height in metres, yaw degrees from her facing at the cut; yaw_to
 ## makes a slow orbit across the shot; look = face | chest | hands | feet).
@@ -245,6 +257,8 @@ func _choose() -> String:
 		return "performance"
 	if not _sig.is_empty():
 		return "signature"
+	if not _stargaze.is_empty() and is_instance_valid(_stargaze.a) and is_instance_valid(_stargaze.b):
+		return "stargaze"
 	_combat = CombatFraming.subjects(self, main, mika) if main.spawner else {"foes": []}
 	if not (_combat.foes as Array).is_empty():
 		_combat_until = _now() + 2.5
@@ -264,7 +278,7 @@ func _choose() -> String:
 func _switch(m: String) -> void:
 	mode = m
 	_since_change = 0.0
-	if m in ["spell", "activity", "conversation", "combat", "signature"]:
+	if m in ["spell", "activity", "conversation", "combat", "signature", "stargaze"]:
 		# keep the side of the screen the viewer already sees Mika on (180° rule)
 		var f := -mika.global_transform.basis.z
 		var right := Vector3(-f.z, 0, f.x)
@@ -285,6 +299,31 @@ func _frame(delta: float) -> void:
 	var look := Vector3.ZERO
 	var fov := 50.0
 	match mode:
+		"stargaze":
+			var ca: WorldCharacter = _stargaze.a
+			var cb: WorldCharacter = _stargaze.b
+			var ha := ca.skeleton.global_transform * ca.skeleton.get_bone_global_pose(ca.skeleton.find_bone("Head"))
+			var hpa := ca.skeleton.global_transform * ca.skeleton.get_bone_global_pose(ca.skeleton.find_bone("Hips"))
+			var hb := cb.skeleton.global_transform * cb.skeleton.get_bone_global_pose(cb.skeleton.find_bone("Hips"))
+			var mid := (hpa.origin + hb.origin) * 0.5
+			var axis := Vector3(ha.origin.x - hpa.origin.x, 0, ha.origin.z - hpa.origin.z)   # hips -> head along the ground
+			axis = axis.normalized() if axis.length() > 0.1 else -fwd
+			var sd := axis.cross(Vector3.UP).normalized()
+			var el := _now() - float(_stargaze.t0)
+			var phase := int(el / 14.0) % 2
+			var drift := sin(el * 0.08) * 0.35
+			if phase == 0:
+				# high three-quarter from the head side, close: both faces, the grass around them
+				pos = mid + axis * 1.2 + sd * (1.9 + drift) + Vector3(0, 1.75, 0)
+				look = hpa.origin + axis * 0.35 + Vector3(0, 0.25, 0)
+				fov = 40.0
+			else:
+				# low from the side: the two of them in the foreground, the night sky over the trees
+				pos = mid + sd * (2.9 + drift) - axis * 0.3 + Vector3(0, 0.85, 0)
+				look = mid + Vector3(0, 1.1, 0) + axis * 0.5
+				fov = 50.0
+			_apply(pos, look, fov, delta, 1.6)
+			return
 		"combat":
 			var sh: Dictionary = CombatFraming.shot(main, mika, _combat, _side)
 			if not CombatFraming.clear(mika, sh.pos, _combat):

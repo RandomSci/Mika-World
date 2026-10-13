@@ -22,6 +22,8 @@ var landmarks := {}
 var adjacency := {}       # area -> {neighbour_area: route description}
 
 var night := false
+var habitats := {}            # Milestone K8: per-area habitat state (defeats, depletion), persisted
+var play_s := 0.0             # accumulated game seconds across sessions (habitat recovery clocks)
 var current_area := ""
 var current_location := ""
 var discovered_locations := {}   # id -> true
@@ -107,6 +109,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	play_s += delta
 	if not persistent:
 		return
 	_save_timer += delta
@@ -144,7 +147,7 @@ func save_data() -> Dictionary:
 		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_seq": activity_seq, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200)),
 		"progress": minds["mika"].progress, "agents": _agents_data(),
 		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred,
-		"mika_explored": minds["mika"].explored}
+		"mika_explored": minds["mika"].explored, "habitats": habitats, "play_s": play_s}
 
 
 func _agents_data() -> Dictionary:
@@ -242,6 +245,8 @@ func _apply_save(d: Dictionary) -> void:
 	_prefix_counts = d.get("prefix_counts", {})
 	npc_state = d.get("npc_state", {})
 	story_state = d.get("story_state", {})
+	habitats = d.get("habitats", {})
+	play_s = float(d.get("play_s", 0.0))
 	activity_counts = d.get("activity_counts", {})
 	activity_log.assign(d.get("activity_log", []))
 	activity_seq = int(d.get("activity_seq", 0))
@@ -425,6 +430,10 @@ func location_summary(id: String) -> Dictionary:
 	return {"id": id, "name": l.name, "region": l.region, "area": l.area, "status": l.status,
 		"playable": is_playable(id), "discovered": discovered_locations.has(id), "visits": visited_locations.get(id, 0),
 		"current": id == current_location, "loaded": l.area == current_area}
+
+
+func game_time() -> float:
+	return play_s
 
 
 func snapshot() -> Dictionary:

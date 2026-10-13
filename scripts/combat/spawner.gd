@@ -11,6 +11,8 @@ signal monster_defeated(m: Monster, by: String)
 signal mage_hit(mage: WorldCharacter, monster: Monster, amount: float)
 
 static var data := {}
+static var habitats := {}            # data/habitats.json (Milestone K8)
+var territories: Array[Territory] = []
 
 var main: Node
 var enabled := true
@@ -26,6 +28,8 @@ var log: Array = []
 static func load_data() -> Dictionary:
 	if data.is_empty():
 		data = JSON.parse_string(FileAccess.get_file_as_string("res://data/monsters.json"))
+	if habitats.is_empty():
+		habitats = JSON.parse_string(FileAccess.get_file_as_string("res://data/habitats.json"))
 	return data
 
 
@@ -34,18 +38,17 @@ func setup(m: Node) -> void:
 	load_data()
 	_rng.seed = int(Time.get_unix_time_from_system())
 	enabled = not RenderProfile.options.has("no-monsters")
-	main.streaming.transition_started.connect(func(_f, _t): alive.clear())
+	main.streaming.transition_started.connect(func(_f, _t): alive.clear(); _clear_territories())
+	main.streaming.area_activated.connect(func(a, _r): _build_territories(a))
+	if main.get("magic") and main.magic.has_signal("cast_resolved"):
+		main.magic.cast_resolved.connect(_on_cast_noise)
 
 
 func _process(delta: float) -> void:
 	_session += delta
 	alive = alive.filter(func(x): return is_instance_valid(x) and x.alive())
-	if not enabled or main.world == null or main.streaming.state != "idle" or main.streaming.current_id != "sanctuary":
-		return
-	_next_spawn -= delta
-	if _next_spawn <= 0.0 and alive.size() < int(data.max_alive):
-		_next_spawn = _rng.randf_range(float(data.respawn_s[0]), float(data.respawn_s[1]))
-		spawn(_pick_kind())
+	# Milestone K8: populations are owned by the area's territories (data/habitats.json); the Sanctuary's old
+	# anchors live on as its "sanctuary_edges" habitat
 
 
 func _pick_kind() -> String:
@@ -102,7 +105,11 @@ func spawn(kind: String = "", at = null) -> Monster:
 	main.world.add_child(m)
 	m.setup_monster(main, kind, "%s_%d" % [kind, _uid], pos, d)
 	m.attacked.connect(_on_attacked)
-	m.defeated.connect(func(mm, by): monster_defeated.emit(mm, by); log.append({"t": snappedf(_session, 0.1), "event": "defeated", "monster": mm.id, "by": by}))
+	m.defeated.connect(func(mm, by):
+		monster_defeated.emit(mm, by)
+		log.append({"t": snappedf(_session, 0.1), "event": "defeated", "monster": mm.id, "by": by})
+		if mm.territory:
+			mm.territory.note_defeat())
 	alive.append(m)
 	if d.has("min_session_s"):
 		_last_rare = _session
@@ -114,6 +121,7 @@ func spawn(kind: String = "", at = null) -> Monster:
 
 
 func _on_attacked(m: Monster, mage: WorldCharacter, amount: float) -> void:
+	hear(m.global_position, 14.0, "fight")
 	var mind := WorldState.mind(mage.character_id)
 	mind.vigor = clampf(mind.vigor - amount, 0.0, 1.0)
 	mage.set_expression("surprised", 0.8)
@@ -149,5 +157,54 @@ func perceived_by(c: WorldCharacter, sight := 28.0) -> Array:
 
 
 func describe() -> Dictionary:
-	return {"alive": alive.map(func(m): return {"id": m.id, "kind": m.kind, "state": m.mstate, "hp": snappedf(m.hp, 0.1),
-		"target": m.target_mage.character_id if m.target_mage and is_instance_valid(m.target_mage) else ""}), "recent": log.slice(maxi(0, log.size() - 8))}
+	return {"alive": alive.map(func(m): return {"id": m.id, "kind": m.kind, "state": m.mstate, "routine": m.routine, "hp": snappedf(m.hp, 0.1),
+		"target": m.target_mage.character_id if m.target_mage and is_instance_valid(m.target_mage) else ""}), "recent": log.slice(maxi(0, log.size() - 8)),
+		"territories": territories.map(func(t): return t.describe())}
+
+
+# ------------------------------------------------------------------ territories (Milestone K8)
+func _clear_territories() -> void:
+	for t in territories:
+		if is_instance_valid(t):
+			t.queue_free()
+	territories.clear()
+
+
+func _build_territories(area_id: String) -> void:
+	_clear_territories()
+	var area_h: Dictionary = habitats.get("areas", {}).get(area_id, {})
+	for hid in area_h.get("habitats", {}):
+		var t := Territory.new()
+		t.setup(self, main, area_id, hid, area_h.habitats[hid], habitats.get("spawn", {}), habitats.get("depletion", {}))
+		add_child(t)
+		territories.append(t)
+
+
+func behaviour_of(kind: String) -> Dictionary:
+	return habitats.get("species_behaviour", {}).get(kind, {})
+
+
+func in_safe_zone(area_id: String, p: Vector3) -> bool:
+	for z in habitats.get("areas", {}).get(area_id, {}).get("safe_zones", []):
+		if Vector2(p.x - z.center[0], p.z - z.center[1]).length() < float(z.radius):
+			return true
+	return false
+
+
+func territory_at(p: Vector3) -> Territory:
+	for t in territories:
+		if t.contains(p):
+			return t
+	return null
+
+
+## A noise in the world (spell, running steps, a fight): creatures that can hear it come to look.
+func hear(pos: Vector3, loudness: float, kind: String) -> void:
+	for t in territories:
+		t.hear(pos, loudness, kind)
+
+
+func _on_cast_noise(res: Dictionary) -> void:
+	var c = main.characters.get(String(res.get("caster", "")))
+	if c:
+		hear((c as Node3D).global_position, 20.0, "spell")

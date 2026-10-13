@@ -1,0 +1,61 @@
+{
+ "_note": "Milestone K8: where creatures LIVE. A habitat is a place in an area with its own population, species mix, lair, patrol route, rest spots and daily rhythm; creatures spawn only inside it, never in view of the camera, never near a mage, and never inside a safe zone. Coordinates are the area's local metres (x, z; -z is north). 'activity' scales how many creatures are out by day/night. 'depletion': each defeat in a habitat lengthens its respawn for a while (persisted per save), so repeated hunting thins a territory and it recovers over game time. Species behaviour templates say how each kind uses its territory (patrol / rest / guard / investigate / retreat) - real states in Monster, not animation loops.",
+ "depletion": {"per_defeat_s": 420.0, "max_factor": 0.2, "recover_s": 1800.0},
+ "spawn": {"min_camera_distance": 28.0, "min_mage_distance": 14.0, "max_mage_distance": 70.0, "frustum_margin_deg": 8.0},
+ "species_behaviour": {
+  "thornback": {"style": "ground", "rhythm": "night", "patrol_pace": 0.45, "rest_by_day": true, "guards_lair": true, "investigate_radius": 1.0, "retreat_hp": 0.3, "retreat_to_lair": true, "alert_radius_guard": 1.4},
+  "gloomwisp": {"style": "float", "rhythm": "night", "patrol_pace": 0.35, "rest_by_day": true, "guards_lair": false, "investigate_radius": 1.6, "retreat_hp": 0.35, "retreat_to_lair": false, "drawn_to_magic": true},
+  "emberwing": {"style": "flyer", "rhythm": "day", "patrol_pace": 0.6, "rest_by_day": false, "perches": true, "guards_lair": true, "investigate_radius": 1.2, "retreat_hp": 0.35, "retreat_to_lair": true},
+  "hollow_sentinel": {"style": "ground", "rhythm": "any", "patrol_pace": 0.3, "rest_by_day": false, "guards_lair": true, "investigate_radius": 0.8, "retreat_hp": 0.0, "retreat_to_lair": false}
+ },
+ "areas": {
+  "sanctuary": {
+   "safe_zones": [{"center": [0, 0], "radius": 12.0, "why": "the ritual circle's ward"}],
+   "habitats": {
+    "sanctuary_edges": {
+     "kind": "fringe", "label": "the wild edges of the Sanctuary", "center": [10, 5], "radius": 48.0,
+     "anchors": [[12, -24], [38, -9], [40, 27], [-29, 7], [8, 40]],
+     "species": {"gloomwisp": 0.6, "thornback": 0.35, "emberwing": 0.45, "hollow_sentinel": 0.05},
+     "max_alive": 3, "respawn_s": [45.0, 90.0], "night_bonus": 0, "danger": 1, "hearing": 16.0,
+     "activity": {"day": 1.0, "night": 1.0},
+     "patrol": [[12, -24], [38, -9], [40, 27]], "rest_spots": [[-29, 7], [8, 40]], "lair": null, "guard_post": null
+    }
+   }
+  },
+  "whispering_woods": {
+   "safe_zones": [
+    {"center": [0, 128], "radius": 34.0, "why": "the entry glade"},
+    {"center": [2, 38], "radius": 22.0, "why": "the crossroads"},
+    {"center": [0, -45], "radius": 26.0, "why": "the ruins plateau"},
+    {"center": [-74, 46], "radius": 24.0, "why": "the hidden pond"}
+   ],
+   "habitats": {
+    "den": {
+     "kind": "lair", "label": "the creature den", "center": [115, -29.5], "radius": 30.0,
+     "lair": {"center": [111.3, -32.8], "radius": 4.5},
+     "species": {"thornback": 0.7, "emberwing": 0.3},
+     "max_alive": 2, "respawn_s": [120.0, 240.0], "night_bonus": 1, "danger": 3, "hearing": 22.0,
+     "activity": {"day": 0.5, "night": 1.0},
+     "patrol": [[108, -24], [96, -20], [90, -34], [104, -44], [118, -44], [124, -20]],
+     "rest_spots": [[111, -33], [113, -31]], "guard_post": [114.5, -27.5], "perches": [[121, -40], [126, -24]]
+    },
+    "dead_wood": {
+     "kind": "hunting_ground", "label": "the dead wood east of the river", "center": [98, -6], "radius": 26.0,
+     "lair": null,
+     "species": {"gloomwisp": 0.8, "thornback": 0.2},
+     "max_alive": 2, "respawn_s": [90.0, 180.0], "night_bonus": 1, "danger": 2, "hearing": 18.0,
+     "activity": {"day": 0.35, "night": 1.0},
+     "patrol": [[86, -14], [100, 2], [112, -8], [104, -22]], "rest_spots": [[95, 8], [108, -2]], "guard_post": null
+    },
+    "frontier_ridge": {
+     "kind": "roaming", "label": "the frontier ridge", "center": [-70, -100], "radius": 26.0,
+     "lair": null,
+     "species": {"gloomwisp": 1.0},
+     "max_alive": 1, "respawn_s": [150.0, 300.0], "night_bonus": 1, "danger": 1, "hearing": 16.0,
+     "activity": {"day": 0.15, "night": 0.9},
+     "patrol": [[-60, -92], [-78, -108], [-66, -114]], "rest_spots": [[-72, -96]], "guard_post": null
+    }
+   }
+  }
+ }
+}

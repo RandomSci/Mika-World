@@ -24,7 +24,8 @@ const BOLT_CD := 2.4
 const STYLE := {"mika": {"color": [0.55, 1.0, 0.75], "speed": 7.5, "element": "wind"}, "luna": {"color": [0.72, 0.45, 1.0], "speed": 8.5, "element": "umbral"}}
 
 var main: Node
-var active := {}                  # {a, b, t0, touches{}, stamina{}, cd{}, dodges{}, dodged{}, braced{}, casts{}}
+var active := {}
+var _clock := 0.0   # game seconds (real time is unreliable under Movie Maker recording)                  # {a, b, t0, touches{}, stamina{}, cd{}, dodges{}, dodged{}, braced{}, casts{}}
 var log: Array = []
 var _rng := RandomNumberGenerator.new()
 
@@ -61,13 +62,13 @@ func run(a: SanctuaryBrain, b: SanctuaryBrain) -> Dictionary:
 	var spot_b := NavigationServer3D.map_get_closest_point(map, center + axis * 4.5)
 	ca.navigate_to(spot_a, false)
 	cb.navigate_to(spot_b, false)
-	var t0 := Time.get_ticks_msec()
-	while (ca.current_action == "navigate_to" or cb.current_action == "navigate_to") and Time.get_ticks_msec() - t0 < 12000:
+	var t0 := int(_clock * 1000.0)
+	while (ca.current_action == "navigate_to" or cb.current_action == "navigate_to") and int(_clock * 1000.0) - t0 < 12000:
 		await get_tree().process_frame
 	ca.look_at_point(cb.global_position)
 	cb.look_at_point(ca.global_position)
 	await get_tree().create_timer(0.8).timeout
-	active = {"a": a, "b": b, "t0": Time.get_ticks_msec() / 1000.0, "touches": {}, "stamina": {}, "cd": {}, "dodges": {}, "dodged": {}, "braced": {}, "casts": {},
+	active = {"a": a, "b": b, "t0": _clock, "touches": {}, "stamina": {}, "cd": {}, "dodges": {}, "dodged": {}, "braced": {}, "casts": {},
 		"center": center, "events": []}
 	for br in [a, b]:
 		active.touches[br.agent_id] = 0
@@ -90,7 +91,7 @@ func run(a: SanctuaryBrain, b: SanctuaryBrain) -> Dictionary:
 	_duelist(b, a, box)
 	while box.done < 2:
 		await get_tree().process_frame
-		var el := Time.get_ticks_msec() / 1000.0 - float(active.t0)
+		var el := _clock - float(active.t0)
 		if box.stop == "":
 			if el > MAX_S:
 				box.stop = "time"
@@ -218,8 +219,8 @@ func _cast_bolt(me_b: SanctuaryBrain, opp: WorldCharacter) -> void:
 	var who := me_b.agent_id
 	me.set_move_input(Vector3.ZERO, false)
 	me.look_at_point(opp.global_position)
-	var t0 := Time.get_ticks_msec()
-	while me.current_action == "look_at" and Time.get_ticks_msec() - t0 < 600:
+	var t0 := int(_clock * 1000.0)
+	while me.current_action == "look_at" and int(_clock * 1000.0) - t0 < 600:
 		await get_tree().physics_frame
 	me.play_gesture("cast_quick", 0.12, 0.3)
 	await get_tree().create_timer(0.18).timeout
@@ -274,7 +275,7 @@ func _on_bolt_resolved(h: AttackHazard, struck: Array) -> void:
 		if wc == null or caster == "" or wc.character_id == caster:
 			continue
 		active.touches[caster] = int(active.touches[caster]) + 1
-		active.events.append({"t": snappedf(Time.get_ticks_msec() / 1000.0 - float(active.t0), 0.1), "touch": caster, "on": wc.character_id})
+		active.events.append({"t": snappedf(_clock - float(active.t0), 0.1), "touch": caster, "on": wc.character_id})
 		wc.take_hit(h.center, false)
 		var m := WorldState.mind(wc.character_id)
 		m.vigor = clampf(m.vigor - h.vigor, 0.0, 1.0)
@@ -293,7 +294,7 @@ func _conclude(a: SanctuaryBrain, b: SanctuaryBrain, stop: String) -> Dictionary
 		winner = b.agent_id if stop.trim_prefix("yield:") == a.agent_id else a.agent_id   # level on touches: the one still standing
 	var res := {"ok": true, "stop": stop, "winner": winner, "touches": active.touches.duplicate(), "dodges": active.dodges.duplicate(),
 		"dodged": active.dodged.duplicate(), "braced": active.braced.duplicate(), "casts": active.casts.duplicate(),
-		"seconds": snappedf(Time.get_ticks_msec() / 1000.0 - float(active.t0), 0.1), "events": active.events.duplicate()}
+		"seconds": snappedf(_clock - float(active.t0), 0.1), "events": active.events.duplicate()}
 	res["detail"] = "sparred %.0f s: %s %d - %d %s (%s)" % [res.seconds, MagicSystem.display_name(a.agent_id), ta, tb, MagicSystem.display_name(b.agent_id), stop]
 	# what each really earned: practice from touches landed, a record of real dodges, the bout itself
 	for pair in [[a, b], [b, a]]:
@@ -337,3 +338,7 @@ func _aftermath(a: SanctuaryBrain, b: SanctuaryBrain, res: Dictionary) -> void:
 	if String(res.winner) != "":
 		var wc: WorldCharacter = ca if String(res.winner) == a.agent_id else cb
 		wc.play_gesture("victory_nod", 0.3, 0.5)
+
+
+func _process(delta: float) -> void:
+	_clock += delta

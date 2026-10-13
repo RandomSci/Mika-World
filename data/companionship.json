@@ -32,6 +32,12 @@
     "strenuous": true,
     "label": "go out to {place} together",
     "base": 0.5
+   },
+   "stargaze_together": {
+    "strenuous": false,
+    "label": "lie in the grass at {place} and watch the stars",
+    "base": 0.55,
+    "night_only": true
    }
   }
  },
@@ -171,6 +177,29 @@
    "duel_draw": [
     "Even! That was fun.",
     "Neither of us gave an inch."
+   ],
+   "stargaze_arrive": [
+    "Here. Lie down, the grass is dry.",
+    "This is the spot. Come on, lie back."
+   ],
+   "stargaze_quiet": [
+    "...",
+    "Listen. Even the woods go quiet for this.",
+    "I could stay like this a while."
+   ],
+   "stargaze_wonder": [
+    "That bright one over the ridge never moves. The others wheel around it.",
+    "Do you think the old mages lay here too, before the ruins were ruins?",
+    "If a gateway opened up there, where would it go?"
+   ],
+   "stargaze_reply": [
+    "Maybe. I'd like to think so.",
+    "I don't know. I want to find out.",
+    "Mm. Ask me again when I'm not this comfortable."
+   ],
+   "stargaze_done": [
+    "Okay. Up, before I fall asleep here.",
+    "We should head back. Thank you for this."
    ]
   },
   "luna": {
@@ -308,6 +337,29 @@
    "duel_draw": [
     "A draw. Acceptable.",
     "We're even."
+   ],
+   "stargaze_arrive": [
+    "Fine. But if something crawls on me, we leave.",
+    "Here, then. Move over."
+   ],
+   "stargaze_quiet": [
+    "...",
+    "It's colder than I expected.",
+    "Quiet. Good."
+   ],
+   "stargaze_wonder": [
+    "The low star by the trees is red tonight. It wasn't, last week.",
+    "People used to steer by these. I'd trust them more than a map.",
+    "Somewhere up there is a place no one has named."
+   ],
+   "stargaze_reply": [
+    "Possibly. You dream too much.",
+    "I'd go. Obviously.",
+    "Hm. Maybe."
+   ],
+   "stargaze_done": [
+    "Enough. My back is damp.",
+    "Up. Before you start humming."
    ]
   }
  }

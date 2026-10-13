@@ -79,13 +79,16 @@ func _run() -> void:
 		_finish()
 		return
 	await _wait(2.5)
-	_frame_ms.clear()
+	_reset_frames()
 	match mode:
 		"face": await _face()
 		"companions": await _companions()
 		"duel": await _duel()
 		"env": await _env()
 		"walk": await _walk()
+		"territory": await _territory()
+		"rest": await _rest()
+		"stargaze": await _stargaze()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -456,6 +459,418 @@ func _duel() -> void:
 
 
 # ------------------------------------------------------------------ environment (Whispering Woods)
+## V3 quiet scene: the REAL joint activity (Mika's planner invites Luna to watch the stars; the companionship
+## scene walks them to the glade, lies them down, talks, gets them up) under the game's stargaze camera. Checked:
+## both lay for long enough, lines were spoken, the heads looked up, the camera never looked up a skirt, both
+## stood again, each remembers it. Stills every 6 s.
+func _stargaze() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load (streamed)", r)
+	if not r.get("ok", false):
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	WorldState.night = true
+	w.set_night(true)
+	var start := NavigationServer3D.map_get_closest_point(map, Vector3(-2, w.height(-2, 104), 104))
+	mika.global_position = start + Vector3(0, 0.05, 0)
+	luna.world = w
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, start + Vector3(2.5, 0, 1.0)) + Vector3(0, 0.05, 0)
+	luna.visible = true
+	luna.set_physics_process(true)
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	main.companionship.force_accept = true
+	var lines := []
+	main.voice.line_started.connect(func(spk, text): lines.append([spk, text]))
+	var brain = main.mage_brains["mika"]
+	var area_info: Dictionary = WorldState.areas["whispering_woods"]
+	var sp: Array = area_info.stargaze_spot
+	var target := {"pos": Vector3(sp[0], w.height(sp[0], sp[1]), sp[1]), "fill": {"place": String(area_info.stargaze_place)}}
+	var lying_s := {"mika": 0.0, "luna": 0.0}
+	var heads_up := {"mika": 0, "luna": 0}
+	var cam_bad := []
+	var modes := {}
+	var shots := 0
+	var box := {"done": false, "result": {}}   # a Dictionary: lambdas capture locals by value
+	var runner := func() -> void:
+		box.result = await main.companionship.invite(brain, "luna", "stargaze_together", target)
+		box.done = true
+	runner.call()
+	var t0 := _gms()
+	var next_shot := 6000
+	while not box.done and _gms() - t0 < 240000:
+		await _wait(0.5)
+		var el := _gms() - t0
+		modes[main.director.mode] = int(modes.get(main.director.mode, 0)) + 1
+		for c in [mika, luna]:
+			if c.ground_pose == "lie":
+				lying_s[c.character_id] += 0.5
+				var head := _bone_world(c, "Head")
+				if head.basis.y.dot(Vector3.UP) < 0.35:    # the head's up axis lies flat: she is on her back
+					heads_up[c.character_id] += 1
+		# the camera rule while they lie: never from the feet side below shoulder height, never below 0.6 m
+		if mika.ground_pose == "lie":
+			var cam: Camera3D = get_viewport().get_camera_3d()
+			var hd := _bone_world(mika, "Head").origin
+			var hp := _bone_world(mika, "Hips").origin
+			var axis := Vector3(hd.x - hp.x, 0, hd.z - hp.z).normalized()
+			var rel := cam.global_position - hp
+			var along := rel.dot(axis)
+			if (along < -0.8 and rel.y < 1.2) or rel.y < 0.6:
+				cam_bad.append([snappedf(el / 1000.0, 0.5), snappedf(along, 0.1), snappedf(rel.y, 0.1)])
+		if el >= next_shot:
+			next_shot += 6000
+			_shot("%03d_%s" % [int(el / 1000), main.director.mode])
+			shots += 1
+	await _wait(1.0)
+	var done: bool = box.done
+	var result: Dictionary = box.result
+	report["stargaze"] = {"result": result, "lying_s": lying_s, "heads_up_samples": heads_up, "lines": lines, "camera_modes": modes, "camera_violations": cam_bad, "shots": shots,
+		"memory_mika": WorldState.mind("mika").knowledge.keys().filter(func(k): return String(k).begins_with("together:luna")).map(func(k): return WorldState.mind("mika").knowledge[k]),
+		"memory_luna": WorldState.mind("luna").knowledge.keys().filter(func(k): return String(k).begins_with("together:mika")).map(func(k): return WorldState.mind("luna").knowledge[k])}
+	print("[mktest] stargaze ", JSON.stringify(report.stargaze))
+	_check(done and result.get("ok", false), "the stargazing activity ran to the end", result.get("detail", result))
+	_check(lying_s.mika >= 25.0 and lying_s.luna >= 25.0, "both lay in the grass for a good while (Mika %.0f s, Luna %.0f s)" % [lying_s.mika, lying_s.luna], lying_s)
+	_check(heads_up.mika >= 20 and heads_up.luna >= 20, "both were on their backs looking up (samples %d / %d)" % [heads_up.mika, heads_up.luna], heads_up)
+	_check(lines.size() >= 4, "they spoke a few lines (%d)" % lines.size(), lines)
+	_check(int(modes.get("stargaze", 0)) >= 30, "the camera used the stargaze framing for most of the scene", modes)
+	_check(cam_bad.is_empty(), "the camera never looked up a skirt or sat in the grass", cam_bad.slice(0, 6))
+	_check(mika.ground_pose == "" and luna.ground_pose == "", "both stood up again", [mika.ground_pose, luna.ground_pose])
+	var mem_ok := (report.stargaze.memory_mika as Array).any(func(m): return String(m.get("memory", "")).contains("stars")) and (report.stargaze.memory_luna as Array).any(func(m): return String(m.get("memory", "")).contains("stars"))
+	_check(mem_ok, "each of them remembers the night in her own mind", [report.stargaze.memory_mika, report.stargaze.memory_luna])
+
+
+## V3 quiet scenes, first slice: sitting on the ground and lying down with real clips, measured on the skeleton
+## (hips and feet against the ground, the head's facing when lying) and photographed from the side.
+func _bone_world(c: WorldCharacter, bone: String) -> Transform3D:
+	return c.skeleton.global_transform * c.skeleton.get_bone_global_pose(c.skeleton.find_bone(bone))
+
+
+func _pose_metrics(c: WorldCharacter) -> Dictionary:
+	var g: float = c.global_position.y    # the floor she stands on (paving or grass), not the terrain underneath
+	var hips := _bone_world(c, "Hips").origin.y - g
+	var lf := _bone_world(c, "LeftFoot").origin.y - g
+	var rf := _bone_world(c, "RightFoot").origin.y - g
+	if c.pose_adjust and c.pose_adjust.mode == "sit" and c.pose_adjust.debug.has("LeftLowerLeg"):
+		# get_bone_global_pose() reports the animation pose; the ground-sit legs are solved by the modifier
+		lf = float(c.pose_adjust.debug.LeftLowerLeg.foot_y) - float(c.pose_adjust.floor_y) - c.pose_adjust.sole
+		rf = float(c.pose_adjust.debug.RightLowerLeg.foot_y) - float(c.pose_adjust.floor_y) - c.pose_adjust.sole
+	var head := _bone_world(c, "Head")
+	var face_dir := -head.basis.z    # VRM faces +Z in model space; after the retarget the head's forward is -z of the bone basis
+	var up_face := head.basis.y.dot(Vector3.UP)
+	return {"hips_m": snappedf(hips, 0.01), "left_foot_m": snappedf(lf, 0.01), "right_foot_m": snappedf(rf, 0.01),
+		"head_y_axis_up": snappedf(up_face, 0.02), "head_m": snappedf(head.origin.y - g, 0.01)}
+
+
+func _rest() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load (streamed)", r)
+	if not r.get("ok", false):
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	var vp: Vector2 = w.VIEWPOINT + Vector2(-3.0, -2.0)
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(vp.x, w.height(vp.x, vp.y), vp.y))
+	mika.global_position = spot + Vector3(0, 0.05, 0)
+	mika.look_at_point(spot + Vector3(1, 0, 0))
+	await _wait(1.0)
+	var side_cam := func(c: WorldCharacter, dist := 3.2, h := 1.2, fov := 40.0):
+		var fwd := -c.global_transform.basis.z
+		var right := Vector3(-fwd.z, 0, fwd.x)
+		main.camera_rig.set_shot(c.global_position + right * dist + fwd * 1.2 + Vector3(0, h, 0), c.global_position + Vector3(0, 0.55, 0), fov)
+	var front_cam := func(c: WorldCharacter, dist := 3.4, h := 1.0, fov := 40.0):
+		var fwd := -c.global_transform.basis.z
+		main.camera_rig.set_shot(c.global_position + fwd * dist + Vector3(0.8, h, 0), c.global_position + Vector3(0, 0.6, 0), fov)
+	report["rest"] = {}
+	# 1) sitting on the ground
+	side_cam.call(mika)
+	_shot("sit_00_standing")
+	var stand_m := _pose_metrics(mika)
+	mika.play_gesture("sit_ground_enter", 0.25, 0.3)
+	mika.set_ground_pose("sit", mika.animation_length("sit_ground_enter") * 0.9)
+	await _wait(mika.animation_length("sit_ground_enter") * 0.85)
+	mika.play_gesture("sit_ground_loop", 0.3, 0.6)
+	await _wait(2.0)
+	_shot("sit_01_side")
+	front_cam.call(mika)
+	await _wait(0.8)
+	_shot("sit_02_front")
+	var sit_m := _pose_metrics(mika)
+	report.rest["standing"] = stand_m
+	report.rest["sit_ground"] = sit_m
+	print("[mktest] pose_adjust mode=%s influence=%.2f active=%s debug=%s" % [mika.pose_adjust.mode, mika.pose_adjust.influence, mika.pose_adjust.active, mika.pose_adjust.debug])
+	print("[mktest] avatar y=%.2f ground_pose=%s hips skel-space y=%.2f" % [mika.avatar.position.y, mika.ground_pose, mika.skeleton.get_bone_global_pose(mika.skeleton.find_bone("Hips")).origin.y])
+	print("[mktest] standing ", stand_m, " sit_ground ", sit_m)
+	_check(sit_m.hips_m > 0.08 and sit_m.hips_m < 0.4, "sitting on the ground: hips low over the grass (%.2f m)" % sit_m.hips_m, sit_m)
+	_check(sit_m.left_foot_m > -0.08 and sit_m.right_foot_m > -0.08, "sitting on the ground: the feet are not underground", sit_m)
+	mika.end_gesture()
+	mika.play_gesture("sit_ground_exit", 0.2, 0.4)
+	mika.set_ground_pose("", mika.animation_length("sit_ground_exit") * 0.9)
+	await _wait(mika.animation_length("sit_ground_exit") + 0.6)
+	var up_m := _pose_metrics(mika)
+	_check(absf(up_m.hips_m - stand_m.hips_m) < 0.08, "she stood back up to her normal height", [stand_m.hips_m, up_m.hips_m])
+	# 2) lying down: the UAL get-up played backwards, then the held lying pose with breathing
+	side_cam.call(mika, 3.6, 1.5)
+	await _wait(0.5)
+	mika.play_gesture("lie_down", 0.25, 0.4)
+	mika.set_gesture_speed(0.6)
+	await _wait(0.9)
+	_shot("lie_01_motion")
+	await _wait(mika.animation_length("lie_down") / 0.6 - 0.9 + 0.1)
+	mika.set_gesture_speed(1.0)
+	mika.play_gesture("lie_loop", 0.3, 0.6)
+	mika.set_ground_pose("lie", 0.6)
+	await _wait(2.0)
+	_shot("lie_02_side")
+	var lie_m := _pose_metrics(mika)
+	# from beyond the HEAD, low and wide (never from the feet in a skirt): the face and the sky
+	var hd := _bone_world(mika, "Head").origin
+	var hp := _bone_world(mika, "Hips").origin
+	var axis := Vector3(hd.x - hp.x, 0, hd.z - hp.z).normalized()   # hips -> head along the ground
+	# a high three-quarter angle from the head's side: the face, the body, the ground around her
+	var sidev := axis.cross(Vector3.UP)
+	main.camera_rig.set_shot(hd + axis * 0.9 + sidev * 2.0 + Vector3(0, 2.1, 0), hp + axis * 0.35 + Vector3(0, 0.2, 0), 42.0)
+	await _wait(0.8)
+	_shot("lie_03_high_quarter")
+	main.camera_rig.set_shot(hp + Vector3(0.0, 3.2, 0.0) - axis * 0.3, hp + Vector3(0, 0.2, 0), 50.0)
+	await _wait(0.8)
+	_shot("lie_04_above")
+	report.rest["lie"] = lie_m
+	print("[mktest] lie ", lie_m)
+	_check(lie_m.hips_m < 0.3, "lying: hips on the ground (%.2f m)" % lie_m.hips_m, lie_m)
+	_check(lie_m.head_m < 0.45, "lying: the head is down on the grass (%.2f m)" % lie_m.head_m, lie_m)
+	mika.end_gesture()
+	mika.set_ground_pose("", 0.8)
+	mika.play_gesture("lie_get_up", 0.2, 0.5)
+	await _wait(0.6)
+	_shot("lie_05_getting_up")
+	await _wait(mika.animation_length("lie_get_up") + 0.6)
+	var up2 := _pose_metrics(mika)
+	_check(absf(up2.hips_m - stand_m.hips_m) < 0.08, "she got up to her normal height", [stand_m.hips_m, up2.hips_m])
+	# 3) the Mixamo "lying down" clip, for comparison only
+	side_cam.call(mika, 3.6, 1.5)
+	mika.play_gesture("lie_down_mx", 0.25, 0.4)
+	await _wait(mika.animation_length("lie_down_mx") - 0.3)
+	_shot("lie_06_mixamo_end")
+	report.rest["lie_mixamo_end"] = _pose_metrics(mika)
+	print("[mktest] mixamo lying_down end ", report.rest.lie_mixamo_end)
+	mika.end_gesture()
+	await _wait(1.2)
+	# 4) night, both of them lying side by side on the ruin court, the camera low from the feet
+	WorldState.night = true
+	w.set_night(true)
+	var court: Vector2 = Vector2(-8.0, 116.0)   # the entry glade: open sky, soft grass
+	var cs := NavigationServer3D.map_get_closest_point(map, Vector3(court.x, w.height(court.x, court.y), court.y))
+	mika.global_position = cs + Vector3(0, 0.05, 0)
+	luna.world = w
+	luna.global_position = cs + Vector3(1.4, 0.05, 0)
+	luna.visible = true
+	luna.set_physics_process(true)
+	for c in [mika, luna]:
+		c.look_at_point(c.global_position + Vector3(0, 0, -3))
+	await _wait(0.8)
+	for c in [mika, luna]:
+		c.play_gesture("lie_down", 0.25, 0.4)
+		c.set_gesture_speed(0.6)
+	await _wait(mika.animation_length("lie_down") / 0.6 + 0.2)
+	for c in [mika, luna]:
+		c.set_gesture_speed(1.0)
+		c.play_gesture("lie_loop", 0.3, 0.6)
+		c.set_ground_pose("lie", 0.6)
+	await _wait(1.0)
+	mika.look_head_at(mika.global_position + Vector3(0, 12, -4))
+	luna.look_head_at(luna.global_position + Vector3(0, 12, -4))
+	await _wait(1.5)
+	var f2 := -mika.global_transform.basis.z
+	var mid := (mika.global_position + luna.global_position) * 0.5
+	# from beyond their heads, low and wide: both faces and the sky above them (never from the feet in a skirt)
+	var hd2 := _bone_world(mika, "Head").origin
+	var hp2 := _bone_world(mika, "Hips").origin
+	var ax2 := Vector3(hd2.x - hp2.x, 0, hd2.z - hp2.z).normalized()
+	var sd2 := ax2.cross(Vector3.UP)
+	main.camera_rig.set_shot(mid + ax2 * 1.2 + sd2 * 2.6 + Vector3(0, 2.0, 0), mid + ax2 * 0.3 + Vector3(0, 0.25, 0), 46.0)
+	await _wait(1.0)
+	_shot("stargaze_01_night_high_quarter")
+	main.camera_rig.set_shot(mid + Vector3(0, 3.4, 0) + ax2 * 0.4 + ax2.cross(Vector3.UP) * 1.2, mid + Vector3(0, 0.25, 0), 50.0)
+	await _wait(1.0)
+	_shot("stargaze_02_night_high")
+	mika.look_head_at(luna.global_position + Vector3(0, 0.3, 0))
+	await _wait(1.2)
+	_shot("stargaze_03_turn_to_luna")
+	for c in [mika, luna]:
+		c.look_head_at(null)
+		c.end_gesture()
+		c.set_ground_pose("", 0.8)
+		c.play_gesture("lie_get_up", 0.2, 0.5)
+	await _wait(mika.animation_length("lie_get_up") + 0.8)
+	_shot("stargaze_04_up")
+
+
+## Milestone K8: creatures live in their habitats. Observed for real over game time: where they appear (inside
+## their habitat, outside safe zones, never near a mage, never where the camera could watch them pop in), what
+## they do (patrol, guard, rest, investigate a noise, withdraw to the lair when hurt), that the main route stays
+## peaceful, that night changes the population, and that a defeat is remembered by the habitat (and saved).
+func _territory() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load (streamed)", r)
+	if not r.get("ok", false):
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	# both mages at the crossroads (a safe zone), the camera behind Mika looking north up the stairs
+	var cross: Vector2 = w.CROSS
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(cross.x, w.height(cross.x, cross.y), cross.y)) + Vector3(0, 0.05, 0)
+	luna.world = w
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(1.6, 0, 0)) + Vector3(0, 0.05, 0)
+	luna.visible = true
+	luna.set_physics_process(true)
+	main.camera_rig.set_shot(Vector3(cross.x, w.height(cross.x, cross.y + 8) + 1.8, cross.y + 8), Vector3(cross.x, w.height(cross.x, cross.y - 10) + 1.5, cross.y - 10), 55.0)
+	main.spawner.enabled = true
+	var terr: Array = main.spawner.territories
+	_check(terr.size() == 3, "three habitats live in the woods", terr.map(func(t): return t.id))
+	var route := [Vector2(0, 126), Vector2(-5, 100), Vector2(-7, 68), cross, Vector2(0, 7), Vector2(0, -8), Vector2(0, -27), w.INSCRIPTION, w.VIEWPOINT]
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	var routines := {}
+	var states := {}
+	var peace_violations := []
+	var outside := []
+	var seen_spawns := {}
+	var visible_spawns := []
+	var pop_day := 0
+	var t0 := _gms()
+	var phase := "day"
+	var noise_sent := false
+	var noise_t := 0
+	var investigated := false
+	var withdraw_target: Monster = null
+	var withdrew := false
+	var rested_after := false
+	var defeat_done := false
+	var pop_night := 0
+	var shot_marks := [25000, 60000, 95000, 140000, 200000, 250000]
+	var shots_taken := 0
+	while _gms() - t0 < 300000:
+		await _wait(1.0)
+		var el := _gms() - t0
+		# visual proof: frame the nearest living creature from a few metres away, then return to the crossroads shot
+		if not shot_marks.is_empty() and el >= int(shot_marks[0]):
+			shot_marks.pop_front()
+			var best: Monster = null
+			var bd := 1e9
+			for t in terr:
+				for m in t.alive:
+					if is_instance_valid(m) and m.alive() and mika.global_position.distance_to(m.global_position) < bd:
+						bd = mika.global_position.distance_to(m.global_position)
+						best = m
+			if best:
+				var fwd := -best.global_transform.basis.z
+				var side := Vector3(-fwd.z, 0, fwd.x)
+				var cp := best.global_position + fwd * 4.5 + side * 2.5 + Vector3(0, 1.9, 0)
+				cp.y = maxf(cp.y, w.height(cp.x, cp.z) + 1.4)
+				main.camera_rig.set_shot(cp, best.aim_point(), 42.0)
+				await _wait(1.2)
+				_shot("creature_%03d_%s_%s_%s" % [int(el / 1000), best.kind, best.routine, "night" if WorldState.night else "day"])
+				shots_taken += 1
+				main.camera_rig.set_shot(Vector3(cross.x, w.height(cross.x, cross.y + 8) + 1.8, cross.y + 8), Vector3(cross.x, w.height(cross.x, cross.y - 10) + 1.5, cross.y - 10), 55.0)
+		for t in terr:
+			for m in t.alive:
+				if not is_instance_valid(m):
+					continue
+				routines[m.kind + ":" + m.routine] = int(routines.get(m.kind + ":" + m.routine, 0)) + 1
+				states[m.mstate] = int(states.get(m.mstate, 0)) + 1
+				if not t.contains(m.global_position) and m.routine != "investigate" and m.mstate in ["wander"]:
+					outside.append([m.kind, snappedf(m.global_position.x, 0.1), snappedf(m.global_position.z, 0.1)])
+				for rp in route:
+					if Vector2(m.global_position.x - rp.x, m.global_position.z - rp.y).length() < 22.0:
+						peace_violations.append([m.kind, rp, snappedf(el / 1000.0, 1.0)])
+				if m.routine == "investigate":
+					investigated = true
+			for e in t.log:
+				if e.event == "spawned" and not seen_spawns.has(str(e)):
+					seen_spawns[str(e)] = true
+					var sp := Vector3(e.at[0], w.height(e.at[0], e.at[1]) + 0.8, e.at[1])
+					var q := PhysicsRayQueryParameters3D.create(cam.global_position, sp)
+					q.collision_mask = 1 | 4
+					var hit: Dictionary = mika.get_world_3d().direct_space_state.intersect_ray(q)
+					var clear := hit.is_empty() or (hit.position as Vector3).distance_to(sp) < 1.0
+					if cam.is_position_in_frustum(sp) and clear and cam.global_position.distance_to(sp) < 60.0:
+						visible_spawns.append(e)
+		# day phase: after 70 s a noise near the dead wood (a spell's loudness) must draw a creature to look
+		if phase == "day" and el > 70000 and not noise_sent:
+			noise_sent = true
+			noise_t = el
+			var np := Vector3(96, w.height(96, -16), -16)
+			main.spawner.hear(np, 20.0, "spell")
+		# after 130 s wound a den creature badly: it should break off to its lair and rest
+		if phase == "day" and el > 130000 and withdraw_target == null:
+			for t in terr:
+				if t.id == "den":
+					for m in t.alive:
+						if m.kind == "thornback" and m.alive():
+							withdraw_target = m
+							m.last_attacker = mika
+							m.apply_damage(m.max_hp * 0.78, "arcane")
+							break
+		if withdraw_target and is_instance_valid(withdraw_target) and withdraw_target.alive():
+			if withdraw_target.routine == "withdraw":
+				withdrew = true
+			if withdrew and withdraw_target.routine == "rest":
+				rested_after = true
+		if phase == "day" and el > 170000:
+			pop_day = terr.reduce(func(acc, t): return acc + t.alive.size(), 0)
+			phase = "night"
+			WorldState.night = true
+			w.set_night(true)
+			main.camera_rig.set_shot(Vector3(cross.x, w.height(cross.x, cross.y + 8) + 1.8, cross.y + 8), Vector3(cross.x, w.height(cross.x, cross.y - 10) + 1.5, cross.y - 10), 55.0)
+		if phase == "night" and el > 285000 and not defeat_done:
+			defeat_done = true
+			pop_night = terr.reduce(func(acc, t): return acc + t.alive.size(), 0)
+			for t in terr:
+				if t.id == "den" and not t.alive.is_empty():
+					var m2: Monster = t.alive[0]
+					m2.last_attacker = mika
+					m2.apply_damage(99999.0, "arcane")
+	await _wait(1.5)
+	var den_state: Dictionary = {}
+	for t in terr:
+		if t.id == "den":
+			den_state = t.state()
+	report["territory"] = {"routines": routines, "states": states, "spawns": seen_spawns.size(), "visible_spawns": visible_spawns,
+		"outside_habitat": outside.slice(0, 8), "peace_violations": peace_violations.slice(0, 8), "pop_day": pop_day, "pop_night": pop_night,
+		"den_state": den_state, "territories": terr.map(func(t): return t.describe()), "logs": terr.map(func(t): return t.log.slice(0, 12))}
+	print("[mktest] territory ", JSON.stringify(report.territory))
+	_check(seen_spawns.size() >= 3, "creatures appeared in their habitats over five minutes (%d spawns)" % seen_spawns.size(), seen_spawns.size())
+	_check(visible_spawns.is_empty(), "no creature appeared where the camera could watch it pop in", visible_spawns)
+	_check(outside.is_empty(), "creatures stayed inside their habitats while at home", outside.slice(0, 5))
+	_check(peace_violations.is_empty(), "the main route (entry -> ruins -> viewpoint) stayed peaceful", peace_violations.slice(0, 5))
+	var seen_kinds := routines.keys().map(func(k): return String(k).split(":")[1])
+	_check("patrol" in seen_kinds and ("guard" in seen_kinds or "rest" in seen_kinds), "territory routines happened (patrol + guard/rest)", routines)
+	_check(investigated, "a creature came to investigate the noise", routines)
+	_check(withdrew, "a badly hurt den creature withdrew to its lair", withdraw_target.routine_history if withdraw_target and is_instance_valid(withdraw_target) else "no target")
+	_check(rested_after or withdrew, "it rested in the lair afterwards", rested_after)
+	_check(pop_night >= pop_day, "night brought at least as many creatures out as day (%d -> %d)" % [pop_day, pop_night], [pop_day, pop_night])
+	_check(int(den_state.get("defeats", 0)) >= 1 and float(den_state.get("depleted_until", 0.0)) > WorldState.game_time(), "the den remembers the defeat and is depleted for a while", den_state)
+	var saved := WorldState.save_game()
+	var raw := FileAccess.get_file_as_string(WorldState.save_path)
+	var sd = JSON.parse_string(raw) if raw != "" else null
+	_check(saved and sd is Dictionary and (sd as Dictionary).has("habitats") and (sd.habitats as Dictionary).get("whispering_woods", {}).has("den"), "the habitat state is in the (test) save", str(sd.get("habitats", "")).left(200) if sd is Dictionary else "no save")
+
+
 ## The continuous route, walked for real (navmesh + the game's own Mika-first camera): Mika leads, Luna walks
 ## with her (FollowCompanion). Pauses where a viewer would want to look. Records time, distance and stalls.
 func _walk() -> void:

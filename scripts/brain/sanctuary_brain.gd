@@ -276,6 +276,12 @@ func options() -> Array:
 			if mind.vigor > 0.75 and float(needs.energy) > 0.6 and main.get("duel") and main.streaming.current_id == "sanctuary":
 				out.append({"kind": "together", "key": "together:spar:" + other_id, "other": other_id, "sub": "train_together",
 					"target": {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}}, "label": "ask %s to spar at the training grounds" % MagicSystem.display_name(other_id)})
+			var area_info: Dictionary = WorldState.areas.get(main.streaming.current_id, {})
+			if WorldState.night and float(needs.energy) > 0.25 and area_info.has("stargaze_spot"):
+				var sp: Array = area_info.stargaze_spot
+				out.append({"kind": "together", "key": "together:stargaze:" + other_id, "other": other_id, "sub": "stargaze_together",
+					"target": {"pos": Vector3(sp[0], 0, sp[1]), "fill": {"place": String(area_info.get("stargaze_place", "the grass"))}},
+					"label": "ask %s to lie in the grass and watch the stars" % MagicSystem.display_name(other_id)})
 			if (mind.vigor < 0.7 or float(needs.energy) < 0.55) and main.world and main.world.interactables.has("watchpoint_rest"):
 				out.append({"kind": "together", "key": "together:rest:" + other_id, "other": other_id, "sub": "rest_together",
 					"target": {"pos": main.world.interactables.watchpoint_rest.global_position, "fill": {}}, "label": "ask %s to rest together at the watchpoint" % MagicSystem.display_name(other_id)})
@@ -416,6 +422,10 @@ func score(o: Dictionary) -> Dictionary:
 				u += (1.0 - needs.energy) * 0.4
 			if String(o.sub) == "train_together":
 				u += needs.mastery * 0.3 - 0.1
+			if String(o.sub) == "stargaze_together":
+				u += 0.2 + 0.25 * (1.0 - needs.energy) + 0.1 * needs.social
+				if mind.knowledge.has("stargazed:" + main.streaming.current_id):
+					u -= 0.15
 			var declined := float(mind.knowledge.get("declined_by:%s:%s" % [o.other, o.sub], 0.0))
 			if Time.get_unix_time_from_system() - declined < 900.0:
 				u -= 0.5
@@ -841,6 +851,22 @@ func combat_spell() -> String:
 
 
 ## Called by the spawner when a creature strikes her: she stops what she is walking to and decides again.
+var _sight_t := 2.0
+
+## Milestone K8: a creature seen in the distance is remembered (bestiary knowledge, an activity) and can be talked
+## about, without a fight. Hunting records the same key, so nothing is counted twice.
+func _notice_creatures() -> void:
+	if me == null or main.get("spawner") == null or not me.visible:
+		return
+	for mon in main.spawner.perceived_by(me, 34.0):
+		var m := mon as Monster
+		if m == null or not m.alive() or mind.knowledge.has("bestiary:" + m.kind):
+			continue
+		WorldState.record_activity({"id": "sight:" + m.kind, "verb": "observe", "label": "Saw a %s" % m.def.name},
+			{"knowledge": {"bestiary:" + m.kind: 1}}, agent_id)
+		_maybe_say(_lines("first_sight", ["What is that?", "Something is moving out there."]), 0.9)
+
+
 func on_threat(m: Monster) -> void:
 	threat = m
 	if current.get("kind", "") not in ["hunt", "recover"]:
@@ -1063,6 +1089,10 @@ func _recover() -> Dictionary:
 var _sense_t := 0.0
 
 func _process(delta: float) -> void:
+	_sight_t -= delta
+	if _sight_t <= 0.0:
+		_sight_t = 2.0
+		_notice_creatures()
 	if mind == null or not enabled:
 		return
 	_sense_t -= delta

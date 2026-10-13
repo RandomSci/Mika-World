@@ -270,6 +270,8 @@ func _footsteps(c: WorldCharacter, delta: float) -> void:
 
 
 func _step(c: WorldCharacter, speed: float) -> void:
+	if speed > 3.2 and main.get("spawner"):
+		main.spawner.hear(c.global_position, 8.0, "steps")   # running is loud enough for a creature to notice
 	var space := c.get_world_3d().direct_space_state
 	var q := PhysicsRayQueryParameters3D.create(c.global_position + Vector3(0, 0.3, 0), c.global_position - Vector3(0, 0.5, 0))
 	q.exclude = [c.get_rid()]

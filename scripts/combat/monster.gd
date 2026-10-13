@@ -53,6 +53,23 @@ var _rng := RandomNumberGenerator.new()
 var move_vel := Vector3.ZERO      # observed motion (what a caster leading her shot can see)
 var _prev_pos := Vector3.INF
 var state_history: Array = []     # [t, state] of its behaviour changes (diagnostics, tests)
+# Milestone K8 territory life (data/habitats.json through Territory). routine: patrol | guard | rest |
+# investigate | withdraw. Ground creatures follow navmesh paths (round trunks and boulders); flyers go straight.
+var territory: Territory = null
+var routine := ""
+var routine_history: Array = []
+var _routine_t := 0.0
+var _patrol_i := 0
+var _pause_t := 0.0
+var _look_t := 0.0
+var _noise := Vector3.INF
+var _noise_kind := ""
+var _tpath := PackedVector3Array()
+var _tpi := 0
+var _tgoal := Vector3.INF
+var _tplan_t := 0.0
+var _perception := 1.0
+var _prev_routine := "patrol"
 
 
 func setup_monster(p_main: Node, kind_id: String, uid: String, at: Vector3, d: Dictionary) -> void:
@@ -171,6 +188,17 @@ func apply_damage(dmg: float, element: String) -> Dictionary:
 	if creature:
 		creature.flash(clampf(dmg / (max_hp * 0.25), 0.4, 1.0))
 	var who: String = last_attacker.character_id if last_attacker else ""
+	if territory:
+		territory.spawner.hear(global_position, 14.0, "fight")
+		var b := beh()
+		if alive() and hp > 0.0 and float(def.float) < 0.5 and bool(b.get("retreat_to_lair", false)) and territory.lair_center() != Vector3.INF \
+				and hp < max_hp * float(b.get("retreat_hp", 0.0)) and routine != "withdraw" and territory.lair_center().distance_to(_flat(global_position)) > 6.0:
+			_cancel_hazard()
+			target_mage = null
+			_set_routine("withdraw")
+			_set_state("return")
+			_sync()
+			return {"effect": "struck", "detail": "%s broke off and fled toward its den" % label, "damage": snappedf(dmg, 0.1), "health": state.health, "exposed": exposed, "fled": true}
 	if last_attacker and alive() and mstate in ["wander", "return", "rest"]:
 		target_mage = last_attacker        # being struck makes it turn on whoever did it
 		_set_state("alert" if creature and mstate != "rest" else "chase")
@@ -301,7 +329,10 @@ func _physics_process(delta: float) -> void:
 		return
 	match mstate:
 		"wander":
-			_wander(delta)
+			if territory:
+				_territory(delta)
+			else:
+				_wander(delta)
 		"chase", "attack":
 			if _lost_target():
 				target_mage = null
@@ -312,15 +343,14 @@ func _physics_process(delta: float) -> void:
 				var rng := float(def.attack.range)
 				if d > rng * 0.9:
 					mstate = "chase"
-					_move_toward(to, float(def.speed), delta)
+					_approach(to, float(def.speed), delta)
 				else:
 					mstate = "attack"
 					_face(to, delta)
 					if _cd <= 0.0:
 						_attack_legacy()
 		"return":
-			_move_toward(home, float(def.speed) * 0.7, delta)
-			if _flat(global_position - home).length() < 1.5:
+			if _go_home(delta):
 				mstate = "wander"
 	_sync()
 
@@ -350,7 +380,10 @@ func _think_j(delta: float) -> void:
 	var flyer := float(def.float) > 0.5
 	match mstate:
 		"wander":
-			_wander(delta)
+			if territory:
+				_territory(delta)
+			else:
+				_wander(delta)
 		"alert":
 			# it has seen her: a beat of recognition (readable), turning to face her
 			if target_mage and is_instance_valid(target_mage):
@@ -435,15 +468,14 @@ func _think_j(delta: float) -> void:
 				var rng := reach() * 0.85
 				if d > rng:
 					mstate = "chase"
-					_move_toward(to, float(def.speed), delta)
+					_approach(to, float(def.speed), delta)
 				else:
 					mstate = "attack"
 					_face(to, delta, float(def.get("turn", 4.0)))
 					if stamina < 0.2:
 						_set_state("rest")
 		"return":
-			_move_toward(home, float(def.speed) * 0.7, delta)
-			if _flat(global_position - home).length() < 1.5:
+			if _go_home(delta):
 				_set_state("wander")
 
 
@@ -583,16 +615,27 @@ func _play_sfx(name: String, db: float) -> void:
 
 func _notice() -> WorldCharacter:
 	var best: WorldCharacter = null
-	var bd := float(def.aggro_radius)
+	var bd := float(def.aggro_radius) * _perception
 	for c in main.characters.values():
 		var wc := c as WorldCharacter
 		if wc == null or not wc.visible or wc.has_meta("transforming") or _in_ward(wc.global_position, 0.0):
 			continue
 		var d := _flat(wc.global_position - global_position).length()
-		if d < bd:
+		if d < bd and _can_see(wc, d):
 			bd = d
 			best = wc
 	return best
+
+
+## Trees, boulders and walls hide a mage from a creature (within 3 m it hears her anyway).
+func _can_see(wc: WorldCharacter, d: float) -> bool:
+	if d < 3.0 or territory == null:
+		return true
+	var q := PhysicsRayQueryParameters3D.create(aim_point(), wc.global_position + Vector3(0, 1.2, 0))
+	q.collision_mask = 1 | 4
+	q.exclude = bodies.map(func(b): return b.get_rid())
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.is_empty() or (hit.position as Vector3).distance_to(wc.global_position + Vector3(0, 1.2, 0)) < 0.9
 
 
 func _in_ward(p: Vector3, margin: float) -> bool:
@@ -821,3 +864,203 @@ func _animate(delta: float) -> void:
 		e.scale = Vector3.ONE * (1.0 + 0.6 * flash)
 	if _core_mat:
 		_core_mat.emission_energy_multiplier = (2.2 if kind == "gloomwisp" else 0.4) + 3.0 * flash
+
+
+# ------------------------------------------------------------------ territory life (Milestone K8)
+func beh() -> Dictionary:
+	return territory.spawner.behaviour_of(kind) if territory else {}
+
+
+## Called by its Territory right after it appears: a resting-rhythm creature starts at rest (by day), others on
+## patrol or at the guard post.
+func begin_territory_life(active: bool) -> void:
+	var b := beh()
+	var pts := territory.patrol_points()
+	if not active and bool(b.get("rest_by_day", false)) and not territory.rest_points().is_empty():
+		_set_routine("rest")
+	elif not pts.is_empty():
+		_patrol_i = _rng.randi() % pts.size()
+		_set_routine("patrol")
+	elif bool(b.get("guards_lair", false)) and territory.guard_post() != Vector3.INF:
+		_set_routine("guard")
+	else:
+		_set_routine("patrol")
+
+
+func _set_routine(r: String) -> void:
+	if routine != r and routine in ["patrol", "guard"]:
+		_prev_routine = routine
+	routine = r
+	_routine_t = 0.0
+	_pause_t = 0.0
+	_tgoal = Vector3.INF
+	routine_history.append([snappedf(_t, 0.01), r])
+	if routine_history.size() > 200:
+		routine_history.pop_front()
+	match r:
+		"rest":
+			_perception = 0.55
+		"guard":
+			_perception = float(beh().get("alert_radius_guard", 1.3))
+		_:
+			_perception = 1.0
+	if creature:
+		creature.play("idle" if r in ["rest", "guard"] else "move")
+
+
+## A noise reached it (Territory.hear): a resting or patrolling creature goes to look.
+func on_noise(pos: Vector3, nkind: String) -> void:
+	if not alive() or mstate not in ["wander", "return"] or routine == "withdraw":
+		return
+	if routine == "investigate" and _noise != Vector3.INF and _noise.distance_to(pos) < 4.0:
+		return
+	_noise = pos
+	_noise_kind = nkind
+	_set_routine("investigate")
+
+
+## Movement to a goal: ground creatures follow the navmesh (round trunks, boulders, walls); flyers go straight.
+## Returns true on arrival.
+func _go_to(goal: Vector3, speed: float, delta: float) -> bool:
+	if _flat(goal - global_position).length() < 1.2:
+		return true
+	if float(def.float) > 0.5:
+		_move_toward(goal, speed, delta)
+		return false
+	_tplan_t -= delta
+	if _tgoal.distance_to(goal) > 0.8 or _tplan_t <= 0.0 or _tpi >= _tpath.size():
+		var map: RID = get_world_3d().navigation_map
+		var from := NavigationServer3D.map_get_closest_point(map, global_position)
+		var to := NavigationServer3D.map_get_closest_point(map, goal)
+		_tpath = NavQuery.path(map, from, to)
+		_tpi = 0
+		_tgoal = goal
+		_tplan_t = 1.5
+		if _tpath.size() > 1 and _tpath[0].distance_to(global_position) < 0.5:
+			_tpi = 1
+	if _tpath.is_empty():
+		_move_toward(goal, speed, delta)
+		return false
+	var wp := _tpath[mini(_tpi, _tpath.size() - 1)]
+	if _flat(wp - global_position).length() < 0.6 and _tpi < _tpath.size() - 1:
+		_tpi += 1
+		wp = _tpath[_tpi]
+	_move_toward(wp, speed, delta)
+	return false
+
+
+## Chasing in a forest: a territory creature paths round obstacles toward the mage; others go straight.
+func _approach(to: Vector3, speed: float, delta: float) -> void:
+	if territory and float(def.float) < 0.5:
+		_go_to(to, speed, delta)
+		_face(to, delta, float(def.get("turn", 6.0)))
+	else:
+		_move_toward(to, speed, delta)
+
+
+## Going home (leashed, or withdrawing to the lair). Returns true when there.
+func _go_home(delta: float) -> bool:
+	var goal := home
+	if territory and routine == "withdraw" and territory.lair_center() != Vector3.INF:
+		goal = territory.ground(territory.lair_center())
+	if territory:
+		if _go_to(goal, float(def.speed) * (0.95 if routine == "withdraw" else 0.7), delta):
+			if routine == "withdraw":
+				_set_routine("rest")
+			return true
+		return false
+	_move_toward(goal, float(def.speed) * 0.7, delta)
+	return _flat(global_position - goal).length() < 1.5
+
+
+func _territory(delta: float) -> void:
+	_routine_t += delta
+	var b := beh()
+	var spd := float(def.speed)
+	# every routine keeps watching: a mage inside the (scaled) aggro radius with a clear line is noticed
+	var m := _notice()
+	if m:
+		target_mage = m
+		if creature:
+			_set_state("alert")
+		else:
+			mstate = "chase"
+		return
+	match routine:
+		"rest":
+			var spots: Array = territory.rest_points()
+			if bool(b.get("perches", false)) and not territory.perches().is_empty():
+				spots = territory.perches()
+			var spot: Vector3 = territory.ground(spots[_patrol_i % spots.size()]) if not spots.is_empty() else home
+			if _go_to(spot, spd * 0.5, delta):
+				if creature:
+					creature.move_speed = 0.0
+					creature.glow_level = 0.3
+				if _routine_t > 8.0:
+					hp = minf(max_hp, hp + max_hp * 0.01 * delta)   # resting heals slowly
+			if territory.active_now(kind) and _routine_t > 15.0 and _rng.randf() < delta * 0.08:
+				_set_routine("patrol")
+		"guard":
+			var post := territory.ground(territory.guard_post())
+			if _go_to(post, spd * 0.6, delta):
+				_look_t -= delta
+				if _look_t <= 0.0:
+					_look_t = _rng.randf_range(3.0, 6.0)
+					var pts := territory.patrol_points()
+					var toward: Vector3 = pts[0] if not pts.is_empty() else territory.center()
+					var dir := _flat(toward - global_position).normalized().rotated(Vector3.UP, _rng.randf_range(-0.7, 0.7))
+					_face(global_position + dir * 5.0, 0.4, 3.0)
+				if creature:
+					creature.move_speed = 0.0
+			if _routine_t > 35.0:
+				if not territory.active_now(kind) and bool(b.get("rest_by_day", false)):
+					_set_routine("rest")
+				else:
+					_set_routine("patrol")
+		"patrol":
+			var pts := territory.patrol_points()
+			if pts.is_empty():
+				_wander(delta)
+				return
+			if _pause_t > 0.0:
+				_pause_t -= delta
+				if creature:
+					creature.move_speed = 0.0
+				_look_t -= delta
+				if _look_t <= 0.0:
+					_look_t = _rng.randf_range(1.2, 2.5)
+					_face(global_position + Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1)).normalized() * 4.0, 0.3, 2.5)
+				return
+			var goal: Vector3 = territory.ground(pts[_patrol_i % pts.size()])
+			if _go_to(goal, spd * float(b.get("patrol_pace", 0.45)), delta):
+				_patrol_i = (_patrol_i + 1) % pts.size()
+				_pause_t = _rng.randf_range(2.0, 5.0)
+				_look_t = 0.0
+				if _patrol_i == 0:
+					if not territory.active_now(kind) and bool(b.get("rest_by_day", false)) and not territory.rest_points().is_empty():
+						_set_routine("rest")
+					elif bool(b.get("guards_lair", false)) and territory.guard_post() != Vector3.INF and _rng.randf() < 0.6:
+						_set_routine("guard")
+		"investigate":
+			if _noise == Vector3.INF:
+				_set_routine(_prev_routine)
+				return
+			if _go_to(territory.ground(_noise), spd * 0.8, delta):
+				if creature:
+					creature.move_speed = 0.0
+				_pause_t += delta
+				_look_t -= delta
+				if _look_t <= 0.0:
+					_look_t = _rng.randf_range(1.0, 2.0)
+					_face(global_position + Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1)).normalized() * 4.0, 0.3, 3.0)
+				if _pause_t > 5.0:
+					_noise = Vector3.INF
+					_set_routine(_prev_routine)
+			elif _routine_t > 40.0:
+				_noise = Vector3.INF
+				_set_routine(_prev_routine)
+		"withdraw":
+			if _go_home(delta):
+				_set_routine("rest")
+		_:
+			_wander(delta)

@@ -19,7 +19,8 @@ const BOND_GAIN := 0.06
 var main: Node
 var cfg := {}
 var log: Array = []
-var active := {}                    # the joint activity in progress {kind, leader, follower, t0, stage}
+var active := {}
+var force_accept := false          # tests: skip the invitation's mood roll                    # the joint activity in progress {kind, leader, follower, t0, stage}
 var _rng := RandomNumberGenerator.new()
 
 
@@ -242,6 +243,8 @@ func invite(a: SanctuaryBrain, other: String, kind: String, target: Dictionary) 
 	a.current.stage = "going over to %s" % MagicSystem.display_name(other)
 	await approach_for_talk(a, bc, 1.7)
 	var dec := consider(other, a.agent_id, kind)
+	if force_accept:
+		dec = {"accept": true, "reason": "", "u": 1.0}
 	var spec: Dictionary = cfg.get("join", {}).get("activities", {}).get(kind, {})
 	var label := String(spec.get("label", kind))
 	for k in target.get("fill", {}):
@@ -281,6 +284,8 @@ func invite(a: SanctuaryBrain, other: String, kind: String, target: Dictionary) 
 				res = await main.duel.run(a, b)
 			else:
 				res = {"ok": false, "detail": "no training ground"}
+		"stargaze_together":
+			res = await _stargaze_together(a, b, target)
 		_:
 			res = await _explore_together(a, b, target)
 	# each of them keeps her OWN memory of it
@@ -402,6 +407,90 @@ func _explore_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary)
 	return out
 
 
+## V3 quiet scene: walk to open grass together, lie down side by side, look up, say a little, say nothing for a
+## while, get up. Real clips (the UAL get-up played backwards, the held lying pose with breathing), real looks
+## (heads turn to whoever speaks, then back to the sky), the camera on a stargazing mode for the whole scene.
+func _stargaze_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary) -> Dictionary:
+	var lead := a.me
+	var fol := b.me
+	var spot: Vector3 = target.get("pos", lead.global_position)
+	var place := String(target.get("fill", {}).get("place", "the grass"))
+	active.stage = "walking out to the grass"
+	var f := FollowCompanion.new()
+	f.name = "Follow_" + b.agent_id
+	f.leader = lead
+	f.follower = fol
+	add_child(f)
+	var walked := await walk_together(lead, f, spot, 45.0)
+	f.queue_free()
+	# two places 1.3 m apart, both facing the same open way (away from where they came from)
+	var map := lead.get_world_3d().navigation_map
+	var facing := Vector3(spot.x - lead.global_position.x, 0, spot.z - lead.global_position.z)
+	facing = facing.normalized() if facing.length() > 0.5 else -lead.global_transform.basis.z
+	var perp := Vector3(-facing.z, 0, facing.x)
+	var pa := NavigationServer3D.map_get_closest_point(map, spot + perp * 0.65)
+	var pb := NavigationServer3D.map_get_closest_point(map, spot - perp * 0.65)
+	active.stage = "settling into the grass"
+	lead.navigate_to(pa, false)
+	fol.navigate_to(pb, false)
+	var tw := 0.0
+	while (lead.current_action == "navigate_to" or fol.current_action == "navigate_to") and tw < 12.0:
+		await get_tree().physics_frame
+		tw += get_physics_process_delta_time()
+	lead.look_at_point(lead.global_position + facing * 3.0)
+	fol.look_at_point(fol.global_position + facing * 3.0)
+	await get_tree().create_timer(0.8).timeout
+	await _say(a.agent_id, line(a.agent_id, "stargaze_arrive"))
+	if main.director:
+		main.director.begin_stargaze(lead, fol)
+	lead.lie_down()
+	await get_tree().create_timer(0.9).timeout
+	await _say(b.agent_id, line(b.agent_id, "stargaze_arrive"))
+	await fol.lie_down()
+	var sky_a := lead.global_position + Vector3(0, 14, 0) + facing * 2.0
+	var sky_b := fol.global_position + Vector3(0, 14, 0) + facing * 2.0
+	lead.look_head_at(sky_a)
+	fol.look_head_at(sky_b)
+	await get_tree().create_timer(5.0).timeout
+	# a few words, real pauses, heads turning to whoever speaks
+	var beats := [[a, b, "stargaze_quiet", 4.0], [b, a, "stargaze_wonder", 1.0], [a, b, "stargaze_reply", 6.0], [a, b, "stargaze_wonder", 1.0], [b, a, "stargaze_reply", 7.0], [b, a, "stargaze_quiet", 5.0]]
+	var said := 0
+	for bt in beats:
+		var sp: SanctuaryBrain = bt[0]
+		var ls: SanctuaryBrain = bt[1]
+		var text := line(sp.agent_id, String(bt[2]))
+		if text == "...":
+			await get_tree().create_timer(float(bt[3])).timeout
+			continue
+		sp.me.look_head_at(ls.me.global_position + Vector3(0, 0.25, 0))
+		ls.me.look_head_at(sp.me.global_position + Vector3(0, 0.25, 0))
+		active.stage = "%s speaks" % MagicSystem.display_name(sp.agent_id)
+		await _say(sp.agent_id, text)
+		said += 1
+		await get_tree().create_timer(0.8).timeout
+		sp.me.look_head_at(sky_a if sp == a else sky_b)
+		ls.me.look_head_at(sky_a if ls == a else sky_b)
+		await get_tree().create_timer(float(bt[3])).timeout
+	active.stage = "just watching"
+	await get_tree().create_timer(8.0).timeout
+	await _say(a.agent_id, line(a.agent_id, "stargaze_done"))
+	lead.look_head_at(null)
+	fol.look_head_at(null)
+	await _say(b.agent_id, line(b.agent_id, "stargaze_done"))
+	fol.get_up()
+	await get_tree().create_timer(0.7).timeout
+	await lead.get_up()
+	if main.director:
+		main.director.end_stargaze()
+	for br in [a, b]:
+		br.needs.energy = clampf(float(br.needs.energy) + 0.18, 0.0, 1.0)
+	var out := {"ok": walked, "detail": "lay in the grass at %s and watched the stars (%d lines)" % [place, said],
+		"memory": "lay in the grass at %s and watched the stars" % place}
+	for br in [a, b]:
+		out["effects_" + br.agent_id] = {"knowledge": {"stargazed:%s" % main.streaming.current_id: 1}}
+	return out
+
+
 func _rest_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary) -> Dictionary:
 	var f := FollowCompanion.new()
 	f.leader = a.me
@@ -428,10 +517,11 @@ func walk_together(lead: WorldCharacter, f: FollowCompanion, to: Vector3, max_s:
 	var map := lead.get_world_3d().navigation_map
 	var goal := NavigationServer3D.map_get_closest_point(map, to)
 	lead.navigate_to(goal, false)
-	var t0 := Time.get_ticks_msec()
+	var t := 0.0   # GAME time: under Movie Maker recording real time runs many times slower than the game
 	var waiting := false
-	while Time.get_ticks_msec() - t0 < int(max_s * 1000.0):
+	while t < max_s:
 		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
 		var gap := f.gap()
 		if gap > 5.5 and not waiting and lead.current_action == "navigate_to":
 			waiting = true

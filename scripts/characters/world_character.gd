@@ -28,7 +28,6 @@ const CLIPS := {
 	# Milestone I: transitions, handling, leisure, dances (all retargeted through mixamo_bonemap)
 	"stand_to_sit": ["stand_to_sit.fbx", false, true],
 	"sit_to_stand": ["sit_to_stand.fbx", false, true],
-	"lie_down": ["lying_down.fbx", false, true],
 	"pick_floor": ["picking_up_floor.fbx", false, true],
 	"pick_chest": ["picking_up_object_chest_level.fbx", false, true],
 	"put_down": ["putting_down.fbx", false, true],
@@ -52,8 +51,22 @@ const CLIPS := {
 	"hit_knockback": ["ual:Hit_Knockback", false, true],
 	"brace": ["ual:Sword_Block", false, true],
 	"victory_nod": ["ual:Yes", false, true],
+	# Milestone K (V3) rest set: Quaternius Universal Animation Library (CC0), second pack. "@t" freezes a clip at
+	# time t (a held pose), "~rev" plays it backwards (the get-up becomes the lie-down).
+	"sit_ground_enter": ["ual_rest:Sitting_Enter", false, true],
+	"sit_ground_loop": ["ual_rest:Sitting_Idle", true, true],
+	"sit_ground_talk": ["ual_rest:Sitting_Talking", true, true],
+	"sit_ground_exit": ["ual_rest:Sitting_Exit", false, true],
+	"lie_down_mx": ["lying_down.fbx", false, true],
+	"lie_down": ["ual_rest:LayToIdle~rev", false, true],
+	"lie_loop": ["ual_rest:LayToIdle@0.0", true, true],
+	"lie_get_up": ["ual_rest:LayToIdle", false, true],
+	"crouch_loop": ["ual_rest:Crouch_Idle", true, true],
+	"idle_talk": ["ual_rest:Idle_Talking", true, true],
+	"kneel_fix": ["ual_rest:Fixing_Kneeling", false, true],
 }
 const UAL_PACK := "res://assets/animations/ual/ual_combat.glb"
+const UAL_PACKS := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_rest": "res://assets/animations/ual/ual_rest.glb"}
 
 @export var character_id := "mika"
 @export var display_name := "Mika"
@@ -78,6 +91,7 @@ var eye_looks: Array[LookAtModifier3D] = []
 var handler: ObjectHandler       # right-arm IK + holding objects
 var _head_target: Node3D
 var seated := false
+var _gclock := 0.0   # game seconds: action deadlines must not depend on real time (Movie Maker recording runs slower)
 
 var current_action := "idle"
 var last_rejection := ""  # reason the most recent action request was refused outright
@@ -391,6 +405,41 @@ func set_seated(on: bool, seconds := 0.7) -> void:
 	tw.tween_property(pose_adjust, "influence", 1.0 if on else 0.0, seconds)
 
 
+## Milestone K (V3): resting on the ground. "sit" lowers the visual root so the floor-sit clip (authored at chair
+## height) sits on the grass, with the legs folded by PoseAdjust; "lie" keeps the root and adds breathing;
+## "" restores standing. The physics body never moves (she stands up where she lay down).
+var ground_pose := ""
+## Lie down on the back where she stands (the get-up clip backwards, then the held pose with breathing).
+func lie_down(speed := 0.6) -> void:
+	if ground_pose == "lie" or not has_clip("lie_down"):
+		return
+	play_gesture("lie_down", 0.25, 0.4)
+	set_gesture_speed(speed)
+	await get_tree().create_timer(animation_length("lie_down") / speed - 0.1).timeout
+	set_gesture_speed(1.0)
+	play_gesture("lie_loop", 0.3, 0.6)
+	set_ground_pose("lie", 0.6)
+
+
+## Get up from lying (the real get-up clip), back to standing idle.
+func get_up() -> void:
+	if ground_pose != "lie":
+		return
+	end_gesture()
+	set_ground_pose("", 0.8)
+	play_gesture("lie_get_up", 0.2, 0.5)
+	await get_tree().create_timer(animation_length("lie_get_up") + 0.3).timeout
+
+
+func set_ground_pose(p: String, seconds := 0.8) -> void:
+	ground_pose = p
+	pose_adjust.mode = p
+	pose_adjust.floor_y = 0.33 if p == "sit" else 0.0
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(avatar, "position:y", -0.33 if p == "sit" else (0.08 if p == "lie" else 0.0), seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(pose_adjust, "influence", 1.0 if p != "" else 0.0, seconds)
+
+
 func _attach(bone: String) -> BoneAttachment3D:
 	var ba := BoneAttachment3D.new()
 	ba.bone_name = bone
@@ -429,20 +478,37 @@ func _setup_animation() -> void:
 func _build_library() -> AnimationLibrary:
 	var lib := AnimationLibrary.new()
 	var skel_path := String(avatar.get_path_to(skeleton))
-	var ual: AnimationPlayer = null
-	var ual_src: Node = null
-	if ResourceLoader.exists(UAL_PACK):
-		ual_src = load(UAL_PACK).instantiate()
-		ual = ual_src.find_child("AnimationPlayer", true, false)
+	var packs := {}        # pack id -> AnimationPlayer
+	var pack_srcs := []
+	for pid in UAL_PACKS:
+		if ResourceLoader.exists(UAL_PACKS[pid]):
+			var src_node: Node = load(UAL_PACKS[pid]).instantiate()
+			pack_srcs.append(src_node)
+			packs[pid] = src_node.find_child("AnimationPlayer", true, false)
 	for clip_name in CLIPS:
 		var spec: Array = CLIPS[clip_name]
 		var anim: Animation
-		if String(spec[0]).begins_with("ual:"):
-			var an := String(spec[0]).trim_prefix("ual:")
+		var src_spec := String(spec[0])
+		if src_spec.contains(":") and not src_spec.ends_with(".fbx"):
+			var pid := src_spec.get_slice(":", 0)
+			var an := src_spec.get_slice(":", 1)
+			var freeze_at := -1.0
+			var reverse := false
+			if an.contains("@"):
+				freeze_at = float(an.get_slice("@", 1))
+				an = an.get_slice("@", 0)
+			if an.ends_with("~rev"):
+				reverse = true
+				an = an.trim_suffix("~rev")
+			var ual: AnimationPlayer = packs.get(pid)
 			if ual == null or not ual.has_animation(an):
-				push_warning("[character] missing UAL clip %s; '%s' unavailable" % [an, clip_name])
+				push_warning("[character] missing %s clip %s; '%s' unavailable" % [pid, an, clip_name])
 				continue
 			anim = ual.get_animation(an).duplicate(true)
+			if freeze_at >= 0.0:
+				anim = _bake_variant(anim, "freeze", freeze_at)
+			elif reverse:
+				anim = _bake_variant(anim, "reverse", 0.0)
 		else:
 			if not ResourceLoader.exists(MIXAMO_DIR + spec[0]):
 				push_warning("[character] missing clip %s (run tools/setup_local_assets.sh); '%s' unavailable" % [spec[0], clip_name])
@@ -454,9 +520,42 @@ func _build_library() -> AnimationLibrary:
 		_retarget_paths(anim, skel_path, spec[2])
 		anim.loop_mode = Animation.LOOP_LINEAR if spec[1] else Animation.LOOP_NONE
 		lib.add_animation(clip_name, anim)
-	if ual_src:
-		ual_src.free()
+	for src_node in pack_srcs:
+		src_node.free()
 	return lib
+
+
+## A held pose (freeze at time t, 0.1 s loop) or the clip played backwards, baked at 30 Hz from the sampled
+## position/rotation tracks (so blending and retargeting treat it like any other clip).
+static func _bake_variant(anim: Animation, mode: String, t: float) -> Animation:
+	var out := Animation.new()
+	var L := anim.length
+	var step := 1.0 / 30.0
+	for ti in anim.get_track_count():
+		var type := anim.track_get_type(ti)
+		if type != Animation.TYPE_POSITION_3D and type != Animation.TYPE_ROTATION_3D:
+			continue
+		var nt := out.add_track(type)
+		out.track_set_path(nt, anim.track_get_path(ti))
+		if mode == "freeze":
+			var tt := clampf(t, 0.0, L)
+			if type == Animation.TYPE_POSITION_3D:
+				out.position_track_insert_key(nt, 0.0, anim.position_track_interpolate(ti, tt))
+				out.position_track_insert_key(nt, 0.1, anim.position_track_interpolate(ti, tt))
+			else:
+				out.rotation_track_insert_key(nt, 0.0, anim.rotation_track_interpolate(ti, tt))
+				out.rotation_track_insert_key(nt, 0.1, anim.rotation_track_interpolate(ti, tt))
+		else:
+			var tt := 0.0
+			while tt <= L + 1e-4:
+				var src := clampf(L - tt, 0.0, L)
+				if type == Animation.TYPE_POSITION_3D:
+					out.position_track_insert_key(nt, tt, anim.position_track_interpolate(ti, src))
+				else:
+					out.rotation_track_insert_key(nt, tt, anim.rotation_track_interpolate(ti, src))
+				tt += step
+	out.length = 0.1 if mode == "freeze" else L
+	return out
 
 
 func _build_tree() -> void:
@@ -653,14 +752,14 @@ func navigate_to(target: Vector3, run := false) -> void:
 	_run = run
 	_nav_stuck_time = 0.0
 	_nav_last_pos = global_position
-	_action_deadline = Time.get_ticks_msec() / 1000.0 + 90.0
+	_action_deadline = _gclock + 90.0
 	_begin_action("navigate_to", {"target": [target.x, target.y, target.z], "run": run})
 
 
 func look_at_point(target: Vector3) -> void:
 	_finish_action(false, "superseded by look_at")
 	_look_target = target
-	_action_deadline = Time.get_ticks_msec() / 1000.0 + 6.0
+	_action_deadline = _gclock + 6.0
 	_begin_action("look_at", {"target": [target.x, target.y, target.z]})
 
 
@@ -756,7 +855,7 @@ func take_hit(from: Vector3, heavy := false) -> void:
 	set_expression("surprised", 0.9)
 	get_tree().create_timer(0.7).timeout.connect(func(): set_expression("surprised", 0.0))
 	var clip := "hit_knockback" if heavy else ("hit_chest" if randf() < 0.6 else "hit_head")
-	last_hit = {"t": Time.get_ticks_msec() / 1000.0, "heavy": heavy, "clip": clip}
+	last_hit = {"t": _gclock, "heavy": heavy, "clip": clip}
 	if casting or seated or not _dash.is_empty():
 		return
 	_finish_action(false, "struck")
@@ -795,7 +894,8 @@ func _finish_action(ok: bool, detail: String) -> void:
 
 # ------------------------------------------------------------------ simulation
 func _physics_process(delta: float) -> void:
-	var now := Time.get_ticks_msec() / 1000.0
+	_gclock += delta
+	var now := _gclock
 	var desired := _move_input
 	if _nav_active:
 		if nav_agent.is_navigation_finished():
