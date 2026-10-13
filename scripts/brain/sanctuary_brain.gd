@@ -14,6 +14,8 @@ extends Node
 ##   alchemy     - brew the known recipe, or experiment when curious and the recipe is unknown
 ##   converse    - approach a visiting traveller she has not spoken to this visit
 ##   journal     - write an entry from verified events
+##   attune      - attune to the ritual circle / the Heartstone, offered only once she has read the text that
+##                 describes it (the interactable's lore_id); an open trial for it adds a pull
 ## Utility = base + needs (energy, curiosity, mastery drive, social) + story pull + novelty
 ##           - repetition (same kind / same target recently) - travel + small jitter.
 ## An optional curiosity model (CuriosityModule) may only add a bonus to one of the currently valid options.
@@ -111,15 +113,18 @@ func options() -> Array:
 			var spell := MagicSystem.spell(s.id)
 			var best_t := ""
 			var best_novel := false
+			var best_rank := -1
 			for rid in reactives:
 				var r: ReactiveElement = reactives[rid]
 				var kinds: Array = spell.get("target_kinds", ["*"])
 				if not kinds.has("*") and not kinds.has(r.kind):
 					continue
 				var novel: bool = not WorldState.knowledge.keys().any(func(k): return String(k).begins_with("reaction:%s:%s:" % [s.id, r.kind]))
-				if best_t == "" or (novel and not best_novel) or (novel == best_novel and rng.randf() < 0.3):
+				var rank := (2 if _advances_trial(rid) else 0) + (1 if novel else 0)
+				if best_t == "" or rank > best_rank or (rank == best_rank and rng.randf() < 0.3):
 					best_t = rid
 					best_novel = novel
+					best_rank = rank
 			# a viewer asked for this spell on a particular object: offer exactly that (if it is a valid target)
 			var asked: String = viewer_request.get(s.id, {}).get("target", "")
 			if asked != "" and reactives.has(asked):
@@ -129,7 +134,7 @@ func options() -> Array:
 					best_novel = not WorldState.knowledge.keys().any(func(k): return String(k).begins_with("reaction:%s:%s:" % [s.id, (reactives[asked] as ReactiveElement).kind]))
 			if best_t != "":
 				out.append({"kind": "magic", "key": "magic:%s:%s" % [s.id, best_t], "spell": s.id, "target": best_t, "novel": best_novel,
-					"mastery": s.mastery, "label": "%s %s at %s" % ["experiment with" if best_novel else "practise", s.name, reactives[best_t].label]})
+					"mastery": s.mastery, "trial": _advances_trial(best_t), "label": "%s %s at %s" % ["experiment with" if best_novel else "practise", s.name, reactives[best_t].label]})
 	# story leads (reading leads are covered by research options, with a story bonus)
 	for l in main.story.next_leads():
 		if l.activity == "research":
@@ -156,10 +161,38 @@ func options() -> Array:
 		var npc = main.npcs.present[nid]
 		if is_instance_valid(npc) and npc.state == "idle" and not _talked_this_visit.has(nid + str(main.dialogue.state_of(nid).visits)):
 			out.append({"kind": "converse", "key": "converse:" + nid, "npc": nid, "label": "talk with %s" % main.dialogue.travellers[nid].name})
+	# attune: only where the place exists and once she has read what it is for
+	if here == "sanctuary":
+		for id in ATTUNE:
+			var it = main.world.interactables.get(id)
+			if it and (ATTUNE[id] as Array).any(func(k): return WorldState.knowledge.has(k)):
+				out.append({"kind": "attune", "key": "attune:" + id, "interactable": id, "label": String(it.label).to_lower(),
+					"attuned": WorldState.activity_counts.has("attune:" + id)})
 	# journal
 	if not Journal.compose().is_empty():
 		out.append({"kind": "journal", "key": "journal", "label": "write in my journal"})
 	return out
+
+
+## Attunements and the knowledge that tells her about them (the interactable's lore source).
+const ATTUNE := {"ritual_circle_attune": ["read:scroll_first_circle"], "heartstone_attune": ["read:chamber_tablet", "lore:heartstone"]}
+
+
+## The open trial an activity (interactable id or struck object) would advance, or {}.
+func _open_trial(deed: String) -> Dictionary:
+	for tr in WorldState.sanctuary.get("trials", []):
+		if WorldState.trials_done.has(tr.id):
+			continue
+		if tr.get("activity", "") == deed:
+			return tr
+		if tr.has("activity_prefix") and deed.begins_with(tr.activity_prefix):
+			if not WorldState._prefix_counts.get(tr.activity_prefix, {}).has(deed):
+				return tr
+	return {}
+
+
+func _advances_trial(deed: String) -> bool:
+	return not _open_trial(deed).is_empty()
 
 
 func _book_location(bid: String) -> Dictionary:
@@ -192,6 +225,9 @@ func score(o: Dictionary) -> Dictionary:
 			if o.novel:
 				u += 0.3 * needs.curiosity + 0.1
 				why.append("untested reaction")
+			if o.get("trial", false):
+				u += 0.25
+				why.append("advances a trial +0.25")
 			u -= (1.0 - needs.energy) * 0.45
 		"investigate":
 			u = 0.85
@@ -210,9 +246,17 @@ func score(o: Dictionary) -> Dictionary:
 		"converse":
 			u = 0.55 + needs.social * 0.5
 			why.append("visitor present")
+		"attune":
+			u = 0.3 + needs.mastery * 0.3 - (1.0 - needs.energy) * 0.2
+			var tr := _open_trial(o.interactable)
+			if not tr.is_empty():
+				u += 0.35
+				why.append("trial: %s +0.35" % tr.name)
+			elif o.attuned:
+				u -= 0.15
 		"journal":
 			# grows with the number of things done since the last entry: she writes after a meaningful stretch
-			var unwritten := WorldState.activity_log.size() - int(WorldState.knowledge.get("journal_cursor", 0))
+			var unwritten := WorldState.activity_seq - int(WorldState.knowledge.get("journal_cursor", 0))
 			u = 0.2 + 0.055 * minf(unwritten, 14)
 			if unwritten >= 8:
 				why.append("%d things unwritten" % unwritten)
@@ -336,6 +380,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"alchemy": return await _use("alchemy_table")
 		"converse": return await _converse(o)
 		"journal": return await _journal()
+		"attune": return await _attune(o)
 	return {"ok": false, "detail": "unknown activity"}
 
 
@@ -446,6 +491,11 @@ func _explore(o: Dictionary) -> Dictionary:
 		var it = main.world.interactables.get(id)
 		if it and it.global_position.distance_to(mika.global_position) < 9.0 and BookLibrary.pages_read(it.book_id).is_empty():
 			await _use(id)
+	# standing at the Watchpoint for the first time: actually survey the realm from it (the plaque is right there)
+	var survey = main.world.interactables.get("watchpoint_survey")
+	if survey and o.sub_area == "watchpoint" and not WorldState.knowledge.has("survey:realm") and survey.global_position.distance_to(mika.global_position) < 9.0:
+		current.stage = "surveying the realm"
+		await _use("watchpoint_survey")
 	return {"ok": true, "detail": "looked at %d places in the %s" % [looked, sub.name]}
 
 
@@ -460,6 +510,15 @@ func _rest(o: Dictionary) -> Dictionary:
 	if r.get("ok", false):
 		needs.energy = clampf(needs.energy + 0.35 + deficit * 0.3, 0.0, 1.0)
 		needs.curiosity = clampf(needs.curiosity + 0.15, 0.0, 1.0)
+	return r
+
+
+func _attune(o: Dictionary) -> Dictionary:
+	current.stage = "attuning"
+	var r := await _use(o.interactable)
+	if r.get("ok", false):
+		needs.mastery = clampf(needs.mastery - 0.15, 0.0, 1.0)
+		needs.energy = clampf(needs.energy - 0.03, 0.0, 1.0)
 	return r
 
 

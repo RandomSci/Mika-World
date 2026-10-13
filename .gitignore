@@ -8,3 +8,4 @@ assets/animations/mixamo_sword/*.fbx
 /.dl_quarantine/
 /.env.dev
 /.env*
+/.backups/

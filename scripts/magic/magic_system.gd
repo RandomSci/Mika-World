@@ -222,7 +222,7 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 		res["effect"] = reaction.effect
 		res["detail"] = reaction.detail
 		if reaction.effect != "none":
-			res["changes"] = _award(id, 0.08, target.kind, reaction.effect, cc.get("first_attempt", false))
+			res["changes"] = _award(id, 0.08, target.kind, reaction.effect, cc.get("first_attempt", false), target.id)
 			if reaction.has("clue"):
 				var c2 := WorldState.record_activity({"id": "clue_found", "verb": "discover", "label": target.label}, {"knowledge": {reaction.clue: 1}})
 				(res["changes"] as Dictionary).merge(c2)
@@ -239,15 +239,19 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 
 
 ## Mastery grows with diminishing returns; the first success of an untested spell is "practical understanding".
-func _award(id: String, base: float, kind: String, effect: String, first: bool) -> Dictionary:
+## `target_id`: the struck object, recorded so trials about specific objects ("strike all four rune
+## targets") are satisfied by real hits that produced an effect, not only by the E-key interaction.
+func _award(id: String, base: float, kind: String, effect: String, first: bool, target_id := "") -> Dictionary:
 	var m := mastery(id)
 	var gain := base / (1.0 + m * 0.8)
 	var know := {"reaction:%s:%s:%s" % [id, kind, effect]: 1}
 	if first:
 		know["practical:" + id] = 1
 		gain += 0.05
-	return WorldState.record_activity({"id": "spell:%s" % id, "verb": "practice", "label": "%s (%s)" % [spell(id).name, effect]},
-		{"skills": {id: gain}, "knowledge": know})
+	var act := {"id": "spell:%s" % id, "verb": "practice", "label": "%s (%s)" % [spell(id).name, effect]}
+	if target_id != "":
+		act["target"] = target_id
+	return WorldState.record_activity(act, {"skills": {id: gain}, "knowledge": know})
 
 
 func _finish(res: Dictionary) -> Dictionary:

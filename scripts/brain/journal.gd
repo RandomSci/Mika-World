@@ -20,11 +20,12 @@ static func book() -> Dictionary:
 ## Compose the next entry from what happened since the last one. Returns {} if nothing worth writing.
 static func compose() -> Dictionary:
 	var log: Array = WorldState.activity_log
-	var from: int = int(WorldState.knowledge.get("journal_cursor", 0))
+	var from: int = int(WorldState.knowledge.get("journal_cursor", 0))   # seq of the last event already considered
 	var lines := []
 	var seen := {}
-	for i in range(from, log.size()):
-		var e: Dictionary = log[i]
+	for e: Dictionary in log:
+		if int(e.get("seq", 0)) <= from:
+			continue
 		var a: Dictionary = e.get("activity", {})
 		var id := String(a.get("id", ""))
 		var ch: Dictionary = e.get("changes", {})
@@ -60,7 +61,7 @@ static func compose() -> Dictionary:
 		return {}
 	var n := entries().size() + 1
 	var text := " ".join(lines.slice(0, 6))
-	return {"heading": "Entry %d" % n, "text": VoiceService.clean(text), "cursor": log.size()}
+	return {"heading": "Entry %d" % n, "text": VoiceService.clean(text), "cursor": WorldState.activity_seq}
 
 
 static func _reaction_line(spell: String, kind: String, effect: String) -> String:

@@ -190,6 +190,11 @@ func _ready() -> void:
 		var ft := FaceTest.new()
 		ft.main = self
 		add_child(ft)
+	elif RenderProfile.options.has("persisttest"):
+		travel._cooldown_until = 1e12
+		var ps := PersistTest.new()
+		ps.main = self
+		add_child(ps)
 	elif RenderProfile.options.has("chattest"):
 		travel._cooldown_until = 1e12
 		var ct := ChatTest.new()
@@ -350,6 +355,8 @@ func nearest_interactable(max_d := 3.0) -> Interactable:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if brain == null:
+		return   # still starting up (the first area is loading): director/brain/HUD keys have nothing to act on yet
 	if event.is_action_pressed("toggle_night"):
 		WorldState.night = not WorldState.night
 		if world:

@@ -20,10 +20,14 @@ func setup(m: Node) -> void:
 
 
 func state_of(npc_id: String) -> Dictionary:
-	if not WorldState.npc_state.has(npc_id):
-		WorldState.npc_state[npc_id] = {"met": false, "visits": 0, "conversations": 0, "relationship": 0.0, "taught": [], "knows_from_mika": [],
-			"used_beats": [], "memories": []}
-	return WorldState.npc_state[npc_id]
+	var st: Dictionary = WorldState.npc_state.get_or_add(npc_id, {})
+	# fill fields an older save may lack, without touching what is already there
+	st.merge({"met": false, "visits": 0, "conversations": 0, "relationship": 0.0, "taught": [], "knows_from_mika": [],
+		"used_beats": [], "memories": []})
+	# counters come back from the JSON save as floats (JSON has no int type); keep them integers
+	st.visits = int(st.visits)
+	st.conversations = int(st.conversations)
+	return st
 
 
 func _ok(npc_id: String, beat: Dictionary, npc: TravelerNPC) -> bool:
@@ -64,7 +68,7 @@ func choose_beats(npc_id: String, npc: TravelerNPC, max_beats := 2) -> Array:
 			specific.append(b)
 	var out := specific.slice(0, max_beats)
 	if out.size() < max_beats and not generic.is_empty():
-		out.append(generic[state_of(npc_id).conversations % generic.size()])
+		out.append(generic[int(state_of(npc_id).conversations) % generic.size()])
 	return out
 
 

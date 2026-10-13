@@ -35,6 +35,8 @@ var trials_done := {}            # trial id -> true
 var npc_state := {}              # traveller id -> {met, visits, relationship, taught, knows_from_mika, used_beats, memories}
 var story_state := {}            # StoryManager: {found: {clue: unix}, stage}
 var activity_counts := {}        # activity kind / id -> {count, last_unix}
+var activity_seq := 0            # monotonic id of the last activity_log entry (survives log trimming and restarts)
+const ACTIVITY_LOG_MAX := 1000   # in-memory log length (the save keeps the last 200; readers use "seq", never indices)
 const SAVE_PATH := "user://mika_world_save.json"
 var save_path := SAVE_PATH       # --save-path=user://name.json (tests use their own file, never the real save)
 const SAVE_VERSION := 1
@@ -63,7 +65,8 @@ func _init() -> void:
 
 
 const _TEST_FLAGS := ["fresh", "physicstest", "posetest", "magictest", "readtest", "alchemytest", "audiotest", "lifetest",
-	"storytest", "brainrun", "sanctuarytour", "worldtour", "facetest", "tour", "mock-commands", "viewertest", "chattest", "perfrun"]
+	"storytest", "brainrun", "sanctuarytour", "worldtour", "facetest", "tour", "mock-commands", "viewertest", "chattest", "perfrun",
+	"persisttest"]
 
 
 func _ready() -> void:
@@ -95,30 +98,99 @@ func _notification(what: int) -> void:
 			save_game()
 
 
-func save_game() -> void:
-	_dirty = false
-	_save_timer = 0.0
-	var d := {"version": SAVE_VERSION, "saved_unix": int(Time.get_unix_time_from_system()),
+## Save integrity:
+##  * the file is written to <save>.tmp, read back and parsed, and only then renamed over the save;
+##  * before overwriting, the previous good save is rotated into <save>.bak1..BACKUP_COUNT (at most one
+##    rotation per BACKUP_INTERVAL_S, and always once per session, so autosaves don't churn backups);
+##  * a save that cannot be read (corrupt / missing fields / wrong version) is never overwritten: it is
+##    preserved as <save>.unreadable-<unix>.json and the newest readable backup is restored instead;
+##  * a save NEWER than this build understands disables saving for the session (nothing is clobbered);
+##  * progress only grows (knowledge, trials, discoveries are never removed), so a write that would hold
+##    less of it than what was loaded is refused as a sign of an accidental reset.
+const BACKUP_COUNT := 5
+const BACKUP_INTERVAL_S := 600.0
+const _REQUIRED_KEYS := ["discovered_locations", "visited_locations", "seen_landmarks", "knowledge", "inventory", "skills", "trials_done"]
+var load_report := {}            # what load_game found and did (for tests, the bridge and the log)
+var _loaded_floor := {}          # progress sizes at load time: saves never go below these
+var _last_rotation := -1e12
+
+
+func save_data() -> Dictionary:
+	return {"version": SAVE_VERSION, "saved_unix": int(Time.get_unix_time_from_system()),
 		"discovered_locations": discovered_locations, "visited_locations": visited_locations, "seen_landmarks": seen_landmarks,
 		"knowledge": knowledge, "inventory": inventory, "skills": skills, "trials_done": trials_done, "prefix_counts": _prefix_counts,
-		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200))}
+		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_seq": activity_seq, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200))}
+
+
+func save_game() -> bool:
+	_dirty = false
+	_save_timer = 0.0
+	var d := save_data()
+	for k in _loaded_floor:
+		if (d[k] as Dictionary).size() < int(_loaded_floor[k]):
+			push_warning("[save] refused: %s would shrink from %d to %d entries (state reset?); %s left untouched" % [k, _loaded_floor[k], (d[k] as Dictionary).size(), save_path])
+			return false
+	var text := JSON.stringify(d)
 	var tmp := save_path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
 		push_warning("[save] cannot write %s" % tmp)
-		return
-	f.store_string(JSON.stringify(d))
+		return false
+	f.store_string(text)
 	f.close()
-	DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(save_path))
+	var check := _read_save(tmp)
+	if not check.ok or (check.data.knowledge as Dictionary).size() != knowledge.size():
+		push_warning("[save] written file failed verification (%s); %s left untouched" % [check.get("why", "size mismatch"), save_path])
+		return false
+	_rotate_backups()
+	var err := DirAccess.rename_absolute(_abs(tmp), _abs(save_path))
+	if err != OK:
+		push_warning("[save] could not replace %s (%s)" % [save_path, error_string(err)])
+		return false
+	return true
 
 
 func load_game() -> bool:
-	if not FileAccess.file_exists(save_path):
+	load_report = {"path": save_path, "found": FileAccess.file_exists(save_path)}
+	if not load_report.found:
 		return false
-	var d = JSON.parse_string(FileAccess.get_file_as_string(save_path))
-	if not d is Dictionary or int(d.get("version", 0)) != SAVE_VERSION:
-		push_warning("[save] ignoring incompatible save")
+	var r := _read_save(save_path)
+	if not r.ok and r.get("newer", false):
+		persistent = false
+		load_report["result"] = "save is from a newer version (%s): loaded nothing, saving disabled this session" % r.why
+		push_warning("[save] " + load_report.result)
 		return false
+	if not r.ok:
+		var kept := "%s.unreadable-%d.json" % [_base(), int(Time.get_unix_time_from_system())]
+		DirAccess.rename_absolute(_abs(save_path), _abs(kept))
+		load_report["unreadable"] = r.why
+		load_report["preserved_as"] = kept
+		push_warning("[save] %s is unreadable (%s); preserved as %s" % [save_path, r.why, kept])
+		r = {}
+		for i in range(1, BACKUP_COUNT + 1):
+			var b := _backup_path(i)
+			var rb := _read_save(b) if FileAccess.file_exists(b) else {"ok": false}
+			if rb.ok:
+				r = rb
+				load_report["restored_from"] = b
+				DirAccess.copy_absolute(_abs(b), _abs(save_path))
+				push_warning("[save] restored progress from backup %s" % b)
+				break
+		if r.is_empty():
+			load_report["result"] = "no readable backup: starting fresh (the unreadable file is kept)"
+			push_warning("[save] " + load_report.result)
+			return false
+	_apply_save(r.data)
+	_loaded_floor = {"knowledge": knowledge.size(), "trials_done": trials_done.size(), "discovered_locations": discovered_locations.size()}
+	load_report["result"] = "loaded"
+	load_report["knowledge"] = knowledge.size()
+	load_report["trials"] = trials_done.size()
+	print("[save] loaded progress from %s (%d knowledge entries, %d trials)%s" % [save_path, knowledge.size(), trials_done.size(),
+		(" [restored from %s]" % load_report.restored_from) if load_report.has("restored_from") else ""])
+	return true
+
+
+func _apply_save(d: Dictionary) -> void:
 	discovered_locations = d.discovered_locations
 	visited_locations = d.visited_locations
 	seen_landmarks = d.seen_landmarks
@@ -131,8 +203,67 @@ func load_game() -> bool:
 	story_state = d.get("story_state", {})
 	activity_counts = d.get("activity_counts", {})
 	activity_log.assign(d.get("activity_log", []))
-	print("[save] loaded progress from %s (%d knowledge entries, %d trials)" % [save_path, knowledge.size(), trials_done.size()])
-	return true
+	activity_seq = int(d.get("activity_seq", 0))
+	if not d.has("activity_seq"):
+		# saves before "seq" existed: entries are numbered by position and journal_cursor was a position,
+		# so position i == seq i+1 and the cursor keeps its meaning. A cursor beyond the (trimmed) log is
+		# clamped: those events were older than anything kept, so they count as already considered.
+		for i in activity_log.size():
+			activity_log[i]["seq"] = i + 1
+		activity_seq = activity_log.size()
+		if knowledge.has("journal_cursor"):
+			knowledge["journal_cursor"] = mini(int(knowledge.journal_cursor), activity_seq)
+	for e in activity_log:
+		e["seq"] = int(e.get("seq", 0))
+	if knowledge.has("journal_cursor"):
+		knowledge["journal_cursor"] = int(knowledge.journal_cursor)
+
+
+## {ok, data} or {ok: false, why, newer?}. Never prints parser errors.
+func _read_save(path: String) -> Dictionary:
+	var text := FileAccess.get_file_as_string(path)
+	if text.strip_edges() == "":
+		return {"ok": false, "why": "empty or unreadable file"}
+	var j := JSON.new()
+	if j.parse(text) != OK:
+		return {"ok": false, "why": "invalid JSON at line %d: %s" % [j.get_error_line(), j.get_error_message()]}
+	var d = j.data
+	if not d is Dictionary:
+		return {"ok": false, "why": "not a save object"}
+	var v := int(d.get("version", 0))
+	if v > SAVE_VERSION:
+		return {"ok": false, "why": "version %d > %d" % [v, SAVE_VERSION], "newer": true}
+	if v != SAVE_VERSION:
+		return {"ok": false, "why": "unsupported version %d" % v}
+	for k in _REQUIRED_KEYS:
+		if not d.get(k) is Dictionary:
+			return {"ok": false, "why": "missing or invalid '%s'" % k}
+	return {"ok": true, "data": d}
+
+
+func _rotate_backups() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _last_rotation < BACKUP_INTERVAL_S or not FileAccess.file_exists(save_path):
+		return
+	if not _read_save(save_path).ok:
+		return   # never rotate a bad file into the backups (load_game already preserved any unreadable save)
+	_last_rotation = now
+	for i in range(BACKUP_COUNT, 1, -1):
+		if FileAccess.file_exists(_backup_path(i - 1)):
+			DirAccess.rename_absolute(_abs(_backup_path(i - 1)), _abs(_backup_path(i)))
+	DirAccess.copy_absolute(_abs(save_path), _abs(_backup_path(1)))
+
+
+func _base() -> String:
+	return save_path.trim_suffix(".json")
+
+
+func _backup_path(i: int) -> String:
+	return "%s.bak%d.json" % [_base(), i]
+
+
+static func _abs(p: String) -> String:
+	return ProjectSettings.globalize_path(p)
 
 
 func note_activity(kind: String) -> void:
@@ -215,13 +346,17 @@ func record_activity(activity: Dictionary, effects: Dictionary) -> Dictionary:
 			discover("location", loc)
 			changes["discovered." + loc] = [false, true]
 	var rank_before := mage_rank()
-	for tr in _update_trials(String(activity.get("id", ""))):
+	for tr in _update_trials(String(activity.get("id", "")), String(activity.get("target", ""))):
 		changes["trial." + tr.id] = [false, true]
 	if mage_rank() != rank_before:
 		changes["rank"] = [rank_before, mage_rank()]
 		rank_changed.emit(mage_rank())
-	var entry := {"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.01), "location": current_location, "activity": activity, "changes": changes}
+	activity_seq += 1
+	var entry := {"seq": activity_seq, "unix": int(Time.get_unix_time_from_system()), "t": snappedf(Time.get_ticks_msec() / 1000.0, 0.01),
+		"location": current_location, "activity": activity, "changes": changes}
 	activity_log.append(entry)
+	if activity_log.size() > ACTIVITY_LOG_MAX:
+		activity_log = activity_log.slice(activity_log.size() - ACTIVITY_LOG_MAX)
 	state_changed.emit(entry)
 	return changes
 
@@ -237,11 +372,14 @@ func snapshot() -> Dictionary:
 	return {"current_area": current_area, "current_location": current_location, "night": night,
 		"skills": skills, "knowledge": knowledge, "inventory": inventory, "goal": current_goal,
 		"discovered": discovered_locations.keys(), "visited": visited_locations, "landmarks_seen": seen_landmarks.keys(),
-		"activities_done": activity_log.size(), "rank": mage_rank(), "trials_done": trials_done.keys()}
+		"activities_done": activity_seq, "rank": mage_rank(), "trials_done": trials_done.keys()}
 
 
 # ------------------------------------------------------------------ Sanctuary mission (Path of the Mage)
-func _update_trials(activity_id: String) -> Array:
+## A trial names an activity id (or an id prefix + a count of distinct ids). `target_id` is the object a
+## verified spell hit landed on; it only counts for prefix trials about objects (striking rune_target_2
+## with a spell is the same deed as the E-key strike), never for exact activities like reading.
+func _update_trials(activity_id: String, target_id := "") -> Array:
 	var newly := []
 	for tr in sanctuary.get("trials", []):
 		if trials_done.has(tr.id):
@@ -249,10 +387,12 @@ func _update_trials(activity_id: String) -> Array:
 		var done := false
 		if tr.has("activity") and tr.activity == activity_id:
 			done = true
-		elif tr.has("activity_prefix") and activity_id.begins_with(tr.activity_prefix):
-			var seen: Dictionary = _prefix_counts.get_or_add(tr.activity_prefix, {})
-			seen[activity_id] = true
-			done = seen.size() >= int(tr.count)
+		elif tr.has("activity_prefix"):
+			for deed in [activity_id, target_id]:
+				if deed != "" and deed.begins_with(tr.activity_prefix):
+					var seen: Dictionary = _prefix_counts.get_or_add(tr.activity_prefix, {})
+					seen[deed] = true
+					done = seen.size() >= int(tr.count)
 		if done:
 			trials_done[tr.id] = true
 			newly.append(tr)
