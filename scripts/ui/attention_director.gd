@@ -56,11 +56,20 @@ func react(who: String, event: String) -> void:
 	log.append({"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.1), "who": who, "event": event, "expression": e[0]})
 	if log.size() > 60:
 		log.pop_front()
+	# a moment worth sharing: the followed mage may look toward the camera (same cooldown as idle glances)
+	if event in ["victory", "level_up", "discovery", "fusion"] and who == String(main.get("focus")) and float(_cd.get(who, 0.0)) <= 0.0:
+		var cam := get_viewport().get_camera_3d()
+		if cam and not c.casting:
+			var to_cam := cam.global_position - c.global_position
+			var fwd := -c.global_transform.basis.z
+			if to_cam.length() < 18.0 and fwd.dot(Vector3(to_cam.x, 0, to_cam.z).normalized()) > -0.35:
+				get_tree().create_timer(0.6).timeout.connect(func(): if is_instance_valid(c): glance_camera(who, _rng.randf_range(1.2, 1.8), false))
+				_cd[who] = _rng.randf_range(40.0, 90.0)
 
 
 func _idle_enough(who: String) -> bool:
 	var c: WorldCharacter = main.characters[who]
-	if c.casting or c.seated or not c.visible:
+	if c.casting or not c.visible:          # seated is fine: resting is a calm moment to look up
 		return false
 	var b = main.mage_brains.get(who)
 	var kind := String(b.current.get("kind", "")) if b else ""
@@ -96,7 +105,8 @@ func _process(delta: float) -> void:
 		if who == String(main.get("focus")) and cam and _cd[who] <= 0.0 and _idle_enough(who):
 			var to_cam := cam.global_position - c.global_position
 			var fwd := -c.global_transform.basis.z
-			if to_cam.length() < 16.0 and fwd.dot(Vector3(to_cam.x, 0, to_cam.z).normalized()) > 0.0 and _rng.randf() < 0.6:
+			# her head turns up to ~110 deg: a camera in front of her or off to her side is a natural moment
+			if to_cam.length() < 18.0 and fwd.dot(Vector3(to_cam.x, 0, to_cam.z).normalized()) > -0.35 and _rng.randf() < 0.6:
 				glance_camera(who)
 				_cd[who] = _rng.randf_range(40.0, 90.0)
 			else:

@@ -560,8 +560,9 @@ func focus_mage(who: String, lock := false) -> Dictionary:
 	return {"ok": true, "focus": who, "area_change": true, "area": her_area}
 
 
-## Spotlight: while the director runs, it follows whichever mage is doing the most watchable thing
-## (transforming > fighting > talking > magic > reading > exploring > resting), switching at most every 20 s.
+## Spotlight: Mika-first. While the director runs, the camera stays with Mika unless another mage is doing
+## something clearly more watchable (a fight, picking up its spoils, a meeting, a performance, a
+## transformation), and comes back to Mika once that is over. Changes at most every 20 s.
 func _spotlight(delta: float) -> void:
 	_spot_since += delta
 	_spot_t -= delta
@@ -581,8 +582,8 @@ func _spotlight(delta: float) -> void:
 	_spot_t = 2.0
 	if transformer and transformer.playing != "":
 		return
-	var interest := {"hunt": 5.0, "collect": 3.5, "meet": 4.0, "magic": 3.0, "investigate": 3.0, "attune": 2.5, "alchemy": 2.5, "research": 2.0,
-		"converse": 3.0, "recover": 2.0, "explore": 1.5, "journal": 1.0, "rest": 0.8}
+	var interest := {"hunt": 5.0, "collect": 4.5, "meet": 4.0, "perform": 6.0, "magic": 3.0, "investigate": 3.0, "attune": 2.5, "alchemy": 2.5,
+		"research": 2.0, "converse": 3.0, "recover": 2.0, "explore": 1.5, "roam": 1.5, "gather": 1.5, "journal": 1.0, "rest": 0.8}
 	var best := ""
 	var best_v := -1.0
 	for who in mage_brains:
@@ -590,12 +591,14 @@ func _spotlight(delta: float) -> void:
 		if not c.visible or not mage_brains[who].enabled:
 			continue
 		var v := float(interest.get(String(mage_brains[who].current.get("kind", "")), 0.5))
-		if c == director.mika:
-			v += 1.2          # hysteresis: keep the shot unless the other is clearly more interesting
+		if who == "mika":
+			v += 2.5          # Mika-first: another mage takes the camera only for something clearly more watchable
+		elif c == director.mika:
+			v += 0.8          # small hysteresis while away from Mika
 		if v > best_v:
 			best_v = v
 			best = who
-	if best != "" and best != focus and _spot_since > 20.0:
+	if best != "" and best != focus and (_spot_since > 20.0 or best == "mika" and _spot_since > 8.0):
 		focus_mage(best)                    # same area (both visible): an instant change of subject
 		_spot_since = 0.0
 

@@ -96,7 +96,11 @@ func planar_basis() -> Basis:
 func _process(delta: float) -> void:
 	if shot_active:
 		camera.top_level = true
-		camera.global_transform = Transform3D(Basis.looking_at(_shot_look - _shot_pos, Vector3.UP), _shot_pos)
+		var dir := _shot_look - _shot_pos
+		if dir.length_squared() > 1e-6:
+			# straight up/down shots need another up vector (avoids a degenerate basis)
+			var up := Vector3.UP if absf(dir.normalized().y) < 0.995 else Vector3.FORWARD
+			camera.global_transform = Transform3D(Basis.looking_at(dir, up), _shot_pos)
 		return
 	if target == null:
 		return

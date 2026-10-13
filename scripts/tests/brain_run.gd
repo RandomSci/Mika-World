@@ -38,6 +38,9 @@ func _run() -> void:
 		last = now
 		frames += 1
 		gpu += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+		var fk := String(main.get("focus"))
+		report["focus_frames"] = report.get("focus_frames", {})
+		report.focus_frames[fk] = int(report.focus_frames.get(fk, 0)) + 1
 		var el := (Time.get_ticks_msec() - t0) / 1000.0
 		if el >= next_shot:
 			next_shot += 60.0
@@ -46,7 +49,7 @@ func _run() -> void:
 			var shot_ms := (Time.get_ticks_usec() - s0) / 1000.0
 			report.samples.append({"t": snappedf(el, 0.1), "fps": snappedf(frames / 60.0 if k > 0 else frames / 20.0, 0.1), "gpu_ms": snappedf(gpu / maxi(frames, 1), 0.01),
 				"worst_frame_ms": snappedf(worst, 0.1), "activity": main.brain.current.duplicate(), "camera": main.director.mode,
-				"area": main.streaming.current_id, "story_stage": main.story.stage, "visitors": main.npcs.present.keys(), "screenshot_ms": snappedf(shot_ms, 0.1)})
+				"area": main.streaming.current_id, "story_stage": main.story.stage, "focus": String(main.get("focus")), "visitors": main.npcs.present.keys(), "screenshot_ms": snappedf(shot_ms, 0.1)})
 			print("[brainrun] %.0fs %s | %s | stage %s | fps %.1f" % [el, main.brain.current.get("label", "-"), main.director.mode, main.story.stage, frames / (60.0 if k > 0 else 20.0)])
 			frames = 0
 			gpu = 0.0
