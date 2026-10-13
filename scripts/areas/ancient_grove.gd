@@ -199,7 +199,7 @@ func _glowcaps() -> void:
 
 
 func _links() -> void:
-	add_gate("sanctuary", Vector3(0.0, height(0, 50), 50.0), Vector3(0.6, height(0.6, 43) + 0.05, 43.0), 0.0, 2.6)
+	add_gate("whispering_woods", Vector3(0.0, height(0, 50), 50.0), Vector3(0.6, height(0.6, 43) + 0.05, 43.0), 0.0, 2.6)
 	add_gate("river_valley", Vector3(48.0, height(48, -10), -10.0), Vector3(42.0, height(42, -8.6) + 0.05, -8.6), atan2(42.0, -8.6), 2.6)
 	add_interactable(Interactable.make("giant_tree_listen", "Rest a hand on the eldest tree and listen", "meditate", "ancient_grove",
 		Vector3(-11.6, height(-11.6, 3.0), 3.0), {"knowledge": {"lore:grove_whispers": 1}}, "look_around", 4.0)).radius = 2.4

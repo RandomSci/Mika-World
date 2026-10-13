@@ -71,6 +71,8 @@ func _run() -> void:
 		"face": await _face()
 		"companions": await _companions()
 		"duel": await _duel()
+		"env": await _env()
+		"walk": await _walk()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -428,3 +430,186 @@ func _duel() -> void:
 	_check(WorldState.mind("mika").knowledge.has("sparred:luna") and WorldState.mind("luna").knowledge.has("sparred:mika"), "each remembers the bout")
 	_check(both_in >= frames * 0.8, "the camera kept both duelists in frame (%d/%d)" % [both_in, frames])
 	_check(main.focus == "mika", "Mika stayed the camera's subject")
+
+
+# ------------------------------------------------------------------ environment (Whispering Woods)
+## The continuous route, walked for real (navmesh + the game's own Mika-first camera): Mika leads, Luna walks
+## with her (FollowCompanion). Pauses where a viewer would want to look. Records time, distance and stalls.
+func _walk() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load (streamed)", r)
+	if not r.get("ok", false):
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	luna.world = w
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, mika.global_position + mika.global_transform.basis.x * 1.6) + Vector3(0, 0.05, 0)
+	luna.visible = true
+	luna.set_physics_process(true)
+	var f := FollowCompanion.new()
+	f.leader = mika
+	f.follower = luna
+	f.side = 1.0
+	add_child(f)
+	main.director.enabled = true
+	await _wait(2.0)
+	var route := [[Vector2(-5, 110), ""], [Vector2(2, 90), ""], [Vector2(-7, 68), ""], [w.CROSS + Vector2(0, 2), "crossroads"],
+		[Vector2(1, 22), ""], [w.STAIR_BASE + Vector2(0, 5), "stair"], [Vector2(0, -8), ""], [Vector2(0, -27), ""], [w.RUIN_GATE + Vector2(0, -3), ""],
+		[w.INSCRIPTION + Vector2(1.5, 4.0), "inscription"], [Vector2(16, -42.5), ""], [w.VIEWPOINT + Vector2(-1.5, 0), "viewpoint"]]
+	var legs := []
+	var t_start := _gms()
+	var dist := 0.0
+	var last := mika.global_position
+	var reached_all := true
+	for leg in route:
+		var p: Vector2 = leg[0]
+		var t0 := _gms()
+		var ok: bool = await main.companionship.walk_together(mika, f, Vector3(p.x, w.height(p.x, p.y), p.y), 90.0)
+		dist += last.distance_to(mika.global_position)
+		last = mika.global_position
+		legs.append({"to": [p.x, p.y], "ok": ok, "s": snappedf((_gms() - t0) / 1000.0, 0.1), "gap_end": snappedf(f.gap(), 0.1)})
+		print("[mktest] leg ", legs[-1])
+		if not ok:
+			reached_all = false
+		match String(leg[1]):
+			"crossroads":
+				mika.look_head_at(Vector3(w.CROSS.x + 4.2, w.height(w.CROSS.x, w.CROSS.y) + 1.4, w.CROSS.y + 3.0))
+				await _wait(2.5)
+				mika.look_head_at(null)
+			"stair":
+				mika.look_head_at(Vector3(0, w.height(0, -14) + 4.0, -14))
+				await _wait(3.0)
+				mika.look_head_at(null)
+			"inscription":
+				mika.look_head_at(Vector3(w.INSCRIPTION.x, w.height(w.INSCRIPTION.x, w.INSCRIPTION.y) + 1.5, w.INSCRIPTION.y))
+				await _wait(4.0)
+				mika.look_head_at(null)
+			"viewpoint":
+				mika.look_at_point(Vector3(w.FALLS.x, mika.global_position.y, w.FALLS.y + 4.0))
+				mika.look_head_at(Vector3(w.FALLS.x, w.upper_water_y(), w.FALLS.y + 2.0))
+				await _wait(6.0)
+	var end_gap := f.gap()
+	f.queue_free()
+	report["walk"] = {"legs": legs, "total_s": snappedf((_gms() - t_start) / 1000.0, 0.1), "distance_m": snappedf(dist, 0.1)}
+	_check(reached_all, "walked the whole route entry -> forest -> crossroads -> stairway -> ruins -> viewpoint", legs.filter(func(l): return not l.ok))
+	_check(end_gap < 6.0, "Luna was still beside Mika at the end (gap %.1f m)" % end_gap)
+
+
+## Main-route proof views. Heights are RELATIVE to the ground under the camera / the look point.
+const ENV_VIEWS := {
+	"01_outward_from_sanctuary": {"area": "sanctuary", "cam": [0, 3.2, -24], "look": [0, 2.5, -60]},
+	"02_entering_forest": {"cam": [1.5, 1.7, 131], "look": [-2, 2.6, 104]},
+	"03_walking_forest": {"cam": [-5.5, 1.7, 103], "look": [3, 2.4, 86]},
+	"03b_canopy_trail": {"cam": [2.5, 1.6, 84], "look": [-8, 3.2, 64]},
+	"04_crossroads": {"cam": [-1, 1.8, 52], "look": [3, 1.6, 36]},
+	"12_stairway": {"cam": [0.6, 1.7, 13], "look": [0, 5.5, -16]},
+	"12b_stair_landing": {"cam": [1.2, 1.7, -6], "look": [-1, 4.0, -26]},
+	"07_ancient_ruins": {"cam": [1.5, 1.7, -26.5], "look": [0, 2.6, -40]},
+	"13_inscription": {"cam": [3.5, 1.6, -42], "look": [-2, 1.4, -50]},
+	"10_scenic_viewpoint": {"cam": [41.8, 2.7, -33.8], "cam_h_from": [40, -34], "look": [60, 2.0, -20]},
+	"05_lotus_pond": {"cam": [-57, 1.7, 52], "look": [-76, -0.5, 42]},
+	"04b_river_bridge": {"cam": [49, 1.7, -2], "look": [58, 2.0, -26]},
+	"11_waterfall": {"cam_abs": [59.0, 6.1, -21.0], "look": [55.5, 2.5, -40]},
+	"14_den_mouth": {"cam": [108.0, 1.8, -23.0], "look": [116, 1.6, -31]},
+	"15_den_close": {"cam": [111.3, 1.7, -26.2], "look": [117.2, 1.2, -31.5]},
+	"16_den_top": {"cam": [104.0, 14.0, -20.0], "look": [118.7, 0.0, -32.8]},
+	"06_monster_habitat": {"cam": [98, 2.6, -15], "look": [118, 3.0, -33]},
+	"08_elevated_trail": {"cam": [-30, 2.0, -64], "look": [-70, 3.0, -100]},
+}
+
+
+func _env() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var only := String(RenderProfile.options.get("view", ""))
+	# 1) the woods themselves
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load (streamed)", r)
+	if not r.get("ok", false):
+		return
+	await _wait(1.5)
+	report["build"] = main.streaming.last_report
+	var w = main.world
+	var nmesh: NavigationMesh = w.nav_region.navigation_mesh
+	var vs := nmesh.get_vertices()
+	var vb := AABB(vs[0], Vector3.ZERO) if vs.size() > 0 else AABB()
+	for v in vs:
+		vb = vb.expand(v)
+	report["navmesh"] = {"polygons": nmesh.get_polygon_count(), "vertices": vs.size(), "aabb": str(vb)}
+	print("[mktest] navmesh ", report.navmesh)
+	await get_tree().physics_frame
+	var mp: RID = mika.get_world_3d().navigation_map
+	for pair in [[Vector2(2, 38), Vector2(-20, 46)], [Vector2(2, 38), Vector2(2, 60)], [Vector2(0, 100), Vector2(0, 90)], [Vector2(0, 126), Vector2(0, 120)], [Vector2(36, 18), Vector2(48, 9)]]:
+		var a3 := NavigationServer3D.map_get_closest_point(mp, Vector3(pair[0].x, w.height(pair[0].x, pair[0].y), pair[0].y))
+		var b3 := NavigationServer3D.map_get_closest_point(mp, Vector3(pair[1].x, w.height(pair[1].x, pair[1].y), pair[1].y))
+		var pth := NavigationServer3D.map_get_path(mp, a3, b3, true)
+		print("[mktest] navpair ", pair, " a=", a3, " b=", b3, " n=", pth.size(), " end=", pth[pth.size() - 1] if pth.size() > 0 else Vector3.INF)
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	# 2) connectivity: real navmesh paths between every landmark and the entry
+	var marks := {"entry": Vector2(0, 126), "crossroads": w.CROSS, "pond": w.POND + Vector2(18, 5), "bridge_west": Vector2(w.BRIDGE_W - 5.0, w.BRIDGE.y), "bridge_east": Vector2(w.BRIDGE_E + 5.0, w.BRIDGE.y),
+		"under_bridge": Vector2(52.6, w.BRIDGE.y), "bridge_deck": w.BRIDGE, "den": w.DEN_MOUTH + w.DEN_FACE * 2.0, "den_inside": w.DEN_MOUTH - w.DEN_FACE * 4.0, "stair_base": w.STAIR_BASE + Vector2(0, 4), "alcove": w.ALCOVE, "ruins": w.INSCRIPTION + Vector2(0, 5),
+		"viewpoint": w.VIEWPOINT, "frontier": w.FRONTIER_END + Vector2(6, 6), "falls_pool": w.FALLS + Vector2(-6, 14)}
+	var conn := {}
+	var start := NavigationServer3D.map_get_closest_point(map, Vector3(0, w.height(0, 126), 126))
+	for k in marks:
+		var m2: Vector2 = marks[k]
+		var qy: float = w.height(m2.x, m2.y)
+		if k == "bridge_deck":
+			qy = w.marks._deck_y(m2.x, maxf(w.height(w.BRIDGE_W - 6.0, m2.y), w.height(w.BRIDGE_E + 6.0, m2.y))) + 0.2   # on the deck, not the riverbed
+		var to := NavigationServer3D.map_get_closest_point(map, Vector3(m2.x, qy, m2.y))
+		var path := NavigationServer3D.map_get_path(map, start, to, true)
+		var reach := path.size() > 0 and path[path.size() - 1].distance_to(to) < 1.5 and to.distance_to(Vector3(m2.x, to.y, m2.y)) < 4.0
+		var length := 0.0
+		for i in range(1, path.size()):
+			length += path[i].distance_to(path[i - 1])
+		conn[k] = {"reachable": reach, "path_m": snappedf(length, 0.1), "snap_err": snappedf(to.distance_to(Vector3(m2.x, to.y, m2.y)), 0.1)}
+	report["connectivity"] = conn
+	if RenderProfile.options.has("navprobe"):
+		for i in 13:
+			var q2: Vector2 = Vector2(104, -19).lerp(w.DEN_MOUTH - w.DEN_FACE * 4.0, i / 12.0)
+			var gq := Vector3(q2.x, w.height(q2.x, q2.y), q2.y)
+			var cp2 := NavigationServer3D.map_get_closest_point(map, gq)
+			print("[mktest] probe ", q2, " ground=", snappedf(gq.y, 0.01), " nav=", cp2.snapped(Vector3.ONE * 0.01), " d=", snappedf(cp2.distance_to(gq), 0.01))
+	var bad := conn.keys().filter(func(k): return not conn[k].reachable)
+	_check(bad.is_empty(), "every landmark is reachable on foot from the entry (%d/%d)" % [conn.size() - bad.size(), conn.size()], bad)
+	# 3) the views
+	var views := {}
+	for k in ENV_VIEWS:
+		if only != "" and not k.begins_with(only):
+			continue
+		var v: Dictionary = ENV_VIEWS[k]
+		if v.has("area"):
+			continue
+		var c: Array = v.get("cam", v.get("cam_abs", []))
+		var l: Array = v.look
+		var cp := Vector3(c[0], w.height(c[0], c[2]) + c[1], c[2]) if v.has("cam") else Vector3(c[0], c[1], c[2])
+		if v.has("cam_h_from"):   # height relative to another ground point (e.g. a terrace level)
+			var hf: Array = v.cam_h_from
+			cp.y = w.height(hf[0], hf[1]) + c[1]
+		var lp := Vector3(l[0], w.height(l[0], l[2]) + l[1], l[2])
+		main.camera_rig.set_shot(cp, lp, 55.0)
+		_frame_ms.clear()
+		await _wait(2.0)
+		var st := _fps_stats()
+		views[k] = st
+		_shot(k)
+	report["views"] = views
+	for nm in ["day"]:
+		pass
+	# night view of the forest
+	if only == "" or only == "09":
+		WorldState.night = true
+		w.set_night(true)
+		await _wait(1.0)
+		main.camera_rig.set_shot(Vector3(-2, w.height(-2, 96) + 2.0, 96), Vector3(-8, w.height(-8, 70) + 2.2, 70), 55.0)
+		await _wait(2.0)
+		_shot("09_after_sunset")
+		main.camera_rig.set_shot(Vector3(-56, w.height(-56, 56) + 2.6, 56), Vector3(-76, w.height(-76, 42) + 0.5, 42), 55.0)
+		await _wait(1.5)
+		_shot("09b_pond_night")

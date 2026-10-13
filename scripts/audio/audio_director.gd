@@ -335,6 +335,19 @@ func _build_beds() -> void:
 			_bed(holder, "amb_fire_crackle", (b as Node3D).global_position + Vector3(0, 0.4, 0), -6.0, 12.0)
 		_bed(holder, "amb_heartstone", Vector3(SanctuaryTerrain.CHAMBER.x - 2.6, 1.8, SanctuaryTerrain.CHAMBER.y), -6.0, 11.0)
 		_bed(holder, "amb_watchpoint_wind", Vector3(SanctuaryTerrain.WATCH.x, 3.0, SanctuaryTerrain.WATCH.y), -4.0, 18.0)
+	elif w is WhisperingWoods:
+		var ww: WhisperingWoods = w
+		# the falls roar (heard from the viewpoint and the bridge), the river babbling along its course,
+		# the hidden pond, and the den's slow cave breath
+		_bed(holder, "amb_waterfall", Vector3(ww.FALLS.x, ww.pool_water_y() + 4.0, ww.FALLS.y + 2.0), 0.0, 60.0)
+		var z := -110.0
+		while z < 130.0:
+			if absf(z - ww.FALLS.y) > 14.0:
+				_bed(holder, "amb_stream", Vector3(ww.river_x(z), ww.height(ww.river_x(z), z) + 1.5, z), -5.0, 22.0)
+			z += 30.0
+		_bed(holder, "amb_pond", Vector3(ww.POND.x, ww.height(ww.POND.x, ww.POND.y) + 1.8, ww.POND.y), -4.0, 26.0)
+		var cave := ww.DEN_MOUTH - ww.DEN_FACE * 3.0
+		_bed(holder, "amb_den", Vector3(cave.x, ww.height(cave.x, cave.y) + 1.5, cave.y), -2.0, 24.0)
 
 
 func _process(delta: float) -> void:

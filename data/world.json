@@ -147,6 +147,15 @@
     -980
    ],
    "interior": true
+  },
+  "whispering_woods": {
+   "region": "arcane_sanctuary",
+   "scene": "res://scenes/areas/whispering_woods.tscn",
+   "global_pos": [
+    0,
+    4,
+    -180
+   ]
   }
  },
  "locations": {
@@ -317,12 +326,19 @@
    "name": "Academy Gardens",
    "description": "Formal gardens with hedges, flowerbeds and a fountain.",
    "status": "playable"
+  },
+  "whispering_woods": {
+   "area": "whispering_woods",
+   "region": "arcane_sanctuary",
+   "name": "Whispering Woods",
+   "description": "The Sanctuary's wild hinterland: a winding forest trail, a hidden lotus pond, an old stone bridge over the river below a waterfall, forgotten ruins on the high ground, a creature den across the river and the frontier road north-west.",
+   "status": "playable"
   }
  },
  "connections": [
   [
    "sanctuary",
-   "ancient_grove",
+   "whispering_woods",
    "forest path through the north arch"
   ],
   [
@@ -379,6 +395,16 @@
    "academy",
    "great_library",
    "library doors"
+  ],
+  [
+   "whispering_woods",
+   "ancient_grove",
+   "the old forest track west"
+  ],
+  [
+   "whispering_woods",
+   "highland_path",
+   "the frontier road over the north-west ridge"
   ]
  ],
  "landmarks": {

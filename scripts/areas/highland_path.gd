@@ -127,6 +127,8 @@ func _overlook() -> void:
 
 func _links() -> void:
 	add_gate("village", Vector3(0.0, height(0, 45.5), 45.5), Vector3(0.0, height(0, 40) + 0.05, 40.0), 0.0, 2.6)
+	# Milestone K: the frontier road from the Whispering Woods arrives over the western shoulder
+	add_gate("whispering_woods", Vector3(-15.5, height(-15.5, 26.0), 26.0), Vector3(-11.0, height(-11.0, 25.0) + 0.05, 25.0), PI * 0.5, 2.4)
 	var top := Vector2(0, -44)
 	add_gate("celestial_summit", Vector3(top.x, height(top.x, top.y), top.y), Vector3(0.0, height(0, -38.5) + 0.05, -38.5), PI, 2.4)
 	for sx: float in [-1.0, 1.0]:

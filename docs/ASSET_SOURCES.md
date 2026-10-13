@@ -71,3 +71,17 @@ Not used: Macarena / YMCA / Chicken dance clips (recognisable meme choreography,
   rejected because they would not match Mika's or Luna's voice.
 * **Mixamo**: needs an Adobe login (not available to the agent); the developer's existing Mixamo clips were
   reused. No new Mixamo downloads.
+
+
+# Milestone K additions (Whispering Woods)
+
+| Asset | Source | Licence / usage notes | Placed at |
+|---|---|---|---|
+| Stylized trees (Common, Twisted, Pine, Dead), bushes, ferns, giant leafy plants, clover, flowers, petals, grass tufts, mushrooms, rocks, pebbles, rock-path stones — 68 models + their textures | Quaternius **Stylized Nature MegaKit — FREE edition** (68 of the 116 models), https://quaternius.itch.io/stylized-nature-megakit (free download, 2026-10-14); also https://quaternius.com | **CC0 1.0** (the pack's own `License.txt`, copied to `assets/nature/snm/LICENSE_CC0.txt`; no attribution required — credited anyway). Textures downscaled to ≤1024 px. **The pack's materials are not used**: every surface is re-shaded by our own shaders (`shaders/nature/`) and placed by script | `assets/nature/snm/` |
+| Stylized shaders: foliage (spherised normals, crown gradient, translucency, wind), grass, bark, rock, terrain, stone, water, waterfall, foam, light shafts, painted sky | **Original** (Milestone K) | Original | `shaders/nature/` |
+| Ruins, stairway, arches, bridge, viewpoint terrace, waymarker, lantern | **Original** — built block by block at load time (`scripts/world/stone_builder.gd`, `scripts/areas/whispering_woods_landmarks.gd`) | Original | (generated) |
+| Terrain grain textures `forrest_ground_01`, `rock_wall_10`, `leafy_grass` | Poly Haven (already in the project since Milestone H) | CC0 — used only for luminance detail under painted colours | `assets/polyhaven/textures/` |
+
+The ten environment reference images supplied by the developer were used **only as art direction** (read, never
+imported, never shipped). The Woods borrow moods and motifs from them (an arched bridge below a waterfall, a
+stairway climbing under ruined arches, a gate in overgrown walls, fireflies over a pond) but no imagery.

@@ -850,8 +850,8 @@ func _build_world_links() -> void:
 	add_location("mage_training_grounds", Vector3(tc.x, 0, tc.y), 12.0, Vector3(tc.x, h.call(tc.x, tc.y), tc.y))
 	var stone := mats.stone
 
-	# North: the forest path continues beyond the arch into the Ancient Grove.
-	add_gate("ancient_grove", Vector3(1.0, h.call(1.0, -33.0), -33.0), Vector3(0.8, h.call(0.8, -27.0) + 0.05, -27.0), PI, 2.6)
+	# North: the forest path continues beyond the arch into the Whispering Woods (Milestone K).
+	add_gate("whispering_woods", Vector3(1.0, h.call(1.0, -33.0), -33.0), Vector3(0.8, h.call(0.8, -27.0) + 0.05, -27.0), PI, 2.6)
 	var post := Kit.block(self, Vector3(0.18, 1.7, 0.18), Kit.xf(Vector3(3.2, h.call(3.2, -31.0) + 0.85, -31.0)), Kit.uvmat("dark_wooden_planks"), true, 0.02)
 	Kit.block(self, Vector3(1.1, 0.28, 0.06), Kit.xf(Vector3(3.2, h.call(3.2, -31.0) + 1.45, -31.0), -0.3), Kit.uvmat("dark_wooden_planks"), false, 0.01)
 
