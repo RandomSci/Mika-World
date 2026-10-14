@@ -487,8 +487,12 @@ func react(speaker: String, kind := "laugh") -> Dictionary:
 	var res := {"speaker": speaker, "reaction": kind, "audio": false}
 	var cfg := _speaker_cfg(speaker)
 	var who = _speakers.get(speaker)
+	var smiles := kind in ["laugh", "giggle"]
 	if who and is_instance_valid(who) and who.has_method("set_expression"):
-		who.set_expression("surprised" if kind in ["gasp", "startle"] else "happy", 0.85)
+		if kind in ["gasp", "startle"]:
+			who.set_expression("surprised", 0.85)
+		elif smiles:
+			who.set_expression("happy", 0.85)
 	var texts: Dictionary = config.get("reactions", {}).get("clips", {}).get(kind, {})
 	var key := speaker + "|" + kind
 	var provider := String(cfg.get("provider", ""))
@@ -520,7 +524,7 @@ func react(speaker: String, kind := "laugh") -> Dictionary:
 			res["seconds"] = snappedf(stream.get_length(), 0.01)
 	else:
 		await get_tree().create_timer(0.8).timeout
-	if who and is_instance_valid(who) and who.has_method("set_expression"):
+	if smiles and who and is_instance_valid(who) and who.has_method("set_expression"):
 		who.set_expression("happy", 0.0)
 	log.append(res)
 	return res

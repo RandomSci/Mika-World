@@ -547,10 +547,16 @@ func cast_flare(target, p_power := 0.9) -> Dictionary:
 # ------------------------------------------------------------------ the people near her
 ## Her fire and her wind are felt by whoever stands near (the developer: "Mika and Luna must react to Oriel's presence
 ## and attacks"). Everyone within 40 m looks at once (head and face: surprised); inside `brace_r` they guard (Mika
-## braces, Luna steps back from it) with a startled cry; inside `hit_r` they are struck - a heavy knock-back, a gasp -
-## and a short line of alarm follows (data/phoenix.json "bystander_lines"; a few seconds' cool-down each).
+## braces, Luna steps back from it) with a startled cry; inside the blast (hit_r) the ImpactDirector decides how hard it
+## lands on each (flinch / stagger / a real fall and get-up, by distance, cover, wards, bracing) - and a short line of
+## alarm follows (data/phoenix.json "bystander_lines"; a few seconds' cool-down each).
 func shock(at: Vector3, kind: String, brace_r := 9.0, hit_r := 0.0) -> void:
 	var lines: Dictionary = data.get("bystander_lines", {})
+	# the blast itself (V3 continuation): distance, cover, wards, bracing and her balance decide how hard it lands
+	var struck := {}
+	if hit_r > 0.0 and main.get("impacts"):
+		for r in main.impacts.blast(at + Vector3(0, 0.6, 0), 1.1, hit_r * 1.9, {"source": "oriel", "kind": kind}):
+			struck[String(r.get("who", ""))] = String(r.get("tier", "notice"))
 	for who in ["mika", "luna"]:
 		var c = main.characters.get(who)
 		if c == null or not is_instance_valid(c) or not c.visible:
@@ -559,13 +565,16 @@ func shock(at: Vector3, kind: String, brace_r := 9.0, hit_r := 0.0) -> void:
 		var d := Vector2(wc.global_position.x - at.x, wc.global_position.z - at.z).length()
 		if d > 40.0:
 			continue
-		wc.look_head_at(at + Vector3(0, 1.2, 0))
-		wc.set_expression("surprised", 0.9)
+		var tier := String(struck.get(who, "notice"))
+		if tier == "notice" and not wc.reaction.active:
+			wc.look_head_at(at + Vector3(0, 1.2, 0))
+			wc.set_expression("surprised", 0.9)
 		var how := "look"
-		if hit_r > 0.0 and d < hit_r:
+		if tier != "notice":
 			how = "hit"
-			wc.take_hit(at, true)
-		elif d < brace_r:
+			bystander_log.append({"t": snappedf(_game_t, 0.1), "who": who, "kind": kind, "how": "struck:" + tier, "dist": snappedf(d, 0.1)})
+		elif d < brace_r and not wc.reaction.active:
+			wc.reaction.guard()
 			how = "brace"
 			if who == "luna" and not wc.casting:
 				var away := Vector3(wc.global_position.x - at.x, 0, wc.global_position.z - at.z).normalized()
@@ -582,7 +591,8 @@ func shock(at: Vector3, kind: String, brace_r := 9.0, hit_r := 0.0) -> void:
 		bystander_log.append({"t": snappedf(_game_t, 0.1), "who": who, "kind": kind, "how": how, "dist": snappedf(d, 0.1)})
 		if how != "look" and _game_t - float(_react_cool.get(who, -99.0)) > 4.0 and main.voice:
 			_react_cool[who] = _game_t
-			main.voice.react(who, "gasp" if how == "hit" else "startle")
+			if how != "hit":
+				main.voice.react(who, "startle")      # a struck mage's cry comes from her BodyReaction
 			var pool: Array = lines.get(who, {}).get("hit" if how == "hit" else kind, [])
 			if not pool.is_empty():
 				var line := String(pool[rng.randi() % pool.size()])

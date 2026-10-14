@@ -1,0 +1,64 @@
+{
+ "model": "gemini-3.8-flash-tts",
+ "note": "Auditions only - production voices unchanged. Listening order per line: 1 -> 2 -> 3 -> 4 -> alts.",
+ "characters": {
+  "mika": {
+   "voice": "Leda",
+   "persona": "a young girl of about sixteen, a cheerful apprentice mage: bright, gentle, playful and warm, natural youthful voice",
+   "files": {
+    "casual": {
+     "text": "Morning, Luna! I saved you the last honey bun... well, half of it. Okay, a third.",
+     "style": "a young girl of about sixteen, a cheerful apprentice mage: bright, gentle, playful and warm, natural youthful voice; relaxed, playful and warm, smiling while she talks, easy natural pace"
+    },
+    "excitement": {
+     "text": "Did you see that? The whole pond lit up! I actually did it!",
+     "style": "a young girl of about sixteen, a cheerful apprentice mage: bright, gentle, playful and warm, natural youthful voice; bursting with excitement, breathless and delighted, bright and quick"
+    },
+    "surprise": {
+     "text": "Whoa! Where did that come from?",
+     "style": "a young girl of about sixteen, a cheerful apprentice mage: bright, gentle, playful and warm, natural youthful voice; genuinely startled, a quick gasp at the start, high and sudden"
+    },
+    "concern": {
+     "text": "Luna... are you hurt? Here, take my hand. Slowly.",
+     "style": "a young girl of about sixteen, a cheerful apprentice mage: bright, gentle, playful and warm, natural youthful voice; soft and worried, gentle and caring, a little shaky, slower"
+    },
+    "magic": {
+     "text": "Light of the dawn, gather in my hands... Radiant Bloom!",
+     "style": "a young girl of about sixteen, a cheerful apprentice mage: bright, gentle, playful and warm, natural youthful voice; focused and determined, building from a hushed incantation to a confident cry"
+    }
+   }
+  },
+  "luna": {
+   "voice": "Achernar",
+   "persona": "a young girl of about sixteen, a quiet, clever moon mage: soft, calm, curious and a little mysterious, sometimes teasing",
+   "files": {
+    "casual": {
+     "text": "Mm. The library smells like rain today. I think I'll stay a while.",
+     "style": "a young girl of about sixteen, a quiet, clever moon mage: soft, calm, curious and a little mysterious, sometimes teasing; calm, soft and dreamy, unhurried, a faint smile in the voice"
+    },
+    "excitement": {
+     "text": "Mika, look. The runes answered me. They actually answered.",
+     "style": "a young girl of about sixteen, a quiet, clever moon mage: soft, calm, curious and a little mysterious, sometimes teasing; quietly thrilled, wonder breaking through her usual calm, a little faster"
+    },
+    "surprise": {
+     "text": "Ah! You startled me... don't do that.",
+     "style": "a young girl of about sixteen, a quiet, clever moon mage: soft, calm, curious and a little mysterious, sometimes teasing; a small surprised gasp, then softly embarrassed and a little cross"
+    },
+    "concern": {
+     "text": "Stay still. You fell hard... let me look at it.",
+     "style": "a young girl of about sixteen, a quiet, clever moon mage: soft, calm, curious and a little mysterious, sometimes teasing; low, gentle and worried, careful and tender, slow"
+    },
+    "magic": {
+     "text": "Shadows of the quiet moon, bind and hold.",
+     "style": "a young girl of about sixteen, a quiet, clever moon mage: soft, calm, curious and a little mysterious, sometimes teasing; hushed and mysterious, steady and controlled, an incantation with quiet power"
+    }
+   }
+  }
+ },
+ "processing": {
+  "pitch15": "rubberband=pitch=1.15:formant=preserved:pitchq=quality:transients=smooth",
+  "best": "rubberband=pitch=1.08:formant=preserved:pitchq=quality:transients=smooth,highpass=f=90,equalizer=f=250:t=q:w=1.0:g=-2,equalizer=f=3200:t=q:w=1.2:g=2.5,equalizer=f=7500:t=q:w=2:g=-1.5,acompressor=threshold=-20dB:ratio=2.2:attack=8:release=120:makeup=1.5,loudnorm=I=-18:TP=-1.5:LRA=9",
+  "loudness": "loudnorm=I=-18:TP=-1.5:LRA=9"
+ },
+ "errors": []
+}

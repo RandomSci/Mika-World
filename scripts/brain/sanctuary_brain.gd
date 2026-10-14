@@ -904,6 +904,13 @@ func _hunt(o: Dictionary) -> Dictionary:
 	var st := {"casts": 0, "hits": 0, "dodges": 0, "dodged": 0, "struck": 0, "signature": 0, "assists": 0, "intents": {}, "wards": 0, "spells": {}, "effects": {}}
 	var t_fight := Time.get_ticks_msec()
 	while is_instance_valid(m) and m.alive() and int(st.casts) < 12 and not _cancel and Time.get_ticks_msec() - t_fight < 90000:
+		if me.reaction and me.reaction.active and me.reaction.tier in ["stagger", "down"]:
+			# knocked off her feet: nothing to decide until she is up again (BodyReaction owns her body)
+			current.stage = "recovering (%s)" % me.reaction.phase
+			st["knocked"] = int(st.get("knocked", 0)) + (1 if me.reaction.phase == "falling" and int(st.get("_kf", -1)) != me.reaction._seq else 0)
+			st["_kf"] = me.reaction._seq
+			await get_tree().physics_frame
+			continue
 		var dec := CombatTactics.decide(self, me, m, spell)
 		var intent: String = dec.intent
 		st.intents[intent] = int(st.intents.get(intent, 0)) + 1

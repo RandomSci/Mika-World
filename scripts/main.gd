@@ -42,6 +42,8 @@ var transformer: TransformationDirector
 var overlay_ui: MageOverlay
 var attention: AttentionDirector
 var affect: Affect
+var impacts: ImpactDirector       # area impacts with consequences + the aftermath behaviours (V3 continuation)
+var teleport_guard: TeleportGuard  # the no-teleport rule, watched every physics frame
 var companionship: Companionship
 var duel: TrainingDuel
 var performance: PerformanceController
@@ -150,6 +152,7 @@ func _ready() -> void:
 
 	# Speech (DEV Kokoro), reading (books / scrolls / inscriptions)
 	voice = VoiceService.new()
+	BodyReaction.voice = voice
 	voice.name = "VoiceService"
 	add_child(voice)
 	voice.setup(self)
@@ -250,6 +253,14 @@ func _ready() -> void:
 	affect.name = "Affect"
 	add_child(affect)
 	affect.setup(self)
+	impacts = ImpactDirector.new()
+	impacts.name = "Impacts"
+	add_child(impacts)
+	impacts.setup(self)
+	teleport_guard = TeleportGuard.new()
+	teleport_guard.name = "TeleportGuard"
+	add_child(teleport_guard)
+	teleport_guard.setup(self)
 	companionship = Companionship.new()
 	companionship.name = "Companionship"
 	add_child(companionship)
@@ -534,6 +545,8 @@ func _on_area_for_mages(area_id: String) -> void:
 		var snapped := NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, at)
 		# a map that has not synchronised yet answers (0,0,0): never teleport her there
 		at = snapped if snapped != Vector3.ZERO and snapped.distance_to(at) < 3.0 else at
+		if teleport_guard:
+			teleport_guard.allow(c)       # restoring her saved place in the area being loaded
 		c.global_position = at + Vector3(0, 0.1, 0)
 		c.world = world
 		c.velocity = Vector3.ZERO
@@ -595,7 +608,10 @@ func focus_mage(who: String, lock := false) -> Dictionary:
 			mage_brains[w].hold = false
 		return {"ok": false, "error": r.get("reason", "travel failed")}
 	if at != Vector3.INF:
-		c.global_position = await snap_to_nav(at) + Vector3(0, 0.1, 0)
+		var back_at := await snap_to_nav(at)
+		if teleport_guard:
+			teleport_guard.allow(c)       # the camera's area load restores her where she really was
+		c.global_position = back_at + Vector3(0, 0.1, 0)
 	c.visible = true
 	m.set_location(her_area, c.global_position)
 	camera_rig.target = c

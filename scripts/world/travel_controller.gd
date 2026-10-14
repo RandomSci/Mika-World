@@ -2,8 +2,9 @@ class_name TravelController
 extends Node
 ## Journeys between locations. Within an area → navigation. Across areas → walk to the gate of
 ## the next area on the registry route (that area preloads while she walks), cross through a
-## masked streaming transition, repeat. "fast" travel jumps directly (masked travel card) but only
-## along routes whose areas have all been visited before. Player-driven gate crossings and
+## masked streaming transition, repeat. There is NO instant travel in production (V3 continuation: "Teleportation is
+## forbidden in normal production gameplay ... No free instant region travel"): mode "fast" is a developer utility,
+## refused unless the game was started with --dev-fast-travel (tests / scene loading), and never offered to a mage. Player-driven gate crossings and
 ## proximity preloading also live here.
 
 signal journey_event(ev: Dictionary)
@@ -15,6 +16,11 @@ var streaming: WorldStreamingManager
 var character: WorldCharacter
 var journey := {}            # active journey: {destination, route, hop, mode, started}
 var _cooldown_until := 0.0
+
+
+## Developer-only (scene loading in tests and tools); never available in a normal run.
+static func dev_fast_travel() -> bool:
+	return RenderProfile.options.has("dev-fast-travel")
 
 
 func active() -> bool:
@@ -40,6 +46,8 @@ func travel_to(location_id: String, mode := "walk") -> Dictionary:
 	var path := WorldState.route(streaming.current_id, dest_area)
 	if path.is_empty():
 		return {"ok": false, "error": "no known route from %s to %s" % [streaming.current_id, dest_area]}
+	if mode == "fast" and not dev_fast_travel():
+		return {"ok": false, "error": "there is no instant travel: Mika and Luna must walk (teleportation is an unlearned spatial art)"}
 	if mode == "fast":
 		for a in path.slice(1, path.size() - 1):
 			if not _area_visited(a):
@@ -158,7 +166,7 @@ func _physics_process(_delta: float) -> void:
 		var d := Vector2(p.x - gp.x, p.z - gp.z).length()
 		if d < PRELOAD_DISTANCE:
 			streaming.preload_area(n)
-		if active() or now < _cooldown_until or character.current_action != "idle":
+		if active() or now < _cooldown_until or character.current_action != "idle" or WorldState.is_sealed(streaming.current_id, n):
 			continue
 		if d < g.radius and absf(p.y - gp.y) < 3.0 and Vector3(character.velocity.x, 0, character.velocity.z).length() > 0.3:
 			_player_cross(n)

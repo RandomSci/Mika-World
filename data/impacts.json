@@ -1,0 +1,19 @@
+{
+ "_note": "ImpactDirector: what Mika and Luna say after a blast (their own production voices). friend_down = seeing the other fall; kneel = beside her; thanks = helped up; recovered = protective style once steady; retreat = evasive style backing off.",
+ "lines": {
+  "mika": {
+   "friend_down": ["Luna!", "Luna! Are you hurt?", "Luna, stay down a second!"],
+   "kneel": ["Easy... I've got you.", "Here, take my hand.", "Slowly. Can you sit up?"],
+   "thanks": ["Thanks, Luna... I'm okay.", "I'm fine, I'm fine. Thank you."],
+   "recovered": ["Okay... okay. I'm still standing.", "That hurt. Let's be more careful.", "Ow... right. Stay sharp."],
+   "retreat": ["Back! Get back!"]
+  },
+  "luna": {
+   "friend_down": ["Mika!", "Mika, don't move!", "Mika... Mika, can you hear me?"],
+   "kneel": ["Stay still. Let me look.", "Breathe. I'm right here.", "Slowly... lean on me."],
+   "thanks": ["Mm. Thank you, Mika.", "I'm alright... thanks."],
+   "recovered": ["That... stung.", "I'm fine. Watch it."],
+   "retreat": ["Too close. I'm backing off.", "Not standing there again.", "Further back, Mika!"]
+  }
+ }
+}

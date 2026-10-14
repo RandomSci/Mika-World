@@ -364,7 +364,8 @@
   [
    "sanctuary",
    "academy",
-   "ley-line portal (magical, only between the two schools of magic)"
+   "ley-line portal (magical, only between the two schools of magic)",
+   {"sealed": true, "why": "the ley-line gate between the two schools has lain dormant for centuries; opening it is spatial magic no living student has mastered (see docs/WORLD_TRAVEL.md: teleportation is a discipline to be discovered, not a given)"}
   ],
   [
    "ancient_grove",

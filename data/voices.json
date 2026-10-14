@@ -103,6 +103,18 @@
    "startle": {
     "mika": "Whoa!",
     "luna": "Eek!"
+   },
+   "oof": {
+    "mika": "Oof—!",
+    "luna": "Kh—!"
+   },
+   "effort": {
+    "mika": "Nnngh...",
+    "luna": "Mm... nnh."
+   },
+   "breath": {
+    "mika": "Hah... hah...",
+    "luna": "Haa... haa..."
    }
   }
  }

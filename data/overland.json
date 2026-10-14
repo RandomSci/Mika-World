@@ -1,0 +1,28 @@
+{
+ "_note": "The overland world between the playable areas (docs/WORLD_TRAVEL.md). Every route is a canonical connection of data/world.json; km and terrain set how many days it takes. Waypoints are real places along it (km from the 'from' end): settlements are safe, shelters half-safe, the wild is danger by habitat. The JourneyDirector walks a party along these legs day by day; Wayside pockets are generated where the party stops.",
+ "pace": {"road_kmh": 4.0, "forest_kmh": 3.2, "climb_kmh": 2.2, "march_hours_per_day": 7.0, "start_hour": 7.0, "camp_hour": 18.0},
+ "clock": {"rate_world_min_per_s": 0.5, "road_boost": 240.0},
+ "routes": {
+  "whispering_woods|ancient_grove": {"name": "the old forest track west", "km": 46, "terrain": "forest", "biome": "deep_forest", "danger": 0.5,
+   "waypoints": [
+    {"km": 9, "id": "fernhollow", "name": "Fernhollow", "kind": "hamlet", "safe": true, "describe": "a woodcutters' hamlet of six turf-roofed houses around a sawpit"},
+    {"km": 21, "id": "mosslight_glade", "name": "Mosslight Glade", "kind": "campsite", "describe": "a mossy clearing by a spring where travellers have stacked a ring of stones"},
+    {"km": 28, "id": "mossfall_ford", "name": "Mossfall Ford", "kind": "crossing", "danger": 0.6, "describe": "a broad ford over the Mossfall, slippery stones and a rope strung between two oaks"},
+    {"km": 37, "id": "the_old_ash", "name": "the Old Ash", "kind": "landmark", "describe": "a hollow ash big enough to shelter a cart, carved with the marks of a hundred travellers"}
+   ], "habitats": ["mossback", "gloomwisp"]},
+  "ancient_grove|river_valley": {"name": "the forest track down to the river", "km": 22, "terrain": "forest", "biome": "forest_descent", "danger": 0.3,
+   "waypoints": [{"km": 8, "id": "shrine_steps", "name": "the Shrine Steps", "kind": "landmark", "describe": "moss-buried stone steps descending past a forgotten shrine"}, {"km": 16, "id": "river_meadows", "name": "the River Meadows", "kind": "campsite"}], "habitats": ["thornback"]},
+  "river_valley|village": {"name": "the waterfall bridge road", "km": 31, "terrain": "road", "biome": "river", "danger": 0.2,
+   "waypoints": [{"km": 6, "id": "waterfall_bridge", "name": "the Waterfall Bridge", "kind": "crossing", "describe": "an old stone bridge under the spray of the falls"}, {"km": 19, "id": "millbrook_inn", "name": "the Millbrook inn", "kind": "inn", "safe": true, "describe": "a mill turned inn, its wheel still turning"}], "habitats": []},
+  "village|crystal_caverns": {"name": "the quarry road to the cave mouth", "km": 26, "terrain": "road", "biome": "quarry", "danger": 0.3,
+   "waypoints": [{"km": 14, "id": "quarry_camp", "name": "the Quarry Camp", "kind": "shelter", "safe": true}], "habitats": ["thornback"]},
+  "village|highland_path": {"name": "the mountain road", "km": 38, "terrain": "climb", "biome": "mountain", "danger": 0.4,
+   "waypoints": [{"km": 12, "id": "switchbacks", "name": "the Switchbacks", "kind": "landmark"}, {"km": 24, "id": "shepherds_hut", "name": "the Shepherd's Hut", "kind": "shelter", "safe": true, "describe": "a stone hut with a sod roof and a cold hearth"}], "habitats": ["emberwing"]},
+  "highland_path|celestial_summit": {"name": "the summit stairway", "km": 9, "terrain": "climb", "biome": "summit", "danger": 0.3, "climb_m": 1400,
+   "waypoints": [{"km": 6, "id": "cloud_gate", "name": "the Cloud Gate", "kind": "landmark"}], "habitats": []},
+  "whispering_woods|highland_path": {"name": "the frontier road over the north-west ridge", "km": 64, "terrain": "climb", "biome": "ridge", "danger": 0.6,
+   "waypoints": [{"km": 20, "id": "cairn_shelter", "name": "the Cairn shelter", "kind": "shelter", "safe": true}, {"km": 41, "id": "ridge_pass", "name": "the Ridge Pass", "kind": "pass", "danger": 0.8, "describe": "a saddle between two peaks, wind-scoured, dangerous in weather"}], "habitats": ["emberwing", "mossback"]},
+  "village|academy": {"name": "the old academy road east", "km": 72, "terrain": "road", "biome": "lowland", "danger": 0.15,
+   "waypoints": [{"km": 18, "id": "thornwick", "name": "Thornwick", "kind": "village", "safe": true, "describe": "a farming village of hedgerows and beehives"}, {"km": 40, "id": "greywater_bridge", "name": "Greywater Bridge", "kind": "crossing"}, {"km": 57, "id": "lantern_inn", "name": "the Lantern inn", "kind": "inn", "safe": true}], "habitats": []}
+ }
+}

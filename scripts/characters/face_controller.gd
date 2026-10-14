@@ -48,6 +48,8 @@ const EMOTIONS := {
 	"proud": {"face": {"brow_fun": .5, "eye_fun": .25, "mouth_up": .65}, "posture": {"pitch": -.1}},
 	"relieved": {"face": {"brow_sorrow": .3, "brow_joy": .3, "eye_fun": .45, "mouth_up": .45}, "posture": {"pitch": .03, "roll": .04}},
 	"laughing": {"face": {"brow_joy": .8, "eye_joy": 1.0, "mouth_joy": .9}, "posture": {"pitch": -.06}},
+	"hurt": {"face": {"brow_sorrow": .75, "brow_angry": .3, "eye_angry": .55, "mouth_angry": .35, "mouth_small": .2}, "posture": {"pitch": .08}},
+	"dazed": {"face": {"brow_sorrow": .45, "blink": .42, "eye_sorrow": .2, "mouth_small": .35, "mouth_down": .2}, "posture": {"roll": .12, "pitch": .1}},
 	"determined": {"face": {"brow_angry": .5, "eye_angry": .2, "mouth_close": .4, "mouth_up": .1}, "posture": {"pitch": -.03}},
 }
 

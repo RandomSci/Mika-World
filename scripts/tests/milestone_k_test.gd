@@ -98,6 +98,8 @@ func _run() -> void:
 		"phoenix": await _phoenix()
 		"phoenix_reel": await _phoenix_reel()
 		"showcase": await _showcase()
+		"no_teleport": await _no_teleport()
+		"mossback": await _mossback()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -1791,11 +1793,11 @@ func _phoenix_reel() -> void:
 	var b := Basis(Vector3.UP, ph.rotation.y)
 	mika.global_position = NavigationServer3D.map_get_closest_point(map, perch + b * Vector3(-5.5, 0, 3.5)) + Vector3(0, 0.05, 0)
 	mika.look_at_point(perch)
-	mgr.bring_luna()
 	var luna: WorldCharacter = main.characters.get("luna")
 	if luna:
-		# Luna stands nearer the nova's mark (inside its blast radius); Mika further back (she braces)
-		luna.global_position = NavigationServer3D.map_get_closest_point(map, perch + b * Vector3(-2.6, 0, 9.0)) + Vector3(0, 0.05, 0)
+		# TEST STAGING ONLY (a developer utility, never production behaviour): the reel's scene is set with Luna
+		# already here, nearer the nova's mark (inside its blast radius); Mika further back (she braces)
+		_dev_stage(luna, NavigationServer3D.map_get_closest_point(map, perch + b * Vector3(-2.6, 0, 9.0)))
 		luna.look_at_point(perch)
 	await _wait(1.0)
 	# 1. her display
@@ -2016,3 +2018,182 @@ func _watch_reactions(ph: Phoenix, kind: String, tag: String, stills_only := fal
 	else:
 		await _wait(0.3)
 		_shot(tag)
+
+
+## TEST STAGING ONLY: put a mage at a spot in the loaded area before a scene starts (like a director placing an
+## actor). Production code never relocates a character; see PhoenixManager.call_luna / the no-teleport test.
+func _dev_stage(c: WorldCharacter, at: Vector3) -> void:
+	if main.teleport_guard:
+		main.teleport_guard.allow(c)
+	c.global_position = at + Vector3(0, 0.05, 0)
+	c.world = main.world
+	c.velocity = Vector3.ZERO
+	c.visible = true
+	c.set_physics_process(true)
+	WorldState.mind(c.character_id).set_location(main.streaming.current_id, c.global_position)
+
+
+# ------------------------------------------------------------------ no teleportation in production (V3 continuation)
+## A production run (no --dev-fast-travel): instant travel is refused everywhere; the dormant ley-line gate is not a
+## route; Oriel's arrival never moves Luna (in another area she stays there; in this area she walks over); and a
+## minute of ordinary life with both mages' planners running shows no position jump at all (TeleportGuard).
+func _no_teleport() -> void:
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters.get("luna")
+	_check(not TravelController.dev_fast_travel(), "this is a production run (no --dev-fast-travel)")
+	var fast: Dictionary = main.travel.travel_to("ancient_grove", "fast")
+	_check(not fast.get("ok", true), "instant ('fast') travel is refused", fast)
+	if fast.get("ok", false):
+		main.travel.cancel("test")
+	var bridge: Dictionary = main.travel.travel_to("academy_courtyard", "walk")
+	_check(not bridge.get("ok", true) and WorldState.route(main.streaming.current_id, "academy").is_empty(),
+		"the dormant ley-line gate to the Academy is no route (no portal hop)", {"result": bridge, "sealed": WorldState.is_sealed("sanctuary", "academy")})
+	if bridge.get("ok", false):
+		main.travel.cancel("test")
+	_check(main.get("teleport_guard") != null, "the TeleportGuard watches every physics frame")
+	# --- Oriel arrives while Luna is in another area: she stays there
+	await _hold_all()
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load (Mika walks in through the gate)")
+	if luna == null:
+		_check(false, "Luna exists (run with --luna)")
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	var lm := WorldState.mind("luna")
+	lm.set_location("village", Vector3(3, 0, 3))        # she is away in the village (background simulation)
+	luna.visible = false
+	luna.set_physics_process(false)
+	var luna_before := luna.global_position
+	var mgr: PhoenixManager = main.phoenix_mgr
+	mgr.auto_greet = false
+	mgr.auto_leave = false
+	var verdict := mgr.call_luna()
+	await _wait(1.0)
+	_check(verdict == "away" and not luna.visible and luna.global_position == luna_before and String(lm.location.get("area", "")) == "village",
+		"Oriel's arrival does not bring Luna from the village (she stays where she is)", {"verdict": verdict, "visible": luna.visible, "area": lm.location.get("area")})
+	# --- Luna in this area, ~30 m away: she comes on foot, every frame a small step
+	var vp: Vector2 = w.VIEWPOINT
+	var stand := NavigationServer3D.map_get_closest_point(map, Vector3(vp.x - 7.0, w.height(vp.x - 7.0, vp.y), vp.y))
+	_dev_stage(mika, stand)
+	var far := NavigationServer3D.map_get_closest_point(map, stand + Vector3(-22.0, 0, 20.0))
+	_dev_stage(luna, far)
+	await _wait(1.0)
+	var d0 := luna.global_position.distance_to(mika.global_position)
+	var v2 := mgr.call_luna()
+	var worst := 0.0
+	var prev := luna.global_position
+	var t0 := _game_t
+	while _game_t - t0 < 20.0 and luna.current_action == "navigate_to":
+		await get_tree().physics_frame
+		worst = maxf(worst, luna.global_position.distance_to(prev))
+		prev = luna.global_position
+	var d1 := luna.global_position.distance_to(mika.global_position)
+	_check(v2 == "coming" and d1 < d0 - 10.0 and worst < 0.35, "Luna in the same area walks over herself (%.0f m -> %.1f m; largest single-frame step %.2f m)" % [d0, d1, worst],
+		{"verdict": v2, "from_m": d0, "to_m": d1, "worst_step_m": worst})
+	# --- a minute of ordinary life: both planners running, nobody jumps
+	var before := (main.teleport_guard.violations as Array).size()
+	for who in main.mage_brains:
+		main.mage_brains[who].hold = false
+		main.mage_brains[who].set_enabled(true)
+	await _wait(60.0)
+	var v: Array = (main.teleport_guard.violations as Array).slice(before)
+	_check(v.is_empty(), "a minute of autonomous life with both planners: no position jumps (%d frames watched)" % main.teleport_guard.frames, v)
+	report["no_teleport"] = {"luna_walk": {"from_m": d0, "to_m": d1, "worst_step_m": worst}, "violations": main.teleport_guard.violations}
+
+
+# ------------------------------------------------------------------ the Mossback encounter (V3 continuation)
+## A prominent encounter with a real creature model (OpenGameArt "Forest Monster", CC0): the Mossback comes out of
+## the Woods at Mika and Luna; both fight it with their own tactics (the real hunt activity); its blows and slams
+## land through BodyReaction / ImpactDirector (flinch / stagger / falls and getting up, a companion's help), and
+## the fight resolves. Record with --write-movie for the reel.
+func _mossback() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters.get("luna")
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load")
+	if luna == null or not r.get("ok", false):
+		_check(luna != null, "Luna exists (run with --luna)")
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	main.spawner.enabled = false
+	var vp: Vector2 = w.VIEWPOINT
+	var stand := NavigationServer3D.map_get_closest_point(map, Vector3(vp.x - 9.0, w.height(vp.x - 9.0, vp.y + 4.0), vp.y + 4.0))
+	_dev_stage(mika, stand)
+	_dev_stage(luna, NavigationServer3D.map_get_closest_point(map, stand + Vector3(2.4, 0, 1.6)))
+	await main.focus_mage("mika", true)
+	for who in ["mika", "luna"]:
+		WorldState.mind(who).vigor = 1.0
+		main.mage_brains[who].needs.energy = 0.9
+	var at := NavigationServer3D.map_get_closest_point(map, stand + Vector3(-15.0, 0, -6.0))
+	var mon: Monster = main.spawner.spawn("mossback", at)
+	_check(mon != null, "a Mossback comes out of the trees")
+	if mon == null:
+		return
+	var cr := mon.creature as ClipRig
+	_check(cr != null and String(cr.spec.get("glb", "")).ends_with("mossback.glb") and cr.player != null,
+		"its body is the rigged, textured model with its own clips", {"clips": cr.player.get_animation_list() if cr and cr.player else []})
+	var need := ["idle", "walk", "alert", "windup", "strike", "recover", "hit", "death"]
+	var have: Array = cr.player.get_animation_list() if cr and cr.player else []
+	_check(need.all(func(c): return have.has(c)), "idle, walk, alert, wind-up, strike, recover, hit and death clips", have)
+	var hgt := 0.0
+	for mi in mon.find_children("*", "MeshInstance3D", true, false):
+		hgt = maxf(hgt, ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).end.y - mon.global_position.y)
+	_check(hgt > 2.8 and hgt < 4.5, "it towers over them (%.1f m)" % hgt)
+	main.director.enabled = true
+	await _wait(1.5)
+	_shot("mossback_00_emerges")
+	var hp0 := mon.hp
+	var states := {}
+	var reactions_before := {"mika": mika.reaction.history.size(), "luna": luna.reaction.history.size()}
+	var bm: SanctuaryBrain = main.mage_brains["mika"]
+	var bl: SanctuaryBrain = main.mage_brains["luna"]
+	var opt := func(b: SanctuaryBrain) -> Dictionary:
+		return {"kind": "hunt", "key": "hunt:" + mon.id, "monster": mon.id, "monster_kind": "mossback", "tier": mon.tier(), "label": "fight the mossback"}
+	var res := {}
+	var run := func(b: SanctuaryBrain, who: String) -> void:
+		b.current = {"kind": "hunt", "label": "fight the mossback", "stage": "starting"}
+		res[who] = await b.run_activity(opt.call(b))
+		b.current = {}
+	run.call(bl, "luna")
+	run.call(bm, "mika")
+	var t0 := _game_t
+	var k := 0
+	var recovered_then_cast := {}
+	var downs := {}
+	while _game_t - t0 < 180.0 and res.size() < 2:
+		if is_instance_valid(mon):
+			states[mon.mstate] = int(states.get(mon.mstate, 0)) + 1
+		for who in ["mika", "luna"]:
+			var c: WorldCharacter = main.characters[who]
+			if c.reaction.active and c.reaction.tier == "down":
+				downs[who] = true
+			if downs.has(who) and not c.reaction.active and c.casting:
+				recovered_then_cast[who] = true
+		if _game_t - t0 > k * 6.0:
+			_shot("mossback_%02d" % (k + 1))
+			k += 1
+		await get_tree().process_frame
+	await _wait(2.0)
+	var struck := []
+	for who in ["mika", "luna"]:
+		var c: WorldCharacter = main.characters[who]
+		for e in c.reaction.history.slice(int(reactions_before[who])):
+			struck.append({"who": who, "tier": e.tier, "severity": e.severity, "kind": e.kind, "source": e.get("source", "")})
+	var defeated := not is_instance_valid(mon) or not mon.alive()
+	report["mossback"] = {"states": states, "struck": struck, "results": res, "hp": [hp0, mon.hp if is_instance_valid(mon) else 0.0],
+		"aftermath": main.impacts.aftermath_log, "said": main.impacts.said, "downs": downs, "recovered_then_cast": recovered_then_cast}
+	_check(states.has("chase") or states.has("alert"), "it noticed them and came at them", states)
+	_check(states.has("windup") and states.has("strike"), "it telegraphed and struck (wind-up -> strike)", states)
+	_check(not struck.is_empty(), "its blows landed with consequences (%d reactions: %s)" % [struck.size(), ", ".join(struck.map(func(x): return "%s %s" % [x.who, x.tier]))], struck)
+	_check((not is_instance_valid(mon)) or mon.hp < hp0, "their spells hurt it (%.0f -> %.0f hp)" % [hp0, mon.hp if is_instance_valid(mon) else 0.0])
+	for who in downs:
+		_check(not main.characters[who].reaction.active, "%s was knocked down and got back up" % who)
+	_check(res.size() == 2, "both fights resolved (%s)" % [", ".join(res.keys().map(func(x): return "%s: %s" % [x, str(res[x].get("detail", ""))]))], res)
+	report["mossback"]["defeated"] = defeated
+	_shot("mossback_zz_end")
+

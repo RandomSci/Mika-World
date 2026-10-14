@@ -122,6 +122,8 @@ static func decide(brain, me: WorldCharacter, m: Monster, spell: String) -> Dict
 	var s: Dictionary = MagicSystem.spell(spell)
 	var spell_range := float(s.get("range", 10.0))
 	var pref_min := reach + 1.5 if m.is_melee() else 4.0
+	# knocked down by this kind of thing before (ImpactDirector): an evasive mage keeps further off from now on
+	pref_min += float(brain.mind.knowledge.get("keep_distance_bonus", 0.0))
 	var pref_max := minf(spell_range - 1.0, pref_min + 5.0)
 	# 4. it is winding up at her but its blow will not reach where she stands: fine, she can still cast
 	var opening: bool = m.mstate in ["recover", "stagger"] or m.observed_opening()

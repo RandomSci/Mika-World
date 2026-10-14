@@ -86,7 +86,7 @@ func setup_monster(p_main: Node, kind_id: String, uid: String, at: Vector3, d: D
 	hp = max_hp
 	home = at
 	aim_radius = float(d.radius) + 0.15
-	aim_offset = Vector3(0, maxf(float(d.float), 0.45 if kind_id != "hollow_sentinel" else 1.4), 0)
+	aim_offset = Vector3(0, float(d.get("aim_height", maxf(float(d.float), 0.45 if kind_id != "hollow_sentinel" else 1.4))), 0)
 	supports = ["arcane", "umbral", "wind", "water", "fire", "mist", "rune", "eclipse", "nature"]
 	_rng.seed = hash(uid)
 	_strafe_dir = 1.0 if _rng.randf() < 0.5 else -1.0
@@ -653,6 +653,12 @@ func _strike() -> void:
 			ImpactFX.shockwave(get_parent(), hazard.center + Vector3(0, 0.05, 0) if hazard else global_position, Color(1.0, 0.8, 0.4), float(a.radius) * 1.3)
 			FX.burst(get_parent(), (hazard.center if hazard else global_position) + Vector3(0, 0.2, 0), 22, 1.2, FX.pm_puff("smoke"), FX.puff_mesh(0.45))
 			_play_sfx("monster_slam", -2.0)
+			# the shockwave throws anyone else standing near the blow (V3 continuation: real consequences); the
+			# target herself is resolved by the hazard (stepping out of the mark avoids it)
+			if main.get("impacts"):
+				var ex: Array = [target_mage.character_id] if target_mage else []
+				main.impacts.blast((hazard.center if hazard else global_position) + Vector3(0, 0.4, 0), 0.85, float(a.radius) * 2.2,
+					{"source": String(kind), "kind": "slam", "friendly": false, "exclude": ex})
 		"sweep":
 			_play_sfx("monster_lunge", -3.0)
 		"dive", "charge":
@@ -808,7 +814,8 @@ func _land_on(m: WorldCharacter, amount: float, heavy := false) -> void:
 		return          # the transformation's light turns the blow aside
 	attacked.emit(self, m, amount)
 	if m.has_method("take_hit"):
-		m.take_hit(global_position, heavy)
+		# how hard it lands: a light swipe flinches, a heavy blow staggers, a brute's slam can put her down
+		m.take_hit(global_position, heavy, clampf(0.2 + amount * (3.2 if heavy else 1.6), 0.15, 1.0))
 
 
 # ------------------------------------------------------------------ bodies

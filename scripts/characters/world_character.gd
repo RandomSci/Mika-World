@@ -64,9 +64,27 @@ const CLIPS := {
 	"crouch_loop": ["ual_rest:Crouch_Idle", true, true],
 	"idle_talk": ["ual_rest:Idle_Talking", true, true],
 	"kneel_fix": ["ual_rest:Fixing_Kneeling", false, true],
+	# V3 continuation - believable impact and recovery (BodyReaction). "[a-b]" plays only that part of a clip.
+	# Quaternius UAL (CC0) + the developer's Mixamo set; crossfaded through the "react" state machine.
+	"rx_stagger": ["ual_react:Idle_Shield_Break", false, true],
+	"rx_steady": ["ual_react:Idle_Shield_Break[0.5-1.04]", false, true],
+	"rx_absorb": ["ual_react:Jump_Land[0.1-1.25]", false, true],
+	"rx_fall_back": ["ual_react:Death01[0-1.3]", false, true],
+	"rx_blown_back": ["ual:Hit_Knockback", false, true],
+	"rx_down_back": ["ual_rest:LayToIdle@0.0", true, true],
+	"rx_sit_up": ["ual_rest:LayToIdle[0-0.62]", false, true],
+	"rx_sit_hold": ["ual_rest:LayToIdle@0.62", true, true],
+	"rx_stand_from_sit": ["ual_rest:LayToIdle[0.62-1.5]", false, true],
+	"rx_quick_up": ["ual_react:Slide_Exit", false, true],
+	"rx_fall_fwd": ["standing_react_death_forward.fbx[0-1.45]", false, true],
+	"rx_kneel_hold": ["standing_react_death_forward.fbx@1.45", true, true],
+	"rx_kneel_rise": ["ual_rest:Fixing_Kneeling[4.3-5.17]", false, true],
+	"rx_crouch_help": ["ual_rest:Crouch_Idle", true, true],
+	"rx_reach_help": ["ual_react:Interact", false, true],
 }
 const UAL_PACK := "res://assets/animations/ual/ual_combat.glb"
-const UAL_PACKS := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_rest": "res://assets/animations/ual/ual_rest.glb"}
+const UAL_PACKS := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_rest": "res://assets/animations/ual/ual_rest.glb",
+	"ual_react": "res://assets/animations/ual/ual_react.glb"}
 
 @export var character_id := "mika"
 @export var display_name := "Mika"
@@ -118,6 +136,7 @@ var _dash := {}            # active dodge: {dir, dist, t, dur, from}
 var combat_stance := false
 var pace := 1.0            # walking-with-someone speed factor (FollowCompanion); feet follow via the loco time scale
 var last_hit := {}         # most recent hit taken: {t, heavy, clip}
+var reaction: BodyReaction # impact, fall and recovery (V3 continuation)
 
 
 func _ready() -> void:
@@ -139,6 +158,7 @@ func _ready() -> void:
 	handler.process_priority = 100   # after animation + IK, so held objects follow the final hand pose
 	add_child(handler)
 	handler.attach(self)
+	reaction = BodyReaction.attach(self)
 
 	nav_agent = NavigationAgent3D.new()
 	NavQuery.configure_agent(nav_agent)   # big forest navmeshes exceed the default 4096-polygon search limit
@@ -452,6 +472,26 @@ func _attach(bone: String) -> BoneAttachment3D:
 ## Retargeted clips depend only on the skeleton's path and bone set, which every VRoid VRM here shares, so
 ## the library is built once and reused (avatar swaps / a second mage cost no re-import of 13 FBX clips).
 static var _lib_cache := {}
+## Reaction clips' own hip travel (x, z per 1/30 s, from their first frame; source units): BodyReaction moves the
+## body by it (root motion) while the clip itself plays in place, so a fall carries her over the ground for real.
+static var root_curves := {}
+
+
+static func _hip_curve(anim: Animation) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var ti := -1
+	for t in anim.get_track_count():
+		if anim.track_get_type(t) == Animation.TYPE_POSITION_3D and String(anim.track_get_path(t)).ends_with(":Hips"):
+			ti = t
+	if ti < 0:
+		return out
+	var first := anim.position_track_interpolate(ti, 0.0)
+	var tt := 0.0
+	while tt <= anim.length + 1e-4:
+		var v := anim.position_track_interpolate(ti, tt) - first
+		out.append(Vector2(v.x, v.z))
+		tt += 1.0 / 30.0
+	return out
 
 
 func skeleton_signature() -> String:
@@ -489,34 +529,45 @@ func _build_library() -> AnimationLibrary:
 		var spec: Array = CLIPS[clip_name]
 		var anim: Animation
 		var src_spec := String(spec[0])
+		var freeze_at := -1.0
+		var reverse := false
+		var rng_a := -1.0
+		var rng_b := -1.0
+		if src_spec.ends_with("]") and src_spec.contains("["):
+			var r := src_spec.get_slice("[", 1).trim_suffix("]")
+			rng_a = float(r.get_slice("-", 0))
+			rng_b = float(r.get_slice("-", 1))
+			src_spec = src_spec.get_slice("[", 0)
+		if src_spec.contains("@"):
+			freeze_at = float(src_spec.get_slice("@", 1))
+			src_spec = src_spec.get_slice("@", 0)
+		if src_spec.ends_with("~rev"):
+			reverse = true
+			src_spec = src_spec.trim_suffix("~rev")
 		if src_spec.contains(":") and not src_spec.ends_with(".fbx"):
 			var pid := src_spec.get_slice(":", 0)
 			var an := src_spec.get_slice(":", 1)
-			var freeze_at := -1.0
-			var reverse := false
-			if an.contains("@"):
-				freeze_at = float(an.get_slice("@", 1))
-				an = an.get_slice("@", 0)
-			if an.ends_with("~rev"):
-				reverse = true
-				an = an.trim_suffix("~rev")
 			var ual: AnimationPlayer = packs.get(pid)
 			if ual == null or not ual.has_animation(an):
 				push_warning("[character] missing %s clip %s; '%s' unavailable" % [pid, an, clip_name])
 				continue
 			anim = ual.get_animation(an).duplicate(true)
-			if freeze_at >= 0.0:
-				anim = _bake_variant(anim, "freeze", freeze_at)
-			elif reverse:
-				anim = _bake_variant(anim, "reverse", 0.0)
 		else:
-			if not ResourceLoader.exists(MIXAMO_DIR + spec[0]):
-				push_warning("[character] missing clip %s (run tools/setup_local_assets.sh); '%s' unavailable" % [spec[0], clip_name])
+			if not ResourceLoader.exists(MIXAMO_DIR + src_spec):
+				push_warning("[character] missing clip %s (run tools/setup_local_assets.sh); '%s' unavailable" % [src_spec, clip_name])
 				continue
-			var src: Node = load(MIXAMO_DIR + spec[0]).instantiate()
+			var src: Node = load(MIXAMO_DIR + src_spec).instantiate()
 			var ap: AnimationPlayer = src.find_child("AnimationPlayer", true, false)
 			anim = ap.get_animation("mixamo_com").duplicate(true)
 			src.free()
+		if freeze_at >= 0.0:
+			anim = _bake_variant(anim, "freeze", freeze_at)
+		elif reverse:
+			anim = _bake_variant(anim, "reverse", 0.0)
+		elif rng_a >= 0.0:
+			anim = _bake_variant(anim, "range", rng_a, rng_b)
+		if clip_name.begins_with("rx_"):
+			root_curves[clip_name] = _hip_curve(anim)
 		_retarget_paths(anim, skel_path, spec[2])
 		anim.loop_mode = Animation.LOOP_LINEAR if spec[1] else Animation.LOOP_NONE
 		lib.add_animation(clip_name, anim)
@@ -527,7 +578,7 @@ func _build_library() -> AnimationLibrary:
 
 ## A held pose (freeze at time t, 0.1 s loop) or the clip played backwards, baked at 30 Hz from the sampled
 ## position/rotation tracks (so blending and retargeting treat it like any other clip).
-static func _bake_variant(anim: Animation, mode: String, t: float) -> Animation:
+static func _bake_variant(anim: Animation, mode: String, t: float, t2 := 0.0) -> Animation:
 	var out := Animation.new()
 	var L := anim.length
 	var step := 1.0 / 30.0
@@ -545,6 +596,16 @@ static func _bake_variant(anim: Animation, mode: String, t: float) -> Animation:
 			else:
 				out.rotation_track_insert_key(nt, 0.0, anim.rotation_track_interpolate(ti, tt))
 				out.rotation_track_insert_key(nt, 0.1, anim.rotation_track_interpolate(ti, tt))
+		elif mode == "range":
+			var tt := 0.0
+			var span := clampf(t2, t, L) - t
+			while tt <= span + 1e-4:
+				var src := clampf(t + tt, 0.0, L)
+				if type == Animation.TYPE_POSITION_3D:
+					out.position_track_insert_key(nt, tt, anim.position_track_interpolate(ti, src))
+				else:
+					out.rotation_track_insert_key(nt, tt, anim.rotation_track_interpolate(ti, src))
+				tt += step
 		else:
 			var tt := 0.0
 			while tt <= L + 1e-4:
@@ -554,7 +615,7 @@ static func _bake_variant(anim: Animation, mode: String, t: float) -> Animation:
 				else:
 					out.rotation_track_insert_key(nt, tt, anim.rotation_track_interpolate(ti, src))
 				tt += step
-	out.length = 0.1 if mode == "freeze" else L
+	out.length = 0.1 if mode == "freeze" else ((clampf(t2, t, L) - t) if mode == "range" else L)
 	return out
 
 
@@ -590,8 +651,35 @@ func _build_tree() -> void:
 	bt.connect_node("cast", 0, "loco_speed")
 	bt.connect_node("gesture_speed", 0, "cast_anim")
 	bt.connect_node("cast", 1, "gesture_speed")
-	bt.connect_node("output", 0, "cast")
+	# the reaction layer (BodyReaction): a state machine of impact / fall / recovery clips that crossfade into one
+	# another, mixed over everything else by "react_mix" (0 = normal life, 1 = the reaction owns the body)
+	var rsm := AnimationNodeStateMachine.new()
+	var rnames: Array[String] = []
+	for clip in CLIPS:
+		if String(clip).begins_with("rx_") or clip in ["hit_chest", "hit_head"]:
+			if not body_player.has_animation("mx/" + clip):
+				continue
+			var an := AnimationNodeAnimation.new()
+			an.animation = "mx/" + clip
+			rsm.add_node(clip, an, Vector2(rnames.size() * 120, 0))
+			rnames.append(clip)
+	for a in rnames:
+		for b in rnames:
+			if a != b:
+				var tr := AnimationNodeStateMachineTransition.new()
+				tr.xfade_time = 0.3
+				tr.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+				rsm.add_transition(a, b, tr)
+	bt.add_node("react_sm", rsm, Vector2(400, 400))
+	bt.add_node("react_speed", AnimationNodeTimeScale.new(), Vector2(550, 400))
+	bt.add_node("react_mix", AnimationNodeBlend2.new(), Vector2(700, 0))
+	bt.connect_node("react_speed", 0, "react_sm")
+	bt.connect_node("react_mix", 0, "cast")
+	bt.connect_node("react_mix", 1, "react_speed")
+	bt.connect_node("output", 0, "react_mix")
 	anim_tree.tree_root = bt
+	anim_tree.set("parameters/react_speed/scale", 1.0)
+	anim_tree.set("parameters/react_mix/blend_amount", 0.0)
 	anim_tree.active = true
 	anim_tree.set("parameters/gesture_speed/scale", 1.0)
 
@@ -732,6 +820,10 @@ func _steer_around(desired: Vector3) -> Vector3:
 
 
 func navigate_to(target: Vector3, run := false) -> void:
+	if reaction and reaction.blocks_actions():
+		last_rejection = "recovering from a blow (%s)" % reaction.phase
+		action_finished.emit("navigate_to", false, last_rejection)
+		return
 	if casting:
 		action_finished.emit("navigate_to", false, "busy casting")
 		return
@@ -773,6 +865,9 @@ func stop_action() -> void:
 ## Begins a cast; the spell node drives the visuals and calls `end_cast()` when resolved.
 func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 	anim_tree.set("parameters/gesture_speed/scale", 1.0)   # a dance tempo must never slow a spell
+	if reaction and reaction.blocks_actions():
+		action_finished.emit("cast_spell", false, "recovering from a blow")
+		return null
 	if casting or not is_on_floor():
 		action_finished.emit("cast_spell", false, "already casting" if casting else "not on the ground")
 		return null
@@ -796,7 +891,7 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 
 ## Play a one-off body gesture (study, practice, look around...) through the same one-shot slot as casting.
 func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
-	if casting or not CLIPS.has(clip) or not has_clip(clip):
+	if (reaction and reaction.blocks_actions()) or casting or not CLIPS.has(clip) or not has_clip(clip):
 		return false
 	var bt := anim_tree.tree_root as AnimationNodeBlendTree
 	var shot := bt.get_node("cast") as AnimationNodeOneShot
@@ -825,7 +920,7 @@ func set_combat_stance(on: bool) -> void:
 ## body actually travels (collision + floor), it is not an animation played in place. Awaitable; returns
 ## the distance really covered. Refused while casting (a cast is a commitment) or seated.
 func dodge(to: Vector3, dur := 0.6) -> float:
-	if casting or seated or not is_on_floor():
+	if casting or seated or not is_on_floor() or (reaction and reaction.blocks_actions()):
 		return 0.0
 	var d := Vector3(to.x - global_position.x, 0, to.z - global_position.z)
 	if d.length() < 0.3:
@@ -849,20 +944,12 @@ func dodge(to: Vector3, dur := 0.6) -> float:
 
 ## Struck by a creature (Milestone J): a visible reaction - a flinch for a light blow, a stagger back for a
 ## heavy one (real push-back through collision). While casting she only flinches (the cast goes on).
-func take_hit(from: Vector3, heavy := false) -> void:
-	var away := Vector3(global_position.x - from.x, 0, global_position.z - from.z)
-	away = away.normalized() if away.length() > 0.05 else global_transform.basis.z
-	set_expression("surprised", 0.9)
-	get_tree().create_timer(0.7).timeout.connect(func(): set_expression("surprised", 0.0))
-	var clip := "hit_knockback" if heavy else ("hit_chest" if randf() < 0.6 else "hit_head")
-	last_hit = {"t": _gclock, "heavy": heavy, "clip": clip}
-	if casting or seated or not _dash.is_empty():
-		return
-	_finish_action(false, "struck")
-	_nav_active = false
-	play_gesture(clip, 0.05, 0.35)
-	if heavy:
-		_dash = {"dir": away, "dist": 1.1, "t": 0.0, "dur": 0.45, "from": global_position, "keep_facing": true}
+## V3 continuation: every blow goes through BodyReaction (flinch / stagger / a real fall and get-up).
+func take_hit(from: Vector3, heavy := false, severity := -1.0) -> Dictionary:
+	var sev := severity if severity >= 0.0 else (0.7 if heavy else 0.28)
+	var r := reaction.receive(from, sev, {"kind": "blow"}) if reaction else {}
+	last_hit = {"t": _gclock, "heavy": heavy, "tier": r.get("tier", ""), "severity": sev}
+	return r
 
 
 func end_cast(ok: bool, detail: String) -> void:
@@ -895,6 +982,10 @@ func _finish_action(ok: bool, detail: String) -> void:
 # ------------------------------------------------------------------ simulation
 func _physics_process(delta: float) -> void:
 	_gclock += delta
+	if reaction:
+		reaction.physics(delta)
+		if reaction.active:
+			return                     # the fall / the getting up owns her body
 	var now := _gclock
 	var desired := _move_input
 	if _nav_active:

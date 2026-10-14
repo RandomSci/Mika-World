@@ -60,6 +60,9 @@ func _run() -> void:
 	if RenderProfile.options.has("gripcal"):
 		await _grip_calibration()
 		return
+	if RenderProfile.options.has("pack"):
+		await _pack_sheets()
+		return
 	var dir: String = RenderProfile.options.get("clipdir", "res://assets/animations/mixamo_sword")
 	var out: String = RenderProfile.options.get("out", "res://screenshots/sword")
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out))
@@ -243,4 +246,55 @@ func _sword_shots() -> void:
 			sheet.blit_rect(crop, Rect2i(0, 0, w, h), Vector2i(k * w, 0))
 		sheet.save_png("%s/withsword_%s.png" % [out, role])
 	print("[preview] sword shots done")
+	get_tree().quit()
+
+
+## --pack=res://...glb [--clips=A,B] [--out=...]: contact sheets (8 poses, side view, real hip travel kept) of a
+## UAL pack's clips on Mika's skeleton, to choose reaction / camp clips by eye.
+func _pack_sheets() -> void:
+	var out: String = RenderProfile.options.get("out", "res://screenshots/pack_preview")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out))
+	var src: Node = load(String(RenderProfile.options["pack"])).instantiate()
+	var ap: AnimationPlayer = src.find_child("AnimationPlayer", true, false)
+	var want := String(RenderProfile.options.get("clips", "")).split(",", false)
+	var lib := AnimationLibrary.new()
+	var skel_path := String(mika.avatar.get_path_to(mika.skeleton))
+	for an in ap.get_animation_list():
+		if want.size() and not want.has(an):
+			continue
+		var anim: Animation = ap.get_animation(an).duplicate(true)
+		mika._retarget_paths(anim, skel_path, false)
+		lib.add_animation(an, anim)
+	src.free()
+	mika.body_player.add_animation_library("pk", lib)
+	var sk := mika.skeleton
+	var hips := sk.find_bone("Hips")
+	for an in lib.get_animation_list():
+		var anim := lib.get_animation(an)
+		mika.body_player.play("pk/" + an)
+		mika.body_player.pause()
+		var imgs := []
+		var info := []
+		for k in 8:
+			var t := anim.length * k / 7.0
+			mika.body_player.seek(t, true)
+			sk.force_update_all_bone_transforms()
+			var hp := sk.get_bone_global_pose(hips).origin
+			info.append("%.2f:(%.2f,%.2f,%.2f)" % [t, hp.x, hp.y, hp.z])
+			cam.global_position = Vector3(4.2, 1.2, 0.6)
+			cam.look_at(Vector3(0, 0.7, 0.3))
+			await get_tree().process_frame
+			await get_tree().process_frame
+			imgs.append(get_viewport().get_texture().get_image())
+		var w := 300
+		var h := 340
+		var sheet := Image.create(w * 8, h, false, Image.FORMAT_RGB8)
+		for k in 8:
+			var im: Image = imgs[k]
+			im.convert(Image.FORMAT_RGB8)
+			var crop := im.get_region(Rect2i(im.get_width() / 2 - im.get_height() * 9 / 20, 0, im.get_height() * 9 / 10, im.get_height()))
+			crop.resize(w, h)
+			sheet.blit_rect(crop, Rect2i(0, 0, w, h), Vector2i(k * w, 0))
+		sheet.save_png("%s/%s.png" % [out, an])
+		print("[pack] %s len %.2f hips %s" % [an, anim.length, " ".join(info)])
 	get_tree().quit()

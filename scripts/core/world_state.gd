@@ -20,10 +20,21 @@ var areas := {}
 var locations := {}
 var landmarks := {}
 var adjacency := {}       # area -> {neighbour_area: route description}
+var sealed := {}               # "a|b" -> why: connections that exist but cannot be travelled (no free teleportation)
 
 var night := false
 var habitats := {}            # Milestone K8: per-area habitat state (defeats, depletion), persisted
 var play_s := 0.0             # accumulated game seconds across sessions (habitat recovery clocks)
+## THE WORLD CLOCK (V3 continuation: travel takes days; the world goes on while nobody watches).
+## world_min counts world minutes since the first dawn (day 1, 06:00 = 360). It runs at `clock_rate` world minutes per
+## real second (data/world.json "clock"); journeys on the road run it faster (the time really passes on the road), and
+## on a restart it catches up on the real time that passed while the game was closed (capped).
+var world_min := 360.0
+var clock_rate := 0.5
+var clock_boost := 1.0            # > 1 while a journey's road time passes (set by the JourneyDirector)
+var clock_catch_up := {}          # what the last load caught up: {real_s, world_min}
+signal hour_changed(day: int, hour: int)
+var _last_hour := -1
 var current_area := ""
 var current_location := ""
 var discovered_locations := {}   # id -> true
@@ -34,6 +45,7 @@ var knowledge := {}              # e.g. {"spell:arcane_orb": 1.0, "lore:...": tr
 var inventory := {}              # item -> count
 var skills := {"arcane_orb": 1}  # known spells and their practice level
 var current_goal := ""
+var journey := {}                # the party's multi-day journey (JourneyDirector): persisted, resumed after restarts
 var sanctuary := {}              # data/sanctuary.json: sub-areas, lore, trials, ranks, actions, thoughts
 var trials_done := {}            # trial id -> true
 var npc_state := {}              # traveller id -> {met, visits, relationship, taught, knows_from_mika, used_beats, memories}
@@ -63,6 +75,9 @@ func _init() -> void:
 	for c in registry.connections:
 		adjacency.get_or_add(c[0], {})[c[1]] = c[2]
 		adjacency.get_or_add(c[1], {})[c[0]] = c[2]
+		if c.size() > 3 and bool((c[3] as Dictionary).get("sealed", false)):
+			sealed[c[0] + "|" + c[1]] = String(c[3].get("why", "sealed"))
+			sealed[c[1] + "|" + c[0]] = String(c[3].get("why", "sealed"))
 	for a in areas:
 		adjacency.get_or_add(a, {})
 	discovered_locations[registry.start_location] = true
@@ -110,6 +125,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	play_s += delta
+	world_min += delta * clock_rate * clock_boost
+	var h := int(world_min / 60.0)
+	if h != _last_hour:
+		_last_hour = h
+		hour_changed.emit(day(), hour())
 	if not persistent:
 		return
 	_save_timer += delta
@@ -147,7 +167,8 @@ func save_data() -> Dictionary:
 		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_seq": activity_seq, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200)),
 		"progress": minds["mika"].progress, "agents": _agents_data(),
 		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred,
-		"mika_explored": minds["mika"].explored, "habitats": habitats, "play_s": play_s}
+		"mika_explored": minds["mika"].explored, "habitats": habitats, "play_s": play_s, "world_min": world_min,
+		"journey": journey}
 
 
 func _agents_data() -> Dictionary:
@@ -247,6 +268,13 @@ func _apply_save(d: Dictionary) -> void:
 	story_state = d.get("story_state", {})
 	habitats = d.get("habitats", {})
 	play_s = float(d.get("play_s", 0.0))
+	world_min = float(d.get("world_min", world_min))
+	journey = d.get("journey", {})
+	# the world went on while the game was closed: catch up (capped at a week), journeys included (JourneyDirector)
+	var away_s := maxf(0.0, Time.get_unix_time_from_system() - float(d.get("saved_unix", Time.get_unix_time_from_system())))
+	var add := minf(away_s * clock_rate, 7.0 * 1440.0)
+	world_min += add
+	clock_catch_up = {"real_s": int(away_s), "world_min": snappedf(add, 0.1)}
 	activity_counts = d.get("activity_counts", {})
 	activity_log.assign(d.get("activity_log", []))
 	activity_seq = int(d.get("activity_seq", 0))
@@ -335,6 +363,11 @@ func locations_in_area(area_id: String) -> Array:
 
 
 ## Shortest chain of areas (inclusive) from `from_area` to `to_area`; [] if unreachable.
+## A connection that exists in the world but cannot be used (the dormant ley-line gate: no free teleportation).
+func is_sealed(a: String, b: String) -> bool:
+	return sealed.has(a + "|" + b)
+
+
 func route(from_area: String, to_area: String) -> Array:
 	if from_area == to_area:
 		return [from_area]
@@ -343,7 +376,7 @@ func route(from_area: String, to_area: String) -> Array:
 	while not queue.is_empty():
 		var a: String = queue.pop_front()
 		for n in adjacency.get(a, {}):
-			if not prev.has(n):
+			if not prev.has(n) and not is_sealed(a, n):
 				prev[n] = a
 				if n == to_area:
 					var path := [n]
@@ -434,6 +467,41 @@ func location_summary(id: String) -> Dictionary:
 
 func game_time() -> float:
 	return play_s
+
+
+## Day number (1 = the first day) and the hour of the day (0-23) / fractional hour.
+func day() -> int:
+	return int(world_min / 1440.0) + 1
+
+
+func hour() -> int:
+	return int(fmod(world_min, 1440.0) / 60.0)
+
+
+func hour_f() -> float:
+	return fmod(world_min, 1440.0) / 60.0
+
+
+func clock_text() -> String:
+	var m := int(fmod(world_min, 60.0))
+	return "Day %d, %02d:%02d" % [day(), hour(), m]
+
+
+## How light it is outside: 0 at night, 1 in full day, eased through dawn (05:00-07:00) and dusk (18:00-20:00).
+func daylight() -> float:
+	var h := hour_f()
+	if h < 5.0 or h >= 20.0:
+		return 0.0
+	if h < 7.0:
+		return smoothstep(5.0, 7.0, h)
+	if h < 18.0:
+		return 1.0
+	return 1.0 - smoothstep(18.0, 20.0, h)
+
+
+## Advance the world by `minutes` (a journey's road time, a night's sleep): everything that runs on the clock follows.
+func advance_clock(minutes: float) -> void:
+	world_min += minutes
 
 
 func snapshot() -> Dictionary:

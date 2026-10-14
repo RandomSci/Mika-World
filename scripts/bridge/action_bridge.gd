@@ -9,7 +9,7 @@ extends Node
 ##
 ## Commands (all accept "id"; character defaults to "mika"):
 ##  observe · list_interactions · navigate_to{target,run} · look_at|face{target} · cast_spell{spell,clip}
-##  start_training · stop · list_regions · list_locations{filter} · travel_to{location,mode:walk|fast}
+##  start_training · stop · list_regions · list_locations{filter} · travel_to{location,mode:walk} (no instant travel)
 ##  transition_state · nearby_interactables{radius} · interact{object} · landmarks · world_state · set_time{night}
 ## Events: hello · action_started · action_finished · cast_phase · journey_started · journey_progress ·
 ##         journey_finished · player_crossed · area_activated · activity_done

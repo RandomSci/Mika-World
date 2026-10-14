@@ -298,12 +298,19 @@ func _creature() -> void:
 	cr.rotation.y = PI * 0.12
 	cr.build(defs[id].body, Color(1.0, 0.55, 0.2))
 	await _wait(1.0)
-	for st in ["idle", "windup", "strike"]:
+	# frame by its real size (a Mossback is three times an imp)
+	var hgt := 0.0
+	for mi in cr.find_children("*", "MeshInstance3D", true, false):
+		var bb := (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+		hgt = maxf(hgt, bb.end.y)
+	print("[lab] creature %s height %.2f m" % [id, hgt])
+	var k := maxf(hgt / 1.6, 1.0)
+	for st in ["idle", "alert", "windup", "strike", "move"]:
 		cr.play(st)
 		await _wait(0.45 if st != "idle" else 1.2)
-		_look(Vector3(0.6, 1.25, 3.4), Vector3(0, 0.95, 0), 42.0)
+		_look(Vector3(0.6, 1.25, 3.4) * k, Vector3(0, 0.95, 0) * k, 42.0)
 		await _wait(0.05)
 		await _grab("creature_%s_%s_front" % [id, st])
-		_look(Vector3(2.6, 1.6, 2.2), Vector3(0, 0.9, 0), 42.0)
+		_look(Vector3(2.6, 1.6, 2.2) * k, Vector3(0, 0.9, 0) * k, 42.0)
 		await _wait(0.05)
 		await _grab("creature_%s_%s_34" % [id, st])

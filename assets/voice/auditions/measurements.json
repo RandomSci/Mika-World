@@ -1,0 +1,642 @@
+{
+ "luna/casual_1_original.wav": {
+  "seconds": 5.4,
+  "median_f0_hz": 190.4,
+  "f0_range_hz": [
+   159.9,
+   260.1
+  ]
+ },
+ "luna/casual_2_pitch15.wav": {
+  "seconds": 5.4,
+  "median_f0_hz": 217.5,
+  "f0_range_hz": [
+   169.6,
+   298.8
+  ]
+ },
+ "luna/casual_3_directed.wav": {
+  "seconds": 6.36,
+  "median_f0_hz": 198.3,
+  "f0_range_hz": [
+   115.6,
+   288.3
+  ]
+ },
+ "luna/casual_3b_directed_pitch15.wav": {
+  "seconds": 6.36,
+  "median_f0_hz": 221.3,
+  "f0_range_hz": [
+   110.0,
+   329.6
+  ]
+ },
+ "luna/casual_4_best.wav": {
+  "seconds": 6.36,
+  "median_f0_hz": 211.3,
+  "f0_range_hz": [
+   111.3,
+   309.3
+  ]
+ },
+ "luna/casual_5_alt_Aoede.wav": {
+  "seconds": 5.92,
+  "median_f0_hz": 167.7,
+  "f0_range_hz": [
+   110.0,
+   210.1
+  ]
+ },
+ "luna/casual_5_alt_Despina.wav": {
+  "seconds": 5.72,
+  "median_f0_hz": 177.7,
+  "f0_range_hz": [
+   137.4,
+   283.0
+  ]
+ },
+ "luna/casual_5_alt_Vindemiatrix.wav": {
+  "seconds": 6.16,
+  "median_f0_hz": 188.2,
+  "f0_range_hz": [
+   159.2,
+   320.4
+  ]
+ },
+ "luna/concern_1_original.wav": {
+  "seconds": 3.88,
+  "median_f0_hz": 202.9,
+  "f0_range_hz": [
+   110.0,
+   263.4
+  ]
+ },
+ "luna/concern_2_pitch15.wav": {
+  "seconds": 3.88,
+  "median_f0_hz": 249.8,
+  "f0_range_hz": [
+   110.0,
+   310.4
+  ]
+ },
+ "luna/concern_3_directed.wav": {
+  "seconds": 4.16,
+  "median_f0_hz": 212.5,
+  "f0_range_hz": [
+   110.0,
+   293.3
+  ]
+ },
+ "luna/concern_3b_directed_pitch15.wav": {
+  "seconds": 4.16,
+  "median_f0_hz": 270.1,
+  "f0_range_hz": [
+   110.0,
+   343.3
+  ]
+ },
+ "luna/concern_4_best.wav": {
+  "seconds": 4.16,
+  "median_f0_hz": 260.1,
+  "f0_range_hz": [
+   112.5,
+   338.3
+  ]
+ },
+ "luna/concern_5_alt_Aoede.wav": {
+  "seconds": 4.72,
+  "median_f0_hz": 119.3,
+  "f0_range_hz": [
+   110.0,
+   225.9
+  ]
+ },
+ "luna/concern_5_alt_Despina.wav": {
+  "seconds": 4.44,
+  "median_f0_hz": 190.4,
+  "f0_range_hz": [
+   110.0,
+   259.2
+  ]
+ },
+ "luna/concern_5_alt_Vindemiatrix.wav": {
+  "seconds": 4.08,
+  "median_f0_hz": 197.1,
+  "f0_range_hz": [
+   110.0,
+   245.2
+  ]
+ },
+ "luna/excitement_1_original.wav": {
+  "seconds": 6.0,
+  "median_f0_hz": 285.3,
+  "f0_range_hz": [
+   213.7,
+   339.3
+  ]
+ },
+ "luna/excitement_2_pitch15.wav": {
+  "seconds": 6.0,
+  "median_f0_hz": 331.5,
+  "f0_range_hz": [
+   252.7,
+   412.9
+  ]
+ },
+ "luna/excitement_3_directed.wav": {
+  "seconds": 5.48,
+  "median_f0_hz": 252.7,
+  "f0_range_hz": [
+   110.0,
+   310.8
+  ]
+ },
+ "luna/excitement_3b_directed_pitch15.wav": {
+  "seconds": 5.48,
+  "median_f0_hz": 297.9,
+  "f0_range_hz": [
+   113.6,
+   359.5
+  ]
+ },
+ "luna/excitement_4_best.wav": {
+  "seconds": 5.48,
+  "median_f0_hz": 272.4,
+  "f0_range_hz": [
+   110.6,
+   335.4
+  ]
+ },
+ "luna/excitement_5_alt_Aoede.wav": {
+  "seconds": 5.36,
+  "median_f0_hz": 235.8,
+  "f0_range_hz": [
+   110.0,
+   299.8
+  ]
+ },
+ "luna/excitement_5_alt_Despina.wav": {
+  "seconds": 5.12,
+  "median_f0_hz": 260.1,
+  "f0_range_hz": [
+   110.0,
+   325.1
+  ]
+ },
+ "luna/excitement_5_alt_Vindemiatrix.wav": {
+  "seconds": 5.6,
+  "median_f0_hz": 204.1,
+  "f0_range_hz": [
+   110.0,
+   244.1
+  ]
+ },
+ "luna/magic_1_original.wav": {
+  "seconds": 3.72,
+  "median_f0_hz": 177.7,
+  "f0_range_hz": [
+   110.0,
+   235.8
+  ]
+ },
+ "luna/magic_2_pitch15.wav": {
+  "seconds": 3.72,
+  "median_f0_hz": 208.9,
+  "f0_range_hz": [
+   110.0,
+   274.0
+  ]
+ },
+ "luna/magic_3_directed.wav": {
+  "seconds": 5.72,
+  "median_f0_hz": 164.3,
+  "f0_range_hz": [
+   110.0,
+   199.4
+  ]
+ },
+ "luna/magic_3b_directed_pitch15.wav": {
+  "seconds": 5.72,
+  "median_f0_hz": 191.5,
+  "f0_range_hz": [
+   110.0,
+   229.1
+  ]
+ },
+ "luna/magic_4_best.wav": {
+  "seconds": 5.72,
+  "median_f0_hz": 178.2,
+  "f0_range_hz": [
+   110.0,
+   215.0
+  ]
+ },
+ "luna/magic_5_alt_Aoede.wav": {
+  "seconds": 4.2,
+  "median_f0_hz": 204.1,
+  "f0_range_hz": [
+   110.0,
+   235.5
+  ]
+ },
+ "luna/magic_5_alt_Despina.wav": {
+  "seconds": 4.8,
+  "median_f0_hz": 173.6,
+  "f0_range_hz": [
+   110.0,
+   198.3
+  ]
+ },
+ "luna/magic_5_alt_Vindemiatrix.wav": {
+  "seconds": 4.88,
+  "median_f0_hz": 159.2,
+  "f0_range_hz": [
+   110.0,
+   175.6
+  ]
+ },
+ "luna/surprise_1_original.wav": {
+  "seconds": 3.52,
+  "median_f0_hz": 335.4,
+  "f0_range_hz": [
+   231.2,
+   515.5
+  ]
+ },
+ "luna/surprise_2_pitch15.wav": {
+  "seconds": 3.52,
+  "median_f0_hz": 396.6,
+  "f0_range_hz": [
+   318.0,
+   690.4
+  ]
+ },
+ "luna/surprise_3_directed.wav": {
+  "seconds": 3.76,
+  "median_f0_hz": 265.4,
+  "f0_range_hz": [
+   189.7,
+   481.8
+  ]
+ },
+ "luna/surprise_3b_directed_pitch15.wav": {
+  "seconds": 3.76,
+  "median_f0_hz": 275.6,
+  "f0_range_hz": [
+   110.0,
+   554.4
+  ]
+ },
+ "luna/surprise_4_best.wav": {
+  "seconds": 3.76,
+  "median_f0_hz": 316.6,
+  "f0_range_hz": [
+   208.4,
+   529.9
+  ]
+ },
+ "luna/surprise_5_alt_Aoede.wav": {
+  "seconds": 3.56,
+  "median_f0_hz": 252.0,
+  "f0_range_hz": [
+   110.0,
+   333.5
+  ]
+ },
+ "luna/surprise_5_alt_Despina.wav": {
+  "seconds": 3.68,
+  "median_f0_hz": 359.5,
+  "f0_range_hz": [
+   173.6,
+   548.0
+  ]
+ },
+ "luna/surprise_5_alt_Vindemiatrix.wav": {
+  "seconds": 3.76,
+  "median_f0_hz": 245.5,
+  "f0_range_hz": [
+   110.0,
+   449.2
+  ]
+ },
+ "mika/casual_1_original.wav": {
+  "seconds": 7.2,
+  "median_f0_hz": 221.3,
+  "f0_range_hz": [
+   110.0,
+   345.2
+  ]
+ },
+ "mika/casual_2_pitch15.wav": {
+  "seconds": 7.2,
+  "median_f0_hz": 254.2,
+  "f0_range_hz": [
+   110.0,
+   394.3
+  ]
+ },
+ "mika/casual_3_directed.wav": {
+  "seconds": 6.96,
+  "median_f0_hz": 255.7,
+  "f0_range_hz": [
+   178.6,
+   425.0
+  ]
+ },
+ "mika/casual_3b_directed_pitch15.wav": {
+  "seconds": 6.96,
+  "median_f0_hz": 307.6,
+  "f0_range_hz": [
+   213.7,
+   529.3
+  ]
+ },
+ "mika/casual_4_best.wav": {
+  "seconds": 6.96,
+  "median_f0_hz": 280.4,
+  "f0_range_hz": [
+   188.3,
+   454.5
+  ]
+ },
+ "mika/casual_5_alt_Autonoe.wav": {
+  "seconds": 7.36,
+  "median_f0_hz": 282.0,
+  "f0_range_hz": [
+   151.1,
+   330.4
+  ]
+ },
+ "mika/casual_5_alt_Laomedeia.wav": {
+  "seconds": 6.76,
+  "median_f0_hz": 168.2,
+  "f0_range_hz": [
+   110.0,
+   341.3
+  ]
+ },
+ "mika/casual_5_alt_Zephyr.wav": {
+  "seconds": 6.92,
+  "median_f0_hz": 209.5,
+  "f0_range_hz": [
+   110.0,
+   353.3
+  ]
+ },
+ "mika/concern_1_original.wav": {
+  "seconds": 5.16,
+  "median_f0_hz": 270.1,
+  "f0_range_hz": [
+   160.1,
+   797.7
+  ]
+ },
+ "mika/concern_2_pitch15.wav": {
+  "seconds": 5.16,
+  "median_f0_hz": 289.5,
+  "f0_range_hz": [
+   110.0,
+   397.9
+  ]
+ },
+ "mika/concern_3_directed.wav": {
+  "seconds": 5.8,
+  "median_f0_hz": 224.5,
+  "f0_range_hz": [
+   110.0,
+   321.9
+  ]
+ },
+ "mika/concern_3b_directed_pitch15.wav": {
+  "seconds": 5.8,
+  "median_f0_hz": 269.3,
+  "f0_range_hz": [
+   110.0,
+   372.1
+  ]
+ },
+ "mika/concern_4_best.wav": {
+  "seconds": 5.8,
+  "median_f0_hz": 214.4,
+  "f0_range_hz": [
+   110.0,
+   343.2
+  ]
+ },
+ "mika/concern_5_alt_Autonoe.wav": {
+  "seconds": 5.6,
+  "median_f0_hz": 260.1,
+  "f0_range_hz": [
+   174.4,
+   430.2
+  ]
+ },
+ "mika/concern_5_alt_Laomedeia.wav": {
+  "seconds": 5.72,
+  "median_f0_hz": 194.9,
+  "f0_range_hz": [
+   110.0,
+   282.0
+  ]
+ },
+ "mika/concern_5_alt_Zephyr.wav": {
+  "seconds": 5.24,
+  "median_f0_hz": 234.4,
+  "f0_range_hz": [
+   110.0,
+   298.8
+  ]
+ },
+ "mika/excitement_1_original.wav": {
+  "seconds": 5.12,
+  "median_f0_hz": 349.2,
+  "f0_range_hz": [
+   232.3,
+   496.7
+  ]
+ },
+ "mika/excitement_2_pitch15.wav": {
+  "seconds": 5.04,
+  "median_f0_hz": 405.8,
+  "f0_range_hz": [
+   272.4,
+   577.2
+  ]
+ },
+ "mika/excitement_3_directed.wav": {
+  "seconds": 4.68,
+  "median_f0_hz": 415.3,
+  "f0_range_hz": [
+   342.0,
+   495.6
+  ]
+ },
+ "mika/excitement_3b_directed_pitch15.wav": {
+  "seconds": 4.68,
+  "median_f0_hz": 474.3,
+  "f0_range_hz": [
+   335.0,
+   689.7
+  ]
+ },
+ "mika/excitement_4_best.wav": {
+  "seconds": 4.68,
+  "median_f0_hz": 458.2,
+  "f0_range_hz": [
+   366.8,
+   569.0
+  ]
+ },
+ "mika/excitement_5_alt_Autonoe.wav": {
+  "seconds": 4.92,
+  "median_f0_hz": 423.8,
+  "f0_range_hz": [
+   312.6,
+   644.6
+  ]
+ },
+ "mika/excitement_5_alt_Laomedeia.wav": {
+  "seconds": 4.84,
+  "median_f0_hz": 374.3,
+  "f0_range_hz": [
+   298.8,
+   499.6
+  ]
+ },
+ "mika/excitement_5_alt_Zephyr.wav": {
+  "seconds": 5.0,
+  "median_f0_hz": 411.7,
+  "f0_range_hz": [
+   110.0,
+   560.8
+  ]
+ },
+ "mika/magic_1_original.wav": {
+  "seconds": 4.48,
+  "median_f0_hz": 249.8,
+  "f0_range_hz": [
+   170.6,
+   363.6
+  ]
+ },
+ "mika/magic_2_pitch15.wav": {
+  "seconds": 4.4,
+  "median_f0_hz": 282.0,
+  "f0_range_hz": [
+   110.0,
+   395.0
+  ]
+ },
+ "mika/magic_3_directed.wav": {
+  "seconds": 5.0,
+  "median_f0_hz": 245.5,
+  "f0_range_hz": [
+   180.6,
+   367.9
+  ]
+ },
+ "mika/magic_3b_directed_pitch15.wav": {
+  "seconds": 5.0,
+  "median_f0_hz": 283.7,
+  "f0_range_hz": [
+   212.6,
+   429.7
+  ]
+ },
+ "mika/magic_4_best.wav": {
+  "seconds": 5.0,
+  "median_f0_hz": 266.2,
+  "f0_range_hz": [
+   190.2,
+   396.6
+  ]
+ },
+ "mika/magic_5_alt_Autonoe.wav": {
+  "seconds": 6.16,
+  "median_f0_hz": 272.4,
+  "f0_range_hz": [
+   244.1,
+   577.9
+  ]
+ },
+ "mika/magic_5_alt_Laomedeia.wav": {
+  "seconds": 5.24,
+  "median_f0_hz": 307.6,
+  "f0_range_hz": [
+   171.6,
+   417.7
+  ]
+ },
+ "mika/magic_5_alt_Zephyr.wav": {
+  "seconds": 5.16,
+  "median_f0_hz": 282.0,
+  "f0_range_hz": [
+   110.0,
+   380.8
+  ]
+ },
+ "mika/surprise_1_original.wav": {
+  "seconds": 3.0,
+  "median_f0_hz": 185.0,
+  "f0_range_hz": [
+   110.0,
+   262.6
+  ]
+ },
+ "mika/surprise_2_pitch15.wav": {
+  "seconds": 3.0,
+  "median_f0_hz": 204.1,
+  "f0_range_hz": [
+   110.0,
+   387.5
+  ]
+ },
+ "mika/surprise_3_directed.wav": {
+  "seconds": 2.56,
+  "median_f0_hz": 357.4,
+  "f0_range_hz": [
+   208.4,
+   511.9
+  ]
+ },
+ "mika/surprise_3b_directed_pitch15.wav": {
+  "seconds": 2.48,
+  "median_f0_hz": 430.0,
+  "f0_range_hz": [
+   257.2,
+   709.0
+  ]
+ },
+ "mika/surprise_4_best.wav": {
+  "seconds": 2.48,
+  "median_f0_hz": 423.8,
+  "f0_range_hz": [
+   225.0,
+   578.6
+  ]
+ },
+ "mika/surprise_5_alt_Autonoe.wav": {
+  "seconds": 2.68,
+  "median_f0_hz": 378.6,
+  "f0_range_hz": [
+   190.4,
+   657.7
+  ]
+ },
+ "mika/surprise_5_alt_Laomedeia.wav": {
+  "seconds": 2.76,
+  "median_f0_hz": 408.2,
+  "f0_range_hz": [
+   204.1,
+   515.5
+  ]
+ },
+ "mika/surprise_5_alt_Zephyr.wav": {
+  "seconds": 2.2,
+  "median_f0_hz": 376.5,
+  "f0_range_hz": [
+   226.7,
+   417.7
+  ]
+ }
+}
