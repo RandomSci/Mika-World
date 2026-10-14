@@ -4,7 +4,8 @@ extends CreatureBody
 ## top: hover bob, banking into turns, rearing back while it charges, and a dive pitch. Used by the
 ## Emberwing (Quaternius "Dragon", CC0, recoloured for Mika World - see docs/ASSET_SOURCES.md).
 ## spec (data/monsters.json -> "body"): {glb, scale, yaw_offset, clips: {state: [clip, speed, loop]},
-##   recolor: {material_name: [r, g, b, emission]}, mouth: [x, y, z]}
+##   recolor: {material_name: [r, g, b, emission]}, mouth: [x, y, z], ground: true for a walking creature (no hover
+##   bob, banking or rearing - its clips carry the body), keep_materials: true to keep the model's own PBR materials}
 
 var spec := {}
 var model: Node3D
@@ -18,6 +19,7 @@ var _prev_yaw := 0.0
 var hover := 0.0                  # extra height (m) the monster asks for (rising away, diving)
 var pitch := 0.0                  # radians, nose down > 0
 var mouth_glow: OmniLight3D
+var _own_emission := {}           # material name -> [enabled, colour, energy] as imported (restored after a hurt flash)
 
 
 func build(p_spec: Dictionary, eye: Color) -> void:
@@ -52,7 +54,9 @@ func build(p_spec: Dictionary, eye: Color) -> void:
 					mat.emission_enabled = true
 					mat.emission = Color(c[0], c[1], c[2])
 					mat.emission_energy_multiplier = float(c[3])
-			mat.roughness = 0.75
+			if not bool(spec.get("keep_materials", false)):
+				mat.roughness = 0.75
+			_own_emission[nm] = [mat.emission_enabled, mat.emission, mat.emission_energy_multiplier]
 			_mats[nm] = mat
 			m.set_surface_override_material(si, mat)
 	mouth_glow = FX.light(eye, 0.0, 3.0)
@@ -103,11 +107,14 @@ func _process(delta: float) -> void:
 	var rate := angle_difference(_prev_yaw, yaw) / maxf(delta, 1e-4)
 	_prev_yaw = yaw
 	_bank = lerpf(_bank, clampf(-rate * 0.25 - move_speed * 0.0, -0.6, 0.6), 1.0 - exp(-4.0 * delta))
-	var bob := 0.12 * sin(_t * 3.1) if state != "defeat" else 0.0
+	var ground := bool(spec.get("ground", false))
+	if ground:
+		_bank = 0.0
+	var bob := 0.12 * sin(_t * 3.1) if (state != "defeat" and not ground) else 0.0
 	var rear := 0.0
-	if state == "windup":
+	if state == "windup" and not ground:
 		rear = -0.45 * clampf(state_t / 0.4, 0.0, 1.0)      # rears back, chest out, before it breathes / dives
-	elif state == "strike":
+	elif state == "strike" and not ground:
 		rear = 0.25
 	_pivot.position.y = lerpf(_pivot.position.y, hover + bob, 1.0 - exp(-5.0 * delta))
 	_pivot.rotation = Vector3(lerpf(_pivot.rotation.x, rear + pitch, 1.0 - exp(-8.0 * delta)), 0, _bank)
@@ -130,11 +137,13 @@ func _process(delta: float) -> void:
 					m.emission_energy_multiplier = float(rc[k][3])
 					restored = true
 			if not restored:
-				m.emission_enabled = false
-				m.emission = Color.BLACK
+				var own: Array = _own_emission.get(nm, [false, Color.BLACK, 1.0])
+				m.emission_enabled = bool(own[0])
+				m.emission = own[1]
+				m.emission_energy_multiplier = float(own[2])
 
 
 func collapse() -> void:
 	play("defeat")
-	hover = -0.4
+	hover = 0.0 if bool(spec.get("ground", false)) else -0.4
 	await get_tree().create_timer(maxf(0.6, clip_length("defeat"))).timeout

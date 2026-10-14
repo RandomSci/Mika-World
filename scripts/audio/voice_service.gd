@@ -488,7 +488,7 @@ func react(speaker: String, kind := "laugh") -> Dictionary:
 	var cfg := _speaker_cfg(speaker)
 	var who = _speakers.get(speaker)
 	if who and is_instance_valid(who) and who.has_method("set_expression"):
-		who.set_expression("happy", 0.8)
+		who.set_expression("surprised" if kind in ["gasp", "startle"] else "happy", 0.85)
 	var texts: Dictionary = config.get("reactions", {}).get("clips", {}).get(kind, {})
 	var key := speaker + "|" + kind
 	var provider := String(cfg.get("provider", ""))

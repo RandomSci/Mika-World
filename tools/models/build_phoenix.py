@@ -124,16 +124,16 @@ bone("Root", (0, 0, 0), (0, 0, 0.4), None, up=(0, -1, 0), kind="root")
 bone("Hips", (0, 0.30, 1.32), (0, -0.05, 1.48), "Root")
 bone("Spine", (0, -0.05, 1.48), (0, -0.45, 1.62), "Hips")
 bone("Chest", (0, -0.45, 1.62), (0, -0.88, 1.78), "Spine")
-HZ = 0.22   # the head sits this much higher than the first draft (a longer, slimmer neck)
-bone("Neck1", (0, -0.88, 1.78), (0, -1.06, 2.1), "Chest", up=(0, -1, 0))
-bone("Neck2", (0, -1.06, 2.1), (0, -1.14, 2.42), "Neck1", up=(0, -1, 0))
-bone("Neck3", (0, -1.14, 2.42), (0, -1.17, 2.6 + HZ), "Neck2", up=(0, -1, 0))
+HZ = 0.08   # v4 (the developer: "slightly shorten the neck"): 14 cm lower than v3 (0.22)
+bone("Neck1", (0, -0.88, 1.78), (0, -1.06, 2.05), "Chest", up=(0, -1, 0))
+bone("Neck2", (0, -1.06, 2.05), (0, -1.14, 2.33), "Neck1", up=(0, -1, 0))
+bone("Neck3", (0, -1.14, 2.33), (0, -1.17, 2.6 + HZ), "Neck2", up=(0, -1, 0))
 bone("Head", (0, -1.17, 2.6 + HZ), (0, -1.46, 2.68 + HZ), "Neck3")
 bone("Beak_Lower", (0, -1.42, 2.58 + HZ), (0, -1.72, 2.5 + HZ), "Head")
 bone("Crest1", (0, -1.26, 2.76 + HZ), (0, -1.02, 3.02 + HZ), "Head")
 bone("Crest2", (0, -1.02, 3.02 + HZ), (0, -0.74, 3.18 + HZ), "Crest1")
 bone("Crest3", (0, -0.74, 3.18 + HZ), (0, -0.4, 3.24 + HZ), "Crest2")
-pair("Eye", (0.058, -1.385, 2.675 + HZ), (0.058, -1.445, 2.675 + HZ), "Head")
+pair("Eye", (0.084, -1.385, 2.675 + HZ), (0.084, -1.445, 2.675 + HZ), "Head")   # v4: the eye sat inside the head surface
 bone("TailBase", (0, 0.30, 1.32), (0, 0.82, 1.24), "Hips")
 bone("Tail1", (0, 0.82, 1.24), (0, 1.32, 1.12), "TailBase")
 bone("Tail2", (0, 1.32, 1.12), (0, 1.8, 0.98), "Tail1")
@@ -442,16 +442,16 @@ body_rings = [
     (Vector((0, 0.72, 1.24)), Vector((0, -1, 0.1)), 0.16, 0.14, 0.0),
     (Vector((0, 0.42, 1.3)), Vector((0, -1, 0.15)), 0.26, 0.24, 0.1),
     (Vector((0, 0.1, 1.4)), Vector((0, -1, 0.2)), 0.34, 0.33, 0.25),
-    (Vector((0, -0.25, 1.52)), Vector((0, -1, 0.25)), 0.36, 0.39, 0.4),
-    (Vector((0, -0.58, 1.64)), Vector((0, -1, 0.3)), 0.32, 0.38, 0.42),
-    (Vector((0, -0.82, 1.76)), Vector((0, -0.6, 0.6)), 0.2, 0.22, 0.2),
-    (Vector((0, -0.94, 1.9)), Vector((0, -0.4, 1)), 0.13, 0.13, 0.0),
+    (Vector((0, -0.25, 1.52)), Vector((0, -1, 0.25)), 0.39, 0.42, 0.44),
+    (Vector((0, -0.58, 1.64)), Vector((0, -1, 0.3)), 0.37, 0.43, 0.5),      # v4: a deeper breast, broader shoulders
+    (Vector((0, -0.82, 1.76)), Vector((0, -0.6, 0.6)), 0.25, 0.27, 0.26),
+    (Vector((0, -0.94, 1.9)), Vector((0, -0.4, 1)), 0.15, 0.15, 0.0),
 ]
 loft(skin, body_rings, 24, body_color, SPINE_BONES)
-neck_path = [Vector((0, -0.94, 1.9)), Vector((0, -1.06, 2.1)), Vector((0, -1.14, 2.42)), Vector((0, -1.17, 2.6 + HZ)), Vector((0, -1.23, 2.68 + HZ))]
+neck_path = [Vector((0, -0.94, 1.9)), Vector((0, -1.06, 2.05)), Vector((0, -1.14, 2.33)), Vector((0, -1.17, 2.6 + HZ)), Vector((0, -1.23, 2.68 + HZ))]
 neck_rings = []
 for k in range(len(neck_path) - 1):
-    r = 0.112 - 0.016 * k
+    r = 0.128 - 0.019 * k          # v4: a stronger neck root flowing from the fuller breast
     neck_rings.append((neck_path[k], neck_path[k + 1] - neck_path[k], r, r, 0.05))
 neck_rings.append((neck_path[-1], Vector((0, -0.4, 0.3)), 0.07, 0.07, 0.0))
 NECK_COL = lambda p, ang, k: grad((1 - math.sin(ang)) * 0.5, [(0, CRIMSON), (0.6, EMBER), (1, GOLD)])
@@ -524,12 +524,12 @@ lower = [(HEADZ + Vector((0, -1.43, 2.6)), Vector((0, -1, -0.15)), 0.046, 0.028,
 loft(beak, lower, 10, lambda p, ang, k: BEAK_LO, None, True, [("Beak_Lower", 1.0)])
 beak.build(solid=True)
 
-EYE_R = 0.025
+EYE_R = 0.031          # v4: a larger eye (appeal; a raptor's eye is big for its head)
 eyes = MeshBuf("Eyes")
 for sfx, sx in (("_L", 1), ("_R", -1)):
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=18, v_segments=12, radius=EYE_R)
-    c = Vector((0.058 * sx, -1.385, 2.675 + HZ))
+    c = Vector((0.084 * sx, -1.385, 2.675 + HZ))
     g = Vector((0.78 * sx, -0.62, 0.06)).normalized()
     f_, r_, u_ = frame(g)
     ev, ef, euv, ec, ew = [], [], [], [], []
@@ -546,7 +546,7 @@ for sfx, sx in (("_L", 1), ("_R", -1)):
 eyes.build(solid=True)
 ring = MeshBuf("Beak_EyeRing")
 for sfx, sx in (("_L", 1), ("_R", -1)):
-    c = Vector((0.058 * sx, -1.385, 2.675 + HZ))
+    c = Vector((0.084 * sx, -1.385, 2.675 + HZ))
     g = Vector((0.85 * sx, -0.5, 0.05)).normalized()
     f_, r_, u_ = frame(g)
     rv, rf, ruv, rc, rw = [], [], [], [], []
@@ -623,21 +623,31 @@ HEAD_RINGS = [(HEAD_C + Vector((0, 0.15, 0.03)), Vector((0, -1, -0.15)), 0.092, 
               (HEAD_C + Vector((0, 0.0, 0.052)), Vector((0, -1, -0.35)), 0.1, 0.088, 0.0),
               (HEAD_C + Vector((0, -0.07, 0.05)), Vector((0, -1, -0.45)), 0.092, 0.078, 0.0),
               (HEAD_C + Vector((0, -0.12, 0.04)), Vector((0, -1, -0.6)), 0.078, 0.066, 0.0)]
-eye_clear = lambda p: abs(p.x) > 0.05 and abs(p.z - 2.675 - HZ) < 0.055 and p.y < -1.31
+eye_clear = lambda p: abs(p.x) > 0.045 and abs(p.z - 2.675 - HZ) < 0.06 and -1.43 < p.y < -1.33
 # head plumage: a scarlet crown under a circlet of gold, a dark crimson mask through the eye (a falcon's
 # stripe), gold cheeks and throat
-shingle(HEAD_RINGS, 24, 0.06, 0.035, ["Head"], lambda ang: ([(0, DEEP), (1, DEEP)] if abs(math.cos(ang)) > 0.78 and math.sin(ang) > -0.4 else
+# v4: the rings sat INSIDE the skull (radii 0.09-0.1 under a 0.104 x 0.112 head): lift them onto its surface
+HEAD_RINGS = [(c, f, rx * 1.22 + 0.006, rz * 1.22 + 0.006, kl) for c, f, rx, rz, kl in HEAD_RINGS]
+shingle(densify(HEAD_RINGS, 2), 34, 0.078, 0.046, ["Head"], lambda ang: ([(0, DEEP), (1, DEEP)] if abs(math.cos(ang)) > 0.78 and math.sin(ang) > -0.4 else
         ([(0, CRIMSON), (1, AMBER)] if math.sin(ang) < -0.2 else [(0, DEEP), (0.6, CRIMSON), (1, SCARLET)])),
-        tilt=0.14, droop=0.5, jitter=0.004, skip=eye_clear, glow=0.25)
+        tilt=0.1, droop=0.55, jitter=0.004, skip=eye_clear, glow=0.25)
 for sfx, sx in (("_L", 1), ("_R", -1)):
     th = [(Vector((0.21 * sx, 0.18, 1.18)), Vector((0.05 * sx, -0.35, -1)), 0.15, 0.13, 0.0),
           (Vector((0.235 * sx, 0.1, 1.0)), Vector((0.05 * sx, -0.35, -1)), 0.125, 0.115, 0.0),
           (Vector((0.26 * sx, 0.04, 0.86)), Vector((0.05 * sx, -0.3, -1)), 0.095, 0.09, 0.0),
           (Vector((0.265 * sx, 0.12, 0.7)), Vector((0.0, 0.5, -1)), 0.075, 0.07, 0.0)]
     shingle(th, 12, 0.16, 0.09, ["Hip" + sfx], lambda ang: [(0, CRIMSON), (0.5, SCARLET), (1, EMBER)], tilt=0.3, droop=0.3, glow=0.25)
+# v4 SCAPULARS: a mantle of broad feathers over each shoulder, laid back over the upper back (mass at the shoulder)
+for sfx, sx in (("_L", 1), ("_R", -1)):
+    sc = [(Vector((0.2 * sx, -0.66, 1.84)), Vector((0.15 * sx, -1, 0.1)), 0.17, 0.12, 0.0),
+          (Vector((0.24 * sx, -0.5, 1.84)), Vector((0.1 * sx, -1, 0.05)), 0.19, 0.12, 0.0),
+          (Vector((0.22 * sx, -0.3, 1.8)), Vector((0.05 * sx, -1, -0.05)), 0.17, 0.11, 0.0)]
+    shingle(sc, 14, 0.3, 0.13, ["Shoulder" + sfx, "Chest", "Spine"],
+            lambda ang: [(0, CRIMSON), (0.55, SCARLET), (1, EMBER)] if math.sin(ang) > -0.15 else None,
+            tilt=0.18, droop=0.35, jitter=0.01, glow=0.35)
 # the GORGET: two rows of gold filigree scales where the neck meets the breast (her collar of office)
-GORGET = [(Vector((0, -0.84, 1.8)), Vector((0, -0.55, 0.7)), 0.215, 0.235, 0.12),
-          (Vector((0, -0.9, 1.88)), Vector((0, -0.45, 0.85)), 0.165, 0.175, 0.05)]
+GORGET = [(Vector((0, -0.84, 1.8)), Vector((0, -0.55, 0.7)), 0.255, 0.28, 0.14),
+          (Vector((0, -0.9, 1.88)), Vector((0, -0.45, 0.85)), 0.19, 0.2, 0.06)]
 shingle(GORGET, 16, 0.2, 0.12, ["Chest", "Neck1"], lambda ang: [(0, AMBER), (0.6, GOLD), (1, BRIGHT)] if math.sin(ang) < 0.55 else None,
         tilt=0.35, droop=0.25, jitter=0.004, buf=gold, cell="gold", glow=0.6)
 # the CROWN: a circlet of small gold scales over the brow and around the crest's root
@@ -742,7 +752,8 @@ def wing(sx):
     segs = (("Prim", W0, W1, 16, (84, 32), (1.3, 1.55)), ("Sec", R0, R1, 19, (90, 84), (1.25, 1.35)), ("Ter", H0, H1, 8, (100, 92), (1.05, 1.15)))
     rows5 = ((0.6, 0.04, 0.045, COVERT_GRAD, "contour"), (0.47, 0.1, 0.065, [(0, SCARLET), (0.6, EMBER), (1, AMBER)], "contour"),
              (0.36, 0.15, 0.085, [(0, SCARLET), (0.6, EMBER), (1, AMBER)], "contour"), (0.26, 0.2, 0.1, [(0, EMBER), (0.6, AMBER), (1, GOLD)], "gold"),
-             (0.17, 0.25, 0.115, [(0, AMBER), (1, GOLD)], "gold"))
+             (0.17, 0.25, 0.115, [(0, AMBER), (1, GOLD)], "gold"),
+             (0.11, 0.29, 0.125, [(0, EMBER), (0.5, AMBER), (1, GOLD)], "gold"))     # v4: marginal coverts on the leading edge
     for row_i, (frac, fwd, zz, grad_, cell) in enumerate(rows5):
         for grp, a, b, count, angs, lens in segs:
             for r in _row(a, b, count, angs, (lens[0] * frac, lens[1] * frac), 0.0, 0.98):
@@ -791,6 +802,15 @@ for i in range(6):
     d = (TAX * math.cos(ang) + Vector((1, 0, 0)) * math.sin(ang)).normalized()
     near = min(range(NTAIL), key=lambda j: abs(TAIL_ROWS[j]["k"] - k))
     feather(tailm, T0 + Vector((0, 0, 0.06)), d, UP, 0.75, 0.24, "contour", [(0, SCARLET), (0.6, EMBER), (1, AMBER)], [("TailF%d" % near, 1.0)], curve=0.26, segs=3, glow=0.4)
+# v4: upper-tail coverts - a second, longer layer over the fan's root (the tail reads layered, not a flat fan)
+for i in range(8):
+    k = (i - 3.5) / 3.5
+    ang = math.radians(k * 34)
+    d = (TAX * math.cos(ang) + Vector((1, 0, 0)) * math.sin(ang)).normalized()
+    near = min(range(NTAIL), key=lambda j: abs(TAIL_ROWS[j]["k"] - k))
+    feather(tailm, T0 + TAX * 0.05 + Vector((0, 0, 0.045)), d, UP, 1.15 - 0.2 * abs(k), 0.3, "flight",
+            [(0, CRIMSON), (0.5, SCARLET), (0.85, EMBER), (1, AMBER)], [("TailF%d" % near, 1.0)], curve=0.22, segs=5,
+            raise_=0.003 * (4 - abs(i - 3.5)), glow=0.6, tint=random.uniform(0.93, 1.05))
 # the TRAIN: two side plumes on the streamer bones and three central plumes, each ending in a curl
 for sfx, sg in (("_L", 1), ("_R", -1)):
     S1a = BONES["Stream1" + sfx][0]
@@ -822,11 +842,11 @@ for i in range(7):
     side = Vector((1, 0, 0))
     long_ = i in (1, 3, 5)
     d = (cd * math.cos(math.radians(k * 26)) + side * math.sin(math.radians(k * 26)) + Vector((0, 0, 0.3 * (1 - abs(k))))).normalized()
-    L = ctotal * ((1.95 if i == 3 else 1.65) if long_ else 0.85)
+    L = ctotal * ((2.15 if i == 3 else 1.8) if long_ else 0.95)     # v4: longer, finer plumes
     root = C1a + side * (k * 0.035) - cd * 0.04
     cw = lambda s, L=L, root=root, d=d: nearest_weights(root + d * (L * s), ["Crest1", "Crest2", "Crest3", "Head"], k=2, power=3, snap=0.35)
     if long_:
-        feather(crest, root, d, Vector((0, -0.3, 1)).normalized(), L, 0.12, "streamer", CREST_GRAD, cw, curve=-0.32, segs=10, twist=0.3 * k, glow=1.0)
+        feather(crest, root, d, Vector((0, -0.3, 1)).normalized(), L, 0.105, "streamer", CREST_GRAD, cw, curve=-0.36, segs=12, twist=0.3 * k, glow=1.0)
         flame_card(root + d * (L * 0.55), d, Vector((0, -0.3, 1)).normalized(), L * 0.6, 0.2, lambda s, cw=cw: cw(0.55 + 0.45 * s), glow=0.9, curve=-0.25)
     else:
         feather(crest, root, d, Vector((0, -0.3, 1)).normalized(), L, 0.15, "plume", CREST_GRAD, cw, curve=-0.25, segs=6, glow=0.8)

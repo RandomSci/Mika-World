@@ -111,6 +111,8 @@ func _run() -> void:
 			await _attack()
 		"fx":
 			await _fx()
+		"creature":
+			await _creature()
 		_:
 			print("[lab] unknown lab ", lab)
 	var f := FileAccess.open(out + "/oriel_lab.json", FileAccess.WRITE)
@@ -284,3 +286,24 @@ func _fx() -> void:
 		await _grab("fx_explosion_%d" % k)
 	if is_instance_valid(ring):
 		ring.queue_free()
+
+
+## A hero-scene creature alone, built exactly as the game builds it (ClipRig from data/monsters.json "body"): its idle,
+## the windup and the strike, from the front and three-quarter.
+func _creature() -> void:
+	var id := String(RenderProfile.options.get("creature", "briar_imp"))
+	var defs: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/monsters.json")).monsters
+	var cr := ClipRig.new()
+	add_child(cr)
+	cr.rotation.y = PI * 0.12
+	cr.build(defs[id].body, Color(1.0, 0.55, 0.2))
+	await _wait(1.0)
+	for st in ["idle", "windup", "strike"]:
+		cr.play(st)
+		await _wait(0.45 if st != "idle" else 1.2)
+		_look(Vector3(0.6, 1.25, 3.4), Vector3(0, 0.95, 0), 42.0)
+		await _wait(0.05)
+		await _grab("creature_%s_%s_front" % [id, st])
+		_look(Vector3(2.6, 1.6, 2.2), Vector3(0, 0.9, 0), 42.0)
+		await _wait(0.05)
+		await _grab("creature_%s_%s_34" % [id, st])

@@ -1663,7 +1663,8 @@ func _phoenix() -> void:
 	ph.true_rig.play("idle")
 	# ---- 5. her fire against a creature (judged by the creature)
 	var cpos := NavigationServer3D.map_get_closest_point(map, Vector3(vp.x - 8.0, perch_y, vp.y - 4.5))
-	var mon: Monster = main.spawner.spawn("thornback", cpos)
+	# a sculpted Bestiary creature for the hero scene (not the procedural placeholder)
+	var mon: Monster = main.spawner.spawn("briar_imp", cpos)
 	if mon:
 		await _wait(0.6)
 		var hp0 := mon.hp
@@ -1790,6 +1791,12 @@ func _phoenix_reel() -> void:
 	var b := Basis(Vector3.UP, ph.rotation.y)
 	mika.global_position = NavigationServer3D.map_get_closest_point(map, perch + b * Vector3(-5.5, 0, 3.5)) + Vector3(0, 0.05, 0)
 	mika.look_at_point(perch)
+	mgr.bring_luna()
+	var luna: WorldCharacter = main.characters.get("luna")
+	if luna:
+		# Luna stands nearer the nova's mark (inside its blast radius); Mika further back (she braces)
+		luna.global_position = NavigationServer3D.map_get_closest_point(map, perch + b * Vector3(-2.6, 0, 9.0)) + Vector3(0, 0.05, 0)
+		luna.look_at_point(perch)
 	await _wait(1.0)
 	# 1. her display
 	main.camera_rig.set_shot(perch + b * Vector3(4.0, 1.3, 9.5), perch + Vector3(0, 2.7, 0), 52.0)
@@ -1800,13 +1807,14 @@ func _phoenix_reel() -> void:
 	_shot("reel_display")
 	# 2. the solar nova
 	var cpos := NavigationServer3D.map_get_closest_point(map, perch + b * Vector3(1.0, 0, 12.0))
-	var mon: Monster = main.spawner.spawn("thornback", cpos)
+	var mon: Monster = main.spawner.spawn("briar_imp", cpos)
 	await _wait(0.8)
 	if mon:
 		var mid := (perch + mon.global_position) * 0.5
 		var side := (mon.global_position - perch).cross(Vector3.UP).normalized()
 		main.camera_rig.set_shot(mid + side * 15.0 + Vector3(0, 4.0, 0), mid + Vector3(0, 3.4, 0), 64.0)   # she rises ~5 m for her nova
 		var hp0 := mon.hp
+		_watch_reactions(ph, "attack", "reel_reaction")
 		var o: Dictionary = await ph.cast_nova(mon, 1.0)
 		var hp1 := mon.hp if is_instance_valid(mon) else 0.0
 		_check(hp1 < hp0 or String(o.get("effect", "")) == "defeated", "the solar nova struck the creature (%s)" % o.get("effect", ""), {"hp_before": hp0, "hp_after": hp1})
@@ -1817,6 +1825,7 @@ func _phoenix_reel() -> void:
 	ph.true_rig.play("idle")
 	await _wait(0.8)
 	# 3. the cinematic transformation (its own camera beats), facing Mika
+	_watch_reactions(ph, "transform", "reel_tf_reaction", true)
 	var rec: Dictionary = await ph.transform_to_human("cinematic")
 	_check(rec.get("ok", false), "the cinematic transformation ran", rec.get("record", {}))
 	var hb := Basis(Vector3.UP, ph.human.rotation.y)
@@ -1828,7 +1837,12 @@ func _phoenix_reel() -> void:
 	main.camera_rig.set_shot(perch + b * Vector3(4.0, 1.3, 9.5), perch + Vector3(0, 2.7, 0), 52.0)
 	ph.true_rig.play("majestic")
 	await _wait(3.0)
-	report["phoenix_reel"] = {"transformations": ph.transformations}
+	var hows := {}
+	for e in ph.bystander_log:
+		hows[String(e.who) + ":" + String(e.how)] = true
+	_check(hows.has("mika:brace") or hows.has("mika:hit"), "Mika reacted physically to Oriel's fire (braced or was struck)", ph.bystander_log)
+	_check(luna != null and luna.visible and (hows.has("luna:brace") or hows.has("luna:hit")), "Luna was there and reacted physically to Oriel's fire", ph.bystander_log)
+	report["phoenix_reel"] = {"transformations": ph.transformations, "bystanders": ph.bystander_log}
 	main.camera_rig.clear_shot()
 
 
@@ -1944,3 +1958,61 @@ func _showcase() -> void:
 	ph.human.set_expression("happy", 0.0)
 	report["showcase"] = {"tag": tag, "perf": perf}
 	_check(true, "showcase captured", perf.keys())
+
+
+## Reel proof of the bystanders (the developer: "Mika and Luna must react"): the moment Oriel's fire reaches them
+## (a brace or a hit in her bystander log), cut to them for a beat, take a still, and give the shot back.
+func _watch_reactions(ph: Phoenix, kind: String, tag: String, stills_only := false) -> void:
+	var n0 := ph.bystander_log.size()
+	var t0 := _game_t
+	var first_brace := -1.0
+	while is_instance_valid(ph) and _game_t - t0 < 30.0:
+		var hit := false
+		for i in range(n0, ph.bystander_log.size()):
+			var e: Dictionary = ph.bystander_log[i]
+			if String(e.kind) == kind and String(e.how) == "hit":
+				hit = true
+			elif String(e.kind) == kind and String(e.how) == "brace" and first_brace < 0.0:
+				first_brace = _game_t
+		# a knock-back is the strongest proof; a brace will do if no blow lands within 4 s of it
+		if hit or (first_brace >= 0.0 and _game_t - first_brace > 4.0):
+			break
+		await get_tree().process_frame
+	if not is_instance_valid(ph) or _game_t - t0 >= 30.0:
+		return
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna = main.characters.get("luna")
+	var mid: Vector3 = mika.global_position if luna == null else (mika.global_position + (luna as Node3D).global_position) * 0.5
+	if not stills_only:
+		var keep := {"pos": main.camera_rig._shot_pos, "look": main.camera_rig._shot_look, "fov": main.camera_rig.camera.fov, "on": main.camera_rig.shot_active}
+		var fwd := (ph.global_position - mid)
+		fwd.y = 0.0
+		fwd = fwd.normalized()
+		var side := fwd.cross(Vector3.UP)
+		# the first angle from which both are in clear sight (walls and stones must not hide them)
+		var space := mika.get_world_3d().direct_space_state
+		var targets: Array = [mika.global_position + Vector3(0, 1.2, 0)]
+		if luna:
+			targets.append((luna as Node3D).global_position + Vector3(0, 1.2, 0))
+		var cam := mid + side * 4.5 + fwd * 1.5 + Vector3(0, 1.4, 0)
+		for cand in [side * 4.5 + fwd * 1.5, -side * 4.5 + fwd * 1.5, fwd * 4.5 + side * 1.5, -fwd * 4.0 + side * 1.5, side * 3.5 - fwd * 2.5]:
+			var c: Vector3 = mid + cand + Vector3(0, 1.4, 0)
+			var clear := true
+			for tg in targets:
+				var q := PhysicsRayQueryParameters3D.create(c, tg, 1)
+				var hit := space.intersect_ray(q)
+				if not hit.is_empty() and (hit.position as Vector3).distance_to(tg) > 0.6:
+					clear = false
+			if clear:
+				cam = c
+				break
+		main.camera_rig.set_shot(cam, mid + Vector3(0, 1.0, 0), 52.0)
+		await _wait(0.35)
+		_shot(tag)
+		await _wait(1.1)
+		_shot(tag + "_2")
+		if bool(keep.on):
+			main.camera_rig.set_shot(keep.pos, keep.look, keep.fov)
+	else:
+		await _wait(0.3)
+		_shot(tag)

@@ -95,6 +95,14 @@
     "mika": "Mm-hm-hm!",
     "luna": "Mm-hm-hm!",
     "phoenix": "Hm hm hm."
+   },
+   "gasp": {
+    "mika": "Ah—!",
+    "luna": "Hah—!"
+   },
+   "startle": {
+    "mika": "Whoa!",
+    "luna": "Eek!"
    }
   }
  }

@@ -57,6 +57,8 @@ var _game_t := 0.0
 var _sat_since := -1.0
 var _display_left := 0.0
 var last_nova := {}                 # tests: how high she rose for her last nova
+var bystander_log: Array = []       # tests: how Mika and Luna reacted to her ({t, who, kind, how, dist})
+var _react_cool := {}
 
 
 static func load_data() -> Dictionary:
@@ -445,6 +447,7 @@ func _land() -> void:
 	global_position = _perch
 	rotation.y = _perch_yaw
 	beat_gust(1.2)
+	shock(_perch, "wind", 4.0)
 	if main.audio:
 		main.audio.play3d("phoenix_land", _perch, "SFX", 0.0, "phoenix land")
 		main.audio.play3d("phoenix_wing_fold", _perch, "SFX", -6.0, "phoenix wing fold")
@@ -541,6 +544,54 @@ func cast_flare(target, p_power := 0.9) -> Dictionary:
 	return outcome
 
 
+# ------------------------------------------------------------------ the people near her
+## Her fire and her wind are felt by whoever stands near (the developer: "Mika and Luna must react to Oriel's presence
+## and attacks"). Everyone within 40 m looks at once (head and face: surprised); inside `brace_r` they guard (Mika
+## braces, Luna steps back from it) with a startled cry; inside `hit_r` they are struck - a heavy knock-back, a gasp -
+## and a short line of alarm follows (data/phoenix.json "bystander_lines"; a few seconds' cool-down each).
+func shock(at: Vector3, kind: String, brace_r := 9.0, hit_r := 0.0) -> void:
+	var lines: Dictionary = data.get("bystander_lines", {})
+	for who in ["mika", "luna"]:
+		var c = main.characters.get(who)
+		if c == null or not is_instance_valid(c) or not c.visible:
+			continue
+		var wc := c as WorldCharacter
+		var d := Vector2(wc.global_position.x - at.x, wc.global_position.z - at.z).length()
+		if d > 40.0:
+			continue
+		wc.look_head_at(at + Vector3(0, 1.2, 0))
+		wc.set_expression("surprised", 0.9)
+		var how := "look"
+		if hit_r > 0.0 and d < hit_r:
+			how = "hit"
+			wc.take_hit(at, true)
+		elif d < brace_r:
+			how = "brace"
+			if who == "luna" and not wc.casting:
+				var away := Vector3(wc.global_position.x - at.x, 0, wc.global_position.z - at.z).normalized()
+				wc.dodge(wc.global_position + away * 1.6, 0.45)
+			else:
+				wc.look_at_point(at)
+				wc.play_gesture("brace", 0.08, 0.45)
+		if main.affect:
+			main.affect.react(who, "struck" if how == "hit" else "first_sight", 1.0 if how != "look" else 0.6)
+		var clear_face := func() -> void:
+			if is_instance_valid(wc):
+				wc.set_expression("surprised", 0.0)
+		get_tree().create_timer(1.4).timeout.connect(clear_face)
+		bystander_log.append({"t": snappedf(_game_t, 0.1), "who": who, "kind": kind, "how": how, "dist": snappedf(d, 0.1)})
+		if how != "look" and _game_t - float(_react_cool.get(who, -99.0)) > 4.0 and main.voice:
+			_react_cool[who] = _game_t
+			main.voice.react(who, "gasp" if how == "hit" else "startle")
+			var pool: Array = lines.get(who, {}).get("hit" if how == "hit" else kind, [])
+			if not pool.is_empty():
+				var line := String(pool[rng.randi() % pool.size()])
+				var speak := func() -> void:
+					if main.voice:
+						main.voice.say(who, line, {"mood": "surprised"})
+				get_tree().create_timer(0.9).timeout.connect(speak)
+
+
 ## A great wingbeat's wind (the cinematic pass): the trees round her bend away and swing back, leaves are torn from
 ## the crowns and the litter and dust of the ground blow out from under her - stronger the closer she is to it.
 func beat_gust(strength := 1.0, sound := true) -> void:
@@ -596,6 +647,7 @@ func cast_nova(target: Node3D, p_power := 1.0) -> Dictionary:
 	body.collision_layer = 0
 	if main.audio:
 		main.audio.play_big("phoenix_takeoff", global_position, 2.0, "phoenix takeoff")
+	shock(global_position, "wind", 6.0)
 	await _climb(1.4, 0.55, 1)
 	true_rig.play("hover")
 	await _climb(3.4, 1.0, 2)
@@ -604,7 +656,11 @@ func cast_nova(target: Node3D, p_power := 1.0) -> Dictionary:
 	# 2. the charge, in the air
 	var nova := PhoenixNova.new()
 	area.add_child(nova)
-	nova.resolved.connect(func(o): box["outcome"] = o)
+	var on_burst := func(o: Dictionary) -> void:
+		box["outcome"] = o
+		var at: Vector3 = o.get("at", global_position)
+		shock(at, "attack", 12.0, 5.0)        # the blast reaches whoever stands near it
+	nova.resolved.connect(on_burst)
 	true_rig.play_clip("attack_charge", 0.25, 1.0, false)
 	true_rig.state = "attack_charge"
 	true_rig.set_heat(1.0)
@@ -635,6 +691,7 @@ func cast_nova(target: Node3D, p_power := 1.0) -> Dictionary:
 	await _wait(0.12)
 	nova.launch(target, p_power)
 	beat_gust(1.5, false)
+	shock(global_position - Vector3(0, global_position.y - perch_pos.y, 0), "attack", 7.0)
 	if main.audio:
 		main.audio.play_cine("phoenix_scream", global_position + Vector3(0, 2.5, 0), 0.0, "phoenix battle cry")
 	ImpactFX.shake(area, 0.06, 0.35)
@@ -798,6 +855,7 @@ func transform_to_human(variation := "short") -> Dictionary:
 	var tw := create_tween()
 	tw.tween_property(true_rig, "heat_target", 1.0, maxf(hit - 0.4, 0.4))
 	_space(true, 1.2 if cine else 0.5)
+	shock(ground, "transform", 0.0)
 	# the circle of fire catches round her; later a fire tornado rises over her and engulfs her to the hit
 	FireFX.ring_of_fire(area, ground, 3.1, hit + 1.6, 0.9 if cine else 0.35)
 	if main.audio:
@@ -1072,6 +1130,7 @@ func transform_to_phoenix(camera := false) -> Dictionary:
 ## The transformation's hit: the tornado bursts outward into fire, the shocked air races out, the forest bends
 ## away (leaves torn from the crowns, dust driven across the stones) and the clearing is lit white-gold.
 func _burst_at(ground: Vector3, vortex: FireVortex, big := true) -> void:
+	shock(ground, "transform", 10.0 if big else 7.0, 2.6)
 	if vortex and is_instance_valid(vortex):
 		vortex.set_strength(1.45)
 		vortex.collapse(0.6)

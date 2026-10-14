@@ -179,5 +179,44 @@
    1500
   ],
   "day_only": false
+ },
+ "bystander_lines": {
+  "_note": "Short alarmed lines Mika and Luna say when Oriel's fire or wind reaches them (Phoenix.shock).",
+  "mika": {
+   "attack": [
+    "Whoa—that's a lot of fire!",
+    "Careful, Oriel!",
+    "That shook the whole clearing!"
+   ],
+   "hit": [
+    "Ow—! That was close!",
+    "Hot, hot, hot!"
+   ],
+   "transform": [
+    "She's—burning?!",
+    "Oriel...?"
+   ],
+   "wind": [
+    "Wh—what a gust!"
+   ]
+  },
+  "luna": {
+   "attack": [
+    "Kyaa! Not so close!",
+    "That's a real fire!",
+    "My hair nearly caught!"
+   ],
+   "hit": [
+    "Ah—! I felt that!",
+    "Too hot!"
+   ],
+   "transform": [
+    "What's happening to her?!",
+    "Mika, look!"
+   ],
+   "wind": [
+    "Hold on to something!"
+   ]
+  }
  }
 }

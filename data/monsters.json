@@ -469,6 +469,153 @@
     },
     "source": "Quaternius LowPoly Animated Monsters - Dragon (CC0)"
    }
+  },
+  "briar_imp": {
+   "name": "Briar Imp",
+   "tier": "medium",
+   "weight": 0.0,
+   "hp": 150.0,
+   "speed": 3.1,
+   "float": 0.0,
+   "radius": 0.6,
+   "aggro_radius": 9.0,
+   "leash": 15.0,
+   "color": [
+    0.55,
+    0.16,
+    0.12
+   ],
+   "eye": [
+    1.0,
+    0.55,
+    0.2
+   ],
+   "attack": {
+    "kind": "lunge",
+    "range": 1.8,
+    "vigor": 0.09,
+    "cooldown": 2.8
+   },
+   "resist": {
+    "fire": 1.5,
+    "umbral": 0.8,
+    "water": 1.0,
+    "arcane": 1.0
+   },
+   "describe": "a horned, sinewy imp of the old ruins, red as a coal, that hooks and scratches with long claws",
+   "stagger_s": 0.5,
+   "body": {
+    "type": "clip",
+    "glb": "res://assets/creatures/bestiary/imp.glb",
+    "scale": 1.0,
+    "yaw_offset": 0.0,
+    "aim_y": 1.0,
+    "mouth": [
+     0.0,
+     1.35,
+     0.25
+    ],
+    "ground": true,
+    "keep_materials": true,
+    "clips": {
+     "idle": [
+      "idle",
+      1.0,
+      true
+     ],
+     "move": [
+      "run",
+      1.0,
+      true
+     ],
+     "alert": [
+      "alert",
+      1.0,
+      false
+     ],
+     "windup": [
+      "windup",
+      0.9,
+      false
+     ],
+     "strike": [
+      "strike",
+      1.15,
+      false
+     ],
+     "recover": [
+      "idle",
+      1.0,
+      true
+     ],
+     "hit": [
+      "hit",
+      1.1,
+      false
+     ],
+     "defeat": [
+      "death",
+      1.0,
+      false
+     ]
+    }
+   },
+   "loot": [
+    {
+     "item": "thorn_carapace",
+     "chance": 1.0,
+     "count": [
+      1,
+      1
+     ]
+    },
+    {
+     "item": "aether_dust",
+     "chance": 0.5,
+     "count": [
+      1,
+      2
+     ]
+    }
+   ],
+   "attacks": [
+    {
+     "kind": "sweep",
+     "range": 1.9,
+     "windup": 0.6,
+     "strike_s": 0.35,
+     "recover": 0.6,
+     "vigor": 0.08,
+     "cooldown": 2.6,
+     "stamina": 0.2,
+     "priority": 1.0,
+     "half_angle_deg": 70.0,
+     "color": [
+      1.0,
+      0.5,
+      0.2
+     ]
+    },
+    {
+     "kind": "charge",
+     "range": 6.0,
+     "min_range": 2.5,
+     "half_angle_deg": 12.0,
+     "windup": 0.8,
+     "strike_s": 0.45,
+     "recover": 1.0,
+     "vigor": 0.11,
+     "heavy": true,
+     "cooldown": 7.0,
+     "stamina": 0.3,
+     "priority": 1.3,
+     "color": [
+      1.0,
+      0.45,
+      0.2
+     ]
+    }
+   ]
   }
  },
  "items": {

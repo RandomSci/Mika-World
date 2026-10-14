@@ -104,6 +104,7 @@ func summon() -> Phoenix:
 	st["next_visit_unix"] = Time.get_unix_time_from_system() + cd
 	ph.arrive()
 	_log("summoned", {"visit": st.visits})
+	bring_luna()
 	_prefetch_lines()
 	if main.curiosity and main.curiosity.has_method("on_visitor"):
 		main.curiosity.on_visitor("phoenix")
@@ -149,3 +150,28 @@ func _prefetch_lines() -> void:
 		items.append([String(b.npc), {"form": "humanoid", "mood": String(b.get("mood", ""))}])
 	for it in items:
 		main.voice.prefetch("phoenix", it[0], it[1])
+
+
+## Luna is part of this encounter (the developer: "Luna must be present in this encounter unless there is a clear
+## scripted reason otherwise"): if she is elsewhere, she is with Mika now - placed a couple of metres beside her on
+## the navmesh, visible, her saved location moved here - so she sees Oriel, and reacts to her.
+func bring_luna() -> bool:
+	var luna: WorldCharacter = main.characters.get("luna")
+	var mika: WorldCharacter = main.characters.get("mika")
+	if luna == null or mika == null or main.world == null:
+		return false
+	if luna.visible and luna.world == main.world and luna.global_position.distance_to(mika.global_position) < 25.0:
+		return true
+	var side := mika.global_transform.basis.x.normalized()
+	var want := mika.global_position + side * 2.2 + mika.global_transform.basis.z.normalized() * 0.8
+	var at := NavigationServer3D.map_get_closest_point(main.world.get_world_3d().navigation_map, want)
+	if at == Vector3.ZERO or at.distance_to(want) > 4.0:
+		at = want
+	luna.global_position = at + Vector3(0, 0.1, 0)
+	luna.world = main.world
+	luna.velocity = Vector3.ZERO
+	luna.visible = true
+	luna.set_physics_process(true)
+	WorldState.mind("luna").set_location(main.streaming.current_id, luna.global_position)
+	_log("luna_joined", {"at": [snappedf(at.x, 0.1), snappedf(at.z, 0.1)]})
+	return true

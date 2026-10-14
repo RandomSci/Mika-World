@@ -225,9 +225,11 @@ func _arrive() -> void:
 	phase = "done"
 	var at := global_position
 	var outcome := {"ok": true, "effect": "burst", "detail": "the solar nova burst in the air", "target": ""}
+	outcome["at"] = at
 	if target and is_instance_valid(target) and target.has_method("react"):
 		var r: Dictionary = target.react("fire", power * 1.35, at, "phoenix_nova")
 		outcome = {"ok": true, "effect": String(r.get("effect", "")), "detail": String(r.get("detail", "")), "target": String(target.get("id") if target.get("id") != null else target.name), "reaction": r}
+		outcome["at"] = at
 	explode(get_parent(), at, power)
 	MagicEvents.magic_event.emit(at, "fire", power, String(outcome.effect), String(outcome.target))
 	for p in _trail:
