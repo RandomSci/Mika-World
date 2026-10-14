@@ -163,6 +163,8 @@ func _ready() -> void:
 	add_child(handler)
 	handler.attach(self)
 	reaction = BodyReaction.attach(self)
+	if body_language and is_instance_valid(body_language) and not reaction.reacted.is_connected(body_language.on_hit):
+		reaction.reacted.connect(body_language.on_hit)    # the rig (and its body language) was built first
 
 	nav_agent = NavigationAgent3D.new()
 	NavQuery.configure_agent(nav_agent)   # big forest navmeshes exceed the default 4096-polygon search limit
@@ -250,6 +252,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 ## clip and pace, turn and look speeds, idle glances, gesture tempo, Mika's ears.
 var motion := {}
 var ears: EarController
+var body_language: BodyLanguage
 var _glance_t := 4.0
 static var _motion_data := {}
 
@@ -278,6 +281,13 @@ func apply_motion_profile() -> void:
 	ears = null
 	if float(motion.get("ears", 0.0)) > 0.0:
 		ears = EarController.attach(self, float(motion.ears))
+	# full-body expression (posture, injury, breathing, talking hands) - before the hair springs and head posture
+	if body_language == null or not is_instance_valid(body_language):
+		body_language = BodyLanguage.attach(self, float(motion.get("body", 1.0)))
+		if body_language:
+			skeleton.move_child(body_language, 0)
+			if reaction and not reaction.reacted.is_connected(body_language.on_hit):
+				reaction.reacted.connect(body_language.on_hit)
 
 
 ## Idle glances: when she stands doing nothing, she looks around now and then - Mika quickly and often, Luna rarely
@@ -1244,7 +1254,9 @@ func _physics_process(delta: float) -> void:
 			_dash = {}
 			velocity = Vector3(0, velocity.y, 0)
 		return
-	var speed := (run_speed if _run else walk_speed) * pace
+	# how she feels sets her pace: a hurt or tired girl goes slower, an excited one quicker (the gait follows)
+	var mood_pace := body_language.tempo() if body_language and is_instance_valid(body_language) else 1.0
+	var speed := (run_speed if _run else walk_speed) * pace * mood_pace
 	var target_vel := desired * speed
 	var accel := 10.0 if desired.length() > 0.01 else 12.0
 	velocity.x = move_toward(velocity.x, target_vel.x, accel * delta * speed)

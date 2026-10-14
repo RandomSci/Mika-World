@@ -113,8 +113,9 @@ func frame(main: Node, m: WorldCharacter, s: Dictionary, delta: float) -> Dictio
 	since += delta
 	_orbit_a += delta * 0.32
 	_dolly = fmod(_dolly + delta * 0.05, 1.0)
-	var foes: Array = s.get("foes", [])
-	var foe: Node3D = s.get("target", null) if s.get("target", null) is Node3D else (foes[0] if not foes.is_empty() else null)
+	var foes: Array = (s.get("foes", []) as Array).filter(func(f): return is_instance_valid(f))
+	var tg = s.get("target", null)
+	var foe: Node3D = tg if is_instance_valid(tg) and tg is Node3D else (foes[0] if not foes.is_empty() else null)
 	var mate: WorldCharacter = null
 	for who in main.characters:
 		var o: WorldCharacter = main.characters[who]

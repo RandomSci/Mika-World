@@ -294,6 +294,90 @@
    "mood": "surprised",
    "why": "phoenix:wind",
    "model": "gemini-2.5-flash-preview-tts"
+  },
+  "08702f60c240b92fb1e852ee0294e92771428512": {
+   "text": "Mika, behind you.",
+   "mood": "urgent",
+   "why": "impact:warn_blind",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "b0c3edb1cdc7544b564b1054c8e5488613b28fce": {
+   "text": "Mika, move!",
+   "mood": "urgent",
+   "why": "impact:warn_blind",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "b034e6773c379ff197ae2d3506cf8a77e40ebdf8": {
+   "text": "Behind you, Mika!",
+   "mood": "urgent",
+   "why": "impact:warn_blind",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "0d5d0ab6b6e47c49a0670521c0382b8a70b10faf": {
+   "text": "Mika, your left!",
+   "mood": "urgent",
+   "why": "impact:warn_blind",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "8dc4073c7853520bb1a2ed57d53930a094cc4d39": {
+   "text": "Mika, get clear.",
+   "mood": "urgent",
+   "why": "impact:warn_heavy",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "5e6e0c98da49c7be8ed9a4809414a59b6fc3da82": {
+   "text": "Mika, out of there!",
+   "mood": "urgent",
+   "why": "impact:warn_heavy",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "3b4a8fc0764783813f77d4c5494d19d9e6ac43c9": {
+   "text": "Careful.",
+   "mood": "urgent",
+   "why": "impact:warn_heavy",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "58fbdc856a55bfc8642552428ec855e8976db142": {
+   "text": "That one will hurt. Move!",
+   "mood": "urgent",
+   "why": "impact:warn_heavy",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "f0a7155583618f1b4d153b44cd3600c49ac6505e": {
+   "text": "Mika. The one in the dark coat. He's the dangerous one.",
+   "mood": "concerned",
+   "why": "ambush:road_thieves:encircle",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "dfec41abefa719dc73b9d119eb6b717e83afbfe2": {
+   "text": "Walk away. This is the only warning you'll get.",
+   "mood": "determined",
+   "why": "ambush:road_thieves:encircle",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "6469fe10caccfbcd09ade2de19dc83773705cab7": {
+   "text": "Not the rings. Him. He looked at mine like he knew what's inside it.",
+   "mood": "concerned",
+   "why": "ambush:road_thieves:after",
+   "model": "gemini-3.8-flash-tts"
+  },
+  "eb5bc7eb179c8df15f5eb584e77a2df9c73b5aaf": {
+   "text": "You again. You should have stayed away.",
+   "mood": "determined",
+   "why": "ambush:road_thieves:again",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "c77b90b6746a4617c2d0ca24e055ca2c59d29488": {
+   "text": "Stay close to me.",
+   "mood": "determined",
+   "why": "ambush:road_thieves:bark",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "4927728c5ddc37d73749c9de512dd6a7f65a4eb0": {
+   "text": "I see you.",
+   "mood": "determined",
+   "why": "ambush:road_thieves:bark",
+   "model": "gemini-2.5-flash-preview-tts"
   }
  }
 }

@@ -20,6 +20,8 @@ uniform sampler2D bank_alb : source_color, filter_linear_mipmap_anisotropic, rep
 uniform sampler2D bank_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform float tile = 0.32;           // 1 / metres per texture
+uniform vec3 moss_tint = vec3(0.5, 0.6, 0.38);   // the moss layer's colour (caves: grey-green mineral crust)
+uniform float moss_amount = 1.0;
 
 varying vec3 v_wp;
 varying vec3 v_wn;
@@ -59,10 +61,10 @@ void fragment() {
 	float mw = max(moss_w, open_ * 0.55);
 	if (mw > 0.01) {
 		vec2 q = p * 1.4;
-		vec3 moss = mix(texture(moss_alb, q).rgb, texture(moss_alb, rot_uv(q)).rgb, k) * vec3(0.5, 0.6, 0.38);
-		col = mix(col, moss, moss_w);
-		col = mix(col, moss * vec3(1.05, 1.08, 0.92), open_ * 0.55);
-		nrm = mix(nrm, texture(moss_nrm, q).rgb, moss_w);
+		vec3 moss = mix(texture(moss_alb, q).rgb, texture(moss_alb, rot_uv(q)).rgb, k) * moss_tint;
+		col = mix(col, moss, moss_w * moss_amount);
+		col = mix(col, moss * vec3(1.05, 1.08, 0.92), open_ * 0.55 * moss_amount);
+		nrm = mix(nrm, texture(moss_nrm, q).rgb, moss_w * moss_amount);
 	}
 	if (bank_w > 0.01) {
 		vec2 q = p * 1.2;
@@ -88,6 +90,10 @@ void fragment() {
 	col *= 0.85 + 0.3 * big;
 	ALBEDO = col;
 	NORMAL_MAP = nrm;
+	// caves: vertex alpha = how deep under rock this ground lies; the sky's ambient light does not reach in there
+	// (occlusion of indirect light only - lamps and glowing crystals still light it fully)
+	AO = 1.0 - v_mask.a * 0.97;
+	AO_LIGHT_AFFECT = 0.0;
 	NORMAL_MAP_DEPTH = 1.0;
 	ROUGHNESS = mix(0.92, 0.8, trail * 0.5 + bank_w * 0.4);
 	SPECULAR = 0.3;

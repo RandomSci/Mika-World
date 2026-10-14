@@ -362,6 +362,8 @@ func _frame(delta: float) -> void:
 		"combat":
 			# trailer cinematography in every fight (TrailerCam): close moving shots, cuts, punches on big hits
 			var th: Dictionary = _trailer.frame(main, mika, _combat, delta)
+			if not th.has("pos"):
+				th = {"pos": mika.global_position + Vector3(0, 2.0, 4.0), "look": mika.global_position + Vector3(0, 1.0, 0), "fov": 50.0}
 			if th.get("cut", false):
 				_since_change = 0.0
 			pos = _clear_line(mika.global_position + Vector3(0, 1.2, 0), th.pos)

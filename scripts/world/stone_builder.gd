@@ -92,7 +92,9 @@ func collider(xf: Transform3D, size: Vector3) -> void:
 
 # ------------------------------------------------------------------ structures
 ## A dry-stone wall from a to b (ground points; y ignored). ruin 0 = intact .. 1 = mostly fallen.
-func wall(a: Vector3, b: Vector3, height: float, thick: float, ruin := 0.0, course := 0.5) -> void:
+func wall(a: Vector3, b: Vector3, height: float, thick: float, ruin := 0.0, course := 0.5, y_from := 0.0, base_y_abs := INF) -> void:
+	# y_from: the first course starts this high (masonry above an opening); base_y_abs: a level base instead of
+	# following the ground (a house's floor)
 	var dir := Vector3(b.x - a.x, 0, b.z - a.z)
 	var L := dir.length()
 	dir /= L
@@ -117,10 +119,12 @@ func wall(a: Vector3, b: Vector3, height: float, thick: float, ruin := 0.0, cour
 			var y0 := c * course
 			if y0 + course * 0.5 > limit:
 				continue
+			if y0 + course * 0.5 < y_from:
+				continue
 			if ruin > 0.0 and c > 0 and rng.randf() < ruin * 0.18 * float(c) / n_courses:
 				continue
 			var p := a + dir * mid
-			var gy: float = ground.call(p.x, p.z)
+			var gy: float = ground.call(p.x, p.z) if base_y_abs == INF else base_y_abs + 0.18
 			var ch := course * rng.randf_range(0.9, 1.04)
 			var size := Vector3(t1 - t0 - 0.04, ch, thick * rng.randf_range(0.92, 1.05))
 			var top := y0 + course >= limit - course or c == n_courses - 1
@@ -128,8 +132,8 @@ func wall(a: Vector3, b: Vector3, height: float, thick: float, ruin := 0.0, cour
 			block(Transform3D(basis * _jit(1.2), centre), size, 0.75 if top else rng.randf() * 0.25)
 			max_h = maxf(max_h, y0 + ch)
 	# collider: the standing part of the wall (average height)
-	if max_h > 0.6:
-		var gm: float = ground.call((a.x + b.x) * 0.5, (a.z + b.z) * 0.5)
+	if max_h > 0.6 and y_from < 0.01:
+		var gm: float = ground.call((a.x + b.x) * 0.5, (a.z + b.z) * 0.5) if base_y_abs == INF else base_y_abs + 0.18
 		var hh := maxf(max_h * (1.0 - ruin * 0.4), 0.8)
 		collider(Transform3D(basis, Vector3((a.x + b.x) * 0.5, gm + hh * 0.5 - 0.2, (a.z + b.z) * 0.5)), Vector3(L, hh, thick))
 

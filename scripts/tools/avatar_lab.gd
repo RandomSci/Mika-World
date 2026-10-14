@@ -151,6 +151,8 @@ func _run() -> void:
 		await _ears()
 	if mode in ["sit", "all"]:
 		await _sit()
+	if mode in ["body", "all"]:
+		await _body()
 	var f := FileAccess.open(out + "/avatar_lab.json", FileAccess.WRITE)
 	f.store_string(JSON.stringify(report, "  "))
 	f.close()
@@ -255,5 +257,36 @@ func _sit() -> void:
 	await _grab("sit_front")
 	_look(Vector3(3.2, 1.0, -1.4), Vector3(0, 0.45, 0), 42.0)
 	await _grab("sit_34")
+	for c in [m, l]:
+		(c as Node).queue_free()
+
+
+## Full-body language: each state on both mages, front and three-quarter (BodyLanguage).
+func _body() -> void:
+	var m := _spawn("mika_celestial", Vector3(-0.8, 0, 0), 0.0)
+	var l := _spawn("luna_oracle", Vector3(0.8, 0, 0), 0.0)
+	await _wait(1.5)
+	report["body_language"] = {}
+	var states := ["neutral", "hurt", "tired", "happy", "sad", "shy", "frustrated", "talking"]
+	for st in states:
+		for c in [m, l]:
+			var ch := c as WorldCharacter
+			if ch.face:
+				for e in ["hurt", "tired", "happy", "sad", "shy", "frustrated"]:
+					ch.face.set_hold(e, 0.0)
+				if st in ["hurt", "tired", "happy", "sad", "shy", "frustrated"]:
+					ch.face.set_hold(st, 0.9)
+			var bl := ch.body_language
+			if bl:
+				bl.injury = 0.85 if st == "hurt" else 0.0
+				bl.injury_side = 1.0
+				bl.exertion = 0.6 if st in ["hurt", "tired"] else 0.0
+				bl.speaking = st == "talking"
+		await _wait(2.2)
+		_look(Vector3(0, 1.1, -4.6), Vector3(0, 0.95, 0), 40.0)
+		await _grab("body_%s_front" % st)
+		_look(Vector3(3.0, 1.2, -3.2), Vector3(0, 0.95, 0), 42.0)
+		await _grab("body_%s_34" % st)
+		report["body_language"][st] = {"mika": m.body_language.status() if m.body_language else {}, "luna": l.body_language.status() if l.body_language else {}}
 	for c in [m, l]:
 		(c as Node).queue_free()

@@ -864,7 +864,7 @@ func _notice_creatures() -> void:
 			continue
 		WorldState.record_activity({"id": "sight:" + m.kind, "verb": "observe", "label": "Saw a %s" % m.def.name},
 			{"knowledge": {"bestiary:" + m.kind: 1}}, agent_id)
-		_maybe_say(_lines("first_sight", ["What is that?", "Something is moving out there."]), 0.9)
+		_maybe_say(_lines("first_sight", ["What is that?", "Something is moving out there."]), 0.9, "first_sight")
 
 
 func on_threat(m: Monster) -> void:
@@ -891,7 +891,7 @@ func _hunt(o: Dictionary) -> Dictionary:
 		return {"ok": false, "detail": "no spell that can reach a creature"}
 	if not mind.knowledge.has("bestiary:" + m.kind):
 		WorldState.record_activity({"id": "sight:" + m.kind, "verb": "observe", "label": "Saw a %s" % m.def.name}, {"knowledge": {"bestiary:" + m.kind: 1}}, agent_id)
-		_maybe_say(_lines("first_sight", ["What is that?", "Something is moving out there."]), 0.9)
+		_maybe_say(_lines("first_sight", ["What is that?", "Something is moving out there."]), 0.9, "first_sight")
 	# a strong creature and an unlocked form: an Orbit Surge first (the short sequence), if not already
 	if m.tier() in ["medium", "rare"] and main.transformer and main.transformer.can_surge(agent_id) and mind.vigor > 0.4:
 		current.stage = "calling an Orbit Surge"
@@ -944,16 +944,16 @@ func _hunt(o: Dictionary) -> Dictionary:
 				st.spells[wid] = int(st.spells.get(wid, 0)) + 1
 				if wres.get("ok", false):
 					_note_cooldown(wid)
-					_maybe_say(_lines("ward", ["Not this time."]), 0.35)
+					_maybe_say(_lines("ward", ["Not this time."]), 0.35, "ward")
 			"retreat":
 				me.set_combat_stance(false)
-				_maybe_say(_lines("retreat", ["Too much. I need to step back.", "Back to the circle."]), 1.0)
+				_maybe_say(_lines("retreat", ["Too much. I need to step back.", "Back to the circle."]), 1.0, "retreat")
 				await _recover()
 				return {"ok": false, "detail": "withdrew to the circle after %d cast(s), %d hit(s), %d dodge(s)" % [st.casts, st.hits, st.dodges], "tactics": st}
 			"assist":
 				st.assists += 1
 				m = dec.monster
-				_maybe_say(_lines("assist", ["I've got this one!", "Hold on, I'm coming!"]), 0.7)
+				_maybe_say(_lines("assist", ["I've got this one!", "Hold on, I'm coming!"]), 0.7, "assist")
 				# switching targets takes a moment (and must never spin: with several foes on two mages the
 				# assist choice can alternate - without a frame the game froze)
 				await get_tree().create_timer(0.15).timeout
@@ -979,9 +979,9 @@ func _hunt(o: Dictionary) -> Dictionary:
 				if eff != "":
 					st.effects[eff] = int(st.effects.get(eff, 0)) + 1
 				if eff == "bound":
-					_maybe_say(_lines("bind", ["Hold still!"]), 0.8)
+					_maybe_say(_lines("bind", ["Hold still!"]), 0.8, "bind")
 				elif eff == "dazed":
-					_maybe_say(_lines("rift", ["Stand there, then."]), 0.6)
+					_maybe_say(_lines("rift", ["Stand there, then."]), 0.6, "rift")
 				if res.get("outcome", "") == "hit":
 					st.hits += 1
 				elif res.get("outcome", "") == "refused":
@@ -996,7 +996,7 @@ func _hunt(o: Dictionary) -> Dictionary:
 		me.play_gesture("victory_nod", 0.3, 0.5)
 		me.set_expression("happy", 0.6)
 		get_tree().create_timer(2.0).timeout.connect(func(): me.set_expression("happy", 0.0))
-		_maybe_say(_lines("victory", ["Got it.", "That's done. Breathe."]), 0.8)
+		_maybe_say(_lines("victory", ["Got it.", "That's done. Breathe."]), 0.8, "victory")
 		await get_tree().create_timer(1.2).timeout
 		var picked := 0
 		var tries_loot := []
@@ -1393,11 +1393,19 @@ func _private_thought(text: String) -> void:
 
 
 ## Spoken only when the moment justifies it, at most once a minute.
-func _maybe_say(lines: Array, chance: float) -> void:
+## key: a line pool with a fixed mood (data/voices.json line_moods) - pre-rendered in her voice, and in a fight it
+## never holds the action up (latency budget: shown as a subtitle if the voice is not ready in time).
+func _maybe_say(lines: Array, chance: float, key := "") -> void:
 	if Time.get_ticks_msec() / 1000.0 < _speak_cd or rng.randf() > chance:
 		return
 	_speak_cd = Time.get_ticks_msec() / 1000.0 + 60.0
-	main.voice.say(_voice(), lines[rng.randi() % lines.size()])
+	var opts := {}
+	var mood := String(main.voice.config.get("line_moods", {}).get(key, "")) if key != "" else ""
+	if mood != "":
+		opts["mood"] = mood
+	if me.combat_stance:
+		opts["max_wait"] = 1.5
+	main.voice.say(_voice(), lines[rng.randi() % lines.size()], opts)
 
 
 ## Compatibility with the bridge's perform_action{action}: runs the matching activity once.

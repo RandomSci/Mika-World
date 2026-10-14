@@ -85,6 +85,14 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 	main.director.begin_scene(_scene_shot)
 	_set_shot({"kind": "watch", "from": leader, "at": centre})
 	var lines: Array = band.get("again", []) if met_before > 0 and band.has("again") else []
+	# the band's whole script is written: synthesise every exchange now (each is ready long before it is spoken)
+	if main.voice:
+		var all := []
+		for ph in ["watch", "encircle", "yield", "after"]:
+			all.append_array(band.get(ph, []))
+		main.voice.prefetch_lines(all.map(func(ln): return {"speaker": String(ln[0]), "text": String(ln[1]),
+			"opts": {"mood": String(ln[2])} if ln.size() > 2 and String(ln[2]) != "" else {}}), false)
+	_prefetch(band.get("watch", []))
 	for ln in band.get("watch", []):
 		await _line(ln)
 	# ---- ENCIRCLE: they step out and walk round the girls
@@ -102,7 +110,7 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 		var slot: Vector3 = await main.snap_to_nav(centre + Vector3(sin(ang), 0, cos(ang)) * ring_r)
 		slots[order[j]] = slot
 		var m2: Monster = rivals[order[j]]
-		m2.script_to(slot, 1.7 + 0.15 * j, null, "alert")
+		m2.script_to(slot, 2.3 + 0.15 * j, null, "alert")
 	_set_shot({"kind": "orbit", "at": centre})
 	# the girls notice: they turn to face them and move together, back to back
 	var mika: WorldCharacter = main.characters.get("mika")
@@ -117,7 +125,7 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 		mika.navigate_to(await main.snap_to_nav(centre + axis * 0.55), false)
 		luna.navigate_to(await main.snap_to_nav(centre - axis * 0.55), false)
 	var t := 0.0
-	while t < 9.0:
+	while t < 18.0:
 		var arrived := true
 		for k in slots:
 			var m3: Monster = rivals.get(k)
@@ -129,7 +137,10 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 		t += get_physics_process_delta_time()
 	rec["ring"] = _ring_spread(centre)
 	for k in rivals:
-		var m4: Monster = rivals[k]
+		var m4_raw = rivals[k]
+		if not is_instance_valid(m4_raw):
+			continue
+		var m4: Monster = m4_raw
 		var tgt: WorldCharacter = main.characters.get(String(band.get("targets", {}).get(k, "mika")))
 		m4.script_to(Vector3.INF, 1.0, tgt if tgt and tgt.visible else party[0], "alert" if m4 != leader else "talk")
 	if mika and mika.visible:
@@ -137,6 +148,7 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 	if luna and luna.visible and rivals.has("rival_hexer"):
 		luna.look_at_point((rivals.rival_hexer as Monster).global_position)
 	_beat("standoff", "ring closed, spread %.1f rad" % float(rec.ring))
+	_prefetch((lines if not lines.is_empty() else []) + band.get("encircle", []))
 	for ln in (lines if not lines.is_empty() else []):
 		await _line(ln)
 	for ln in band.get("encircle", []):
@@ -145,7 +157,10 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 	# ---- FIGHT
 	_beat("fight", "")
 	for k in rivals:
-		var m5: Monster = rivals[k]
+		var m5_raw = rivals[k]
+		if not is_instance_valid(m5_raw):
+			continue
+		var m5: Monster = m5_raw
 		var tgt2: WorldCharacter = main.characters.get(String(band.get("targets", {}).get(k, "mika")))
 		m5.release_script(tgt2 if tgt2 and tgt2.visible else party[0])
 	var hunting := {}
@@ -165,13 +180,19 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 			_bark(band)
 		# the Hexer never stays to lose: badly hurt, he runs with a threat (he will be back)
 		if recurring != "" and rivals.has(recurring):
-			var hx: Monster = rivals[recurring]
-			if is_instance_valid(hx) and hx.alive() and hx.mstate != "fleeing" and hx.hp < hx.max_hp * 0.3:
-				_flee(hx, recurring, band, centre)
+			var hx_raw = rivals[recurring]
+			if is_instance_valid(hx_raw):
+				var hx: Monster = hx_raw
+				if hx.alive() and hx.mstate != "fleeing" and hx.hp < hx.max_hp * 0.3:
+					_flee(hx, recurring, band, centre)
 		var down := 0
 		for k in rivals:
-			var m6: Monster = rivals[k]
-			if not is_instance_valid(m6) or not m6.alive() or m6.mstate in ["fleeing", "yielded"]:
+			var m6_raw = rivals[k]
+			if not is_instance_valid(m6_raw):
+				down += 1                 # knocked out and already walked off
+				continue
+			var m6: Monster = m6_raw
+			if not m6.alive() or m6.mstate in ["fleeing", "yielded"]:
 				down += 1
 		if down >= rivals.size():
 			broke = "all down"
@@ -195,14 +216,19 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 		leader.yield_fight()
 		rec.outcome[leader_kind(band, leader)] = "yielded"
 	for k in rivals:
-		var m7: Monster = rivals[k]
-		if is_instance_valid(m7) and m7.alive() and not (m7.mstate in ["yielded", "fleeing"]):
+		var m7_raw = rivals[k]
+		if not is_instance_valid(m7_raw):
+			rec.outcome[k] = rec.outcome.get(k, "knocked out")
+			continue
+		var m7: Monster = m7_raw
+		if m7.alive() and not (m7.mstate in ["yielded", "fleeing"]):
 			_flee(m7, k, band, centre)
-		elif not is_instance_valid(m7) or not m7.alive():
-			rec.outcome[k] = rec.outcome.get(k, "defeated")
+		elif not m7.alive():
+			rec.outcome[k] = rec.outcome.get(k, "knocked out")
 	if leader and is_instance_valid(leader) and leader.mstate == "yielded":
 		_set_shot({"kind": "two", "a": leader, "b": party[0]})
 		main.director.begin_scene(_scene_shot)
+		_prefetch(band.get("yield", []))
 		for ln in band.get("yield", []):
 			await _line(ln)
 	await _wait(2.0)
@@ -216,6 +242,7 @@ func run(band_id := "road_thieves", opts := {}) -> Dictionary:
 		mika.look_at_point(luna.global_position)
 		luna.look_at_point(mika.global_position)
 		main.director.focus_conversation(luna, 14.0)
+		_prefetch(band.get("after", []))
 		for ln in band.get("after", []):
 			await _line(ln)
 	# the yielded leader gets up and leaves on foot
@@ -301,13 +328,21 @@ func _beat(what: String, detail: String) -> void:
 
 
 ## One line of the scene: [speaker, text, mood]. The camera favours the speaker.
+## The whole exchange is written: every line after the first synthesises while the one before it is spoken.
+func _prefetch(lines: Array) -> void:
+	if main.voice:
+		main.voice.prefetch_lines(lines.map(func(ln): return {"speaker": String(ln[0]), "text": String(ln[1]),
+			"opts": {"mood": String(ln[2])} if ln.size() > 2 and String(ln[2]) != "" else {}}))
+
+
 func _line(ln: Array) -> void:
 	var who := String(ln[0])
 	var text := String(ln[1])
 	var mood := String(ln[2]) if ln.size() > 2 else ""
-	var node: Node3D = rivals.get(who) if rivals.has(who) else main.characters.get(who)
-	if node == null or not is_instance_valid(node):
+	var cand = rivals.get(who) if rivals.has(who) else main.characters.get(who)
+	if cand == null or not is_instance_valid(cand):
 		return
+	var node: Node3D = cand
 	if rivals.has(who):
 		(rivals[who] as Monster).script_anim = "talk"
 	(rec.said as Array).append({"who": who, "text": text})
@@ -328,10 +363,11 @@ func _listener(who: String) -> Node3D:
 		var c: WorldCharacter = main.characters.get(String(band_targets.get(who, "mika")))
 		return c if c and c.visible else main.characters.get("mika")
 	# a mage answers the leader (or the Hexer when Luna speaks)
-	if who == "luna" and rivals.has("rival_hexer"):
+	if who == "luna" and rivals.has("rival_hexer") and is_instance_valid(rivals.rival_hexer):
 		return rivals.rival_hexer
 	for k in rivals:
-		return rivals[k]
+		if is_instance_valid(rivals[k]):
+			return rivals[k]
 	return null
 
 
@@ -351,7 +387,7 @@ func _bark(band: Dictionary) -> void:
 		return
 	var text := String(pool[_rng.randi() % pool.size()])
 	(rec.said as Array).append({"who": who, "text": text, "bark": true})
-	main.voice.say(who, text, {"mood": "determined"} if who in ["mika", "luna"] else {})
+	main.voice.say(who, text, {"mood": "determined", "max_wait": 1.2} if who in ["mika", "luna"] else {"max_wait": 1.2})
 
 
 func _flee(m: Monster, kind: String, band: Dictionary, from: Vector3) -> void:
@@ -361,7 +397,7 @@ func _flee(m: Monster, kind: String, band: Dictionary, from: Vector3) -> void:
 	_beat("flees", kind)
 	if line != "":
 		(rec.said as Array).append({"who": kind, "text": line})
-		main.voice.say(kind, line, {"priority": 1})
+		main.voice.say(kind, line, {"priority": 1, "max_wait": 1.2})
 
 
 ## Her side of the fight: her own planner hunts the nearest rival still fighting, one after another.
@@ -373,8 +409,11 @@ func _hunt_loop(c: WorldCharacter, state: Dictionary) -> void:
 		var tgt: Monster = null
 		var bd := INF
 		for k in rivals:
-			var m: Monster = rivals[k]
-			if is_instance_valid(m) and m.alive() and not (m.mstate in ["fleeing", "yielded", "scripted"]):
+			var mr = rivals[k]
+			if not is_instance_valid(mr):
+				continue
+			var m: Monster = mr
+			if m.alive() and not (m.mstate in ["fleeing", "yielded", "scripted"]):
 				var d := m.global_position.distance_to(c.global_position)
 				if d < bd:
 					bd = d
@@ -383,9 +422,12 @@ func _hunt_loop(c: WorldCharacter, state: Dictionary) -> void:
 			break
 		b.current = {"kind": "hunt", "monster": tgt.id, "label": "fight off the band"}
 		var t0 := Time.get_ticks_msec()
-		var rr: Dictionary = await b.run_activity({"kind": "hunt", "key": "hunt:" + tgt.id, "monster": tgt.id, "monster_kind": tgt.kind, "tier": tgt.tier(), "label": "fight off the band"})
+		var tkind: String = tgt.kind
+		var rr: Dictionary = await b.run_activity({"kind": "hunt", "key": "hunt:" + tgt.id, "monster": tgt.id, "monster_kind": tkind, "tier": tgt.tier(), "label": "fight off the band"})
 		b.current = {}
-		(rec.get_or_add("hunts", []) as Array).append({"who": c.character_id, "target": tgt.kind, "detail": str(rr.get("detail", "")).left(120)})
+		if not is_instance_valid(c):
+			break
+		(rec.get_or_add("hunts", []) as Array).append({"who": c.character_id, "target": tkind, "detail": str(rr.get("detail", "")).left(120)})
 		# a hunt that ended at once (refused, target out of reach) must not spin: give the fight a moment
 		await get_tree().physics_frame
 		if Time.get_ticks_msec() - t0 < 300:
@@ -395,7 +437,10 @@ func _hunt_loop(c: WorldCharacter, state: Dictionary) -> void:
 func _ring_spread(centre: Vector3) -> float:
 	var angs := []
 	for k in rivals:
-		var m: Monster = rivals[k]
+		var mr = rivals[k]
+		if not is_instance_valid(mr):
+			continue
+		var m: Monster = mr
 		angs.append(atan2(m.global_position.x - centre.x, m.global_position.z - centre.z))
 	angs.sort()
 	var biggest_gap := 0.0
@@ -453,23 +498,23 @@ func _scene_shot(delta: float) -> Dictionary:
 	match String(_shot.get("kind", "")):
 		"watch":
 			# from behind the leader's shoulder, low, a long lens onto the girls far down the road (being watched)
-			var from: Node3D = _shot.get("from")
+			var from = _shot.get("from")
 			var at: Vector3 = _shot.get("at")
-			if from and is_instance_valid(from):
-				var axis := Vector3(at.x - from.global_position.x, 0, at.z - from.global_position.z).normalized()
+			if is_instance_valid(from):
+				var axis := Vector3(at.x - (from as Node3D).global_position.x, 0, at.z - (from as Node3D).global_position.z).normalized()
 				var side := Vector3(-axis.z, 0, axis.x)
-				return {"pos": from.global_position - axis * 1.4 + side * 0.55 + Vector3(0, 1.55, 0), "look": at + Vector3(0, 1.0, 0),
+				return {"pos": (from as Node3D).global_position - axis * 1.4 + side * 0.55 + Vector3(0, 1.55, 0), "look": at + Vector3(0, 1.0, 0),
 					"fov": 30.0, "rate": 4.0, "cut": cut}
 		"orbit":
 			var c: Vector3 = _shot.get("at")
 			var a := _shot_t * 0.18
 			return _safe({"pos": c + Vector3(sin(a), 0, cos(a)) * 8.5 + Vector3(0, 2.6, 0), "look": c + Vector3(0, 1.0, 0), "fov": 50.0, "rate": 2.5, "cut": cut})
 		"speaker":
-			var who: Node3D = _shot.get("who")
-			var lis: Node3D = _shot.get("listener")
-			if who and is_instance_valid(who) and lis and is_instance_valid(lis):
-				var hp := who.global_position + Vector3(0, 1.55, 0)
-				var lp := lis.global_position + Vector3(0, 1.45, 0)
+			var who = _shot.get("who")
+			var lis = _shot.get("listener")
+			if is_instance_valid(who) and is_instance_valid(lis):
+				var hp := (who as Node3D).global_position + Vector3(0, 1.55, 0)
+				var lp := (lis as Node3D).global_position + Vector3(0, 1.45, 0)
 				var axis2 := Vector3(hp.x - lp.x, 0, hp.z - lp.z).normalized()
 				var side2 := Vector3(-axis2.z, 0, axis2.x)
 				# over the listener's shoulder onto the speaker's face: the first candidate (shoulder side, distance)
@@ -485,11 +530,11 @@ func _scene_shot(delta: float) -> Dictionary:
 				return _safe({"pos": lp - axis2 * float(pk[1]) + side2 * 0.6 * float(pk[0]) + Vector3(0, 0.15, 0), "look": hp - Vector3(0, 0.05, 0),
 					"fov": 38.0, "rate": 5.0, "cut": cut})
 		"two":
-			var a2: Node3D = _shot.get("a")
-			var b2: Node3D = _shot.get("b")
-			if a2 and b2 and is_instance_valid(a2) and is_instance_valid(b2):
-				var mid := (a2.global_position + b2.global_position) * 0.5
-				var ax := Vector3(b2.global_position.x - a2.global_position.x, 0, b2.global_position.z - a2.global_position.z).normalized()
+			var a2 = _shot.get("a")
+			var b2 = _shot.get("b")
+			if is_instance_valid(a2) and is_instance_valid(b2):
+				var mid := ((a2 as Node3D).global_position + (b2 as Node3D).global_position) * 0.5
+				var ax := Vector3((b2 as Node3D).global_position.x - (a2 as Node3D).global_position.x, 0, (b2 as Node3D).global_position.z - (a2 as Node3D).global_position.z).normalized()
 				return _safe({"pos": mid + Vector3(-ax.z, 0, ax.x) * 4.0 + Vector3(0, 1.4, 0), "look": mid + Vector3(0, 0.9, 0), "fov": 46.0, "rate": 3.0, "cut": cut})
 	if mika:
 		return {"pos": mika.global_position + Vector3(0, 2.0, 4.0), "look": mika.global_position + Vector3(0, 1.0, 0), "fov": 50.0, "rate": 3.0, "cut": cut}

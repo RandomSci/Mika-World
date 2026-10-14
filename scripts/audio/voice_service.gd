@@ -70,6 +70,7 @@ var _player: AudioStreamPlayer
 var _pid := -1
 var _speakers := {}            # speaker id -> Node (WorldCharacter or NPC) for mouth movement
 var _cache := {}               # speaker|text -> PackedByteArray (wav) or "pending" (prefetch)
+var _cache_meta := {}          # speaker|text -> what synthesis reported (provider, identity, mood, cached ...)
 var config := {}               # data/voices.json
 var edge_available := false
 var edge_status := "not started"
@@ -80,6 +81,7 @@ var gemini_status := "not configured"
 var gemini_stats := {"calls": 0, "cache_hits": 0, "shipped_hits": 0, "failures": 0, "retries": 0, "rejected": 0}
 var _gemini_blocked_until := 0.0
 var _identity_blocked := {}    # model -> unix time until which it is paused after a 429
+var latency := {"lines": 0, "audio": 0, "prefetched": 0, "budget_drops": 0, "samples": []}   # V3 Part 9 (measured)
 var identity_stats := {"shipped_hits": 0, "cache_hits": 0, "calls": 0, "alt_calls": 0, "failures": 0, "rejected": 0, "silent": 0}
 
 
@@ -241,8 +243,42 @@ func prefetch(speaker: String, text: String, opts := {}) -> void:
 	if not enabled or not _can_synthesize(speaker) or _cache.has(key):
 		return
 	_cache[key] = "pending"
-	var wav: PackedByteArray = await _synthesize(speaker, text, {}, opts)
+	var meta := {}
+	var wav: PackedByteArray = await _synthesize(speaker, text, meta, opts)
+	_cache_meta[key] = meta
 	_cache[key] = wav
+
+
+## A whole exchange known in advance (a conversation, a camp talk): every line after the first starts
+## synthesising now, so each next line is ready while the one before it is still being spoken. lines: [{who/speaker,
+## text, opts?}] with who already mapped to a voice id.
+func prefetch_lines(lines: Array, skip_first := true) -> void:
+	for i in lines.size():
+		if i == 0 and skip_first:
+			continue
+		var l: Dictionary = lines[i]
+		prefetch(String(l.get("speaker", l.get("who", ""))), String(l.text), l.get("opts", {}))
+
+
+## p50 / p95 / max of the time from a line being asked for to its audio starting (ms), over this session.
+func latency_report() -> Dictionary:
+	var xs: Array = (latency.samples as Array).map(func(e): return int(e.tts_ms))
+	xs.sort()
+	var out := latency.duplicate()
+	out.erase("samples")
+	if not xs.is_empty():
+		out["p50_ms"] = xs[int(xs.size() * 0.5)]
+		out["p95_ms"] = xs[mini(xs.size() - 1, int(xs.size() * 0.95))]
+		out["max_ms"] = xs[-1]
+		out["by_source"] = {}
+		for e in latency.samples:
+			var k := String(e.src)
+			var d: Dictionary = out.by_source.get_or_add(k, {"n": 0, "sum": 0})
+			d.n += 1
+			d.sum += int(e.tts_ms)
+		for k in out.by_source:
+			out.by_source[k]["avg_ms"] = int(out.by_source[k].sum / maxi(1, out.by_source[k].n))
+	return out
 
 
 static func _cache_key(speaker: String, text: String, opts: Dictionary) -> String:
@@ -559,7 +595,7 @@ func _synthesize_identity(speaker: String, cfg: Dictionary, text: String, res: D
 		identity_stats.silent += 1
 		return PackedByteArray()
 	var info := wav_info(wav)
-	if info.seconds < 0.15 or info.seconds > 60.0 or info.rms < 0.0025:
+	if info.seconds < 0.15 or info.seconds > maxf(5.0, 0.12 * text.length() + 3.0) or info.rms < 0.0025:   # a runaway TTS answer is babble
 		res["error"] = "her synthesised audio failed validation (%.2f s, rms %.4f)" % [info.seconds, info.rms]
 		identity_stats.rejected += 1
 		identity_stats.silent += 1
@@ -761,6 +797,9 @@ func react(speaker: String, kind := "laugh") -> Dictionary:
 	var key := speaker + "|" + kind
 	var provider := String(cfg.get("provider", ""))
 	var can := (provider == "edge" and edge_available) or (provider == "gemini") or (provider == "gemini_identity")
+	if provider == "gemini_identity":
+		res["provider"] = "gemini"
+		res["identity"] = String(cfg.get("identity", ""))
 	if enabled and can and texts.has(speaker):
 		if not _reactions.has(key):
 			var r2 := {}
@@ -842,17 +881,39 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 	var wav := PackedByteArray()
 	if enabled and _can_synthesize(speaker):
 		var key := _cache_key(speaker, text, opts)
-		if _cache.has(key):
+		if _cache.has(key) and (typeof(_cache[key]) != TYPE_STRING or float(opts.get("max_wait", 0.0)) <= 0.0):
 			while typeof(_cache[key]) == TYPE_STRING:   # prefetch still in flight
 				await get_tree().process_frame
 			wav = _cache[key]
 			_cache.erase(key)
+			res.merge(_cache_meta.get(key, {}))
+			_cache_meta.erase(key)
 			res["prefetched"] = true
 			if pronunciations.has(_key(text)):
 				res["phonemes"] = true
-		if wav.is_empty():
+		if wav.is_empty() and float(opts.get("max_wait", 0.0)) > 0.0:
+			# a latency budget (combat barks): the line is synthesised in the background; if it is not ready in
+			# time it is shown, not spoken, and the voice lands in the cache for the next time she says it
+			prefetch(speaker, text, opts)
+			var t_end := Time.get_ticks_msec() + int(float(opts.max_wait) * 1000.0)
+			while _cache.has(key) and typeof(_cache[key]) == TYPE_STRING and Time.get_ticks_msec() < t_end:
+				await get_tree().process_frame
+			if _cache.has(key) and typeof(_cache[key]) != TYPE_STRING:
+				wav = _cache[key]
+				_cache.erase(key)
+				res.merge(_cache_meta.get(key, {}))
+				_cache_meta.erase(key)
+			else:
+				res["budget_drop"] = true
+				latency.budget_drops += 1
+		elif wav.is_empty():
 			wav = await _synthesize(speaker, text, res, opts)
 	res["tts_ms"] = Time.get_ticks_msec() - started
+	latency.lines += 1
+	latency.prefetched += 1 if res.get("prefetched", false) else 0
+	latency.samples.append({"tts_ms": res.tts_ms, "src": "prefetch" if res.get("prefetched", false) else String(res.get("cached", "budget_drop" if res.get("budget_drop", false) else "synth"))})
+	if latency.samples.size() > 400:
+		latency.samples.pop_front()
 	var subtitle: bool = opts.get("subtitle", true)
 	if wav.size() > 44:
 		var stream := AudioStreamWAV.load_from_buffer(wav)
@@ -863,12 +924,20 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 		_player.play()
 		res["audio"] = true
 		res["fallback"] = false
+		latency.audio += 1
 		res["seconds"] = snappedf(stream.get_length(), 0.01)
 		res["bus"] = _player.bus
 		line_started.emit(speaker, text)
 		if subtitle and main:
 			main.show_subtitle(_caption(speaker, text), stream.get_length() + 0.4)
 		var who = _speakers.get(speaker)
+		# her body talks along: hands and forearms beat with the voice; a longer line while standing gets a
+		# conversational gesture
+		if who and is_instance_valid(who) and who.get("body_language") and is_instance_valid(who.body_language):
+			who.body_language.speaking = true
+			if stream.get_length() > 3.2 and who.has_method("play_gesture") and not who.seated and who.ground_pose == "" and not who.combat_stance \
+					and Vector2(who.velocity.x, who.velocity.z).length() < 0.3 and randf() < 0.55:
+				who.play_gesture("idle_talk", 0.5, 0.7)
 		while _player.playing:
 			await get_tree().process_frame
 			# the mouth follows the audio's own clock (a Movie Maker recording runs slower than real time)
@@ -876,6 +945,8 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 			var amp: float = env[idx] if idx < env.size() else 0.0
 			_mouth(who, amp)
 		_mouth(who, 0.0)
+		if who and is_instance_valid(who) and who.get("body_language") and is_instance_valid(who.body_language):
+			who.body_language.speaking = false
 	else:
 		var secs := clampf(text.split(" ").size() / 2.6, 1.5, 9.0)
 		res["seconds"] = snappedf(secs, 0.01)
@@ -943,5 +1014,5 @@ func describe() -> Dictionary:
 		"edge": {"available": edge_available, "status": edge_status, "port": EDGE_PORT},
 		"gemini": {"configured": _gemini_key != "", "status": gemini_status, "stats": gemini_stats,
 			"paused_s": maxi(0, int(_gemini_blocked_until - Time.get_unix_time_from_system()))},
-		"identities": identities(), "identity_stats": identity_stats,
+		"identities": identities(), "identity_stats": identity_stats, "latency": latency_report(),
 		"recent": log.slice(maxi(0, log.size() - 5))}

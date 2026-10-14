@@ -89,7 +89,8 @@ func _snapshot(who: String) -> Dictionary:
 func _form1() -> void:
 	var m := WorldState.mind("mika")
 	var mika: WorldCharacter = main.characters["mika"]
-	_check(TransformationDirector.appearance("mika") == "" and mika.avatar_path.ends_with("Mika.vrm"), "fresh: base appearance")
+	# her base look is whatever her level gives her (level-based appearances: the Celestial Mage at 1-10)
+	_check(TransformationDirector.appearance("mika") == "" and mika.avatar_path == AppearanceRegistry.avatar_for("mika"), "fresh: base appearance", mika.avatar_path)
 	# fixture: the gate was passed (the real path is covered by mhtest=levelup); the unlock plays the full sequence
 	m.progress.level = 10
 	(m.progress.forms_unlocked as Array).append("bloom")

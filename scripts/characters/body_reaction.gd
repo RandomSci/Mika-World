@@ -83,8 +83,9 @@ func receive(from: Vector3, severity: float, ctx := {}) -> Dictionary:
 	away = away.normalized() if away.length() > 0.05 else c.global_transform.basis.z
 	var fwd := -c.global_transform.basis.z
 	var from_behind := fwd.dot(-away) < -0.34          # the source is more than ~110 degrees off her facing
+	var side := 1.0 if c.global_transform.basis.x.dot(-away) >= 0.0 else -1.0   # +1: the blow came from her right
 	var res := {"t": snappedf(_clock, 0.01), "who": c.character_id, "severity": snappedf(severity, 0.01), "tier": t,
-		"from_behind": from_behind, "kind": String(ctx.get("kind", "")), "source": String(ctx.get("source", ""))}
+		"from_behind": from_behind, "side": side, "kind": String(ctx.get("kind", "")), "source": String(ctx.get("source", ""))}
 	for k in ["cover", "warded", "guarded", "dist"]:
 		if ctx.has(k):
 			res[k] = ctx[k]

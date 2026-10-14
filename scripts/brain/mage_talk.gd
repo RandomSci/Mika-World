@@ -18,6 +18,8 @@ var log: Array = []
 var _active := false
 
 
+var phrase_ms: Array = []       # how long phrasing a conversation took (LLM), for the latency report
+
 func setup(m: Node) -> void:
 	main = m
 	if main.spawner:
@@ -98,7 +100,14 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 	var lines: Array = _compose(a.agent_id, other_id) if first or main.get("companionship") == null else main.companionship.compose(a.agent_id, other_id)
 	if lines.size() < 2:
 		lines = _compose(a.agent_id, other_id)
+	var t_phrase := Time.get_ticks_msec()
 	lines = await _phrase(a.agent_id, other_id, lines)
+	phrase_ms.append(Time.get_ticks_msec() - t_phrase)
+	if phrase_ms.size() > 50:
+		phrase_ms.pop_front()
+	# the whole exchange is known now: every next line synthesises while the one before it is spoken
+	if main.voice:
+		main.voice.prefetch_lines(lines.map(func(l): return {"speaker": String(Progression.mages.get(l.who, {}).get("voice", l.who)), "text": String(l.text)}))
 	var spoken := []
 	for l in lines:
 		var spk: WorldCharacter = main.characters.get(String(l.who))

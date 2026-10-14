@@ -311,7 +311,9 @@ static func gable_roof(width: float, depth: float, rise: float, overhang := 0.35
 			var uvs := [Vector2(0, 0), Vector2(width + 2 * overhang, 0), Vector2(width + 2 * overhang, slope_len), Vector2(0, slope_len)]
 			if q[1].x < q[0].x:
 				uvs = [Vector2(width + 2 * overhang, 0), Vector2(0, 0), Vector2(0, slope_len), Vector2(width + 2 * overhang, slope_len)]
-			for idx in [0, 1, 2, 0, 2, 3]:
+			# Godot's front faces wind clockwise seen from outside (n = (q1-q0)x(q3-q0) is CCW): emit 0,2,1 / 0,3,2,
+			# or the top is culled and the underside (normal down, unlit) shows through black from above
+			for idx in [0, 2, 1, 0, 3, 2]:
 				st.set_normal(n)
 				st.set_uv(uvs[idx] * 0.5)
 				st.add_vertex(q[idx])

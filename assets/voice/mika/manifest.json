@@ -288,6 +288,78 @@
    "mood": "surprised",
    "why": "phoenix:wind",
    "model": "gemini-3.8-flash-tts"
+  },
+  "c4e77dc12c00a2b01f1854d960f2130f90556512": {
+   "text": "Luna, behind you!",
+   "mood": "urgent",
+   "why": "impact:warn_blind",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "5f0e111de928b655ab736e64e3ef00ad04da95f4": {
+   "text": "Luna, move!",
+   "mood": "urgent",
+   "why": "impact:warn_blind",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "6f87dc4e8aa472e0f3a8a022455d510f15fe5545": {
+   "text": "Behind you!",
+   "mood": "urgent",
+   "why": "impact:warn_blind",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "bcd058b2cd1479ef2c27996f26555a48d3c7d664": {
+   "text": "Luna, look out!",
+   "mood": "urgent",
+   "why": "impact:warn_blind",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "4abbbbf8b6e0fd5b6bf82ec93e08beb1910f68bf": {
+   "text": "That one's big, get clear!",
+   "mood": "urgent",
+   "why": "impact:warn_heavy",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "e6b9392e9a54b17322e785016a1818b181355565": {
+   "text": "Luna, jump!",
+   "mood": "urgent",
+   "why": "impact:warn_heavy",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "ad4144a6ae34c4dd3aac9c5ddc83471c8813c2fd": {
+   "text": "Out of the way!",
+   "mood": "urgent",
+   "why": "impact:warn_heavy",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "6b736955d90af84e81805c850f467e89a513efeb": {
+   "text": "Careful, Luna!",
+   "mood": "urgent",
+   "why": "impact:warn_heavy",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "bad84b3def3ea54453be860e3e77162eefdfe843": {
+   "text": "These were gifts. You're not getting them.",
+   "mood": "determined",
+   "why": "ambush:road_thieves:encircle",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "fdc47d8801d7f44198a4816e3614ad874e15edf5": {
+   "text": "Luna... are you hurt? They really wanted the rings.",
+   "mood": "concerned",
+   "why": "ambush:road_thieves:after",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "5919cce8333499f176d830afbdb4e1848925137f": {
+   "text": "Then we keep our eyes open. Together.",
+   "mood": "determined",
+   "why": "ambush:road_thieves:after",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "8d8ee5ca766f0072a469ecd4556952092258285f": {
+   "text": "Get away from her!",
+   "mood": "determined",
+   "why": "ambush:road_thieves:bark",
+   "model": "gemini-2.5-flash-preview-tts"
   }
  }
 }

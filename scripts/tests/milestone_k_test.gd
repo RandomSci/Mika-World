@@ -329,7 +329,8 @@ func _companions() -> void:
 	# 2) a meeting started by Mika: both bring topics from their own memory; real turn-taking
 	mm.knowledge["met:luna"] = 1                       # they already know each other (Milestone H introductions)
 	lm.knowledge["met:mika"] = 1
-	lm.knowledge["heard:mika:" + String((report.mika_clues as Array)[0]) ] = 1 if not (report.mika_clues as Array).is_empty() else 0
+	if not (report.mika_clues as Array).is_empty():
+		lm.knowledge["heard:mika:" + String((report.mika_clues as Array)[0])] = 1
 	mm.knowledge["heard:luna:monster:gloomwisp"] = 1   # "Luna had been out fighting" (what she could see / was told in passing)
 	var shots := {"n": 0}
 	var on_line := func(sp: String, _tx: String):
@@ -338,8 +339,29 @@ func _companions() -> void:
 			await _wait(0.6)
 			_shot("talk_%02d_%s" % [shots.n, sp])
 	main.voice.line_started.connect(on_line)
+	# V3 Part 9: measured turn-taking latency (one line ends -> the next voice starts)
+	var marks := {"start": [], "end": []}
+	var on_start := func(_sp: String, _tx: String): (marks.start as Array).append(_gms())
+	var on_end := func(_sp: String, _r: Dictionary): (marks.end as Array).append(_gms())
+	main.voice.line_started.connect(on_start)
+	main.voice.line_finished.connect(on_end)
+	var t_meet := _gms()
 	var res: Dictionary = await main.mage_talk.meet(mb, "luna")
 	main.voice.line_started.disconnect(on_line)
+	main.voice.line_started.disconnect(on_start)
+	main.voice.line_finished.disconnect(on_end)
+	var gaps := []
+	for i in range(1, (marks.start as Array).size()):
+		if i - 1 < (marks.end as Array).size():
+			gaps.append(int(marks.start[i]) - int(marks.end[i - 1]))
+	var sg := gaps.duplicate()
+	sg.sort()
+	var lat := {"first_line_ms": (int(marks.start[0]) - t_meet) if not (marks.start as Array).is_empty() else -1,
+		"turn_gaps_ms": gaps, "median_gap_ms": sg[int(sg.size() * 0.5)] if not sg.is_empty() else -1,
+		"max_gap_ms": sg[-1] if not sg.is_empty() else -1, "phrase_ms": main.mage_talk.phrase_ms, "voice": main.voice.latency_report()}
+	report["talk_latency"] = lat
+	print("[mktest] talk latency ", JSON.stringify(lat))
+	_check(not sg.is_empty() and int(lat.median_gap_ms) < 1500 and int(lat.max_gap_ms) < 4000, "no long silences between turns (median %s ms, max %s ms)" % [lat.median_gap_ms, lat.max_gap_ms], lat)
 	report["meeting"] = res
 	var lines: Array = res.get("lines", [])
 	var speakers := {}
@@ -353,10 +375,13 @@ func _companions() -> void:
 	_check(alternations >= lines.size() - 2, "turn-taking: they alternate, nobody monologues", alternations)
 	var told := lines.filter(func(l): return String(l.get("told", "")) != "")
 	_check(not told.is_empty(), "something from one mage's own memory was shared", told.map(func(l): return l.told))
+	# whoever was told something (the one with no memory of her own to share may only listen) remembers being
+	# TOLD; the fact itself does not enter her own knowledge
 	var luna_told := lm.knowledge.keys().filter(func(k): return String(k).begins_with("told:mika:"))
-	var luna_knows_fact := luna_told.any(func(k): return lm.knowledge.has(String(k).trim_prefix("told:mika:")))
-	_check(not luna_told.is_empty() and not luna_knows_fact, "Luna remembers being TOLD, the fact did not enter her own knowledge", luna_told)
 	var mika_told := mm.knowledge.keys().filter(func(k): return String(k).begins_with("told:luna:"))
+	var leaked := luna_told.filter(func(k): return lm.knowledge.has(String(k).trim_prefix("told:mika:"))) + \
+		mika_told.filter(func(k): return mm.knowledge.has(String(k).trim_prefix("told:luna:")))
+	_check(not (luna_told + mika_told).is_empty() and leaked.is_empty(), "the listener remembers being TOLD, the fact did not enter her own knowledge", {"luna_told": luna_told, "mika_told": mika_told, "leaked": leaked})
 	report["mika_told"] = mika_told
 	report["luna_told"] = luna_told
 	# 3) an invitation: Mika proposes exploring together; Luna decides from her own state
@@ -390,6 +415,7 @@ func _companions() -> void:
 		await get_tree().process_frame
 	var ent: Dictionary = box.res.get("entry", {})
 	report["invite"] = ent
+	print("[mktest] walk gap timeline: ", walk_gaps.filter(func(_g): return true).slice(0, walk_gaps.size(), 30).map(func(g): return snappedf(g, 0.1)))
 	report["walk_gap"] = {"samples": walk_gaps.size(), "min": snappedf(min_gap.v, 0.01), "max": snappedf(walk_gaps.max() if not walk_gaps.is_empty() else 0.0, 0.01),
 		"avg": snappedf((walk_gaps.reduce(func(a, b): return a + b, 0.0) / maxf(1, walk_gaps.size())), 0.01)}
 	_check(ent.has("accepted"), "Luna answered the invitation from her own state", ent)
@@ -2683,6 +2709,8 @@ func _ambush() -> void:
 		WorldState.mind(who).vigor = 1.0
 	var tg0: int = main.teleport_guard.violations.size() if main.teleport_guard else 0
 	var cuts0 := TrailerCam.log.size()
+	var h0: int = main.magic.history.size()
+	var co0: int = main.impacts.callouts.size()
 	var ghosts0 := Afterimage.made
 	var styles := {}
 	var hz_watch := func() -> void:
@@ -2727,9 +2755,32 @@ func _ambush() -> void:
 	_check(cuts >= 4, "the trailer camera covered the fight (%d cuts)" % cuts)
 	var tg: Array = main.teleport_guard.violations.slice(tg0) if main.teleport_guard else []
 	_check(tg.is_empty(), "nobody teleported", tg)
+	# body language: a mage who took real blows carries them afterwards (guarding, slower pace, winces)
+	var bl := {}
+	for c in [mika, luna]:
+		if c.body_language:
+			bl[c.character_id] = c.body_language.status()
+			bl[c.character_id]["hits"] = c.body_language.log.filter(func(e): return e.event == "hit").size()
+	report["ambush"]["body_language"] = bl
+	var struck := [mika, luna].filter(func(c): return c.body_language and c.body_language.log.any(func(e): return e.event == "hit"))
+	_check(not struck.is_empty() and struck.all(func(c): return c.body_language.injury > 0.05 and c.body_language.tempo() < 0.99),
+		"a struck mage carries her injury in her body afterwards (posture, pace)", bl)
 	var voices: Array = main.voice.log.filter(func(e): return String(e.get("speaker", "")) in ["mika", "luna"] and e.get("audio", false))
 	var foreign := voices.filter(func(e): return String(e.get("provider", "")) != "gemini")
 	_check(foreign.is_empty(), "Mika and Luna spoke only in their own voices", foreign)
+	# no recitation in an ordinary fight: at most a one-word call now and then, never the full words
+	var casts: Array = main.magic.history.slice(h0).filter(func(e): return e.has("voicing"))
+	var full := casts.filter(func(e): return String(e.voicing) == "full")
+	var voiced := casts.filter(func(e): return String(e.voicing) in ["full", "short", "short_combat"])
+	report["ambush"]["voicing"] = casts.map(func(e): return String(e.voicing))
+	_check(full.is_empty() and voiced.size() <= maxi(2, int(casts.size() * 0.25)), "no spell recitation in the fight (%d casts, %d voiced)" % [casts.size(), voiced.size()], report["ambush"]["voicing"])
+	var co: Array = main.impacts.callouts.slice(co0)
+	report["ambush"]["callouts"] = co
+	report["ambush"]["voice_latency"] = main.voice.latency_report()
+	report["ambush"]["slow_lines"] = main.voice.log.filter(func(e): return int(e.get("tts_ms", 0)) > 1500).map(func(e): return {"speaker": e.speaker, "text": e.text, "tts_ms": e.tts_ms, "cached": e.get("cached", ""), "provider": e.get("provider", ""), "error": e.get("error", "")})
+	print("[ambush] slow lines: ", report["ambush"]["slow_lines"])
+	print("[ambush] callouts: ", co)
+	print("[ambush] voice latency: ", report["ambush"]["voice_latency"])
 
 
 # ------------------------------------------------------------------ region tour (visual quality review)
@@ -2765,7 +2816,13 @@ func _tour() -> void:
 		var cen := aabb.get_center()
 		var gy := float(w.ground_height(cen.x, cen.z))
 		var shots := []
-		shots.append([Vector3(cen.x + 40.0, gy + 55.0, cen.z + 125.0), Vector3(cen.x, gy + 5.0, cen.z - 20.0), 55.0, "establish"])
+		if w is CaveArea:
+			# under rock there is no aerial view: a high wide shot inside the chamber, under its roof
+			var ep := first + Vector3(14.0, 0, 16.0)
+			ep.y = lerpf(float(w.height(ep.x, ep.z)), float(w.roof(ep.x, ep.z)), 0.55)
+			shots.append([ep, first + Vector3(0, 1.5, 0), 62.0, "establish"])
+		else:
+			shots.append([Vector3(cen.x + 40.0, gy + 55.0, cen.z + 125.0), Vector3(cen.x, gy + 5.0, cen.z - 20.0), 55.0, "establish"])
 		var mh := mika.global_position + Vector3(0, 1.2, 0)
 		shots.append([mh + (-mika.global_transform.basis.z) * 3.2 + Vector3(1.2, 0.3, 0), mh, 45.0, "mika_scale"])
 		var i := 0
@@ -2776,10 +2833,13 @@ func _tour() -> void:
 			var ang := float(i) * 1.7
 			# eye level, 12 m off, from the first direction with a clear view (no wall or rock between)
 			var cp := pp + Vector3(sin(ang) * 12.0, 0, cos(ang) * 12.0)
-			for tries in 8:
+			for tries in 16:
 				var aa := ang + tries * TAU / 8.0
-				var c2 := pp + Vector3(sin(aa) * 12.0, 0, cos(aa) * 12.0)
+				var rr := 12.0 if tries < 8 else 7.0
+				var c2 := pp + Vector3(sin(aa) * rr, 0, cos(aa) * rr)
 				c2.y = float(w.ground_height(c2.x, c2.z)) + 1.7
+				if w is CaveArea and float(w.roof(c2.x, c2.z)) - c2.y < 0.8:
+					continue        # inside the cave wall
 				var q := PhysicsRayQueryParameters3D.create(c2, pp + Vector3(0, 1.4, 0))
 				q.collision_mask = 1
 				if mika.get_world_3d().direct_space_state.intersect_ray(q).is_empty():

@@ -1,46 +1,40 @@
-extends KitArea
-## A4 Mentor's Tower (Arcane Sanctuary). A round stone tower on a grassy rise; an external spiral
-## stair climbs to a lookout balcony; at its foot an advanced-magic circle and the mentor's desk.
+extends ForestRegion
+## A4 Mentor's Tower (Arcane Sanctuary) - moved onto the realistic toolkit (world-quality gate): a round stone
+## tower on a grassy rise in open woodland east of the Sanctuary (photographic ground, the Woods' species,
+## hour-by-hour light); an external spiral stair climbs to a lookout balcony; at its foot the advanced-magic circle
+## and the mentor's desk. The east trail from the Sanctuary's training stones arrives from the west.
 
 const TOWER := Vector3(0, 0, -6)
 const R := 4.2
 const BALCONY_Y := 7.2
+const GATE := Vector2(-134, 30)
 
 var stone: ShaderMaterial
 var circle_mat: ShaderMaterial
 
 
-static func resources() -> Array:
-	return textures(["mossy_rock", "monastery_stone_floor"], "2k") + textures(["roof_slates_02", "forrest_ground_01", "stony_dirt_path", "dark_wooden_planks", "wood_table_001"]) + \
-		textures(["leafy_grass"], "2k") + models(["book_encyclopedia_set_01", "brass_candleholders", "rock_moss_set_02", "fern_02", "magnifying_glass_01"]) + [TREE_NEAR, TREE_FAR]
+func _init() -> void:
+	trails = [[[GATE, Vector2(-100, 30), Vector2(-60, 24), Vector2(-30, 20), Vector2(-10, 14), Vector2(0, 12)], 2.4, "main"]]
+	clearings = [[Vector2(0, 2), 14.0, "glade"]]
+	streams = []
 
 
-func env_preset() -> Dictionary:
-	return {"day": {"sun_rot": Vector3(-28, -100, 0), "sun_energy": 2.3, "fog": 0.0006, "vol_fog": 0.004, "exposure": 0.95},
-		"night": {"fog": 0.004, "ambient": 1.5, "exposure": 1.3},
-		"vista": {"mountains": false, "ridge_height": 300.0, "ridge_seed": 3, "haze": Color(0.58, 0.66, 0.76)}}
-
-
-func height(x: float, z: float) -> float:
+func shape(x: float, z: float, h: float) -> float:
 	var d := Vector2(x - TOWER.x, z - TOWER.z).length()
-	return 3.0 * (1.0 - smoothstep(9.0, 30.0, d)) + sin(x * 0.11) * 0.4 + cos(z * 0.09) * 0.4 + smoothstep(32.0, 46.0, Vector2(x, z).length()) * 4.0
+	return 3.0 * (1.0 - smoothstep(9.0, 30.0, d)) + h * smoothstep(9.0, 22.0, d)
 
 
-func build_steps() -> Array:
-	return [_ground, _tower, _spiral, _balcony, _circle, _desk, _surroundings, _links]
+func gate_spots() -> Array:
+	return [GATE]
 
 
-func _ground() -> void:
-	nav_aabb = AABB(Vector3(-40, -4, -40), Vector3(80, 20, 80))
-	nav_agent_climb = 0.25
-	stone = Kit.tri("mossy_rock", "2k", 0.4, 0.45, Color(0.95, 0.93, 0.9))
+func features() -> Array:
+	return [_mats, _tower, _spiral, _balcony, _circle, _desk, func(): dress_clearing(Vector2(0, 2), 13.0, true, [[Vector2(0, 9), 6.5], [Vector2(TOWER.x, TOWER.z), 7.5]])]
+
+
+func _mats() -> void:
+	stone = RealKit.stone_mat("mossy_stone_wall") if RealKit.enabled() else Kit.tri("mossy_rock", "2k", 0.4, 0.45, Color(0.95, 0.93, 0.9))
 	magic_receivers = [stone]
-	var mat := Kit.terrain_mat("leafy_grass", "forrest_ground_01", "stony_dirt_path", Color(0.8, 0.92, 0.66), Color(0.5, 0.56, 0.42), "2k")
-	Kit.terrain(self, 100.0, 1.0, height, func(x, z):
-		var p := Vector2(x, z)
-		var trail := 1.0 - smoothstep(1.0, 2.5, absf(p.x * 0.35 + p.y * 0.0 - 0.0) if p.y > 4.0 and absf(p.x) < 3.0 else 9.0)
-		return Color(trail, smoothstep(26.0, 36.0, p.length()), 0.0), mat)
-	boundary_circle(Vector3.ZERO, 40.0)
 
 
 func _tower() -> void:
@@ -70,6 +64,12 @@ func _tower() -> void:
 		var wy := y0 + 3.5 + (i % 3) * 3.3
 		var p := TOWER + Vector3(cos(a) * (R - 0.05), wy, sin(a) * (R - 0.05))
 		Kit.mesh_node(self, Kit.box_mesh(Vector3(0.7, 1.3, 0.2), 0.02), Kit.metal(Color(0.06, 0.07, 0.09), 0.15), Transform3D(Basis(Vector3.UP, -a + PI * 0.5), p), false)
+		# dressed-stone surround: jambs, sill, lintel
+		var bw := Basis(Vector3.UP, -a + PI * 0.5)
+		for sx: float in [-1.0, 1.0]:
+			Kit.block(self, Vector3(0.22, 1.6, 0.34), Transform3D(bw, p + bw * Vector3(sx * 0.46, 0, 0.06)), stone, false, 0.02)
+		Kit.block(self, Vector3(1.24, 0.18, 0.44), Transform3D(bw, p + bw * Vector3(0, -0.74, 0.1)), stone, false, 0.02)
+		Kit.block(self, Vector3(1.14, 0.3, 0.36), Transform3D(bw, p + bw * Vector3(0, 0.8, 0.06)), stone, false, 0.02)
 		night_only(Kit.mesh_node(self, Kit.box_mesh(Vector3(0.62, 1.2, 0.22), 0.02), Kit.emissive(Color(1.0, 0.72, 0.4), 3.0), Transform3D(Basis(Vector3.UP, -a + PI * 0.5), p), false))
 	# door
 	Kit.block(self, Vector3(1.5, 2.6, 0.3), Kit.xf(TOWER + Vector3(0, y0 + 1.3, R + 0.05)), Kit.tri("dark_wooden_planks", "1k", 1.0, 0.0, Color(0.55, 0.42, 0.3)), false, 0.02)
@@ -116,6 +116,17 @@ func _balcony() -> void:
 		var ang_from_stair := wrapf(a - a_end, -PI, PI)
 		if absf(ang_from_stair) > 0.35:
 			Kit.block(self, Vector3(TAU * (R + 2.2) / 20.0, 0.9, 0.18), Transform3D(Basis(Vector3.UP, -a + PI * 0.5), TOWER + Vector3(cos(a) * (R + 2.2), y0 + BALCONY_Y + 0.45, sin(a) * (R + 2.2))), stone, true, 0.03)
+	# a corbel table carries the gallery: courses stepping out from the wall (a slab hanging in the air reads as a
+	# hat brim, not masonry), with brackets under the outer edge
+	Kit.mesh_node(self, Kit.lathe([Vector2(R - 0.05, BALCONY_Y - 2.3), Vector2(R + 0.35, BALCONY_Y - 2.0), Vector2(R + 0.35, BALCONY_Y - 1.75),
+		Vector2(R + 0.95, BALCONY_Y - 1.45), Vector2(R + 0.95, BALCONY_Y - 1.2), Vector2(R + 1.6, BALCONY_Y - 0.9), Vector2(R + 1.6, BALCONY_Y - 0.7),
+		Vector2(R + 2.25, BALCONY_Y - 0.42)], 48, false, false), stone, Kit.xf(TOWER + Vector3(0, y0, 0)))
+	for i in 28:
+		var a := TAU * (i + 0.5) / 28.0
+		var bc := Basis(Vector3.UP, -a + PI * 0.5)
+		Kit.block(self, Vector3(0.36, 0.5, 0.75), Transform3D(bc, TOWER + Vector3(cos(a), 0, sin(a)) * (R + 1.75) + Vector3(0, y0 + BALCONY_Y - 0.72, 0)), stone, false, 0.03)
+	# a moulded fascia round the gallery's edge
+	Kit.mesh_node(self, Kit.lathe([Vector2(R + 2.25, BALCONY_Y - 0.42), Vector2(R + 2.4, BALCONY_Y - 0.3), Vector2(R + 2.4, BALCONY_Y - 0.05), Vector2(R + 2.3, BALCONY_Y)], 40, false, false), stone, Kit.xf(TOWER + Vector3(0, y0, 0)))
 	var look := TOWER + Vector3(cos(-PI * 0.5) * (R + 1.4), y0 + BALCONY_Y, sin(-PI * 0.5) * (R + 1.4))
 	add_poi("tower_lookout", look, "Lookout balcony high on the Mentor's Tower", "mentors_tower")
 
@@ -146,17 +157,8 @@ func _desk() -> void:
 		p + Vector3(0.3, 0, 1.0), {"knowledge": {"lore:advanced_casting": 1}, "skills": {"arcane_orb": 0.1}}, "look_around", 4.0)).radius = 2.4
 
 
-func _surroundings() -> void:
-	for p in [Vector2(-18, -14), Vector2(16, -18), Vector2(-22, 10), Vector2(20, 14), Vector2(-6, 26), Vector2(24, -2)]:
-		tree(Vector3(p.x, height(p.x, p.y) - 0.2, p.y), rng.randf_range(1.0, 1.5), rng.randf() * TAU, true)
-	rocks_ring(Vector3(0, 0, 0), 24.0, 10, 0.8, 1.8, stone, height, 600)
-	var h := height
-	for part in ["fern_02_a", "fern_02_b"]:
-		scatter("fern_02", part, 60, Vector2.ZERO, 10.0, 34.0, 0.9, 1.6, h, func(p: Vector2) -> bool: return p.distance_to(Vector2(0, 9)) > 6.5 and p.distance_to(Vector2(TOWER.x, TOWER.z)) > 7.5, 45.0)
-
-
-func _links() -> void:
-	add_gate("sanctuary", Vector3(-30.0, height(-30, 22), 22.0), Vector3(-25.0, height(-25, 18) + 0.05, 18.0), atan2(25.0, 18.0), 2.6)
+func links() -> void:
+	edge_gate("sanctuary", GATE)
 	add_interactable(Interactable.make("advanced_circle_practice", "Practise advanced casting in the circle", "practice", "mentors_tower",
 		Vector3(0, height(0, 9.0) + 0.12, 9.0), {"skills": {"arcane_orb": 0.3}}, "magic_attack_2h", 2.8)).radius = 3.6
 	add_interactable(Interactable.make("lookout_survey", "Survey the realm from the tower lookout", "observe", "mentors_tower",

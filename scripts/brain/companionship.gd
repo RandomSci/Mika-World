@@ -370,7 +370,7 @@ func _explore_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary)
 	var lead := a.me
 	var fol := b.me
 	var to: Vector3 = target.get("pos", lead.global_position)
-	active.stage = "walking together"
+	active.stage = "setting off together"
 	var f := FollowCompanion.new()
 	f.name = "Follow_" + b.agent_id
 	f.leader = lead
@@ -516,13 +516,30 @@ func _rest_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary) ->
 func walk_together(lead: WorldCharacter, f: FollowCompanion, to: Vector3, max_s: float) -> bool:
 	var map := lead.get_world_3d().navigation_map
 	var goal := NavigationServer3D.map_get_closest_point(map, to)
+	# set off together: she waits (looking at her friend) until her companion has come up beside her
+	var tw := 0.0
+	if f.gap() > 2.6:
+		lead.look_head_at(f.follower.global_position + Vector3(0, 1.45, 0))
+		while f.gap() > 2.6 and tw < 10.0:
+			await get_tree().physics_frame
+			tw += get_physics_process_delta_time()
+		lead.look_head_at(null)
+	if String(active.get("stage", "")) == "setting off together":
+		active.stage = "walking together"
 	lead.navigate_to(goal, false)
 	var t := 0.0   # GAME time: under Movie Maker recording real time runs many times slower than the game
 	var waiting := false
+	var pace0: float = lead.pace
 	while t < max_s:
 		await get_tree().physics_frame
 		t += get_physics_process_delta_time()
 		var gap := f.gap()
+		# she walks at her companion's pace: a hurt or tired friend sets it, and she eases off further when the
+		# gap opens (instead of striding ahead and stopping to wait)
+		var fol: WorldCharacter = f.follower
+		var ft: float = fol.body_language.tempo() if fol and fol.body_language and is_instance_valid(fol.body_language) else 1.0
+		var lt: float = lead.body_language.tempo() if lead.body_language and is_instance_valid(lead.body_language) else 1.0
+		lead.pace = pace0 * clampf(ft / maxf(lt, 0.5) * (1.0 - clampf((gap - 2.2) / 5.0, 0.0, 0.45)), 0.5, 1.0)
 		if gap > 5.5 and not waiting and lead.current_action == "navigate_to":
 			waiting = true
 			lead.stop_action()
@@ -534,4 +551,5 @@ func walk_together(lead: WorldCharacter, f: FollowCompanion, to: Vector3, max_s:
 		elif not waiting and lead.current_action != "navigate_to":
 			break
 	lead.look_head_at(null)
+	lead.pace = pace0
 	return Vector2(lead.global_position.x - goal.x, lead.global_position.z - goal.z).length() < 2.0

@@ -34,6 +34,7 @@ var _mat: ShaderMaterial
 var _bolt: Node3D
 var _travelled := 0.0
 var _exclude: Array = []
+var warned: Array = []              # mages a companion shouted a warning to: they know it is coming (V3 Part 1.4)
 
 
 static func active(world: Node) -> Array:
@@ -199,6 +200,8 @@ func _ready() -> void:
 func perceived_by(c: Node3D) -> bool:
 	if done or not is_instance_valid(c):
 		return false
+	if c in warned:
+		return true
 	var src: Vector3 = (owner_monster.global_position if is_instance_valid(owner_monster) else center)
 	var d := Vector2(c.global_position.x - src.x, c.global_position.z - src.z).length()
 	if d > 26.0:

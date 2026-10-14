@@ -17,6 +17,7 @@ var _casting := {}               # caster id -> true while that mage's cast is i
 var busy: bool:                  # true while ANY mage is casting (viewer chat waits for a quiet moment)
 	get: return not _casting.is_empty()
 var history: Array = []
+var _combat_words := {}          # mage -> when she last voiced a spell word in a fight (no recitation in combat)
 var fusion: SpellFusion
 var rng := RandomNumberGenerator.new()
 
@@ -228,6 +229,16 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 	last_cast_dir = Vector3(aim.x - caster.global_position.x, 0, aim.z - caster.global_position.z).normalized()
 	# spoken casting: full incantation while learning, one word once Adept, silent from Expert
 	var vo := voicing(id, who)
+	# V3 Part 2: no recitation in an ordinary fight - the gesture and the light carry the spell. At most the one
+	# word now and then (first cast of a fight, then rarely); a signature moment keeps its full words.
+	if vo.text != "" and caster.combat_stance and not caster.has_meta("signature"):
+		var now := Time.get_ticks_msec() / 1000.0
+		var last := float(_combat_words.get(who, -999.0))
+		if now - last < 90.0:
+			vo = {"mode": "silent_combat", "text": ""}
+		else:
+			_combat_words[who] = now
+			vo = {"mode": "short_combat", "text": String(spell(id).get("incantation_short", ""))}
 	res["voicing"] = vo.mode
 	if vo.text != "" and main.voice:
 		main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), vo.text, {"latin": true, "priority": 1, "subtitle": true})

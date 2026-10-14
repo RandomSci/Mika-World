@@ -1,12 +1,14 @@
-extends KitArea
-## F1 Academy Courtyard + F3 Advanced Magic Arena + F4 Academy Gardens (Grand Academy).
-## A monumental paved courtyard framed by a great hall with tall arched windows and round towers,
-## an arena with tiered seating around a rune circle, and formal gardens with hedges and a fountain.
+extends ForestRegion
+## F1 Academy Courtyard + F3 Advanced Magic Arena + F4 Academy Gardens (Grand Academy) - moved onto the realistic
+## toolkit (world-quality gate): photographic ground (lawns, flagstone walks, gravel garden paths), the woods round
+## the campus, hour-by-hour light; the great hall's facade in real coursed ashlar, photoscanned stone and marble.
+## A monumental paved courtyard framed by the great hall (tall arched windows, a portal, a lantern spire with a
+## rose window) and two round towers, wings with archway passages, the arena with tiered seating round a rune
+## circle, and formal gardens with hedges, flowerbeds and a fountain.
 
 const COURT := Vector3(0, 0, 0)
 const ARENA := Vector3(44, 0, 6)
 const GARDEN := Vector3(-42, 0, 6)
-const SKY := "res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr"
 
 var stone: ShaderMaterial
 var marble: ShaderMaterial
@@ -15,46 +17,53 @@ var glass_day: Material
 var glass_night: Material
 
 
-static func resources() -> Array:
-	return textures(["castle_wall_slates", "marble_01", "large_grey_tiles", "roof_slates_02", "stony_dirt_path", "forrest_ground_01", "dark_wooden_planks"]) + \
-		textures(["leafy_grass", "monastery_stone_floor"], "2k") + \
-		models(["gothic_statue", "shrub_02", "flower_gazania", "flower_ursinia", "flower_empodium", "potted_plant_01", "Lantern_01", "large_castle_door"]) + [SKY, TREE_NEAR, TREE_FAR]
+func _init() -> void:
+	trails = [
+		[[Vector2(-18, 26), Vector2(18, 26)], 1.0, "hidden"],
+	]
+	clearings = [[Vector2(0, 4), 74.0, "glade"]]
+	streams = []
 
 
-func env_preset() -> Dictionary:
-	return {"sky_day": SKY,
-		"day": {"sun_rot": Vector3(-32, -150, 0), "sun_energy": 2.3, "sun_color": Color(1.0, 0.88, 0.72), "fog": 0.0006, "fog_color": Color(0.62, 0.68, 0.76), "vol_fog": 0.003, "exposure": 0.92, "bg_energy": 0.85},
-		"night": {"fog": 0.003, "ambient": 1.4, "exposure": 1.35},
-		"vista": {"mountains": false, "ridge_height": 360.0, "ridge_seed": 55, "haze": Color(0.6, 0.66, 0.76), "snow_line": 260.0}}
+func shape(x: float, z: float, h: float) -> float:
+	# the campus is level; the land rolls only beyond it
+	return h * smoothstep(70.0, 92.0, Vector2(x * 0.85, z).length())
 
 
-func height(x: float, z: float) -> float:
-	return smoothstep(52.0, 64.0, Vector2(x * 0.8, z).length()) * 5.0 + sin(x * 0.07) * 0.15
+func density(p: Vector2, f: float) -> float:
+	return f * smoothstep(74.0, 92.0, Vector2(p.x * 0.85, p.y).length())
 
 
-func build_steps() -> Array:
-	return [_ground, _great_hall, _towers, _wings, _fountain_court, _arena, _gardens_layout, _gardens_plants, _links]
+func _terrain_mask(x: float, z: float) -> Color:
+	var court := float(absf(x) < 22.0 and z > -14.0 and z < 26.0)
+	var to_arena := float(x > 20.0 and x < 32.0 and absf(z - 6.0) < 2.5)
+	var to_garden := float(x < -20.0 and x > -30.0 and absf(z - 6.0) < 2.5)
+	var walk := maxf(maxf(court, to_arena), to_garden)
+	var gp := Vector2(x - GARDEN.x, z - GARDEN.z)
+	var gravel := float(absf(gp.x) < 1.6 or absf(gp.y) < 1.6) * float(gp.length() < 16.0) + float(absf(gp.length() - 6.5) < 1.2)
+	var base := super._terrain_mask(x, z)
+	return Color(walk, base.g, clampf(gravel, 0.0, 1.0) * (1.0 - walk), 0.0)
 
 
-func _ground() -> void:
-	nav_aabb = AABB(Vector3(-62, -4, -40), Vector3(124, 20, 84))
-	stone = Kit.tri("castle_wall_slates", "1k", 0.45, 0.1, Color(0.92, 0.9, 0.86))
+func features() -> Array:
+	return [_materials, _great_hall, _towers, _wings, _fountain_court, _arena, _gardens_layout, _gardens_plants]
+
+
+func _materials() -> void:
+	stone = (RealKit.stone_mat("castle_wall_slates") if RealKit.enabled() else Kit.tri("castle_wall_slates", "1k", 0.45, 0.1)).duplicate()
+	stone.set_shader_parameter("moss_amount", 0.12)
+	stone.set_shader_parameter("tint", Color(1.05, 1.03, 0.98))
 	marble = Kit.tri("marble_01", "1k", 0.25, 0.0, Color(0.95, 0.94, 0.9))
 	roof = Kit.uvmat("roof_slates_02", "1k", Vector2(5, 3), Color(0.5, 0.56, 0.64))
 	glass_day = Kit.metal(Color(0.12, 0.16, 0.22), 0.06)
 	glass_night = Kit.emissive(Color(1.0, 0.75, 0.45), 2.6)
 	magic_receivers = [stone, marble]
-	var mat := Kit.terrain_mat("leafy_grass", "stony_dirt_path", "large_grey_tiles", Color(0.78, 0.9, 0.62), Color(0.85, 0.82, 0.76), "2k")
-	mat.set_shader_parameter("path_tiling", 0.28)
-	Kit.terrain(self, 140.0, 1.0, height, func(x, z):
-		var court := float(absf(x) < 22.0 and z > -14.0 and z < 26.0)
-		var to_arena := float(x > 20.0 and x < 32.0 and absf(z - 6.0) < 2.5)
-		var to_garden := float(x < -20.0 and x > -30.0 and absf(z - 6.0) < 2.5)
-		var walk := maxf(maxf(court, to_arena), to_garden)
-		var gp := Vector2(x - GARDEN.x, z - GARDEN.z)
-		var gravel := float(absf(gp.x) < 1.6 or absf(gp.y) < 1.6) * float(gp.length() < 16.0) + float(absf(gp.length() - 6.5) < 1.2)
-		return Color(walk, clampf(gravel, 0.0, 1.0) * (1.0 - walk), 0.0), mat)
-	boundary_box(Vector3(0, 0, 4), Vector3(122, 20, 80))
+	# the walks are flagstones, the garden paths gravel
+	var tm: ShaderMaterial = mats.terrain
+	tm.set_shader_parameter("path_alb", RealKit.ph_tex("monastery_stone_floor", "diff"))
+	tm.set_shader_parameter("path_nrm", RealKit.ph_tex("monastery_stone_floor", "nor_gl"))
+	tm.set_shader_parameter("bank_alb", RealKit.ph_tex("stony_dirt_path", "diff"))
+	tm.set_shader_parameter("bank_nrm", RealKit.ph_tex("stony_dirt_path", "nor_gl"))
 
 
 func _arched_window(parent: Node3D, pos: Vector3, w: float, h: float) -> void:
@@ -70,16 +79,41 @@ func _great_hall() -> void:
 	var c := Vector3(0, 0, -22)
 	var w := 40.0
 	var h := 16.0
-	Kit.block(self, Vector3(w, h, 12), Kit.xf(c + Vector3(0, h * 0.5, 0)), stone, true, 0.08)
+	Kit.block(self, Vector3(w - 0.6, h, 11.4), Kit.xf(c + Vector3(0, h * 0.5, -0.2)), stone, true, 0.08)
 	var front := c.z + 6.05
+	# the facade in real coursed ashlar (StoneBuilder): piers between the tall windows, sills under them, masonry
+	# over them and over the portal
+	var sb := StoneBuilder.new(height, 211)
+	sb.base_y = -1.0
+	sb.top_y = h + 1.0
+	var fz := front - 0.25
+	var opens := [[-3.9, 3.9, 0.0, 9.2]]
+	for i in 9:
+		var wx := -16.0 + i * 4.0
+		if absf(wx) < 3.0:
+			continue
+		opens.append([wx - 1.05, wx + 1.05, 3.7, 9.3])
+	opens.sort_custom(func(a, b): return a[0] < b[0])
+	var x := -w * 0.5
+	for o in opens:
+		if float(o[0]) - x > 0.15:
+			sb.wall(Vector3(x, 0, fz), Vector3(float(o[0]), 0, fz), h, 0.7, 0.0, 0.62, 0.0, 0.0)
+		if float(o[2]) > 0.2:
+			sb.wall(Vector3(float(o[0]), 0, fz), Vector3(float(o[1]), 0, fz), float(o[2]), 0.7, 0.0, 0.62, 0.0, 0.0)
+		sb.wall(Vector3(float(o[0]), 0, fz), Vector3(float(o[1]), 0, fz), h, 0.7, 0.0, 0.62, float(o[3]), 0.0)
+		x = float(o[1])
+	sb.wall(Vector3(x, 0, fz), Vector3(w * 0.5, 0, fz), h, 0.7, 0.0, 0.62, 0.0, 0.0)
+	for sx: float in [-1.0, 1.0]:
+		sb.wall(Vector3(sx * w * 0.5, 0, fz), Vector3(sx * w * 0.5, 0, c.z - 6.0), h, 0.7, 0.0, 0.62, 0.0, 0.0)
+	sb.finish(self, stone, "HallMasonry")
 	var root := Node3D.new()
 	add_child(root)
 	for i in 9:
-		var x := -16.0 + i * 4.0
-		if absf(x) < 3.0:
+		var wx := -16.0 + i * 4.0
+		if absf(wx) < 3.0:
 			continue
-		_arched_window(root, Vector3(x, 6.5, front + 0.02), 2.0, 5.6)
-		Kit.mesh_node(root, Kit.box_mesh(Vector3(0.8, h, 0.5), 0.03), marble, Kit.xf(Vector3(x + 2.0, h * 0.5, front + 0.15)))
+		_arched_window(root, Vector3(wx, 6.5, front + 0.02), 2.0, 5.6)
+		Kit.mesh_node(root, Kit.box_mesh(Vector3(0.8, h, 0.5), 0.03), marble, Kit.xf(Vector3(wx + 2.0, h * 0.5, front + 0.15)))
 	# grand portal
 	arch(Vector3(0, 6.5, front + 0.4), 0.0, 5.0, 0.9, 1.2, marble, 13)
 	for sx: float in [-1.0, 1.0]:
@@ -244,11 +278,9 @@ func _gardens_plants() -> void:
 				continue
 			xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(1.0, 1.8)), Vector3(p.x, 0.0, p.y)))
 		Kit.multimesh(self, Kit.prop(flowers[k][0], flowers[k][1]), xs, 45.0, false)
-	for p in [Vector2(-58, -10), Vector2(-58, 22), Vector2(-28, 26), Vector2(-28, -12), Vector2(60, 26), Vector2(60, -14)]:
-		tree(Vector3(p.x, height(p.x, p.y) - 0.2, p.y), rng.randf_range(1.1, 1.5), rng.randf() * TAU, true)
 
 
-func _links() -> void:
+func links() -> void:
 	# ley-line portal back to the sanctuary, at the south edge of the courtyard
 	var pz := 30.0
 	for sx: float in [-1.0, 1.0]:

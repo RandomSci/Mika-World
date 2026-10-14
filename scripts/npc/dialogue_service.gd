@@ -115,6 +115,10 @@ func converse(npc_id: String, mika: WorldCharacter) -> Dictionary:
 		var phr := await _phrase(npc_id, npc, b, lines)
 		res.provider = phr.provider
 		lines = phr.lines
+		# her answer (and Luna's) synthesise while the NPC is speaking
+		main.voice.prefetch("mika", lines.mika)
+		if b.has("luna") and _luna_near(npc):
+			main.voice.prefetch("luna", String(b.luna))
 		var r1: Dictionary = await main.voice.say(String(t.voice), lines.npc, {"mood": String(b.get("mood", "")), "form": "humanoid"})
 		res.lines.append({"speaker": t.name, "text": lines.npc, "audio": r1.get("audio", false), "provider": r1.get("provider", "")})
 		await get_tree().create_timer(0.35).timeout

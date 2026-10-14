@@ -153,7 +153,25 @@ def fixed_lines(speaker, allcfg):
 	for k, pool in imp.items():
 		if isinstance(pool, list):
 			for t in pool:
-				out.append((clean(t), "concerned", "impact:" + k))
+				out.append((clean(t), "urgent" if k.startswith("warn_") else "concerned", "impact:" + k))
+	# the ambush exchanges (data/ambush.json): [speaker, text, mood] lines and the fight barks (mood "determined")
+	amb = json.load(open(os.path.join(ROOT, "data", "ambush.json"), encoding="utf-8"))
+	for bid, band in amb.get("bands", {}).items():
+		for phase, lines in band.items():
+			if isinstance(lines, list):
+				for ln in lines:
+					if isinstance(ln, list) and len(ln) >= 2 and ln[0] == speaker:
+						out.append((clean(ln[1]), ln[2] if len(ln) > 2 and ln[2] else "neutral", "ambush:%s:%s" % (bid, phase)))
+		for t in band.get("barks", {}).get(speaker, []):
+			out.append((clean(t), "determined", "ambush:%s:bark" % bid))
+	# her own line pools that carry a fixed mood (data/voices.json line_moods; SanctuaryBrain._maybe_say)
+	pools = json.load(open(os.path.join(ROOT, "data", "mages.json"), encoding="utf-8")).get("mages", {}).get(speaker, {}).get("lines", {})
+	for k, mood in allcfg.get("line_moods", {}).items():
+		if k.startswith("_"):
+			continue
+		for t in pools.get(k, []):
+			if "{" not in t:
+				out.append((clean(t), mood, "mage_line:" + k))
 	ph = json.load(open(os.path.join(ROOT, "data", "phoenix.json"), encoding="utf-8")).get("bystander_lines", {}).get(speaker, {})
 	for k, pool in ph.items():
 		for t in pool:
@@ -184,11 +202,27 @@ def ship(only="", dry=False):
 			if dry:
 				print("  would render", mood, text)
 				continue
-			try:
-				raw, src = synth_raw(cfg, text, sty, k)
-				wav = process(cfg, raw, cfg.get("alt_model") if src == "alt" else cfg["model"])
-			except Exception as e:      # recorded, the rest continue; the game renders a missing line on demand
-				print("  FAILED %s %r: %s" % (mood, text, e), flush=True)
+			wav = None
+			for attempt in range(3):
+				try:
+					raw, src = synth_raw(cfg, text, sty, k)
+					wav = process(cfg, raw, cfg.get("alt_model") if src == "alt" else cfg["model"])
+				except Exception as e:      # recorded, the rest continue; the game renders a missing line on demand
+					print("  FAILED %s %r: %s" % (mood, text, e), flush=True)
+					wav = None
+					break
+				# a TTS model sometimes runs on (a 2 s line returned as 100 s of babble): reject and render again
+				secs = (len(wav) - 44) / (2.0 * 24000)
+				if secs <= max(5.0, 0.12 * len(text) + 3.0):
+					break
+				print("  rejected %.1f s for %r: rendering again" % (secs, text), flush=True)
+				h = hashlib.sha1(("%s|%s|%s|%s" % (cfg["model"], cfg["voice"], sty, text)).encode("utf-8")).hexdigest()
+				try:
+					os.remove(os.path.join(RAW_CACHE, h + ".wav"))
+				except OSError:
+					pass
+				wav = None
+			if wav is None:
 				continue
 			open(path, "wb").write(wav)
 			manifest["lines"][kk] = {"text": text, "mood": mood, "why": why, "model": cfg.get("alt_model") if src == "alt" else cfg["model"]}

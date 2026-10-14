@@ -32,7 +32,8 @@
     "oof": "a short grunt of impact, the breath knocked out of her",
     "effort": "straining with effort, pushing herself up",
     "breath": "breathing hard after exertion, recovering",
-    "casting": "focused and determined, building from a hushed incantation to a confident cry"
+    "casting": "focused and determined, building from a hushed incantation to a confident cry",
+    "urgent": "a sharp urgent warning call, quick and loud, breathless, cutting through a fight"
    },
    "post": "rubberband=pitch={pitch}:formant=preserved:pitchq=quality:transients=smooth,loudnorm=I=-18:TP=-1.5:LRA=9,volume=0.9",
    "same_voice_only": true,
@@ -97,7 +98,8 @@
     "oof": "a short grunt of impact, the breath knocked out of her",
     "effort": "straining with effort, pushing herself up",
     "breath": "breathing hard after exertion, recovering",
-    "casting": "hushed and mysterious, steady and controlled, an incantation with quiet power"
+    "casting": "hushed and mysterious, steady and controlled, an incantation with quiet power",
+    "urgent": "a low sharp warning, quick and clear, steady but urgent, cutting through a fight"
    },
    "post": "rubberband=pitch={pitch}:formant=preserved:pitchq=quality:transients=smooth,loudnorm=I=-18:TP=-1.5:LRA=9,volume=0.9",
    "same_voice_only": true,
@@ -277,5 +279,15 @@
     "luna": "Haa... haa..."
    }
   }
+ },
+ "line_moods": {
+  "_note": "The mood each of the mages' own line pools (data/mages.json lines) is spoken in, so the lines can be pre-rendered in their voice identity and play instantly (tools/voice/voice_identity.py ship).",
+  "first_sight": "surprised",
+  "ward": "determined",
+  "retreat": "scared",
+  "assist": "determined",
+  "bind": "determined",
+  "rift": "determined",
+  "victory": "determined"
  }
 }

@@ -28,6 +28,9 @@ var said: Array = []
 var lines := {}
 var _helping := {}            # helper id -> fallen id
 var _busy := {}               # who is in an aftermath behaviour
+var callouts: Array = []      # warnings one mage shouted to the other (who, to, kind, why)
+var _callout_cd := {}         # warner -> time she may shout again
+var _scan_t := 0.0
 
 
 func setup(m: Node) -> void:
@@ -44,6 +47,47 @@ func _hook(c: WorldCharacter) -> void:
 		return
 	c.reaction.reacted.connect(_on_reacted.bind(c))
 	c.reaction.recovered.connect(_on_recovered.bind(c))
+
+
+## Companions watch each other's backs (V3 Part 1.4): when a blow is coming at one mage that SHE cannot see (behind
+## her, out of sight) - or a heavy one - and her friend, clear of it herself, does see it, the friend shouts. The
+## warned mage now knows it is coming (AttackHazard.warned -> perceived), so her own tactics can dodge it.
+func _process(delta: float) -> void:
+	_scan_t -= delta
+	if _scan_t > 0.0 or main == null or main.get("world") == null:
+		return
+	_scan_t = 0.2
+	var now := Time.get_ticks_msec() / 1000.0
+	for h in AttackHazard.active(main.world):
+		var hz := h as AttackHazard
+		if hz == null or hz.done or hz.owner_mage != null:
+			continue
+		for who in main.characters:
+			var m: WorldCharacter = main.characters[who]
+			if m == null or not is_instance_valid(m) or not m.visible or m in hz.warned or not hz.threatens(m.global_position):
+				continue
+			var blind := not hz.perceived_by(m)
+			if not blind and not hz.heavy:
+				continue
+			for w in main.characters:
+				var o: WorldCharacter = main.characters[w]
+				if o == m or o == null or not is_instance_valid(o) or not o.visible or now < float(_callout_cd.get(w, 0.0)):
+					continue
+				if (o.reaction and o.reaction.active) or hz.threatens(o.global_position) or not hz.perceived_by(o):
+					continue
+				if o.global_position.distance_to(m.global_position) > 24.0 or hz.time_to(m.global_position) < 0.35:
+					continue
+				hz.warned.append(m)
+				_callout_cd[w] = now + 9.0
+				var key := "warn_blind" if blind else "warn_heavy"
+				callouts.append({"who": w, "to": who, "key": key, "kind": hz.kind, "t": snappedf(now, 0.1)})
+				if callouts.size() > 40:
+					callouts.pop_front()
+				o.look_head_at(m.global_position + Vector3(0, 1.4, 0))
+				if o.face:
+					o.face.pulse("surprised", 0.7, 0.4)
+				_say(w, key)
+				break
 
 
 ## An area impact. opts: source (String), kind (String), friendly (bool, default true), exclude (Array of ids).
@@ -108,7 +152,7 @@ func _say(who: String, key: String, delay := 0.0) -> void:
 	if delay > 0.0:
 		await get_tree().create_timer(delay).timeout
 	if main.get("voice"):
-		main.voice.say(who, line, {"mood": "concerned"})
+		main.voice.say(who, line, {"mood": "urgent" if key.begins_with("warn_") else "concerned", "max_wait": 1.2, "priority": 1 if key.begins_with("warn_") else 0})
 
 
 # ------------------------------------------------------------------ aftermath behaviour
