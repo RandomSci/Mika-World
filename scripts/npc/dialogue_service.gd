@@ -30,7 +30,7 @@ func state_of(npc_id: String) -> Dictionary:
 	return st
 
 
-func _ok(npc_id: String, beat: Dictionary, npc: TravelerNPC) -> bool:
+func _ok(npc_id: String, beat: Dictionary, npc: Node) -> bool:
 	var st := state_of(npc_id)
 	if st.used_beats.has(beat.id) and not beat.when.is_empty():
 		return false
@@ -45,6 +45,8 @@ func _ok(npc_id: String, beat: Dictionary, npc: TravelerNPC) -> bool:
 		return false
 	if w.has("witnessed_effect") and not npc.witnessed.any(func(e): return e.effect == w.witnessed_effect):
 		return false
+	if w.has("luna_present") and bool(w.luna_present) != _luna_near(npc):
+		return false
 	if beat.has("requires_mika_event"):
 		var ev: String = beat.requires_mika_event
 		if not WorldState.knowledge.keys().any(func(k): return String(k).begins_with("reaction:") and String(k).ends_with(":" + ev)):
@@ -55,7 +57,7 @@ func _ok(npc_id: String, beat: Dictionary, npc: TravelerNPC) -> bool:
 
 
 ## Beats for this conversation: greeting first, then specific beats in order, then one generic line.
-func choose_beats(npc_id: String, npc: TravelerNPC, max_beats := 2) -> Array:
+func choose_beats(npc_id: String, npc: Node, max_beats := 2) -> Array:
 	var t: Dictionary = travellers[npc_id]
 	var specific := []
 	var generic := []
@@ -72,7 +74,7 @@ func choose_beats(npc_id: String, npc: TravelerNPC, max_beats := 2) -> Array:
 	return out
 
 
-func context_for(npc_id: String, npc: TravelerNPC) -> Dictionary:
+func context_for(npc_id: String, npc: Node) -> Dictionary:
 	var t: Dictionary = travellers[npc_id]
 	var st := state_of(npc_id)
 	var own := {}
@@ -85,8 +87,14 @@ func context_for(npc_id: String, npc: TravelerNPC) -> Dictionary:
 
 
 ## A whole spoken exchange. Returns exactly what was said and what changed.
+## Luna within earshot of the NPC (a beat may need her, and she may answer).
+func _luna_near(npc: Node) -> bool:
+	var luna = main.characters.get("luna")
+	return luna != null and is_instance_valid(luna) and luna.visible and luna.global_position.distance_to(npc.global_position) < 12.0
+
+
 func converse(npc_id: String, mika: WorldCharacter) -> Dictionary:
-	var npc: TravelerNPC = main.npcs.present.get(npc_id)
+	var npc: Node = main.npcs.present.get(npc_id)
 	if npc == null or not is_instance_valid(npc) or npc.state in ["leaving", "gone", "arriving"]:
 		return {"ok": false, "detail": "%s is not here to talk to" % travellers.get(npc_id, {}).get("name", npc_id)}
 	if npc.global_position.distance_to(mika.global_position) > 4.5:
@@ -107,12 +115,19 @@ func converse(npc_id: String, mika: WorldCharacter) -> Dictionary:
 		var phr := await _phrase(npc_id, npc, b, lines)
 		res.provider = phr.provider
 		lines = phr.lines
-		var r1: Dictionary = await main.voice.say(String(t.voice), lines.npc)
-		res.lines.append({"speaker": t.name, "text": lines.npc, "audio": r1.get("audio", false)})
+		var r1: Dictionary = await main.voice.say(String(t.voice), lines.npc, {"mood": String(b.get("mood", "")), "form": "humanoid"})
+		res.lines.append({"speaker": t.name, "text": lines.npc, "audio": r1.get("audio", false), "provider": r1.get("provider", "")})
 		await get_tree().create_timer(0.35).timeout
 		var r2: Dictionary = await main.voice.say("mika", lines.mika)
 		res.lines.append({"speaker": "Mika", "text": lines.mika, "audio": r2.get("audio", false)})
 		await get_tree().create_timer(0.5).timeout
+		if b.has("luna") and _luna_near(npc):
+			var luna = main.characters.get("luna")
+			if luna and luna.has_method("look_head_at"):
+				luna.look_head_at(npc.global_position + Vector3(0, 1.5, 0))
+			var r3: Dictionary = await main.voice.say("luna", String(b.luna))
+			res.lines.append({"speaker": "Luna", "text": String(b.luna), "audio": r3.get("audio", false)})
+			await get_tree().create_timer(0.4).timeout
 		# engine-applied consequences
 		if b.has("teach"):
 			var fact: String = b.teach
@@ -152,7 +167,7 @@ func converse(npc_id: String, mika: WorldCharacter) -> Dictionary:
 
 ## Optional LLM phrasing. The model only sees this NPC's identity, its own facts, its memories, the situation
 ## and the beat's intent; it must return {"npc": "...", "mika": "..."}; anything off-limits falls back.
-func _phrase(npc_id: String, npc: TravelerNPC, beat: Dictionary, lines: Dictionary) -> Dictionary:
+func _phrase(npc_id: String, npc: Node, beat: Dictionary, lines: Dictionary) -> Dictionary:
 	var llm: LLMClient = LLMClient.instance
 	if llm == null or llm.provider == "mock":
 		return {"lines": lines, "provider": "authored"}

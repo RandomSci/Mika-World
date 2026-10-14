@@ -55,6 +55,8 @@ static func build(area: AreaBase) -> Vista:
 		cs.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		v.add_child(cs)
 	var here: Array = area.info.global_pos
+	if opts.get("no_impostors", false):
+		return v   # a painted backdrop carries the horizon here (WoodsHero); the primitive impostors stay hidden
 	for lid in WorldState.landmarks:
 		var lm: Dictionary = WorldState.landmarks[lid]
 		if lm.get("location", "") != "" and WorldState.areas.has(WorldState.locations[lm.location].area) and WorldState.locations[lm.location].area == area.area_id:

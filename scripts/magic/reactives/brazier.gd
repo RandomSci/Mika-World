@@ -56,6 +56,14 @@ func setup(p_id: String, p_label: String, p_flame: GPUParticles3D, p_light: Omni
 	_sync_state()
 
 
+## Starts cold (the Woods' old fire bowls): embers only, until fire magic lights it. Nothing is scheduled.
+func start_unlit() -> void:
+	lit = false
+	intensity = 0.0
+	cancel("relight")
+	_sync_state()
+
+
 func _sync_state() -> void:
 	state = {"lit": lit, "intensity": snappedf(intensity, 0.01), "flame_colour": ({"arcane": "arcane blue", "gilded": "gilded shadow"}.get(_tint, "arcane blue")) if arcane else "natural",
 		"recovering": pending_recoveries()}

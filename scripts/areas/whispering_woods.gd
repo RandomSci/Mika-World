@@ -77,12 +77,24 @@ static func resources() -> Array:
 
 
 func env_preset() -> Dictionary:
+	if RealKit.enabled():
+		# REALISM PASS: photographic light - a forest HDRI for the sky, ambient and reflections, a warm sun low
+		# enough to rake through the trunks, dense enough aerial and volumetric haze for light shafts and depth
+		return {
+			"sky_day": "res://assets/polyhaven/hdris/nature_reserve_forest/nature_reserve_forest_2k.hdr",
+			"day": {"sun_rot": Vector3(-34, 150, 0), "sun_energy": 3.1, "sun_color": Color(1.0, 0.9, 0.74), "fog": 0.0032, "fog_color": Color(0.45, 0.53, 0.48),
+				"fog_sky": 0.0, "vol_fog": 0.014, "vol_albedo": Color(0.9, 0.93, 0.86), "ambient": 0.34, "exposure": 0.88, "bg_energy": 0.95, "saturation": 0.92, "contrast": 1.2},
+			"night": {"fog": 0.0032, "fog_color": Color(0.05, 0.07, 0.1), "fog_sky": 0.0, "vol_fog": 0.014, "ambient": 1.4, "exposure": 1.4, "bg_energy": 1.0,
+				"sun_energy": 0.4, "sun_color": Color(0.55, 0.68, 1.0), "sun_rot": Vector3(-50, 120, 0), "saturation": 0.9},
+			"vista": {"mountains": false, "ridge": false, "no_impostors": true},
+		}
 	return {
-		"day": {"sun_rot": Vector3(-42, 155, 0), "sun_energy": 1.9, "sun_color": Color(1.0, 0.93, 0.8), "fog": 0.002, "fog_color": Color(0.66, 0.80, 0.82),
-			"fog_sky": 0.0, "vol_fog": 0.008, "vol_albedo": Color(0.92, 0.96, 0.9), "ambient": 0.75, "exposure": 1.0, "bg_energy": 1.0, "saturation": 1.1},
+		# visual quality pass: a lower, warmer afternoon sun, golden aerial haze for depth (the references' light)
+		"day": {"sun_rot": Vector3(-31, 148, 0), "sun_energy": 2.15, "sun_color": Color(1.0, 0.87, 0.68), "fog": 0.0026, "fog_color": Color(0.78, 0.84, 0.8),
+			"fog_sky": 0.0, "vol_fog": 0.014, "vol_albedo": Color(1.0, 0.95, 0.84), "ambient": 0.68, "exposure": 1.0, "bg_energy": 1.0, "saturation": 1.14},
 		"night": {"fog": 0.0032, "fog_color": Color(0.06, 0.10, 0.17), "fog_sky": 0.0, "vol_fog": 0.012, "ambient": 1.9, "exposure": 1.55, "bg_energy": 1.0,
 			"sun_energy": 0.55, "sun_color": Color(0.55, 0.68, 1.0), "sun_rot": Vector3(-50, 120, 0), "saturation": 1.0},
-		"vista": {"mountains": false, "ridge": true, "ridge_height": 300.0, "ridge_seed": 19, "ridge_base": -30.0, "green": Color(0.30, 0.46, 0.40), "haze": Color(0.70, 0.84, 0.92), "max_haze": 0.72, "snow_line": 330.0},
+		"vista": {"mountains": false, "ridge": WoodsHero.off(), "no_impostors": not WoodsHero.off(), "ridge_height": 300.0, "ridge_seed": 19, "ridge_base": -30.0, "green": Color(0.30, 0.46, 0.40), "haze": Color(0.70, 0.84, 0.92), "max_haze": 0.72, "snow_line": 330.0},
 	}
 
 
@@ -255,11 +267,22 @@ func build_steps() -> Array:
 	feats = WoodsFeatures.new(self)
 	return [_precompute, _painted_sky, _terrain, _water, dress.compute_trail_distance, dress.trees, dress.understory,
 		dress.undergrowth, dress.grass, dress.rocks, dress.cliffs, dress.atmosphere, marks.build, feats.floor_features,
-		feats.leaf_fall, feats.mushroom_grove, feats.banks, feats.pond_identity, feats.den_hollow, feats.ruin_growth, _links]
+		feats.leaf_fall, feats.mushroom_grove, feats.banks, feats.pond_identity, feats.den_hollow, feats.ruin_growth, _hero, _links]
+
+
+## The viewpoint as the benchmark scene (visual quality pass): hero trees, the painted mountain backdrop.
+func _hero() -> void:
+	WoodsHero.place_trees(self)
+	WoodsHero.backdrop(self)
 
 
 ## The photographic panoramas clash with the painted forest: a procedural stylized sky instead (day + night).
 func _painted_sky() -> void:
+	if RealKit.enabled():
+		# REALISM PASS: the photographic sky (HDRI) and its light stay; one cascade still covers the forest
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+		env.fog_aerial_perspective = 0.25
+		return
 	var shader: Shader = load("res://shaders/nature/stylized_sky.gdshader")
 	for v in [false, true]:
 		var sm := ShaderMaterial.new()
@@ -302,6 +325,8 @@ func _terrain() -> void:
 	m.set_shader_parameter("dirt_detail", load(Kit.tex_set("forrest_ground_01", "1k")[0]))
 	m.set_shader_parameter("rock_detail", load(Kit.tex_set("rock_wall_10", "1k")[0]))
 	m.set_shader_parameter("noise_tex", Kit.noise())
+	if RealKit.enabled():
+		m = RealKit.terrain_mat()
 	mats.terrain = m
 	Kit.terrain(self, SIZE, STEP, height, _terrain_mask, m)
 
@@ -331,6 +356,10 @@ func _forest_density(p: Vector2) -> float:
 func _water() -> void:
 	var wm := Kit.shader_mat("res://shaders/nature/stylized_water.gdshader", {"noise_tex": Kit.noise(), "flow": Vector2(0.0, 0.06),
 		"depth_scale": 1.4, "ripple": 0.16, "sky_tint": Color(0.55, 0.72, 0.74)})
+	if RealKit.enabled():
+		# REALISM PASS: a forest stream - tea-dark in the deeps, clear over the stones, greyer foam, strong reflections
+		for kv in [["shallow", Color(0.26, 0.33, 0.25)], ["deep", Color(0.02, 0.045, 0.035)], ["sky_tint", Color(0.42, 0.5, 0.5)], ["foam_color", Color(0.78, 0.82, 0.8)], ["spec", 0.95], ["ripple", 0.12]]:
+			wm.set_shader_parameter(kv[0], kv[1])
 	mats.water = wm
 	# the river below the falls: segments following the bed, from the plunge pool south
 	var z := FALLS.y + 12.0
@@ -385,6 +414,9 @@ func _water() -> void:
 	pond.mesh = cm
 	pond.material_override = Kit.shader_mat("res://shaders/nature/stylized_water.gdshader", {"noise_tex": Kit.noise(), "flow": Vector2(0.004, 0.002),
 		"shallow": Color(0.42, 0.8, 0.74), "deep": Color(0.02, 0.16, 0.2), "depth_scale": 2.0, "ripple": 0.025, "spec": 0.25, "sky_tint": Color(0.24, 0.40, 0.32), "glow_color": Color(0.35, 0.75, 0.9)})
+	if RealKit.enabled():
+		for kv in [["shallow", Color(0.24, 0.3, 0.22)], ["deep", Color(0.015, 0.04, 0.03)], ["sky_tint", Color(0.36, 0.44, 0.42)], ["spec", 0.9]]:
+			(pond.material_override as ShaderMaterial).set_shader_parameter(kv[0], kv[1])
 	mats.pond = pond.material_override
 	pond.position = Vector3(POND.x, height(POND.x, POND.y) + 1.55, POND.y)
 	pond.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

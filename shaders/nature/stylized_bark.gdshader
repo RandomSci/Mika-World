@@ -11,6 +11,8 @@ uniform vec4 moss_color : source_color = vec4(0.32, 0.45, 0.2, 1.0);
 uniform float moss_amount = 0.45;
 uniform float canopy_bottom = 1.5;
 uniform float canopy_top = 7.0;
+#include "res://shaders/nature/gust.gdshaderinc"
+
 uniform float wind_strength = 0.12;
 uniform float wind_speed = 1.1;
 
@@ -25,6 +27,10 @@ void vertex() {
 	float sway = sin(TIME * wind_speed + ph) * 0.6 + sin(TIME * wind_speed * 2.3 + ph * 1.7) * 0.25;
 	VERTEX.x += sway * wind_strength * h * h;
 	VERTEX.z += sway * wind_strength * 0.6 * h * h;
+	if (gust_on > 0.5) {
+		vec3 root = MODEL_MATRIX[3].xyz;
+		VERTEX += inverse(mat3(MODEL_MATRIX)) * gust_offset(gust_push(root), wp.y - root.y, max(canopy_top, 2.0));
+	}
 	v_wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 

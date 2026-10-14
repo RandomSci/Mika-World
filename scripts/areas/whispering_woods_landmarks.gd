@@ -39,6 +39,8 @@ func _init(area: WhisperingWoods) -> void:
 
 
 func _mat() -> ShaderMaterial:
+	if stone == null and RealKit.enabled():
+		stone = RealKit.stone_mat("mossy_stone_wall")
 	if stone == null:
 		stone = Kit.shader_mat("res://shaders/nature/stylized_stone.gdshader", {"grain_tex": load(Kit.tex_set("rock_wall_10", "1k")[0]),
 			"noise_tex": Kit.noise()})
@@ -281,8 +283,106 @@ func _viewpoint(root: Node3D) -> void:
 		sb.collider(Transform3D(Basis(Vector3.UP, yaw), Vector3(mid.x, level + 0.5, mid.y)), Vector3(L, 1.0, 0.42))
 	sb.column(Vector3(a.VIEWPOINT.x - 1.5, level, a.VIEWPOINT.y - 6.0), 0.36, 2.2)
 	sb.column(Vector3(a.VIEWPOINT.x - 1.5, level, a.VIEWPOINT.y + 6.0), 0.36, 3.1)
-	sb.finish(root, _mat(), "Viewpoint")
+	# the benchmark terrace: older, mossier, warmer stone than the rest (visual quality pass)
+	var vmat: ShaderMaterial = _mat().duplicate()
+	if RealKit.enabled():
+		vmat.set_shader_parameter("moss_amount", 0.5)      # worn paving: moss in patches, not a green cap on every block
+	if not WoodsHero.off():
+		vmat.set_shader_parameter("moss_amount", 1.25)
+		vmat.set_shader_parameter("stone_a", Color(0.78, 0.73, 0.64))
+		vmat.set_shader_parameter("stone_warm", Color(0.74, 0.62, 0.47))
+		vmat.set_shader_parameter("moss_b", Color(0.46, 0.56, 0.24))
+		vmat.set_shader_parameter("grain_strength", 1.15)
+	sb.finish(root, vmat, "Viewpoint")
 	stats.viewpoint_blocks = sb.blocks
+	# the Keepers' fire bowls on the two columns, cold for three hundred years (V3 Part X: the Phoenix lights them)
+	_fire_bowl(root, Vector3(a.VIEWPOINT.x - 1.5, level + 2.2, a.VIEWPOINT.y - 6.0), "viewpoint_bowl_n", "the north fire bowl at the viewpoint")
+	_fire_bowl(root, Vector3(a.VIEWPOINT.x - 1.5, level + 3.1, a.VIEWPOINT.y + 6.0), "viewpoint_bowl_s", "the south fire bowl at the viewpoint")
+
+
+func _fire_bowl(root: Node3D, top: Vector3, id: String, label: String) -> void:
+	var br := Brazier.new()
+	br.name = id
+	br.position = top + Vector3(0, 0.22, 0)
+	root.add_child(br)
+	var bowl := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.42
+	cm.bottom_radius = 0.26
+	cm.height = 0.3
+	cm.radial_segments = 14
+	bowl.mesh = cm
+	var im := StandardMaterial3D.new()
+	im.albedo_color = Color(0.16, 0.13, 0.11)
+	im.metallic = 0.55
+	im.roughness = 0.62
+	bowl.material_override = im
+	bowl.position = Vector3(0, -0.08, 0)
+	br.add_child(bowl)
+	var coals := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.3
+	sm.height = 0.2
+	coals.mesh = sm
+	var cmat := StandardMaterial3D.new()
+	cmat.albedo_color = Color(0.1, 0.06, 0.05)
+	cmat.emission_enabled = true
+	cmat.emission = Color(0.9, 0.25, 0.05)
+	cmat.emission_energy_multiplier = 0.35
+	coals.material_override = cmat
+	coals.position = Vector3(0, 0.0, 0)
+	br.add_child(coals)
+	var l := OmniLight3D.new()
+	l.light_color = Color(1.0, 0.55, 0.26)
+	l.light_energy = 1.4
+	l.omni_range = 9.0
+	l.shadow_enabled = false
+	l.position = Vector3(0, 0.4, 0)
+	br.add_child(l)
+	var fp := _fire_particles()
+	br.add_child(fp)
+	br.setup(id, label, fp, l)
+	br.start_unlit()
+
+
+## The same flame the Sanctuary's braziers use (its builder is inside the Sanctuary script).
+static func _fire_particles() -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = 48
+	p.lifetime = 0.9
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.18
+	pm.direction = Vector3.UP
+	pm.spread = 12.0
+	pm.initial_velocity_min = 0.5
+	pm.initial_velocity_max = 1.0
+	pm.gravity = Vector3(0, 0.6, 0)
+	pm.scale_min = 0.6
+	pm.scale_max = 1.3
+	var curve := CurveTexture.new()
+	var c := Curve.new()
+	c.add_point(Vector2(0, 0.3))
+	c.add_point(Vector2(0.25, 1.0))
+	c.add_point(Vector2(1, 0.0))
+	curve.curve = c
+	pm.scale_curve = curve
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1.0, 0.85, 0.5, 1.0))
+	grad.set_color(1, Color(0.9, 0.2, 0.05, 0.0))
+	var gt := GradientTexture1D.new()
+	gt.gradient = grad
+	pm.color_ramp = gt
+	p.process_material = pm
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.3, 0.44)
+	var smat := ShaderMaterial.new()
+	smat.shader = load("res://shaders/magic/energy_mote.gdshader")
+	smat.set_shader_parameter("hdr_boost", 4.0)
+	quad.material = smat
+	p.draw_pass_1 = quad
+	p.visibility_aabb = AABB(Vector3(-1, -0.5, -1), Vector3(2, 3, 2))
+	return p
 
 
 # ------------------------------------------------------------------ bridge
@@ -640,7 +740,7 @@ func _den(root: Node3D) -> void:
 	var face := Vector3(a.DEN_FACE.x, 0, a.DEN_FACE.y)   # the mouth looks down the trail
 	var right := Vector3(-face.z, 0, face.x)
 	var centre := mouth - face * 5.0 + Vector3(0, -1.2, 0)
-	var stone := Kit.shader_mat("res://shaders/nature/stylized_stone.gdshader", {"grain_tex": load(Kit.tex_set("rock_wall_10", "1k")[0]),
+	var stone: ShaderMaterial = RealKit.stone_mat("rock_pitted_mossy", false) if RealKit.enabled() else Kit.shader_mat("res://shaders/nature/stylized_stone.gdshader", {"grain_tex": load(Kit.tex_set("rock_wall_10", "1k")[0]),
 		"noise_tex": Kit.noise(), "stone_a": Color(0.56, 0.54, 0.5), "stone_b": Color(0.4, 0.42, 0.42), "moss_amount": 0.75, "grain_scale": 0.22})
 	var win := {"face": face, "right": right, "w": 2.5, "spring": 3.1, "crown": 4.0}
 	var outer := MeshInstance3D.new()

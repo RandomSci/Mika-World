@@ -94,6 +94,10 @@ func _run() -> void:
 		"rest": await _rest()
 		"stargaze": await _stargaze()
 		"spells": await _spells()
+		"phoenix_voice": await _phoenix_voice()
+		"phoenix": await _phoenix()
+		"phoenix_reel": await _phoenix_reel()
+		"showcase": await _showcase()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -1528,3 +1532,415 @@ func _spells() -> void:
 	report["sounds"] = sounds
 	_check(sounds.has("spell_nature_release") and sounds.has("roots_erupt") and sounds.has("ward_leaf_up") and sounds.has("ward_leaf_absorb"), "Mika's techniques sound like leaves, wood and earth", sounds.keys().filter(func(k): return String(k).begins_with("spell_nature") or String(k).begins_with("roots") or String(k).begins_with("ward_leaf")))
 	_check(sounds.has("rift_open") and sounds.has("rift_erupt") and sounds.has("ward_mirror_up") and sounds.has("ward_mirror_absorb") and sounds.has("ward_mirror_reflect"), "Luna's like glass, shadow and crystal", sounds.keys().filter(func(k): return String(k).begins_with("rift") or String(k).begins_with("ward_mirror")))
+
+
+# ------------------------------------------------------------------ V3 Part X: the Phoenix's voice (Gemini Kore)
+## Her confirmed cloud voice inside the running game: a line is synthesised through VoiceService (async, key never
+## shown), validated, played on the right bus, cached so the same line never costs a second call.
+func _phoenix_voice() -> void:
+	var v: VoiceService = main.voice
+	var d := v.describe()
+	_check(bool(d.gemini.configured), "GEMINI_API_KEY is available to Godot (read from .env, never printed)", d.gemini.status)
+	_check(AudioServer.get_bus_index("VoicePhoenix") != -1, "the VoicePhoenix bus exists (resonance for her true form)", AudioBuses.describe().get("VoicePhoenix", {}))
+	var line := "So. You are the one who woke the old circle. I felt it from the summit, like a hearth relit."
+	var r1: Dictionary = await v.say("phoenix", line, {"form": "humanoid"})
+	_check(r1.get("audio", false) and String(r1.get("provider", "")) == "gemini", "a line in her Kore voice was synthesised and played (humanoid form)",
+		{"provider": r1.get("provider"), "seconds": r1.get("seconds"), "tts_ms": r1.get("tts_ms"), "cached": r1.get("cached"), "rms": r1.get("rms"), "error": r1.get("gemini_error", "")})
+	_check(float(r1.get("seconds", 0.0)) > 2.0 and float(r1.get("seconds", 0.0)) < 20.0, "the audio has a plausible length for the line", r1.get("seconds"))
+	var r2: Dictionary = await v.say("phoenix", line, {"form": "humanoid"})
+	_check(String(r2.get("cached", "")) in ["session", "shipped"] and r2.get("audio", false), "the same line again came from the cache (no second cloud call)",
+		{"cached": r2.get("cached"), "tts_ms": r2.get("tts_ms"), "calls": v.gemini_stats.calls})
+	var r3: Dictionary = await v.say("phoenix", "Keep the circle warm, little mage.", {"form": "phoenix", "bus": "VoicePhoenix", "mood": "tender"})
+	_check(r3.get("audio", false) and String(r3.get("bus", "")) == "VoicePhoenix", "her true form speaks through the resonance bus", {"bus": r3.get("bus"), "provider": r3.get("provider"), "seconds": r3.get("seconds")})
+	var r4: Dictionary = await v.say("phoenix", "Ignis, memento.", {"form": "phoenix", "bus": "VoicePhoenix", "mood": "serious"})
+	_check(r4.get("audio", false), "her transformation words were spoken", {"provider": r4.get("provider"), "seconds": r4.get("seconds")})
+	report["voice"] = {"gemini": v.describe().gemini, "lines": [r1, r2, r3, r4]}
+
+
+# ------------------------------------------------------------------ V3 Part X: Oriel, the Phoenix, in the real world
+## Everything the directive asks for, inside the running Woods: the original rigged true form with its clips, a
+## real flight in (altitude, banking, the clips), a landing on the viewpoint stone, her fire lighting the cold
+## bowls and striking a creature (judged by the creature), gestures and combat clips, the cinematic
+## transformation to her human form (continuity, collision, no T-pose), her Kore voice, a conversation through
+## the dialogue system (memory, teaching), sitting, walking, casting as a woman, the way back, the leave.
+func _phoenix() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna = main.characters.get("luna")
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load (streamed)", r)
+	if not r.get("ok", false):
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	var vp: Vector2 = w.VIEWPOINT
+	var perch_y: float = w.ground_at(vp.x, vp.y) + 0.12
+	var stand := NavigationServer3D.map_get_closest_point(map, Vector3(vp.x - 7.0, w.height(vp.x - 7.0, vp.y), vp.y)) + Vector3(0, 0.05, 0)
+	mika.global_position = stand
+	mika.rotation.y = atan2(vp.x - stand.x, vp.y - stand.z) + PI
+	if luna:
+		luna.world = w
+		luna.global_position = NavigationServer3D.map_get_closest_point(map, stand + Vector3(0, 0, 2.0)) + Vector3(0, 0.05, 0)
+		luna.visible = true
+		luna.set_physics_process(true)
+	main.focus_mage("mika", true)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	var mgr: PhoenixManager = main.phoenix_mgr
+	mgr.auto_greet = false
+	mgr.auto_leave = false
+	# ---- 1. the asset
+	var ph: Phoenix = mgr.summon()
+	_check(ph != null and is_instance_valid(ph), "Oriel comes to the Woods (her node exists, registered with the dialogue system)", {"present": main.npcs.present.has("phoenix"), "travellers": main.dialogue.travellers.has("phoenix")})
+	if ph == null:
+		return
+	var rig: PhoenixTrueRig = ph.true_rig
+	_check(rig.skeleton != null and rig.skeleton.get_bone_count() >= 100 and rig.model.find_children("*", "MeshInstance3D", true, false).size() >= 8,
+		"her true form is the original rigged model (bones, skinned feather meshes)", {"bones": rig.skeleton.get_bone_count() if rig.skeleton else 0, "meshes": rig.model.find_children("*", "MeshInstance3D", true, false).size()})
+	var required := ["idle", "breathe", "look", "wing_fold", "wing_spread", "walk", "turn_left", "turn_right", "takeoff", "fly", "bank_left", "bank_right", "hover", "land", "cast_fire", "defend", "attack", "react", "recover", "preen", "call", "bow", "stretch", "glide"]
+	var missing := required.filter(func(c): return not rig.has_clip(c))
+	_check(missing.is_empty(), "every required true-form clip is in the GLB (%d clips)" % rig.player.get_animation_list().size(), {"missing": missing})
+	ph.shot_cb = _shot
+	# ---- 2. the flight in (wide shot from the terrace, looking east over the valley)
+	main.camera_rig.set_shot(Vector3(vp.x - 14.0, perch_y + 7.0, vp.y + 3.0), Vector3(vp.x + 26.0, perch_y + 12.0, vp.y - 8.0), 62.0)
+	var t0 := _game_t
+	var max_y := -1e9
+	var max_bank := 0.0
+	var seen := {}
+	var phases := []
+	var shots_done := {}
+	while ph.phase != "perched" and _game_t - t0 < 80.0 and is_instance_valid(ph):
+		max_y = maxf(max_y, ph.global_position.y)
+		max_bank = maxf(max_bank, absf(ph.true_rig.bank))
+		seen[rig.state] = true
+		if phases.is_empty() or phases[phases.size() - 1] != ph.phase:
+			phases.append(ph.phase)
+		if ph.phase == "circle" and not shots_done.has("circle") and ph.global_position.distance_to(Vector3(vp.x, perch_y, vp.y)) < 22.0 and ph.global_position.x < vp.x + 4.0:
+			shots_done["circle"] = true
+			var at := ph.global_position
+			main.camera_rig.set_shot(Vector3(vp.x + 2.0, perch_y + 1.8, vp.y + 6.0), at, 50.0)
+			await _wait(0.25)
+			_shot("flight_circle")
+		if ph.phase == "land" and not shots_done.has("land"):
+			shots_done["land"] = true
+			main.camera_rig.set_shot(Vector3(vp.x - 9.0, perch_y + 2.4, vp.y + 4.0), Vector3(vp.x, perch_y + 2.2, vp.y), 50.0)
+			await _wait(1.2)
+			_shot("landing")
+		await get_tree().process_frame
+	_check(ph.phase == "perched", "she flew in from the summit, circled the viewpoint and landed", {"phases": phases, "seconds": snappedf(_game_t - t0, 0.1)})
+	_check(max_y - perch_y > 8.0, "the flight had real altitude (%.1f m above the perch at most)" % (max_y - perch_y), snappedf(max_y - perch_y, 0.1))
+	_check(max_bank > 0.25, "she banked into her turns (max roll %.2f rad)" % max_bank, snappedf(max_bank, 0.01))
+	_check(seen.has("fly") and (seen.has("glide") or seen.has("bank_left") or seen.has("bank_right")) and seen.has("hover"), "flight used the flap, glide/bank and hover clips", seen.keys())
+	var perch := Vector3(vp.x, perch_y, vp.y)
+	_check(Vector2(ph.global_position.x - perch.x, ph.global_position.z - perch.z).length() < 0.35 and absf(ph.global_position.y - perch_y) < 0.2,
+		"she stands on the perch stone (%.2f m off, %.2f m above)" % [Vector2(ph.global_position.x - perch.x, ph.global_position.z - perch.z).length(), ph.global_position.y - perch_y], ph.global_position)
+	_check(Gusts.registered() >= 6 and Gusts.history.size() >= 2, "her wingbeats drive gusts through the woods (%d plant materials bend; %d gusts so far)" % [Gusts.registered(), Gusts.history.size()], {"registered": Gusts.registered(), "gusts": Gusts.history.size()})
+	rig.clearance.measure = true
+	rig.clearance.min_clearance = INF
+	await _wait(1.0)
+	_shot("perched")
+	# ---- 3. her fire: the cold bowls
+	main.camera_rig.set_shot(Vector3(vp.x + 9.0, perch_y + 3.4, vp.y + 7.5), Vector3(vp.x - 1.5, perch_y + 2.2, vp.y - 0.5), 58.0)
+	_check(ph.braziers.size() == 2 and ph.braziers.all(func(b): return not b.lit), "the viewpoint's two fire bowls stand cold before she acts", ph.braziers.map(func(b): return [b.name, b.lit]))
+	var lit: Array = await ph.light_bowls()
+	_check(ph.braziers.size() == 2 and ph.braziers.all(func(b): return b.lit), "her sunflares lit both bowls (a reactive change in the world that stays)", lit)
+	await _wait(0.8)
+	_shot("bowls_lit")
+	# ---- 4. the clips as behaviour: gestures, defence, reaction, recovery
+	main.camera_rig.set_shot(Vector3(vp.x + 6.5, perch_y + 2.2, vp.y + 4.5), Vector3(vp.x, perch_y + 1.8, vp.y), 48.0)
+	var played := {}
+	for g in ["preen", "call", "stretch", "defend", "react", "recover"]:
+		ph.true_rig.play(g)
+		if g == "call":
+			main.audio.play3d("phoenix_cry", ph.global_position + Vector3(0, 2.5, 0), "SFX", 0.0, "phoenix cry")
+		await _wait(0.5)
+		played[g] = ph.true_rig.current_clip()
+		if g in ["preen", "call", "defend"]:
+			_shot("clip_" + g)
+		await _wait(maxf(ph.true_rig.clip_length(g) - 0.5, 0.2))
+	_check(played.values().all(func(c): return c != ""), "gestures, defence, reaction and recovery clips played on her body", played)
+	ph.true_rig.play("idle")
+	# ---- 5. her fire against a creature (judged by the creature)
+	var cpos := NavigationServer3D.map_get_closest_point(map, Vector3(vp.x - 8.0, perch_y, vp.y - 4.5))
+	var mon: Monster = main.spawner.spawn("thornback", cpos)
+	if mon:
+		await _wait(0.6)
+		var hp0 := mon.hp
+		var o: Dictionary = await ph.cast_flare(mon, 1.0)
+		var hp1 := mon.hp if is_instance_valid(mon) else 0.0
+		_check(hp1 < hp0 or String(o.get("effect", "")) == "defeated", "her sunflare struck the creature: fire damage through its own reaction (%s)" % o.get("effect", ""), {"hp_before": snappedf(hp0, 1), "hp_after": snappedf(hp1, 1), "outcome": o.get("detail", "")})
+		_shot("flare_creature")
+		_check(float(ph.last_nova.get("peak_alt", 0.0)) > 3.0, "she rose into the air for her nova (%.1f m above her perch) - her wings clear the ground" % float(ph.last_nova.get("peak_alt", 0.0)), ph.last_nova)
+		if is_instance_valid(mon) and mon.alive():
+			await ph.cast_flare(mon, 1.0)
+		await _wait(0.5)
+		if is_instance_valid(mon) and mon.alive():
+			mon.queue_free()
+	else:
+		_check(false, "a creature could be spawned for the fire test", cpos)
+	# ---- 6. the transformation (cinematic: the first meeting)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, perch + Vector3(-5.5, 0, 0.8)) + Vector3(0, 0.05, 0)
+	mika.look_at_point(perch)
+	var st0: Dictionary = main.dialogue.state_of("phoenix")
+	_check(not st0.met, "this is the first meeting (her memory says so)", {"met": st0.met, "visits": st0.visits})
+	await ph.say(String(Phoenix.data.lines.before_transform), "playful")
+	var rec: Dictionary = await ph.transform_to_human("cinematic")
+	var tr: Dictionary = rec.get("record", {})
+	_check(rec.get("ok", false) and ph.form == "human" and ph.human.visible and not ph.true_rig.visible, "she transformed into her human form (cinematic variation)", tr)
+	_check(float(tr.get("drift_m", 9.0)) < 0.35, "position continuity: the woman stands where the Phoenix stood (drift %.2f m)" % float(tr.get("drift_m", 9.0)), tr.get("drift_m"))
+	var tf_spec: Dictionary = Phoenix.data.transformation
+	_check(absf(float(tr.get("hit_s", 0.0)) - float(tf_spec.cinematic_hit_s)) < 0.4 and absf(float(tr.get("seconds", 0.0)) - float(tf_spec.cinematic_s)) < 0.8,
+		"the swap landed on the music's hit (%.2f s) in a %.1f s cinematic (about ten seconds, slow and complete)" % [float(tr.get("hit_s", 0.0)), float(tr.get("seconds", 0.0))], tr)
+	_check(ph.body.collision_layer == 0 and ph.human.collision_layer == 1, "collision switched from the bird's body to the woman's capsule", {"bird_layer": ph.body.collision_layer, "woman_layer": ph.human.collision_layer})
+	var hand_h := ph.human.left_hand.global_position.y - ph.human.global_position.y
+	_check(hand_h < 1.25 and ph.human.body_player != null and ph.human.anim_tree.active, "no T-pose: her arms hang in a posed idle (left hand %.2f m up)" % hand_h, snappedf(hand_h, 0.01))
+	_shot("human_form")
+	# ---- 7. identity across the change
+	_check(ph.memory() == main.dialogue.state_of("phoenix") and ph.describe(mika.global_position).name == "Oriel" and ph.witnessed.size() >= 0, "the same identity and memory in both forms (one node, one memory record)", ph.describe(mika.global_position))
+	# ---- 8. her voice as a woman
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	var v1: Dictionary = await ph.say(String(Phoenix.data.lines.after_transform), "playful")
+	var want_gemini: bool = main.voice.gemini_configured()
+	_check(v1.get("audio", false) and (String(v1.get("provider", "")) == "gemini" or not want_gemini), "she spoke in her Kore voice (humanoid form, Voice bus)", {"provider": v1.get("provider"), "seconds": v1.get("seconds"), "bus": v1.get("bus"), "cached": v1.get("cached")})
+	# ---- 9. a conversation through the dialogue system (beats, memory, teaching; Luna present)
+	var fwd := Basis(Vector3.UP, ph.human.rotation.y) * Vector3(0, 0, -1)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, ph.global_position + fwd * 1.9) + Vector3(0, 0.05, 0)
+	if luna:
+		luna.global_position = NavigationServer3D.map_get_closest_point(map, ph.global_position + fwd * 2.4 + fwd.cross(Vector3.UP) * 1.4) + Vector3(0, 0.05, 0)
+	var conv: Dictionary = await main.dialogue.converse("phoenix", mika)
+	var her_lines: Array = conv.get("lines", []).filter(func(l): return l.speaker == "Oriel")
+	_check(conv.get("ok", false) and her_lines.size() >= 1 and her_lines.all(func(l): return l.audio), "a real conversation ran through the dialogue system, her lines in her own voice", {"lines": conv.get("lines", []).map(func(l): return [l.speaker, l.text.left(60), l.audio]), "provider": conv.get("provider")})
+	_check(conv.get("taught", []).size() >= 1, "she taught Mika something (knowledge recorded by the engine)", conv.get("taught", []).map(func(t): return t.fact))
+	var st1: Dictionary = main.dialogue.state_of("phoenix")
+	_check(st1.met and st1.conversations >= 1 and st1.relationship > 0.0 and WorldState.npc_state.has("phoenix"), "her memory of Mika is in the persisted NPC state", {"met": st1.met, "conversations": st1.conversations, "relationship": st1.relationship, "memories": st1.memories.size()})
+	_shot("conversation")
+	# ---- 10. she sits at the edge and watches the valley; then walks
+	main.director.enabled = false
+	main.camera_rig.set_shot(ph.global_position + fwd * 3.2 + Vector3(0, 1.3, 0) + fwd.cross(Vector3.UP) * 1.5, ph.global_position + Vector3(0, 0.9, 0), 46.0)
+	await ph.sit_down()
+	await _wait(1.2)
+	_check(ph.human.ground_pose == "sit", "she sat on the ground (the shared ground-rest clips)", ph.human.ground_pose)
+	_shot("sitting")
+	await _wait(0.8)
+	await ph.stand_up()
+	var walk_from := ph.global_position
+	var walk_to := NavigationServer3D.map_get_closest_point(map, perch + Vector3(-3.0, 0, 3.5))
+	ph.walk_to(walk_to)
+	var tw0 := _game_t
+	while ph.human.current_action == "navigate_to" and _game_t - tw0 < 12.0:
+		await get_tree().process_frame
+	_check(ph.global_position.distance_to(walk_from) > 1.5, "she walked (navigation on the real navmesh, %.1f m)" % ph.global_position.distance_to(walk_from), snappedf(ph.global_position.distance_to(walk_from), 0.1))
+	# ---- 11. spellcasting as a woman (the shared casting clip, her flare at a bowl)
+	var north = ph.braziers[0]
+	var hf := Basis(Vector3.UP, ph.human.rotation.y) * Vector3(0, 0, -1)
+	main.camera_rig.set_shot(ph.global_position + hf * 2.6 + hf.cross(Vector3.UP) * 2.8 + Vector3(0, 1.6, 0), ph.global_position + Vector3(0, 1.2, 0), 46.0)
+	var o2: Dictionary = await ph.cast_flare(north, 0.7)
+	_check(String(o2.get("effect", "")) in ["relit", "flare", "flared", "struck", "burst"] and o2.get("ok", false), "she cast her fire in human form through the shared rig (%s)" % o2.get("effect", ""), o2)
+	_shot("human_cast")
+	# ---- 12. the way back, and the leave
+	mika.look_at_point(ph.global_position)
+	await ph.say(String(Phoenix.data.lines.farewell), "tender")
+	await ph.say(String(Phoenix.data.lines.reform), "serious")
+	main.camera_rig.set_shot(ph.global_position + fwd * 7.0 + Vector3(0, 2.2, 0) + fwd.cross(Vector3.UP) * 2.5, ph.global_position + Vector3(0, 1.4, 0), 50.0)
+	var rec2: Dictionary = await ph.transform_to_phoenix()
+	var tr2: Dictionary = rec2.get("record", {})
+	_check(rec2.get("ok", false) and ph.form == "phoenix" and ph.true_rig.visible and not ph.human.visible, "she became the Phoenix again (the way back)", tr2)
+	_check(float(tr2.get("drift_m", 9.0)) < 0.35 and ph.body.collision_layer == 2 and ph.human.collision_layer == 0, "continuity and collision on the way back (drift %.2f m)" % float(tr2.get("drift_m", 9.0)), {"drift": tr2.get("drift_m"), "bird_layer": ph.body.collision_layer})
+	_shot("reformed")
+	_check(rig.clearance.min_clearance > -0.08, "her wingtips and train never sank into the ground or the stones (lowest tip %.2f m above it)" % rig.clearance.min_clearance, {"min_clearance": snappedf(rig.clearance.min_clearance, 0.01), "where": rig.clearance.min_where, "lifted": rig.clearance.lifted})
+	main.camera_rig.set_shot(Vector3(vp.x + 7.0, perch_y + 2.6, vp.y + 9.0), ph.global_position + Vector3(0, 1.8, 0), 58.0)
+	await ph.takeoff()
+	var tl := _game_t
+	while is_instance_valid(ph) and ph.phase != "gone" and _game_t - tl < 45.0:
+		if _game_t - tl > 1.5 and not shots_done.has("takeoff"):
+			shots_done["takeoff"] = true
+			_shot("takeoff")
+		await get_tree().process_frame
+	_check(not is_instance_valid(ph) or ph.phase == "gone", "she took off and flew back toward the summit (gone from the Woods)", {"present": is_instance_valid(ph), "seconds": snappedf(_game_t - tl, 0.1)})
+	_check(not main.npcs.present.has("phoenix") or not is_instance_valid(main.npcs.present.get("phoenix")), "her registration cleared when she left", main.npcs.present.keys())
+	report["phoenix"] = {"manager": mgr.describe(), "voice": main.voice.describe().gemini, "transformations": [tr, tr2], "conversation": conv.get("lines", []).map(func(l): return [l.speaker, l.text]) if conv.has("lines") else []}
+	main.camera_rig.clear_shot()
+
+
+## Visual pass 2 proof reel in the real Woods (record it with Movie Maker): her display, the solar nova against a
+## creature, the cinematic transformation (its own camera beats), the way back. Same code paths as the game.
+func _phoenix_reel() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load", r)
+	if not r.get("ok", false):
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	main.director.enabled = false
+	main.spawner.enabled = false
+	var mgr: PhoenixManager = main.phoenix_mgr
+	mgr.auto_greet = false
+	mgr.auto_leave = false
+	var vp: Vector2 = w.VIEWPOINT
+	var gy: float = w.ground_at(vp.x, vp.y)
+	var perch := Vector3(vp.x, gy, vp.y)
+	var ph: Phoenix = mgr.summon()
+	await get_tree().process_frame
+	ph.place_perched()
+	var b := Basis(Vector3.UP, ph.rotation.y)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, perch + b * Vector3(-5.5, 0, 3.5)) + Vector3(0, 0.05, 0)
+	mika.look_at_point(perch)
+	await _wait(1.0)
+	# 1. her display
+	main.camera_rig.set_shot(perch + b * Vector3(4.0, 1.3, 9.5), perch + Vector3(0, 2.7, 0), 52.0)
+	ph.true_rig.play_clip("majestic_enter", 0.3, 1.0, false)
+	await _wait(1.5)
+	ph.true_rig.play_clip("majestic", 0.3, 1.0, true)
+	await _wait(2.6)
+	_shot("reel_display")
+	# 2. the solar nova
+	var cpos := NavigationServer3D.map_get_closest_point(map, perch + b * Vector3(1.0, 0, 12.0))
+	var mon: Monster = main.spawner.spawn("thornback", cpos)
+	await _wait(0.8)
+	if mon:
+		var mid := (perch + mon.global_position) * 0.5
+		var side := (mon.global_position - perch).cross(Vector3.UP).normalized()
+		main.camera_rig.set_shot(mid + side * 15.0 + Vector3(0, 4.0, 0), mid + Vector3(0, 3.4, 0), 64.0)   # she rises ~5 m for her nova
+		var hp0 := mon.hp
+		var o: Dictionary = await ph.cast_nova(mon, 1.0)
+		var hp1 := mon.hp if is_instance_valid(mon) else 0.0
+		_check(hp1 < hp0 or String(o.get("effect", "")) == "defeated", "the solar nova struck the creature (%s)" % o.get("effect", ""), {"hp_before": hp0, "hp_after": hp1})
+		_shot("reel_nova")
+	await _wait(1.5)
+	if is_instance_valid(mon) and mon.alive():
+		mon.queue_free()
+	ph.true_rig.play("idle")
+	await _wait(0.8)
+	# 3. the cinematic transformation (its own camera beats), facing Mika
+	var rec: Dictionary = await ph.transform_to_human("cinematic")
+	_check(rec.get("ok", false), "the cinematic transformation ran", rec.get("record", {}))
+	var hb := Basis(Vector3.UP, ph.human.rotation.y)
+	main.camera_rig.set_shot(ph.human.global_position + hb * Vector3(1.2, 1.5, -3.4), ph.human.global_position + Vector3(0, 1.25, 0), 40.0)
+	await _wait(2.2)
+	# 4. the way back
+	var rec2: Dictionary = await ph.transform_to_phoenix(true)
+	_check(rec2.get("ok", false), "the way back ran", rec2.get("record", {}))
+	main.camera_rig.set_shot(perch + b * Vector3(4.0, 1.3, 9.5), perch + Vector3(0, 2.7, 0), 52.0)
+	ph.true_rig.play("majestic")
+	await _wait(3.0)
+	report["phoenix_reel"] = {"transformations": ph.transformations}
+	main.camera_rig.clear_shot()
+
+
+# ------------------------------------------------------------------ visual quality pass: fixed before/after views
+## The Woods viewpoint (where Oriel meets Mika) from fixed cameras, then Oriel in both forms in close-up.
+## --tag=before|after names the files: screenshots/showcase/<tag>_<view>.png. Same cameras every run.
+func _showcase() -> void:
+	await _hold_all()
+	var tag := String(RenderProfile.options.get("tag", "shot"))
+	var out := "res://screenshots/showcase"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out))
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna = main.characters.get("luna")
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Whispering Woods load", r)
+	if not r.get("ok", false):
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	main.director.enabled = false
+	main.spawner.enabled = false
+	main.phoenix_mgr.auto_greet = false
+	main.phoenix_mgr.auto_leave = false
+	var vp: Vector2 = w.VIEWPOINT
+	var gy: float = w.ground_at(vp.x, vp.y)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(vp.x - 6.0, gy, vp.y + 1.5)) + Vector3(0, 0.05, 0)
+	mika.look_at_point(Vector3(vp.x, gy, vp.y))
+	if luna:
+		luna.world = w
+		luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(vp.x - 7.0, gy, vp.y + 3.2)) + Vector3(0, 0.05, 0)
+		luna.visible = true
+		luna.set_physics_process(true)
+	var ph: Phoenix = main.phoenix_mgr.summon()
+	await get_tree().process_frame
+	ph.place_perched()
+	await _wait(2.0)
+	var save := func(name: String) -> void:
+		await _wait(0.6)
+		var img := get_viewport().get_texture().get_image()
+		img.save_png("%s/%s_%s.png" % [out, tag, name])
+	var views := {
+		"e1_terrace_wide": [Vector3(vp.x - 17.0, gy + 3.6, vp.y + 7.0), Vector3(vp.x + 18.0, gy + 3.0, vp.y - 6.0), 60.0],
+		"e2_terrace_low": [Vector3(vp.x - 7.5, gy + 1.1, vp.y + 7.5), Vector3(vp.x + 2.0, gy + 1.6, vp.y - 3.0), 55.0],
+		"e3_vista": [Vector3(vp.x + 3.5, gy + 1.8, vp.y + 0.5), Vector3(vp.x + 70.0, gy - 6.0, vp.y - 14.0), 62.0],
+		"e4_forest_edge": [Vector3(vp.x + 4.0, gy + 2.0, vp.y + 2.0), Vector3(vp.x - 22.0, gy + 3.5, vp.y + 6.0), 58.0],
+		"e5_overview": [Vector3(vp.x - 8.0, gy + 7.0, vp.y + 8.0), Vector3(vp.x + 6.0, gy - 1.0, vp.y - 6.0), 64.0],
+		"e6_trail": [Vector3(vp.x - 13.0, w.ground_at(vp.x - 13.0, vp.y - 2.0) + 1.65, vp.y - 2.0), Vector3(vp.x + 2.0, gy + 1.8, vp.y + 1.0), 58.0],
+	}
+	var perf := {}
+	for k in views:
+		var v: Array = views[k]
+		main.camera_rig.set_shot(v[0], v[1], v[2])
+		await _wait(1.0)
+		_reset_frames()
+		await _wait(3.0)
+		perf[k] = _fps_stats()
+		await save.call(k)
+	# Oriel, true form
+	var b := Basis(Vector3.UP, ph.rotation.y)
+	var at := ph.global_position
+	var rel := func(x: float, y: float, z: float) -> Vector3: return at + b * Vector3(x, y, z)
+	ph.true_rig.look_at_point(rel.call(-3.0, 2.0, 6.0), 1.0)
+	var tviews := {
+		"t1_front34": [rel.call(-3.2, 2.2, 5.6), rel.call(0.0, 1.7, 0.4), 42.0],
+		"t2_side": [rel.call(-6.8, 1.8, 0.6), rel.call(0.0, 1.6, 0.3), 42.0],
+		"t3_head": [rel.call(-1.1, 2.9, 2.6), ph.true_rig.head_point(), 34.0],
+		"t4_back34": [rel.call(4.0, 3.0, -4.8), rel.call(0.0, 1.5, 0.0), 44.0],
+	}
+	for k in tviews:
+		var v: Array = tviews[k]
+		main.camera_rig.set_shot(v[0], v[1], v[2])
+		await save.call(k)
+	ph.true_rig.play_clip("wing_spread", 0.1, 1.0, false)
+	await _wait(1.3)
+	ph.true_rig.player.pause()
+	main.camera_rig.set_shot(rel.call(-5.0, 2.6, 8.5), rel.call(0.0, 2.0, 0.0), 50.0)
+	await save.call("t5_spread")
+	ph.true_rig.play("idle")
+	# Oriel, human form
+	ph.show_form("human")
+	ph.phase = "showcase"          # hold her still for the stills (no head turning toward Mika)
+	ph.human.look_head_at(null)
+	await _wait(1.5)
+	# her facing, measured from the skeleton (the eyes are in front of the head bone)
+	var sk := ph.human.skeleton
+	var eye_i := sk.find_bone("LeftEye")
+	var head_i := sk.find_bone("Head")
+	var fwd3 := Vector3(0, 0, -1)
+	if eye_i >= 0 and head_i >= 0:
+		var e := sk.global_transform * sk.get_bone_global_pose(eye_i).origin
+		var hpos := sk.global_transform * sk.get_bone_global_pose(head_i).origin
+		fwd3 = Vector3(e.x - hpos.x, 0, e.z - hpos.z).normalized()
+	var hb := Basis(Vector3.UP, atan2(-fwd3.x, -fwd3.z))
+	var hp := ph.human.global_position
+	var hrel := func(x: float, y: float, z: float) -> Vector3: return hp + hb * Vector3(x, y, z)
+	ph.human.look_head_at(hrel.call(0.5, 1.6, -3.0))
+	var head := ph.human.head_point()
+	var hviews := {
+		"h1_full34": [hrel.call(1.2, 1.25, -3.2), hrel.call(0.0, 0.95, 0.0), 40.0],
+		"h2_face": [head + hb * Vector3(0.0, -0.02, -0.75), head + Vector3(0, -0.04, 0), 30.0],
+		"h3_face34": [head + hb * Vector3(0.45, 0.02, -0.62), head + Vector3(0, -0.05, 0), 30.0],
+		"h4_back": [hrel.call(-1.0, 1.4, 2.6), hrel.call(0.0, 1.1, 0.0), 40.0],
+	}
+	for k in hviews:
+		var v: Array = hviews[k]
+		main.camera_rig.set_shot(v[0], v[1], v[2])
+		await save.call(k)
+	ph.human.set_expression("happy", 1.0)
+	main.camera_rig.set_shot(head + hb * Vector3(0.25, 0.0, -0.7), head + Vector3(0, -0.04, 0), 30.0)
+	await _wait(0.8)
+	await save.call("h5_smile")
+	ph.human.set_expression("happy", 0.0)
+	report["showcase"] = {"tag": tag, "perf": perf}
+	_check(true, "showcase captured", perf.keys())

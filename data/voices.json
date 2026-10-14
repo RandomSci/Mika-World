@@ -44,6 +44,28 @@
    "voice": "bm_george",
    "gain": 0.8,
    "speed": 1.05
+  },
+  "phoenix": {
+   "_note": "Oriel, the Phoenix (V3 Part X). CONFIRMED permanent voice: Google Gemini TTS 'Kore' (model gemini-2.5-flash-preview-tts, GEMINI_API_KEY from .env, never printed). Same voice in both forms; the true form adds the VoicePhoenix bus resonance. Lines are cached forever (assets/voice/phoenix for shipped lines, user://voice_cache/gemini for new ones). The Kokoro fallback is a blend that is neither Mika's nor Luna's and is used only when the cloud voice is unavailable.",
+   "provider": "gemini",
+   "voice": "Kore",
+   "model": "gemini-2.5-flash-preview-tts",
+   "gain": 0.9,
+   "styles": {
+    "humanoid": "Read the following line aloud as Oriel, an ancient phoenix in the form of an elegant woman: warm, natural and unhurried, quietly amused when the words allow it. Speak only the line, nothing else.",
+    "phoenix": "Read the following line aloud as Oriel, an ancient phoenix: warm, natural and unhurried, with calm authority. Speak only the line, nothing else.",
+    "moods": {
+     "serious": "This moment is grave: speak with quiet command, slower, every word weighed.",
+     "playful": "She is amused and teasing a little, lightly.",
+     "tender": "She is gentle and fond, almost a whisper."
+    }
+   },
+   "fallback": {
+    "provider": "kokoro",
+    "voice": "af_aoede:0.55,bf_lily:0.45",
+    "gain": 0.8,
+    "speed": 0.95
+   }
   }
  },
  "reactions": {
@@ -66,11 +88,13 @@
    "_note": "Short laugh sounds rendered once per session in the speaker's own Edge voice (no words). Candidates - to be auditioned by the developer like the voices themselves.",
    "laugh": {
     "mika": "Ah ha ha ha!",
-    "luna": "Ah ha ha ha!"
+    "luna": "Ah ha ha ha!",
+    "phoenix": "Ha ha ha."
    },
    "giggle": {
     "mika": "Mm-hm-hm!",
-    "luna": "Mm-hm-hm!"
+    "luna": "Mm-hm-hm!",
+    "phoenix": "Hm hm hm."
    }
   }
  }

@@ -23,6 +23,7 @@ var audio: AudioDirector
 var llm: LLMClient
 var dialogue: DialogueService
 var npcs: NPCManager
+var phoenix_mgr: PhoenixManager
 var story: StoryManager
 var curiosity: CuriosityModule
 var notice: Label
@@ -175,6 +176,10 @@ func _ready() -> void:
 	npcs.name = "NPCManager"
 	add_child(npcs)
 	npcs.setup(self)
+	phoenix_mgr = PhoenixManager.new()
+	phoenix_mgr.name = "PhoenixManager"
+	add_child(phoenix_mgr)
+	phoenix_mgr.setup(self)
 
 	# Story (Echoes of the Heartstone) + optional curiosity (consulted between activities only)
 	story = StoryManager.new()

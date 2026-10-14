@@ -4,7 +4,12 @@ for textures assigned from code). Normal maps -> RGTC normal-map mode. HDRIs unt
 import glob, os, re, sys
 root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 n = 0
-for imp in glob.glob(os.path.join(root, "assets", "**", "*.import"), recursive=True):
+# optional sub-folders of assets/ to limit it to (it rewrites import settings: never run it wider than intended)
+dirs = sys.argv[1:] or ["."]
+imports = []
+for d in dirs:
+    imports += glob.glob(os.path.join(root, "assets", d, "**", "*.import"), recursive=True)
+for imp in imports:
     src = imp[:-7]
     if not src.lower().endswith((".jpg", ".jpeg", ".png")):
         continue
@@ -14,6 +19,10 @@ for imp in glob.glob(os.path.join(root, "assets", "**", "*.import"), recursive=T
     is_normal = "nor_gl" in src or "NormalGL" in src or "_normal" in src.lower()
     rep = {"compress/mode": "2", "mipmaps/generate": "true", "compress/high_quality": "false",
            "compress/normal_map": "1" if is_normal else "2", "detect_3d/compress_to": "0"}
+    if "/assets/vfx/" in src:
+        # flipbooks: colour is premultiplied by coverage - never bleed colour into transparent texels
+        rep["process/fix_alpha_border"] = "false"
+        rep["process/premult_alpha"] = "false"
     for k, v in rep.items():
         s, c = re.subn(rf"^{re.escape(k)}=.*$", f"{k}={v}", s, flags=re.M)
         if c == 0:

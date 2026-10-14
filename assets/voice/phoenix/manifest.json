@@ -1,0 +1,91 @@
+{
+ "_note": "Pre-rendered lines in Oriel's confirmed voice (Google Gemini TTS, Kore; generated once with the developer's key during verification runs; audio/wav 24 kHz mono). VoiceService looks here first, then user://voice_cache/gemini, then the cloud (once per line), then the Kokoro fallback. Keys: sha1(model|voice|style|text).",
+ "voice": "Kore",
+ "model": "gemini-2.5-flash-preview-tts",
+ "lines": {
+  "e0fb40ceb42cdb91cc733b99fa69d29172965643": {
+   "id": "line:lighting",
+   "text": "These bowls have been cold for three hundred years. Let them remember.",
+   "form": "phoenix",
+   "mood": "",
+   "bytes": 359610
+  },
+  "b200d32e47fcca670ba3075bc3546a8940ac3633": {
+   "id": "line:before_transform",
+   "text": "Stand still. I would rather look you in the eye.",
+   "form": "phoenix",
+   "mood": "playful",
+   "bytes": 255930
+  },
+  "07f6426af89f025117e3c1cffc6d51f7f7352f80": {
+   "id": "line:after_transform",
+   "text": "There. Easier to talk like this, is it not?",
+   "form": "humanoid",
+   "mood": "playful",
+   "bytes": 223290
+  },
+  "32ebd388dda9746162e18ac590ba0a7a38bd9ced": {
+   "id": "line:farewell",
+   "text": "Keep the circle warm, little mage. I will know if you let it sleep.",
+   "form": "humanoid",
+   "mood": "tender",
+   "bytes": 303930
+  },
+  "655d5236006928a3901c0088bee7628390474c0b": {
+   "id": "line:reform",
+   "text": "Ignis, memento.",
+   "form": "humanoid",
+   "mood": "serious",
+   "bytes": 175290
+  },
+  "a7a4caf7c5ad78f7d9697e74708ccf5872f7b83a": {
+   "id": "beat:greet",
+   "text": "So. You are the one who woke the old circle. I felt it from the summit, like a hearth relit.",
+   "form": "humanoid",
+   "mood": "playful",
+   "bytes": 453690
+  },
+  "2d0cf8668ab210965498ac598d02df1ac01df190": {
+   "id": "beat:two",
+   "text": "Two of you. Good. A circle wakes faster with two voices, and every Keeper's hearth was lit from one flame. Mine.",
+   "form": "humanoid",
+   "mood": "",
+   "bytes": 643770
+  },
+  "89ad2e8bdcb1ecb33f11e4c5a32fe1f863034709": {
+   "id": "beat:wind",
+   "text": "I watched your wind. It curls, like a leaf in an updraft. Keep that. A straight wind is a dead wind.",
+   "form": "humanoid",
+   "mood": "",
+   "bytes": 568890
+  },
+  "f496960fb56c78becf0574056f638421d9f4650c": {
+   "id": "beat:beats",
+   "text": "Three beats when it was whole. The third was mine, the hearth-fire's. The Circle carried it south when they left, and the stone has counted two ever since.",
+   "form": "humanoid",
+   "mood": "serious",
+   "bytes": 830010
+  },
+  "ce9a4b1c8bfc1f5052c4282f73afbbee1b39ca48": {
+   "id": "beat:fires",
+   "text": "Every Keeper's hearth was lit from one flame. Mine. A circle answers the flame's memory before it answers any word.",
+   "form": "humanoid",
+   "mood": "",
+   "bytes": 559290
+  },
+  "4252b293848f1d876021a9e2f802ba9c63ddc40f": {
+   "id": "beat:summit",
+   "text": "The summit keeps my fire; I keep the summit's memory. Earn the climb, and ask me what you like.",
+   "form": "humanoid",
+   "mood": "",
+   "bytes": 480570
+  },
+  "6f5d9eafbc1426f9712d643753afcc59535827e4": {
+   "id": "beat:circle",
+   "text": "Keep the circle warm. It forgets quickly, and it is not the only thing in these woods that listens.",
+   "form": "humanoid",
+   "mood": "",
+   "bytes": 501690
+  }
+ }
+}

@@ -1,0 +1,76 @@
+{
+ "HeroOak_A": {
+  "canopy_center": [
+   0.3319008946418762,
+   7.783003807067871,
+   0.6162879467010498
+  ],
+  "canopy_radius": 4.8,
+  "canopy_bottom": 4.818729877471924,
+  "canopy_top": 14.251260757446289,
+  "height": 14.251260757446289,
+  "cards": 1344,
+  "bark_tris": 3934
+ },
+ "HeroOak_B": {
+  "canopy_center": [
+   1.1105901002883911,
+   9.228702545166016,
+   0.07951916754245758
+  ],
+  "canopy_radius": 5.4,
+  "canopy_bottom": 5.423747634887695,
+  "canopy_top": 16.115093612670897,
+  "height": 16.115093612670897,
+  "cards": 1536,
+  "bark_tris": 4348
+ },
+ "HeroBeech": {
+  "canopy_center": [
+   0.6832314133644104,
+   10.393138885498047,
+   0.14493592083454132
+  ],
+  "canopy_radius": 4.0,
+  "canopy_bottom": 6.491488075256347,
+  "canopy_top": 15.095268630981446,
+  "height": 15.095268630981446,
+  "cards": 1056,
+  "bark_tris": 3520
+ },
+ "HeroWillow": {
+  "canopy_center": [
+   0.12797309458255768,
+   6.677642345428467,
+   -0.5451573133468628
+  ],
+  "canopy_radius": 4.3,
+  "canopy_bottom": 3.5712396621704103,
+  "canopy_top": 13.437217521667481,
+  "height": 13.437217521667481,
+  "cards": 1344,
+  "bark_tris": 3934
+ },
+ "HeroShrub_A": {
+  "canopy_center": [
+   0,
+   0.8,
+   0
+  ],
+  "canopy_radius": 1.1,
+  "canopy_bottom": 0.0,
+  "canopy_top": 1.9,
+  "height": 1.9
+ },
+ "HeroShrub_B": {
+  "canopy_center": [
+   0,
+   0.8,
+   0
+  ],
+  "canopy_radius": 1.1,
+  "canopy_bottom": 0.0,
+  "canopy_top": 1.9,
+  "height": 1.9
+ }
+}

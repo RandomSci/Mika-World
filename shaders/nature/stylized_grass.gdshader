@@ -16,6 +16,8 @@ uniform float fade_start = 26.0;
 uniform float fade_end = 34.0;
 uniform float translucency = 0.35;
 
+#include "res://shaders/nature/gust.gdshaderinc"
+
 varying float v_h;
 varying float v_var;
 varying float v_dist;
@@ -33,6 +35,10 @@ void vertex() {
 	float bend = (gust * 0.85 + flut) * wind_strength * h * h;
 	VERTEX.x += bend;
 	VERTEX.z += bend * 0.45;
+	if (gust_on > 0.5) {
+		vec3 root = MODEL_MATRIX[3].xyz;
+		VERTEX += inverse(mat3(MODEL_MATRIX)) * gust_offset(gust_push(root) * 0.35, max(wp.y - root.y, 0.0), max(tuft_height, 0.2));
+	}
 	NORMAL = vec3(0.0, 1.0, 0.0);
 	v_dist = length((MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).xyz);
 }

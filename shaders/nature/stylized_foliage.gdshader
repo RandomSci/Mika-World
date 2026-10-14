@@ -20,6 +20,8 @@ uniform float canopy_top = 7.0;
 uniform float spherize : hint_range(0.0, 1.0) = 0.78;
 uniform float translucency : hint_range(0.0, 2.0) = 0.6;
 uniform vec4 translucency_color : source_color = vec4(0.85, 1.0, 0.45, 1.0);
+#include "res://shaders/nature/gust.gdshaderinc"
+
 uniform float wind_strength = 0.12;
 uniform float wind_speed = 1.1;
 uniform float flutter = 0.025;
@@ -39,7 +41,15 @@ void vertex() {
 	float k = h * h;
 	VERTEX.x += sway * wind_strength * k;
 	VERTEX.z += sway * wind_strength * 0.6 * k;
-	VERTEX += NORMAL * sin(TIME * 6.0 + dot(VERTEX, vec3(3.1, 2.7, 4.3))) * flutter * h;
+	float gusting = 0.0;
+	if (gust_on > 0.5) {
+		vec3 root = MODEL_MATRIX[3].xyz;
+		vec2 push = gust_push(root);
+		vec3 wpv = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+		VERTEX += inverse(mat3(MODEL_MATRIX)) * gust_offset(push, wpv.y - root.y, max(canopy_top, 2.0));
+		gusting = min(length(push), 2.0);
+	}
+	VERTEX += NORMAL * sin(TIME * 6.0 + dot(VERTEX, vec3(3.1, 2.7, 4.3))) * flutter * h * (1.0 + 5.0 * gusting);
 	// spherised normal: out from the crown centre
 	vec3 out_dir = normalize(VERTEX - canopy_center + vec3(0.0001));
 	NORMAL = normalize(mix(NORMAL, out_dir, spherize));

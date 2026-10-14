@@ -175,6 +175,8 @@ func trees() -> void:
 			var zn := zone(p)
 			if td < 2.3 or water_dist(p) < 1.2 or in_clearing(p, 2.0) or slope(p.x, p.y) > 0.75:
 				continue
+			if WoodsHero.excludes(a, p):
+				continue   # the viewpoint's hero trees stand here (WoodsHero)
 			# how likely a canopy tree stands here: a closed canopy in the deep wood, open glades, trees leaning over
 			# the water on the banks, a few big ones inside the ruin court
 			var keep := dens * dens * 1.3
@@ -255,8 +257,8 @@ func trees() -> void:
 	var total := 0
 	for key in per_model:
 		var parts: PackedStringArray = key.split("|")
-		NatureKit.scatter(root, NatureKit.mesh(parts[0], parts[1]), per_model[key], {"vis_end": 150.0, "shadow": not RenderProfile.options.has("ev_noshadow"), "name": parts[0], "chunk": float(RenderProfile.options.get("ev_chunk", 24.0)),   # 24 m chunks: measured -12 ms GPU vs 64 m (less off-screen instance work)
-			"lod": {"mesh": NatureKit.lod_mesh(parts[0], parts[1]), "detail_end": float(RenderProfile.options.get("ev_lod", 62.0))},
+		NatureKit.scatter(root, NatureKit.mesh(parts[0], parts[1]), per_model[key], {"vis_end": 120.0 if RealKit.enabled() else 150.0, "shadow": not RenderProfile.options.has("ev_noshadow"), "name": parts[0], "chunk": float(RenderProfile.options.get("ev_chunk", 24.0)),   # 24 m chunks: measured -12 ms GPU vs 64 m (less off-screen instance work)
+			"lod": {"mesh": NatureKit.lod_mesh(parts[0], parts[1]), "detail_end": float(RenderProfile.options.get("ev_lod", 44.0 if RealKit.enabled() else 62.0))},
 			"shadow_mesh": NatureKit.shadow_mesh(parts[0], parts[1])})
 		total += per_model[key].size()
 	if not RenderProfile.options.has("ev_notrunks"):
@@ -293,6 +295,8 @@ func understory() -> void:
 				continue
 			var td := trail_dist(p.x, p.y)
 			if td < 1.3 or water_dist(p) < 1.0 or in_clearing(p, 0.5) or slope(p.x, p.y) > 0.7:
+				continue
+			if WoodsHero.excludes(a, p):
 				continue
 			var zn := zone(p)
 			var dens: float = a._forest_density(p)
@@ -412,6 +416,8 @@ func undergrowth() -> void:
 
 # ------------------------------------------------------------------ grass
 func grass() -> void:
+	if RealKit.enabled():
+		return   # REALISM PASS: a forest floor of litter, moss and ferns, not stylised grass tufts
 	if RenderProfile.options.has("ev_nograss"):
 		return
 	var root := Node3D.new()

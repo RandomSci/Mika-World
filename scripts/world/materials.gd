@@ -65,6 +65,7 @@ func _init() -> void:
 	grass = ShaderMaterial.new()
 	grass.shader = load("res://shaders/grass_blades.gdshader")
 	grass.set_shader_parameter("breakup_noise", noise_tex)
+	Gusts.register(grass)
 
 	gold = StandardMaterial3D.new()
 	gold.albedo_color = Color(0.83, 0.64, 0.33)

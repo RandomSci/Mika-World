@@ -63,6 +63,8 @@ func _process(delta: float) -> void:
 		if present.has(id):
 			continue
 		var t: Dictionary = main.dialogue.travellers[id]
+		if bool(t.get("schedule", {}).get("resident", false)):
+			continue   # the Phoenix comes and goes on her own terms (PhoenixManager)
 		if _due(id, t):
 			arrive(id)
 			break   # one arrival at a time
@@ -106,7 +108,7 @@ func nearby(from: Vector3, radius := 30.0) -> Array:
 	for id in present:
 		var n = present[id]
 		if is_instance_valid(n) and n.global_position.distance_to(from) <= radius:
-			out.append((n as TravelerNPC).describe(from))
+			out.append(n.describe(from))
 	return out
 
 
@@ -114,6 +116,8 @@ func describe() -> Dictionary:
 	var sched := {}
 	for id in main.dialogue.travellers:
 		var st: Dictionary = main.dialogue.state_of(id)
+		if bool(main.dialogue.travellers[id].get("schedule", {}).get("resident", false)):
+			continue
 		sched[id] = {"present": present.has(id), "visits": st.visits, "met": st.met, "relationship": snappedf(st.relationship, 0.01),
 			"next_visit_in_s": maxi(0, int(float(st.get("next_visit_unix", 0)) - Time.get_unix_time_from_system()))}
 	return {"session_s": int(_session_t), "time_scale": time_scale, "travellers": sched, "events": events.slice(maxi(0, events.size() - 10))}

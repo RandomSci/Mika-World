@@ -1,0 +1,107 @@
+{
+ "burst": {
+  "cell_px": [
+   256,
+   256
+  ],
+  "cols": 8,
+  "fire": true,
+  "fire_scale": 4.0,
+  "fps": 30,
+  "frames": 32,
+  "loop": false,
+  "pivot": [
+   0.5,
+   0.625
+  ],
+  "rows": 4,
+  "size_m": [
+   3.2,
+   3.2
+  ]
+ },
+ "explosion": {
+  "cell_px": [
+   384,
+   384
+  ],
+  "cols": 8,
+  "fire": true,
+  "fire_scale": 4.0,
+  "fps": 30,
+  "frames": 64,
+  "loop": false,
+  "pivot": [
+   0.5,
+   0.65
+  ],
+  "rows": 8,
+  "size_m": [
+   8.0,
+   8.0
+  ]
+ },
+ "flame": {
+  "cell_px": [
+   256,
+   512
+  ],
+  "cols": 8,
+  "fire": true,
+  "fire_scale": 4.0,
+  "fps": 30,
+  "frames": 48,
+  "loop": true,
+  "pivot": [
+   0.5,
+   0.95
+  ],
+  "rows": 6,
+  "size_m": [
+   2.0,
+   4.0
+  ]
+ },
+ "smoke": {
+  "cell_px": [
+   256,
+   256
+  ],
+  "cols": 8,
+  "fire": false,
+  "fire_scale": 4.0,
+  "fps": 30,
+  "frames": 64,
+  "loop": false,
+  "pivot": [
+   0.5,
+   0.633
+  ],
+  "rows": 8,
+  "size_m": [
+   6.0,
+   6.0
+  ]
+ },
+ "vortex": {
+  "cell_px": [
+   256,
+   384
+  ],
+  "cols": 8,
+  "fire": true,
+  "fire_scale": 4.0,
+  "fps": 30,
+  "frames": 48,
+  "loop": true,
+  "pivot": [
+   0.5,
+   0.98
+  ],
+  "rows": 6,
+  "size_m": [
+   6.0,
+   9.0
+  ]
+ }
+}

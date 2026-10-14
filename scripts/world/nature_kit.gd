@@ -80,8 +80,13 @@ static func mesh(id: String, crown := "") -> ArrayMesh:
 			leaf_aabb = _surface_aabb(m, i)
 	for i in m.get_surface_count():
 		m.surface_set_material(i, _material(id, _surf_name(m, i), crown, whole, leaf_aabb))
-	_meshes[key] = m
 	_aabbs[key] = {"whole": whole, "leaf": leaf_aabb}
+	# REALISM PASS: a photoreal substitute at the same placement (RealKit), sized from the kit model
+	var real := RealKit.substitute(id, crown, whole.size.y)
+	if real:
+		_meshes[key] = real
+		return real
+	_meshes[key] = m
 	return m
 
 
@@ -101,6 +106,11 @@ static func lod_mesh(id: String, crown := "") -> ArrayMesh:
 	if _lods.has(key):
 		return _lods[key]
 	var full := mesh(id, crown)
+	if RealKit.enabled() and _aabbs.has(id + "|" + crown):
+		var real_far := RealKit.substitute(id, crown, (_aabbs[id + "|" + crown].whole as AABB).size.y, true)
+		if real_far:
+			_lods[key] = real_far
+			return real_far
 	var ab: Dictionary = _aabbs[id + "|" + crown]
 	var whole: AABB = ab.whole
 	var leaf: AABB = ab.leaf
@@ -163,6 +173,9 @@ static func shadow_mesh(id: String, crown := "") -> ArrayMesh:
 	if _shadow_meshes.has(key):
 		return _shadow_meshes[key]
 	var lod := lod_mesh(id, crown)
+	if RealKit.enabled() and RealKit.substitute(id, crown, 1.0) != null:
+		_shadow_meshes[key] = lod     # the real far canopy casts real dappled shadows
+		return lod
 	var out := ArrayMesh.new()
 	var dapple := Kit.shader_mat("res://shaders/nature/canopy_shadow.gdshader", {"noise_tex": Kit.noise()})
 	for si in lod.get_surface_count():

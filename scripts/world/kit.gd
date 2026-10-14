@@ -153,6 +153,7 @@ static func shader_mat(path: String, params := {}) -> ShaderMaterial:
 		m.set_shader_parameter(k, params[k])
 	if path.ends_with("water.gdshader") or path.ends_with("vista.gdshader") or path.ends_with("cloud_sea.gdshader"):
 		m.set_shader_parameter("noise_tex", noise())
+	Gusts.register(m)
 	_mats[key] = m
 	return m
 

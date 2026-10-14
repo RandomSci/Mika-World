@@ -1,0 +1,183 @@
+{
+ "_note": "ORIEL, the Ember Keeper - Mika World's first legendary dual-form creature (V3 Part X). One identity, two bodies: her true form (assets/creatures/phoenix/phoenix_true.glb, tools/models/build_phoenix.py) and her humanoid form (assets/characters/phoenix/phoenix_humanoid.glb, tools/models/build_phoenix_humanoid.py), the same memory (WorldState.npc_state.phoenix), the same voice (data/voices.json 'phoenix': Gemini Kore). She is not an enemy: she is the oldest witness of the Keepers. When the First Circle left for the south they carried their hearth-fire with them - her fire - and the Heartstone's third beat stopped. She sleeps at the Celestial Summit's sun-shrine and wakes when a circle answers someone; Mika woke the Sanctuary's. She comes down to the Whispering Woods' viewpoint to see who did it, lights the old fire bowls there, and tests and teaches in her human form. Conversation uses DialogueService (beats chosen from verified world state; the LLM may only rephrase). Coordinates are area-local metres (x, y, z).",
+ "id": "phoenix",
+ "name": "Oriel",
+ "role": "the Ember Keeper",
+ "voice": "phoenix",
+ "appearance": "in her true form a crimson phoenix whose wings burn from dark crimson roots to golden-orange flame at every tip, gold filigree coverts, a gold gorget and crown, flame tongues licking from her feathers and a long train of crimson-violet plumes that curl at their ends; in her human form a woman in a crimson hood edged with gold and a flame veil, auburn-crimson hair, molten-gold eyes, a gold circlet with a ruby at her brow, an ivory-gold top with a gold collar, and crimson pleats that burn to ember at the hem",
+ "personality": "warm, unhurried, quietly amused; direct when it matters; speaks of centuries the way others speak of seasons; fond of people who try",
+ "dialogue_style": "short sentences, never flattery, a gentle tease now and then, the occasional old word; commanding when something is grave",
+ "motive": "to see who woke the old circle and whether they are worth the fire's memory",
+ "height_m": 1.78,
+ "home": {
+  "area": "whispering_woods",
+  "perch": [
+   40.0,
+   -34.0
+  ],
+  "perch_yaw_deg": 200,
+  "approach": [
+   [
+    160.0,
+    72.0,
+    -118.0
+   ],
+   [
+    118.0,
+    48.0,
+    -84.0
+   ],
+   [
+    84.0,
+    40.0,
+    -58.0
+   ],
+   [
+    62.0,
+    34.0,
+    -44.0
+   ]
+  ],
+  "circle_radius": 13.0,
+  "circle_height": 29.0,
+  "leave": [
+   [
+    62.0,
+    32.0,
+    -56.0
+   ],
+   [
+    112.0,
+    54.0,
+    -104.0
+   ],
+   [
+    170.0,
+    90.0,
+    -160.0
+   ]
+  ],
+  "braziers": "viewpoint"
+ },
+ "trigger": {
+  "radius_m": 40.0,
+  "min_session_s": 25.0,
+  "cooldown_s": 900.0
+ },
+ "stay_s": [
+  150.0,
+  240.0
+ ],
+ "approach_to_greet_m": 9.0,
+ "transformation": {
+  "cinematic_s": 10.4,
+  "cinematic_hit_s": 3.4,
+  "short_s": 4.2,
+  "short_hit_s": 1.6,
+  "reform_s": 9.0,
+  "reform_hit_s": 4.2,
+  "words": "Ignis, memento."
+ },
+ "lines": {
+  "arrive": "Ha. So the circle woke for a girl with leaves in her hair.",
+  "lighting": "These bowls have been cold for three hundred years. Let them remember.",
+  "before_transform": "Stand still. I would rather look you in the eye.",
+  "after_transform": "There. Easier to talk like this, is it not?",
+  "farewell": "Keep the circle warm, little mage. I will know if you let it sleep.",
+  "reform": "Ignis, memento.",
+  "creature": "Not here. This ground is hers tonight.",
+  "fallback": "The summit keeps my fire. I keep the summit's memory."
+ },
+ "knowledge": {
+  "fact:third_beat_is_fire": "The Heartstone beat three times when it was whole. The third beat was the hearth-fire's - Oriel's fire. It stopped the day the Circle carried their fire south.",
+  "fact:wind_curls": "A straight wind is a dead wind. Wind that curls, like a leaf in an updraft, carries intent; that is why the Gale Spiral turns.",
+  "fact:keepers_fires": "Every Keeper's hearth was lit from the same flame, the Phoenix's. A circle answers the flame's memory before it answers any word.",
+  "fact:summit_shrine": "Oriel sleeps at the Celestial Summit, in a sun-shrine the Keepers built facing the dawn. The climb is earned, not walked."
+ },
+ "teaches": {
+  "fact:wind_curls": {
+   "skills": {
+    "gale_spiral": 0.12
+   }
+  }
+ },
+ "beats": [
+  {
+   "id": "greet",
+   "when": {
+    "first_meeting": true
+   },
+   "npc": "So. You are the one who woke the old circle. I felt it from the summit, like a hearth relit.",
+   "mika": "I'm Mika. I didn't mean to wake anything. I was only practising.",
+   "mood": "playful"
+  },
+  {
+   "id": "two",
+   "when": {
+    "luna_present": true,
+    "not_taught": "fact:keepers_fires"
+   },
+   "npc": "Two of you. Good. A circle wakes faster with two voices, and every Keeper's hearth was lit from one flame. Mine.",
+   "mika": "Then the circle answered your fire before it answered us.",
+   "luna": "That would explain why it listens to her and not to me.",
+   "teach": "fact:keepers_fires"
+  },
+  {
+   "id": "wind",
+   "when": {
+    "mika_knows": "practical:gale_spiral",
+    "not_taught": "fact:wind_curls"
+   },
+   "npc": "I watched your wind. It curls, like a leaf in an updraft. Keep that. A straight wind is a dead wind.",
+   "mika": "A leaf in an updraft. I never thought of it that way.",
+   "teach": "fact:wind_curls"
+  },
+  {
+   "id": "beats",
+   "when": {
+    "mika_knows": "clue:heartbeat_should_be_three",
+    "not_taught": "fact:third_beat_is_fire"
+   },
+   "npc": "Three beats when it was whole. The third was mine, the hearth-fire's. The Circle carried it south when they left, and the stone has counted two ever since.",
+   "mika": "So the third beat went south with the fire. Then the Heartstone is waiting for it to come back.",
+   "teach": "fact:third_beat_is_fire",
+   "learn": "clue:heartbeat_should_be_three",
+   "mood": "serious"
+  },
+  {
+   "id": "fires",
+   "when": {
+    "not_taught": "fact:keepers_fires"
+   },
+   "npc": "Every Keeper's hearth was lit from one flame. Mine. A circle answers the flame's memory before it answers any word.",
+   "mika": "Then the circle answered your fire before it answered me.",
+   "teach": "fact:keepers_fires"
+  },
+  {
+   "id": "summit",
+   "when": {},
+   "npc": "The summit keeps my fire; I keep the summit's memory. Earn the climb, and ask me what you like.",
+   "mika": "Then I'll earn it.",
+   "teach": "fact:summit_shrine"
+  },
+  {
+   "id": "circle",
+   "when": {},
+   "npc": "Keep the circle warm. It forgets quickly, and it is not the only thing in these woods that listens.",
+   "mika": "I will. It feels like it's teaching me, too."
+  }
+ ],
+ "schedule": {
+  "resident": true,
+  "first_after_s": 1000000000,
+  "stay_s": [
+   150,
+   240
+  ],
+  "cooldown_s": [
+   900,
+   1500
+  ],
+  "day_only": false
+ }
+}

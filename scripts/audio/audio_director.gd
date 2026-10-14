@@ -21,6 +21,7 @@ static var instance: AudioDirector
 var main: Node
 var log: Array = []                 # recent sounds: {t, sound, bus, event}
 var _pool3d: Array[AudioStreamPlayer3D] = []
+var _pool_big: Array[AudioStreamPlayer3D] = []   # cinematic moments: carry across a clearing at full power
 var _pool2d: Array[AudioStreamPlayer] = []
 var _streams := {}
 var _gather := {}                   # caster id -> {player, start}
@@ -43,6 +44,15 @@ func setup(m: Node) -> void:
 		p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 		add_child(p)
 		_pool3d.append(p)
+	for i in 6:
+		var pb := AudioStreamPlayer3D.new()
+		pb.bus = "SFX"
+		pb.unit_size = 24.0
+		pb.max_distance = 140.0
+		pb.max_db = 6.0
+		pb.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		add_child(pb)
+		_pool_big.append(pb)
 	for i in 6:
 		var p2 := AudioStreamPlayer.new()
 		p2.bus = "UI"
@@ -88,6 +98,62 @@ func _note(sound: String, bus: String, event: String) -> void:
 	log.append({"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.001), "sound": sound, "bus": bus, "event": event})
 	if log.size() > 400:
 		log.pop_front()
+
+
+## A cinematic moment (Oriel's nova, her transformation, a great impact): positional, but it carries across a
+## clearing at near full power (unit size 24 m, up to +6 dB) instead of fading like footsteps and small spells.
+func play_big(name: String, pos: Vector3, db := 0.0, event := "", pitch := 1.0) -> AudioStreamPlayer3D:
+	var s := _stream(_path(name))
+	if s == null:
+		return null
+	var p: AudioStreamPlayer3D = null
+	for q in _pool_big:
+		if not q.playing:
+			p = q
+			break
+	if p == null:
+		p = _pool_big[0]
+		_pool_big.push_back(_pool_big.pop_front())
+	p.stream = s
+	p.volume_db = db
+	p.pitch_scale = pitch
+	p.global_position = pos
+	p.play()
+	_note(name, "SFX", event)
+	return p
+
+
+## The Phoenix's cinematic moments (the cinematic pass): STEREO, on the Cinematic bus (the world ducks under it),
+## at full width - attenuated only by the listener's distance from `pos` (a film mix, not a point source).
+var _pool_cine: Array[AudioStreamPlayer] = []
+
+func play_cine(name: String, pos: Vector3, db := 0.0, event := "", pitch := 1.0) -> AudioStreamPlayer:
+	var s := _stream(_path(name))
+	if s == null:
+		return null
+	if _pool_cine.is_empty():
+		for i in 8:
+			var q := AudioStreamPlayer.new()
+			q.bus = "Cinematic"
+			add_child(q)
+			_pool_cine.append(q)
+	var p: AudioStreamPlayer = null
+	for q in _pool_cine:
+		if not q.playing:
+			p = q
+			break
+	if p == null:
+		p = _pool_cine[0]
+		_pool_cine.push_back(_pool_cine.pop_front())
+	var cam := get_viewport().get_camera_3d() if get_viewport() else null
+	var dist := cam.global_position.distance_to(pos) if cam else 10.0
+	var att := clampf(1.0 - (dist - 14.0) / 70.0, 0.2, 1.0)
+	p.stream = s
+	p.volume_db = db + linear_to_db(att)
+	p.pitch_scale = pitch
+	p.play()
+	_note(name, "Cinematic", event)
+	return p
 
 
 func play3d(name: String, pos: Vector3, bus := "SFX", db := 0.0, event := "", pitch := 1.0) -> AudioStreamPlayer3D:

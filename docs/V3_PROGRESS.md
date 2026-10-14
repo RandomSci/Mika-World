@@ -11,7 +11,8 @@ Companion documents: `docs/V3_AUDIT.md` (the audit), `docs/V3_VISUAL_REPORT.md` 
 | `8b281aa` | K7: the Whispering Woods route (blockout + first dressing) |
 | `5bccd29` | K7b: the environment pass (forest ecosystem, water, den, ruins, pond, night, vista, LOD/shadow stand-ins, navigation fixes) |
 | `4ef0a27` | K8 creature territories + quiet scenes (ground sitting, lying down, stargazing together) |
-| *(next)* | K5/K6 the two spell families, wards, creature control effects, family training duels (V3 Part XIII) |
+| `9efa91a` | K5/K6 the two spell families, wards, creature control effects, family training duels (V3 Part XIII) |
+| *(this checkpoint)* | K6-Phoenix + visual pass 2: Oriel (true form rebuilt after the developer's references, the solar nova, Zahra-based human form, the ~10 s magical-girl transformation both ways, Kore voice, conversation) and the Whispering Woods realism pass (photoreal vegetation, scans, terrain, HDRI) |
 
 ## 1. Environment (directive Part III) — see `docs/V3_VISUAL_REPORT.md`
 
@@ -88,8 +89,58 @@ Stills: `screenshots/mktest/spells_*.png`, grids `docs/screenshots/milestone_k/s
 Not done: creature-side spell languages for shamans / demons / demigods (no such NPCs yet), levitation / flight /
 spatial travel (Part 62-63), Luna's signature visuals beyond the lance, a skirt-safe roll, a decal for the rift scar.
 
+## 6. The Phoenix (directive Part X) — see `docs/PHOENIX.md`
+
+**Oriel, the Ember Keeper**: one character with two bodies, one memory and one voice. Visual pass 2 (after the
+developer's two phoenix references and their request for Zahra as her human body):
+
+* **True form** (`tools/models/build_phoenix.py`, Blender, from nothing; 110 bones, one per flight feather):
+  rebuilt — far greater wings that rise into a heraldic **display** (a new pose-solver mode aims each wing segment
+  up-and-out with the feather fans facing the viewer), feathers burning from dark crimson roots to golden-orange
+  tips, gold filigree coverts / gorget / crown, a long crimson-violet train of curling plumes, a sleeker falcon
+  head; living fire in the shaders (each feather burns within, flame licks at the tips, flame tongues trailing every
+  flight feather, wisps, sparks, a halo of firelight). 33 clips (8 new: display, cocoon, burst, the attack).
+* **The solar nova** (`scripts/phoenix/phoenix_nova.gd`): charge (a sun-orb before her breast, fire drawn in, a
+  starburst glare), a full downstroke release (shock ring, flash, cry), a 24 m/s flight trailing flame, a
+  detonation (flash, fireball, flames, ground shock ring, ember rain, smoke, a fading scorch, camera shake), judged
+  by the target's own fire reaction; three new synthesised sounds.
+* **Human form**: the developer's **Zahra** VRM, copied into `assets/characters/phoenix/` and restyled at runtime in
+  her colours (`tools/textures/oriel_zahra_recolor.py`; the VRM file itself is unmodified).
+* **Transformation** — an original magical-girl sequence (`phoenix.gd`, `phoenix_human.gd`): her display, the
+  cocoon of wings, the core of fire, the swap (3.4 s), a **body of light**, then each part of her made in turn with
+  flame ribbons (hair → sandals → a pirouette and the skirt → arms → bodice → hood, veil and circlet), phantom wings
+  of flame, a final pose — **10.4 s**, seven camera beats, the world dimming into her light. A 4.2 s short version;
+  the way back in 9 s (unmade in reverse, rising in a pillar of fire, the bird bursting out wings-first). Reveal
+  shaders generated from MToon (`tools/shaders/make_mtoon_reveal.py`), compiled before the swap; choreography
+  solved on her skeleton (`scripts/characters/pose_author.gd`).
+* **Voice** (unchanged, verified): Google Gemini TTS **Kore**; key from `.env` only; permanent per-line cache.
+
+Verified in Godot by `--mktest=phoenix`: **31/31 PASS, 0 script errors** (flight 62.4 m high, banks 0.65 rad,
+perch 0.00 m off, both bowls lit, the nova *defeated* the thornback, cinematic transformation **10.45 s, swap at
+3.45 s, drift 0.00 m**, no T-pose, Kore voice, conversation + teaching + memory, sitting, walking, human cast, the
+way back **9.02 s (swap 4.20 s), drift 0.00 m**, take-off and leave). Stills `screenshots/phoenix_v3/mktest/`;
+reel `--mktest=phoenix_reel` (Movie Maker).
+
+## 7. Visual quality recovery — the Whispering Woods realism pass (directive Part III; the developer's photo references)
+
+The meeting place was rebuilt toward the developer's photographs: `RealKit` substitutes the stylized nature kit
+everywhere it is scattered (our own trees with photoscanned leaf twigs and Poly Haven bark; Poly Haven scans for
+shrubs, ferns, nettles and mossy rocks, decimated for real time), a photoscanned forest floor / soil / mud path /
+stony bank / rock terrain shader with anti-tiling, triplanar mossy stone for the ruins and the viewpoint, the
+`nature_reserve_forest` HDRI sky, a realistic water look, volumetric fog. `--stylized` restores the previous look.
+Cost, honestly: on this machine's Intel iGPU the Woods went from 24.5–30 fps (stylized) to 13.1–19.8 fps
+(realistic) at the measured views (~2.7–3.0 M primitives). Still open in the Woods: the waterfall sheet, the cold
+fire bowls' black metal, lime-tinted moss in places; the other regions have not had this pass yet.
+
+## 8. Phoenix cinematic pass (2026-10-14 night) — see `docs/PHOENIX.md` "The cinematic pass"
+
+Simulated fire flipbooks, aerial nova, fire-tornado transformation, gusts that bend the forest, wing/train ground
+clearance, stereo ElevenLabs sound on a Cinematic bus. Verified: `--mktest=phoenix` PASS (all checks incl. gusts,
+nova altitude 5.3 m, lowest wingtip 0.14 m above ground), `--mktest=phoenix_reel` PASS. GPU: Godot now runs on the
+RTX 5050 (Vulkan Forward+): the Woods test averages 29 fps (p95 35 ms) vs 13–20 on the iGPU.
+
 ## Still open from the directive (in order)
 
-the Phoenix (Part X), academy and NPC occupations (Part V, VIII), the world bible (Part IV), mythology (Part XVII),
+academy and NPC occupations (Part V, VIII), the world bible (Part IV), mythology (Part XVII),
 advanced magic (Part 62-63: shields beyond wards, counterspell combinations, levitation, teleportation as a learned
 spell), the Sanctuary hub polish, the GPU driver (hardware).

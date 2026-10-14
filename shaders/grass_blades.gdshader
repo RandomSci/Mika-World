@@ -12,6 +12,8 @@ uniform vec2 wind_dir = vec2(0.8, 0.35);
 uniform float fade_start = 20.0;
 uniform float fade_end = 28.0;
 
+#include "res://shaders/nature/gust.gdshaderinc"
+
 varying float tipness;
 varying vec3 wpos;
 
@@ -22,6 +24,10 @@ void vertex() {
 	float sway = (sin(TIME * 1.7 + world.x * 0.35 + world.z * 0.22) * 0.5 + n) * wind_strength;
 	float bend = UV.y * UV.y;
 	VERTEX += (inverse(mat3(MODEL_MATRIX)) * vec3(wind_dir.x, 0.0, wind_dir.y)) * sway * bend;
+	if (gust_on > 0.5) {
+		vec3 root = MODEL_MATRIX[3].xyz;
+		VERTEX += inverse(mat3(MODEL_MATRIX)) * gust_offset(gust_push(root) * 0.3, max(world.y - root.y, 0.0), 0.45);
+	}
 	// shrink grass far away (avoid aliasing shimmer), it fades into the terrain texture
 	float cam_d = length(world - (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz);
 	float shrink = 1.0 - smoothstep(fade_start, fade_end, cam_d);
