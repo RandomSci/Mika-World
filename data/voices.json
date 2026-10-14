@@ -228,6 +228,78 @@
     "gain": 0.8,
     "speed": 0.9
    }
+  },
+  "res_bram": {
+   "provider": "edge",
+   "voice": "en-AU-WilliamNeural",
+   "pitch": "-8Hz",
+   "rate": "-6%",
+   "gain": 0.85,
+   "caption": "Bram"
+  },
+  "res_hilde": {
+   "provider": "edge",
+   "voice": "en-GB-HollieNeural",
+   "pitch": "+0Hz",
+   "rate": "+4%",
+   "gain": 0.85,
+   "caption": "Hilde"
+  },
+  "res_wenna": {
+   "provider": "edge",
+   "voice": "en-IE-EmilyNeural",
+   "pitch": "+0Hz",
+   "rate": "-2%",
+   "gain": 0.85,
+   "caption": "Wenna"
+  },
+  "res_odo": {
+   "provider": "edge",
+   "voice": "en-GB-OliverNeural",
+   "pitch": "-6Hz",
+   "rate": "-8%",
+   "gain": 0.85,
+   "caption": "Odo"
+  },
+  "res_rook": {
+   "provider": "edge",
+   "voice": "en-GB-AlfieNeural",
+   "pitch": "-10Hz",
+   "rate": "-4%",
+   "gain": 0.85,
+   "caption": "Captain Rook"
+  },
+  "res_aldric": {
+   "provider": "edge",
+   "voice": "en-GB-ElliotNeural",
+   "pitch": "-6Hz",
+   "rate": "-6%",
+   "gain": 0.85,
+   "caption": "Master Aldric"
+  },
+  "res_maren": {
+   "provider": "edge",
+   "voice": "en-GB-BellaNeural",
+   "pitch": "-2Hz",
+   "rate": "-6%",
+   "gain": 0.85,
+   "caption": "Sister Maren"
+  },
+  "res_lysa": {
+   "provider": "edge",
+   "voice": "en-AU-NatashaNeural",
+   "pitch": "+6Hz",
+   "rate": "+4%",
+   "gain": 0.85,
+   "caption": "Lysa"
+  },
+  "res_corin": {
+   "provider": "edge",
+   "voice": "en-IE-ConnorNeural",
+   "pitch": "+8Hz",
+   "rate": "+2%",
+   "gain": 0.85,
+   "caption": "Corin"
   }
  },
  "reactions": {

@@ -51,7 +51,7 @@ func density(p: Vector2, f: float) -> float:
 
 
 func features() -> Array:
-	return [_mats_and_paving, _houses, _well, _market_stalls, _market_lights, _workshop, _street_lamps, _gardens,
+	return [_mats_and_paving, _houses, _well, _market_stalls, _market_lights, _workshop, _street_lamps, _gardens, _anchors,
 		func(): dress_clearing(Vector2(-30, 26), 8.0, true), func(): dress_clearing(Vector2(34, -4), 6.0, true)]
 
 
@@ -257,6 +257,81 @@ func _street_lamps() -> void:
 func _gardens() -> void:
 	for p in [Vector2(-12, 14), Vector2(13, -13), Vector2(14, 6), Vector2(-14, -7)]:
 		Kit.place_prop_all(self, "planter_box_01", Kit.xf(_v(p), atan2(-p.x, -p.y), Vector3.ONE * 1.4))
+
+
+## The places of the residents' day (TownLife, data/residents.json): doors, stalls (vendor behind / customer in
+## front), the forge and bench, the woodpile, seats round the well, conversation spots on the square, the gardens,
+## the street lamps the watch walks between, the river gate.
+func _anchors() -> void:
+	var doors: Array = houses.doors.duplicate() if houses else []
+	doors.sort_custom(func(a, b): return Vector2(a.pos.x, a.pos.z).distance_to(SQUARE) < Vector2(b.pos.x, b.pos.z).distance_to(SQUARE))
+	for i in doors.size():
+		add_anchor("home:%d" % i, doors[i].pos, float(doors[i].yaw), true)
+	var dir := (MARKET_B - MARKET_A).normalized()
+	var nrm := Vector2(-dir.y, dir.x)
+	var k := 0
+	for i in 5:
+		var p := MARKET_A + dir * (4.0 + i * 5.6)
+		for side: float in [-1.0, 1.0]:
+			var q := p + nrm * side * 4.4
+			var yaw := atan2(-nrm.x * side, -nrm.y * side)
+			var b := Basis(Vector3.UP, yaw)
+			add_anchor("stall:%d" % k, _v(q) + b * Vector3(0, 0, -0.55), yaw)
+			add_anchor("stall_front:%d" % k, _v(q) + b * Vector3(0, 0, 1.6), yaw + PI)
+			k += 1
+	var c := _v(WORKSHOP)
+	var wyaw := atan2(-WORKSHOP.x, -WORKSHOP.y)
+	var wb := Basis(Vector3.UP, wyaw)
+	add_anchor("forge", c + wb * Vector3(2.6, 0, 1.9), wyaw + PI)
+	add_anchor("workbench", c + wb * Vector3(-1.5, 0, -1.3), wyaw + PI)
+	# the woodpile beside the workshop: a chopping block and stacked logs
+	var wp := c + wb * Vector3(6.4, 0, -1.6)
+	wp.y = height(wp.x, wp.z)
+	var bark := Kit.tri("bark_brown_02", "1k", 0.8, 0.0, Color(0.8, 0.7, 0.6))
+	var cut := Kit.tri("wood_table_001", "1k", 1.2, 0.0, Color(0.85, 0.72, 0.55))
+	Kit.mesh_node(self, Kit.lathe([Vector2(0.32, 0.0), Vector2(0.3, 0.48), Vector2(0.0, 0.5)], 14), bark, Kit.xf(wp))
+	Kit.static_box(self, Vector3(0.6, 0.5, 0.6), Kit.xf(wp + Vector3(0, 0.25, 0)))
+	for li in 9:
+		var row := int(li / 3.0)
+		var col := li % 3
+		var lp := wp + wb * Vector3(1.2, 0.16 + row * 0.28, -0.6 + col * 0.3 + row * 0.15)
+		Kit.mesh_node(self, Kit.lathe([Vector2(0.14, -0.7), Vector2(0.14, 0.7)], 10), bark, Transform3D(wb * Basis(Vector3.FORWARD, PI * 0.5), lp))
+		Kit.mesh_node(self, Kit.lathe([Vector2(0.0, 0.71), Vector2(0.135, 0.71)], 10), cut, Transform3D(wb * Basis(Vector3.FORWARD, PI * 0.5), lp))
+	Kit.static_box(self, Vector3(0.9, 0.9, 1.4), Transform3D(wb, wp + wb * Vector3(1.2, 0.45, -0.3)))
+	add_anchor("woodpile", wp + wb * Vector3(-0.75, 0, 0), wyaw + PI * 0.5)
+	var wc := _v(SQUARE)
+	for i in 4:
+		var a := TAU * i / 4.0 + 0.4
+		add_anchor("well_seat:%d" % i, wc + Vector3(cos(a), 0, sin(a)) * 1.85, atan2(cos(a), sin(a)))
+	# benches round the square, facing the well (where they sit to eat and talk)
+	var bench_wood := Kit.tri("wood_table_001", "1k", 0.9, 0.0, Color(0.62, 0.5, 0.4))
+	var bn := 0
+	for i in 4:
+		var a := TAU * i / 4.0 + 1.15
+		var bc := wc + Vector3(cos(a), 0, sin(a)) * 11.0
+		bn = seat_bench(bc, atan2(-cos(a), -sin(a)), 2, "bench_seat", bn, bench_wood)
+	for i in 3:
+		var a := 0.9 + i * 2.1
+		var ctr := SQUARE + Vector2(cos(a), sin(a)) * 8.0
+		var tang := Vector2(-sin(a), cos(a))
+		for j in 2:
+			var sp := ctr + tang * (0.75 if j == 0 else -0.75)
+			var other := ctr - tang * (0.75 if j == 0 else -0.75)
+			add_anchor("square:%d" % (i * 2 + j), _v(sp), atan2(other.x - sp.x, other.y - sp.y))
+	var gi := 0
+	for p: Vector2 in [Vector2(-12, 14), Vector2(13, -13), Vector2(14, 6), Vector2(-14, -7)]:
+		var toward := (SQUARE - p).normalized()
+		var stand := p + toward * 1.2
+		add_anchor("garden:%d" % gi, _v(stand), atan2(p.x - stand.x, p.y - stand.y))
+		gi += 1
+	var li2 := 0
+	for p: Vector2 in [Vector2(-10, -4), Vector2(10, 4), Vector2(-4, 11), Vector2(4, -11), Vector2(-30, 4.5), Vector2(-50, -3.5), Vector2(32, 9.5), Vector2(4.5, -34)]:
+		var off := (p - SQUARE).normalized() * 0.9
+		add_anchor("lamp:%d" % li2, _v(p + off), atan2(off.x, off.y))
+		li2 += 1
+	var gate_in := GATE_RIVER + Vector2(14, 0)
+	add_anchor("gate", _v(gate_in), -PI * 0.5)
+	add_anchor("square:0_alt", _v(SQUARE + Vector2(3, 3)), 0.0)
 
 
 func links() -> void:

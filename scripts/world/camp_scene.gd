@@ -129,9 +129,24 @@ func _unsit(c: WorldCharacter) -> void:
 
 ## Pick a thing up off the ground (or a pack) and KEEP it in the hand: face it, bend with the pick-up clip, the arm
 ## reaches it when it comes within reach, grasps it, and the arm returns to the clip with the thing in the palm.
+## The last steps in: a walk stops within its tolerance (up to ~1.4 m short); to take something from the ground she
+## steps in close (real steps, steering round anything in the way) until it is within arm's reach.
+func _close_in(c: WorldCharacter, p: Vector3, within := 0.55, max_s := 2.5) -> void:
+	var t := 0.0
+	while t < max_s:
+		var d := Vector3(p.x - c.global_position.x, 0, p.z - c.global_position.z)
+		if d.length() <= within:
+			break
+		c.set_move_input(c._steer_around(d.normalized()), false)
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	c.set_move_input(Vector3.ZERO, false)
+
+
 func _pick(c: WorldCharacter, obj: HoldableObject) -> bool:
 	if obj == null or c.handler.held != null:
 		return false
+	await _close_in(c, obj.global_position)
 	await _face(c, obj.global_position)
 	var gp := obj.grasp_point()
 	var low := gp.y - c.global_position.y < 0.7
@@ -155,6 +170,7 @@ func _pick(c: WorldCharacter, obj: HoldableObject) -> bool:
 func _put(c: WorldCharacter, at: Vector3, yaw := 0.0) -> bool:
 	if c.handler.held == null:
 		return false
+	await _close_in(c, at, 0.75)
 	await _face(c, at)
 	var low := at.y - c.global_position.y < 0.7
 	if low:

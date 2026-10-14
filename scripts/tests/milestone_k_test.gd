@@ -107,6 +107,7 @@ func _run() -> void:
 		"fixcheck": await _fixcheck()
 		"appearances": await _appearances()
 		"pack": await _pack_hunt()
+		"town": await _town()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -2860,3 +2861,165 @@ func _tour() -> void:
 		print("[mktest] tour ", a, " ", JSON.stringify(out[a]))
 		_check(true, "%s toured (%d views)" % [a, shots.size()], out[a].fps)
 	report["tour"] = out
+
+
+# ------------------------------------------------------------------ town life (the people who live there)
+func _res_shot(r: Resident, tag: String) -> void:
+	if r == null or not is_instance_valid(r) or not r.visible:
+		return
+	var fwd := Vector3(sin(r.rotation.y), 0, cos(r.rotation.y))
+	var side := Vector3(fwd.z, 0, -fwd.x)
+	var head := r.global_position + Vector3(0, 1.25, 0)
+	main.camera_rig.set_shot(head + fwd * 3.6 + side * 1.4 + Vector3(0, 0.35, 0), head - Vector3(0, 0.2, 0), 46.0)
+	await _wait(0.7)
+	_shot(tag)
+
+
+func _town() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var day0 := floorf(WorldState.world_min / 1440.0) * 1440.0
+	# 1) the Village at 10:00: everyone where their day puts them
+	WorldState.world_min = day0 + 10.0 * 60.0
+	WorldState.clock_rate = 0.0
+	var r: Dictionary = await main.streaming.travel("village", mika)
+	_check(r.get("ok", false), "the Village loads")
+	await _wait(3.0)
+	var t: TownLife = main.town
+	report["village_10"] = t.describe(mika.global_position)
+	_check(t.residents.size() == 5, "five people live in the Village (%d)" % t.residents.size(), report["village_10"])
+	var at_place := []
+	for rid in t.residents:
+		var rr: Resident = t.residents[rid]
+		var a: Dictionary = main.world.anchors.get(rr.anchor_key, {})
+		var ok := rr.state == "inside" or (not a.is_empty() and Vector2(rr.global_position.x - a.pos.x, rr.global_position.z - a.pos.z).length() < 3.0)
+		at_place.append([rid, rr.activity, rr.anchor_key, ok])
+	_check(at_place.all(func(e): return e[3]), "each is at the place of their hour (work, stall, woodpile; the night watch asleep)", at_place)
+	_check(t.residents.has("rook") and not (t.residents.rook as Resident).visible, "the night watch sleeps by day (inside his house)")
+	for rid in ["bram", "hilde", "wenna", "odo"]:
+		if t.residents.has(rid):
+			await _res_shot(t.residents[rid], "village_%s_%s" % [rid, (t.residents[rid] as Resident).activity])
+	main.camera_rig.set_shot(Vector3(14, 3.2, 2), Vector3(18, 1.2, -18), 58.0)
+	await _wait(0.8)
+	_shot("village_market_10h")
+	# 2) the day goes on: noon to evening, they walk to their next places (no jumps)
+	var track := {}
+	var jumps := []
+	# the tools of their trade in hand (Odo's axe at the woodpile)
+	if t.residents.has("odo"):
+		var t_tool := _gms()
+		while (t.residents.odo as Resident)._clip != "chop" and _gms() - t_tool < 40000:
+			await get_tree().process_frame
+		print("[town] odo clip ", (t.residents.odo as Resident)._clip, " tools ", (t.residents.odo as Resident).tools.keys())
+		await _wait(0.6)
+		await _res_shot(t.residents.odo, "village_odo_chopping")
+		_check((t.residents.odo as Resident)._clip == "chop" and ((t.residents.odo as Resident).tools.get("chop") as Node3D).visible, "Odo chops with an axe in his hands")
+	WorldState.world_min = day0 + 11.9 * 60.0
+	WorldState.clock_rate = 2.0              # 2 world minutes per second: walks take their real time
+	var t0 := _gms()
+	var shot_n := 0
+	var prev_ms := _gms()
+	while _gms() - t0 < 150000:
+		await get_tree().physics_frame
+		var dt := maxf(0.001, (_gms() - prev_ms) / 1000.0)
+		prev_ms = _gms()
+		for rid in t.residents:
+			var rr: Resident = t.residents[rid]
+			if not is_instance_valid(rr) or not rr.visible:
+				track.erase(rid)
+				continue
+			# a jump = faster than any walk could carry them in that frame (a slow frame is not a jump)
+			if track.has(rid) and (track[rid] as Vector3).distance_to(rr.global_position) > maxf(0.6, dt * 2.5):
+				jumps.append([rid, snappedf((track[rid] as Vector3).distance_to(rr.global_position), 0.01), WorldState.clock_text()])
+			track[rid] = rr.global_position
+		if shot_n < 6 and _gms() - t0 > 12000 + shot_n * 22000:
+			var pick: Array = t.residents.values().filter(func(x): return is_instance_valid(x) and (x as Resident).visible)
+			if not pick.is_empty():
+				var rr2: Resident = pick[shot_n % pick.size()]
+				await _res_shot(rr2, "village_%s_%s_%s" % [WorldState.clock_text().replace(" ", "_").replace(":", "").replace(",", ""), rr2.id, rr2.activity])
+			shot_n += 1
+	WorldState.clock_rate = 0.0
+	report["village_day"] = {}
+	for rid in t.residents:
+		report["village_day"][rid] = (t.residents[rid] as Resident).log.map(func(e): return "%s %s" % [e.t, e.what])
+	print("[town] village day: ", JSON.stringify(report["village_day"]))
+	var lived := t.residents.keys().filter(func(k): return ((t.residents[k] as Resident).log as Array).size() >= 3)
+	_check(lived.size() >= 4, "their day moved on (%d of %d did three or more things)" % [lived.size(), t.residents.size()], report["village_day"])
+	_check(jumps.is_empty(), "nobody jumped: every move was a walk (coming out of a door excepted)", jumps.slice(0, 6))
+	# 3) Mika walks past: they notice her, someone speaks
+	var near: Resident = null
+	for rid in t.residents:
+		if (t.residents[rid] as Resident).visible:
+			near = t.residents[rid]
+			break
+	if near:
+		var map: RID = mika.get_world_3d().navigation_map
+		mika.navigate_to(NavigationServer3D.map_get_closest_point(map, near.global_position + Vector3(2.2, 0, 1.5)), false)
+		var t1 := _gms()
+		while mika.current_action == "navigate_to" and _gms() - t1 < 25000:
+			await get_tree().process_frame
+		await _wait(3.0)
+		var st: Dictionary = WorldState.npc_state.get("res:" + near.id, {})
+		_check(int(st.get("noticed_mika", -1)) == WorldState.day(), "%s noticed Mika walk up (and she glanced back)" % near.id, st)
+		await _res_shot(near, "village_notice_%s" % near.id)
+	# 4) night: the town goes in; the watch walks with his lantern
+	WorldState.world_min = day0 + 21.4 * 60.0
+	WorldState.clock_rate = 2.0
+	await _wait(70.0)                        # they walk home and go in
+	WorldState.clock_rate = 0.0
+	var out_at_night: Array = t.residents.keys().filter(func(k): return (t.residents[k] as Resident).visible)
+	report["village_night"] = t.describe(mika.global_position)
+	_check(out_at_night == ["rook"] or out_at_night.size() <= 1, "at night they are indoors - only the watch is out (%s)" % [out_at_night], report["village_night"])
+	if t.residents.has("rook"):
+		await _wait(6.0)
+		await _res_shot(t.residents.rook, "village_night_rook")
+	# 5) the Academy at 9:00: a lesson on the lawn; at 11:30 practice in the arena
+	WorldState.world_min = day0 + 1440.0 + 9.0 * 60.0
+	var r2: Dictionary = await main.streaming.travel("academy", mika)
+	_check(r2.get("ok", false), "the Academy loads")
+	await _wait(3.0)
+	report["academy_9"] = t.describe(mika.global_position)
+	var teaching: Array = t.residents.values().filter(func(x): return (x as Resident).activity == "teach")
+	var attending: Array = t.residents.values().filter(func(x): return (x as Resident).activity == "attend")
+	_check(teaching.size() == 1 and attending.size() == 2, "a lesson: Master Aldric teaches, two students sit in the class", report["academy_9"])
+	await _wait(4.0)
+	var lec: Dictionary = main.world.anchors.get("lecture", {})
+	if not lec.is_empty():
+		main.camera_rig.set_shot((lec.pos as Vector3) + Vector3(-1.5, 2.0, 5.5), (lec.pos as Vector3) + Vector3(-2.2, 0.9, 0), 52.0)
+		await _wait(0.8)
+		_shot("academy_lesson")
+	# Mika sits in on the lesson: the option comes from her own planner (a teacher teaching, a free place)
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var lopts: Array = mb.options().filter(func(o): return String(o.kind) == "lesson")
+	_check(not lopts.is_empty(), "her planner sees the lesson (a free place on the bench)", lopts)
+	if not lopts.is_empty():
+		var sc: Dictionary = mb.score(lopts[0])
+		report["lesson_option"] = {"option": lopts[0].label, "score": sc}
+		var shot_lesson := func():
+			await _wait(14.0)
+			main.camera_rig.set_shot((lec.pos as Vector3) + Vector3(-1.0, 1.9, 6.0), (lec.pos as Vector3) + Vector3(-3.0, 0.9, 0), 50.0)
+			await _wait(0.6)
+			_shot("academy_mika_in_class")
+		shot_lesson.call()
+		var lr: Dictionary = await mb.run_activity(lopts[0])
+		report["lesson"] = lr
+		var mk := WorldState.mind("mika").knowledge
+		_check(lr.get("ok", false) and mk.has("mentor:aldric") and mk.keys().any(func(k): return String(k).begins_with("lesson:aldric:")),
+			"Mika sat in on Master Aldric's lesson and learned from it (%s)" % String(lr.get("activity", {}).get("topic", "")), lr)
+		_check(mk.has("fact:breath_before_word"), "the first lesson's knowledge is hers now (breath before the word)")
+	WorldState.world_min = day0 + 1440.0 + 11.2 * 60.0
+	WorldState.clock_rate = 2.0
+	await _wait(25.0)
+	WorldState.clock_rate = 0.0
+	report["academy_11"] = t.describe(mika.global_position)
+	_check(t.sparks > 0, "students practised spells (%d small casts)" % t.sparks, report["academy_11"])
+	for x in t.residents.values():
+		if (x as Resident).activity == "practice" and (x as Resident).visible:
+			await _res_shot(x, "academy_practice_%s" % (x as Resident).id)
+			break
+	report["academy_day"] = {}
+	for rid in t.residents:
+		report["academy_day"][rid] = (t.residents[rid] as Resident).log.map(func(e): return "%s %s" % [e.t, e.what])
+	print("[town] academy: ", JSON.stringify(report["academy_day"]))

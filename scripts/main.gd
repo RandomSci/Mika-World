@@ -43,6 +43,7 @@ var overlay_ui: MageOverlay
 var attention: AttentionDirector
 var affect: Affect
 var impacts: ImpactDirector       # area impacts with consequences + the aftermath behaviours (V3 continuation)
+var town: TownLife                # the people who live in the Village and the Academy (data/residents.json)
 var teleport_guard: TeleportGuard  # the no-teleport rule, watched every physics frame
 var journeys: JourneyDirector      # multi-day journeys across the overland world (persistent)
 var ambush: AmbushDirector         # road ambushes by human rivals (data/ambush.json)
@@ -259,6 +260,12 @@ func _ready() -> void:
 	impacts.name = "Impacts"
 	add_child(impacts)
 	impacts.setup(self)
+	town = TownLife.new()
+	town.name = "TownLife"
+	add_child(town)
+	town.setup(self)
+	streaming.area_activated.connect(func(a, _r): town.area_activated(a))
+	town.area_activated(streaming.current_id)
 	teleport_guard = TeleportGuard.new()
 	teleport_guard.name = "TeleportGuard"
 	add_child(teleport_guard)

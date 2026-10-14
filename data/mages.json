@@ -38,7 +38,8 @@
     "meet",
     "gather",
     "perform",
-    "roam"
+    "roam",
+    "lesson"
    ],
    "temperament": {
     "research": 1.1,
@@ -180,7 +181,13 @@
     ]
    },
    "home_area": "sanctuary",
-   "body": {"_note": "BodyReaction: balance divides impact severity; recovery scales how fast she gets up; style steady = props herself up and rises deliberately, agile = springs up when she can", "balance": 1.0, "recovery": 1.0, "style": "steady", "after": "protective"},
+   "body": {
+    "_note": "BodyReaction: balance divides impact severity; recovery scales how fast she gets up; style steady = props herself up and rises deliberately, agile = springs up when she can",
+    "balance": 1.0,
+    "recovery": 1.0,
+    "style": "steady",
+    "after": "protective"
+   },
    "face": {
     "_note": "Stable personality of her face (Milestone K). Warm, open, quick to show what she feels.",
     "expressiveness": 1.0,
@@ -289,7 +296,8 @@
     "journal",
     "gather",
     "perform",
-    "roam"
+    "roam",
+    "lesson"
    ],
    "temperament": {
     "hunt": 1.35,
@@ -433,7 +441,12 @@
     ]
    },
    "home_area": "sanctuary",
-   "body": {"balance": 0.9, "recovery": 1.2, "style": "agile", "after": "evasive"},
+   "body": {
+    "balance": 0.9,
+    "recovery": 1.2,
+    "style": "agile",
+    "after": "evasive"
+   },
    "face": {
     "_note": "Composed and observant: smaller, slower expressions; a dry, playful edge.",
     "expressiveness": 0.85,

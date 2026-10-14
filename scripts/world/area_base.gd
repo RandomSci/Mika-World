@@ -26,6 +26,8 @@ var nav_agent_climb := 0.25
 ## when an area has thousands of small obstacles (the Whispering Woods' trunks cut the ridge trail under WATERSHED).
 var nav_partition := NavigationMesh.SAMPLE_PARTITION_WATERSHED
 var magic_receivers: Array = []
+var anchors := {}              # TownLife: name -> {pos, yaw (facing), inside (a door: the resident goes in)}
+var seat_bodies := {}          # bench anchor -> its StaticBody3D (a mage sitting on it is excepted from it)
 var rng := RandomNumberGenerator.new()
 var _sky_day: Sky
 var _sky_night: Sky
@@ -318,6 +320,35 @@ func add_location(location_id: String, center: Vector3, radius: float, poi: Vect
 	zones.append({"id": location_id, "location": location_id, "center": center, "radius": radius})
 	points_of_interest[location_id] = {"position": poi, "description": desc if desc != "" else WorldState.locations[location_id].description,
 		"interact_radius": 2.5, "location": location_id}
+
+
+## A place where residents do something (TownLife): stand at `pos` facing `yaw` (radians, Godot's -Z forward
+## convention turned by yaw). inside = it is a door: the resident steps in and is gone until they come out.
+func add_anchor(key: String, pos: Vector3, yaw: float, inside := false) -> void:
+	anchors[key] = {"pos": pos, "yaw": yaw, "inside": inside}
+
+
+## A wooden bench (seat 0.45 m high) whose sitters face `yaw`; one sitting anchor per seat ("<prefix>:<n>", from
+## `first`): the resident stands in front of the seat and sits back onto it (the UAL sitting clips are chair height).
+func seat_bench(center: Vector3, yaw: float, seats: int, prefix: String, first: int, wood: Material) -> int:
+	var fwd := Vector3(sin(yaw), 0, cos(yaw))
+	var side := Vector3(fwd.z, 0, -fwd.x)
+	var length := 0.75 * seats + 0.2
+	var b := Basis(Vector3.UP, yaw)
+	var y: float = center.y
+	if has_method("ground_at"):
+		y = float(call("ground_at", center.x, center.z))
+	var c := Vector3(center.x, y, center.z)
+	Kit.block(self, Vector3(length, 0.07, 0.42), Transform3D(b, c + Vector3(0, 0.43, 0)), wood, false, 0.015)
+	var body := Kit.static_box(self, Vector3(length, 0.46, 0.42), Transform3D(b, c + Vector3(0, 0.23, 0)))
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			Kit.mesh_node(self, Kit.box_mesh(Vector3(0.07, 0.42, 0.07), 0.01), wood, Transform3D(b, c + side * sx * (length * 0.5 - 0.12) + fwd * sz * 0.15 + Vector3(0, 0.21, 0)))
+	for i in seats:
+		var off := (i - (seats - 1) * 0.5) * 0.75
+		add_anchor("%s:%d" % [prefix, first + i], c + side * off + fwd * 0.36, yaw)
+		seat_bodies["%s:%d" % [prefix, first + i]] = body
+	return first + seats
 
 
 func add_poi(id: String, pos: Vector3, desc: String, location_id: String, radius := 1.5) -> void:

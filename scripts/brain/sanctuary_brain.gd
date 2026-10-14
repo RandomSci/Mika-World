@@ -227,6 +227,17 @@ func options() -> Array:
 		var npc = main.npcs.present[nid]
 		if is_instance_valid(npc) and npc.state == "idle" and not _talked_this_visit.has(nid + str(main.dialogue.state_of(nid).visits)):
 			out.append({"kind": "converse", "key": "converse:" + nid, "npc": nid, "label": "talk with %s" % main.dialogue.travellers[nid].name})
+	# a lesson being taught where she is (the academy's teacher living his own day): a free place on the bench
+	if _allowed("lesson") and main.get("town") and main.town.teaching() != null:
+		var last := float(String(mind.knowledge.get("lesson_last_min", "-9999")))
+		if WorldState.world_min - last > 180.0:
+			for sid in ["lesson_seat_3", "lesson_seat_4", "lesson_seat_5"]:
+				var seat = main.world.interactables.get(sid)
+				if seat and not seat.busy:
+					var tch: Resident = main.town.teaching()
+					out.append({"kind": "lesson", "key": "lesson:" + tch.id, "interactable": sid, "teacher": tch.id,
+						"first": not mind.knowledge.has("mentor:" + tch.id), "label": "sit in on %s's lesson" % String(tch.data.get("name", tch.id))})
+					break
 	# attune: only where the place exists and once she has read what it is for
 	if here == "sanctuary":
 		for id in ATTUNE:
@@ -367,6 +378,11 @@ func score(o: Dictionary) -> Dictionary:
 		"converse":
 			u = 0.55 + needs.social * 0.5
 			why.append("visitor present")
+		"lesson":
+			u = 0.45 + needs.curiosity * 0.3 + needs.mastery * 0.35 - (1.0 - needs.energy) * 0.2
+			if o.first:
+				u += 0.25
+				why.append("a real teacher, never heard him +0.25")
 		"attune":
 			u = 0.3 + needs.mastery * 0.3 - (1.0 - needs.energy) * 0.2
 			var tr := _open_trial(o.interactable)
@@ -574,6 +590,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"explore": return await _explore(o)
 		"rest": return await _rest(o)
 		"alchemy": return await _use("alchemy_table")
+		"lesson": return await _use(String(o.interactable))
 		"converse": return await _converse(o)
 		"journal": return await _journal()
 		"attune": return await _attune(o)
@@ -1074,6 +1091,8 @@ func _collect(l) -> Dictionary:
 	var pk: Dictionary = await PickupAction.pick(me, l)          # the hand really has to reach it
 	if not pk.ok and is_instance_valid(l) and not l.claimed:
 		await _approach(l.global_position, 0.3)                    # step in closer and try once more
+		if not is_instance_valid(l) or l.claimed:
+			return {"ok": false, "detail": "someone else took it"}
 		pk = await PickupAction.pick(me, l)
 	if not pk.ok or not is_instance_valid(l):
 		return {"ok": false, "detail": "could not reach %s" % label}

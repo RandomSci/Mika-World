@@ -12,7 +12,40 @@ Companion documents: `docs/V3_AUDIT.md` (the audit), `docs/V3_VISUAL_REPORT.md` 
 | `5bccd29` | K7b: the environment pass (forest ecosystem, water, den, ruins, pond, night, vista, LOD/shadow stand-ins, navigation fixes) |
 | `4ef0a27` | K8 creature territories + quiet scenes (ground sitting, lying down, stargazing together) |
 | `9efa91a` | K5/K6 the two spell families, wards, creature control effects, family training duels (V3 Part XIII) |
-| *(this checkpoint)* | K6-Phoenix + visual pass 2: Oriel (true form rebuilt after the developer's references, the solar nova, Zahra-based human form, the ~10 s magical-girl transformation both ways, Kore voice, conversation) and the Whispering Woods realism pass (photoreal vegetation, scans, terrain, HDRI) |
+| `6cd0d4d` | K6-Phoenix + visual pass 2: Oriel (true form rebuilt after the developer's references, the solar nova, Zahra-based human form, the ~10 s magical-girl transformation both ways, Kore voice, conversation) and the Whispering Woods realism pass (photoreal vegetation, scans, terrain, HDRI) |
+
+| `613915f` | V3 continuation: believable impact / fall / recovery, consequential blasts, no teleportation (TeleportGuard), Mossback, voice auditions |
+| `5bc01e0` | Journeys on foot with camps, storage rings, realistic river surfaces, plants that part round bodies |
+| `a7ae492` / `4fbd363` | Level-based appearances (Celestial Mage / Celestial Oracle at 1-10), body language and natural hair motion |
+| `0029651` | One voice per character (Gemini identities), rival ambushes, hair refinement, Enchanted Forest + Celestial Highlands rebuilt |
+| `ee05710` | Crystal / Deep Caverns, Village, Academy, Observatory, Mentor's Tower rebuilt; BodyLanguage (injury carried in the body); companion warnings; no recitation in fights; voice latency pass (`docs/VOICE_LATENCY.md`) |
+
+### The six regions after the world-quality gate (toured with `--mktest=tour --areas=...`, contact sheets reviewed)
+
+| region | areas | state |
+|---|---|---|
+| Enchanted Forest | Whispering Woods, Ancient Grove, River Valley | rebuilt (photoreal kit, streams, waterfall, stone bridge) |
+| Celestial Highlands | Highland Path, Celestial Summit | rebuilt (alpine materials, generated conifers, cloud sea) |
+| Crystal Caverns | Crystal Caverns, Deep Caverns | rebuilt (real cave: floor + roof heightfields, dripstone, crystal light, black lake, vault) |
+| Fantasy Village | Village, Observatory Hill | rebuilt (masonry + half-timber houses, market, workshop; domed observatory) |
+| Magic Academy | Academy, Mentor's Tower, Arcane Library | Academy + Tower rebuilt; the Arcane Library is the developer's protected WIP |
+| Sanctuary | Sanctuary (+ expansion) | the developer's protected WIP - not modified |
+
+### Living towns and learning from mentors (verified `--mktest=town` PASS, 2026-10-15)
+
+Nine residents with their own looks, voices, homes, trades and hour-by-hour days (`docs/TOWN_LIFE.md`): the
+Village's blacksmith, baker, herbalist, woodcutter and watch; the Academy's teacher, librarian and two students.
+They work with the tools of their trade in hand, sit on real benches to eat, walk (never jump) between the places
+of their day, go indoors at night while the watch walks with his lantern, and notice the mages. When Master Aldric
+teaches, a free place on the bench is an option in Mika's and Luna's own planners; sitting in, she hears the
+lesson in his voice and keeps what she learned (`fact:breath_before_word`, `mentor:aldric`, ...).
+
+### The journey end to end (verified `--mktest=journey` PASS, 2026-10-15)
+
+Woods -> Ancient Grove on foot, 46 km over two days: hamlet, glade, ford and landmark passed; a camp chosen,
+firewood carried back from the trees, the fire struck from sparks, supper cooked and eaten, a fireside talk, the
+watch kept in turns, a mossback driven off in the night, breakfast, packing into the storage rings, arrival on
+day 2 - with no one ever moved instantly over 85 000+ frames.
 
 ## 1. Environment (directive Part III) — see `docs/V3_VISUAL_REPORT.md`
 

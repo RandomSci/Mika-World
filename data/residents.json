@@ -1,0 +1,717 @@
+{
+ "_note": "The people who LIVE in the Village and the Academy (TownLife, scripts/npc/town_life.gd; docs/TOWN_LIFE.md). Each has a home and a place of work (area anchors: home:N, stall:N, forge, well_seat:N, garden:N, lamp:N, square:N, lecture, seat:N, practice:N, library, bench:N), a day by the hour (schedule: [hour, activity, anchor]) and their own voice (data/voices.json, Edge). They are where their day puts them when the area loads (no simulation off-camera), walk the navmesh between places, work with real clips (Quaternius CC0 townsfolk built by tools/models/build_rival.py --clipset townsfolk) and notice the mages. Activities: sleep (inside the house), work (the clip of their trade at their place), vend (behind a stall), shop, draw_water, socialize, eat (sitting), patrol / watch (a lamp at night), teach, attend (a class, sitting), practice (spell practice), study, stroll.",
+ "village": {
+  "bram": {
+   "name": "Bram",
+   "role": "the village blacksmith",
+   "model": "res://assets/npc/residents/smith_m.glb",
+   "voice": "res_bram",
+   "height_m": 1.84,
+   "home": "home:2",
+   "work": "forge",
+   "work_clips": [
+    "fix",
+    "interact",
+    "fix",
+    "pickup"
+   ],
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     6.0,
+     "draw_water",
+     "well_seat:0"
+    ],
+    [
+     7.0,
+     "work",
+     "work"
+    ],
+    [
+     12.0,
+     "eat",
+     "bench_seat:0"
+    ],
+    [
+     13.0,
+     "work",
+     "work"
+    ],
+    [
+     18.0,
+     "socialize",
+     "square:0"
+    ],
+    [
+     21.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Morning, young mages.",
+     "Mind the sparks if you come close.",
+     "Need anything mended? Bring it by the forge."
+    ],
+    "night": [
+     "Late to be out. Stay near the lamps."
+    ]
+   },
+   "likes": "good iron, quiet evenings",
+   "tools": {
+    "fix": {
+     "model": "cross_pein_hammer",
+     "bone": "hand_r",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "rot": [
+      0,
+      0,
+      -90
+     ]
+    },
+    "chop": {
+     "model": "hatchet",
+     "bone": "hand_r",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "rot": [
+      0,
+      0,
+      -90
+     ]
+    }
+   }
+  },
+  "hilde": {
+   "name": "Hilde",
+   "role": "the baker, who keeps a market stall",
+   "model": "res://assets/npc/residents/villager_f.glb",
+   "voice": "res_hilde",
+   "height_m": 1.66,
+   "home": "home:0",
+   "work": "stall:0",
+   "work_clips": [
+    "interact",
+    "pickup",
+    "talk"
+   ],
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     5.0,
+     "work",
+     "home"
+    ],
+    [
+     7.5,
+     "vend",
+     "work"
+    ],
+    [
+     13.0,
+     "eat",
+     "bench_seat:1"
+    ],
+    [
+     14.0,
+     "vend",
+     "work"
+    ],
+    [
+     17.5,
+     "shop",
+     "stall_front:2"
+    ],
+    [
+     19.0,
+     "socialize",
+     "square:1"
+    ],
+    [
+     21.5,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Fresh bread, still warm! Oh - it's you two.",
+     "You look hungry. You always look hungry.",
+     "Back from the woods? Sit, eat something."
+    ],
+    "night": [
+     "Off to bed with you. Early start tomorrow."
+    ]
+   },
+   "likes": "early mornings, gossip"
+  },
+  "wenna": {
+   "name": "Wenna",
+   "role": "the herbalist, who grows what she sells",
+   "model": "res://assets/npc/residents/villager_f2.glb",
+   "voice": "res_wenna",
+   "height_m": 1.62,
+   "home": "home:5",
+   "work": "garden:0",
+   "work_clips": [
+    "plant",
+    "water",
+    "harvest",
+    "crouch"
+   ],
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     6.5,
+     "work",
+     "work"
+    ],
+    [
+     10.0,
+     "vend",
+     "stall:1"
+    ],
+    [
+     13.0,
+     "eat",
+     "bench_seat:2"
+    ],
+    [
+     14.0,
+     "work",
+     "garden:1"
+    ],
+    [
+     17.0,
+     "draw_water",
+     "well_seat:0"
+    ],
+    [
+     18.5,
+     "socialize",
+     "square:2"
+    ],
+    [
+     22.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Mind the seedlings, please.",
+     "If you find moonpetal in the grove, I'll trade you for it.",
+     "Ah, the girls from the circle. Good day."
+    ],
+    "night": [
+     "The night-blooms are out. Lovely, aren't they?"
+    ]
+   },
+   "likes": "rare plants, rain",
+   "tools": {
+    "water": {
+     "model": "wooden_bucket_01",
+     "bone": "hand_r",
+     "pos": [
+      0,
+      -0.1,
+      0
+     ],
+     "rot": [
+      0,
+      0,
+      0
+     ],
+     "scale": 0.7
+    }
+   }
+  },
+  "odo": {
+   "name": "Odo",
+   "role": "a farmer and woodcutter",
+   "model": "res://assets/npc/residents/villager_m.glb",
+   "voice": "res_odo",
+   "height_m": 1.78,
+   "home": "home:9",
+   "work": "woodpile",
+   "work_clips": [
+    "chop",
+    "chop",
+    "chop",
+    "pickup"
+   ],
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     5.5,
+     "work",
+     "garden:1"
+    ],
+    [
+     9.0,
+     "work",
+     "work"
+    ],
+    [
+     12.0,
+     "eat",
+     "bench_seat:1"
+    ],
+    [
+     13.0,
+     "shop",
+     "stall_front:0"
+    ],
+    [
+     14.0,
+     "work",
+     "work"
+    ],
+    [
+     17.5,
+     "socialize",
+     "square:0"
+    ],
+    [
+     20.5,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Hm. Morning.",
+     "Wolves were out past the river road last night. Careful.",
+     "Fine weather for it."
+    ],
+    "night": [
+     "Should be abed. So should you."
+    ]
+   },
+   "likes": "honest work, short talks",
+   "tools": {
+    "chop": {
+     "model": "wooden_axe",
+     "bone": "hand_r",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "rot": [
+      0,
+      0,
+      -90
+     ]
+    }
+   }
+  },
+  "rook": {
+   "name": "Captain Rook",
+   "role": "the village watch",
+   "model": "res://assets/npc/residents/guard_m.glb",
+   "voice": "res_rook",
+   "height_m": 1.86,
+   "home": "home:4",
+   "work": "lamp:0",
+   "work_clips": [
+    "idle_arms",
+    "lean_rail"
+   ],
+   "schedule": [
+    [
+     0,
+     "patrol",
+     "lamp"
+    ],
+    [
+     6.0,
+     "sleep",
+     "home"
+    ],
+    [
+     13.0,
+     "stroll",
+     "square:3"
+    ],
+    [
+     15.0,
+     "watch",
+     "gate"
+    ],
+    [
+     19.0,
+     "patrol",
+     "lamp"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Evening. All quiet so far.",
+     "Keep to the lit streets after dark.",
+     "You two again. Stay out of trouble."
+    ],
+    "night": [
+     "Stay where the lamps are."
+    ]
+   },
+   "likes": "order, a warm brazier",
+   "tools": {
+    "lantern": {
+     "model": "wooden_lantern_01",
+     "bone": "hand_l",
+     "pos": [
+      0,
+      -0.05,
+      0
+     ],
+     "rot": [
+      0,
+      0,
+      0
+     ]
+    }
+   }
+  }
+ },
+ "academy": {
+  "aldric": {
+   "name": "Master Aldric",
+   "role": "a teacher of the elemental arts",
+   "model": "res://assets/npc/residents/teacher_m.glb",
+   "voice": "res_aldric",
+   "height_m": 1.8,
+   "home": "quarters:0",
+   "work": "lecture",
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     7.0,
+     "stroll",
+     "fountain"
+    ],
+    [
+     8.5,
+     "teach",
+     "work"
+    ],
+    [
+     11.0,
+     "study",
+     "library"
+    ],
+    [
+     13.0,
+     "eat",
+     "bench:0"
+    ],
+    [
+     14.0,
+     "teach",
+     "work"
+    ],
+    [
+     16.5,
+     "watch",
+     "practice:0"
+    ],
+    [
+     19.0,
+     "study",
+     "library"
+    ],
+    [
+     22.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Ah - the Sanctuary's apprentices. Welcome.",
+     "You may sit in on the lesson, if you are quiet.",
+     "Breath first, then the word. Always."
+    ],
+    "teach": [
+     "Again. Feel the air before you shape it.",
+     "A spell is a request, not a command.",
+     "Notice where your weight is. Magic follows the body."
+    ]
+   },
+   "likes": "patience, well-kept notes",
+   "lessons": [
+    {
+     "id": "breath",
+     "topic": "breath before the word",
+     "lines": [
+      "Every spell begins before you speak. Breathe out first, slowly.",
+      "The word rides on the breath. Rush the breath and the word falls short."
+     ],
+     "knowledge": {
+      "fact:breath_before_word": 1
+     },
+     "skills": {
+      "spell_theory": 0.2
+     }
+    },
+    {
+     "id": "request",
+     "topic": "a spell is a request, not a command",
+     "lines": [
+      "You do not order the wind. You ask it, and you listen to the answer.",
+      "Feel what is already moving, and add to it."
+     ],
+     "knowledge": {
+      "fact:spell_is_request": 1
+     },
+     "skills": {
+      "spell_theory": 0.2
+     }
+    },
+    {
+     "id": "footing",
+     "topic": "magic follows the body",
+     "lines": [
+      "Look at your feet. If you are off balance, so is the spell.",
+      "Weight low, knees soft. Then cast."
+     ],
+     "knowledge": {
+      "fact:magic_follows_body": 1
+     },
+     "skills": {
+      "spell_theory": 0.15,
+      "footwork": 0.2
+     }
+    },
+    {
+     "id": "wards",
+     "topic": "timing a ward",
+     "lines": [
+      "A ward raised too early is a ward that tires you.",
+      "Watch the shoulder of whoever attacks you. It moves before the blow."
+     ],
+     "knowledge": {
+      "fact:ward_timing": 1
+     },
+     "skills": {
+      "spell_theory": 0.15,
+      "warding": 0.2
+     }
+    }
+   ]
+  },
+  "maren": {
+   "name": "Sister Maren",
+   "role": "the librarian",
+   "model": "res://assets/npc/residents/librarian_f.glb",
+   "voice": "res_maren",
+   "height_m": 1.68,
+   "home": "quarters:1",
+   "work": "library",
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     7.0,
+     "work",
+     "work"
+    ],
+    [
+     12.5,
+     "eat",
+     "bench:1"
+    ],
+    [
+     13.5,
+     "work",
+     "work"
+    ],
+    [
+     18.0,
+     "stroll",
+     "fountain"
+    ],
+    [
+     21.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Quietly, please. The books are listening.",
+     "If you are looking for the star charts, ask me.",
+     "Return what you borrow."
+    ],
+    "night": [
+     "The library is closed. Tomorrow."
+    ]
+   },
+   "likes": "order, old bindings"
+  },
+  "lysa": {
+   "name": "Lysa",
+   "role": "a second-year student",
+   "model": "res://assets/npc/residents/student_f.glb",
+   "voice": "res_lysa",
+   "height_m": 1.63,
+   "home": "quarters:2",
+   "work": "seat:0",
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     7.5,
+     "eat",
+     "bench:2"
+    ],
+    [
+     8.5,
+     "attend",
+     "work"
+    ],
+    [
+     11.0,
+     "practice",
+     "practice:1"
+    ],
+    [
+     13.0,
+     "eat",
+     "bench:2"
+    ],
+    [
+     14.0,
+     "attend",
+     "work"
+    ],
+    [
+     16.5,
+     "practice",
+     "practice:2"
+    ],
+    [
+     18.5,
+     "socialize",
+     "fountain"
+    ],
+    [
+     21.0,
+     "study",
+     "library"
+    ],
+    [
+     22.5,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Oh! Are you the ones from the old circle?",
+     "Master Aldric says you learned on your own. Is that true?",
+     "Want to practise with us later?"
+    ]
+   },
+   "likes": "wind magic, sweets"
+  },
+  "corin": {
+   "name": "Corin",
+   "role": "a first-year student",
+   "model": "res://assets/npc/residents/student_m.glb",
+   "voice": "res_corin",
+   "height_m": 1.7,
+   "home": "quarters:3",
+   "work": "seat:1",
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     7.0,
+     "practice",
+     "practice:0"
+    ],
+    [
+     8.5,
+     "attend",
+     "work"
+    ],
+    [
+     11.0,
+     "study",
+     "library"
+    ],
+    [
+     13.0,
+     "eat",
+     "bench:3"
+    ],
+    [
+     14.0,
+     "attend",
+     "work"
+    ],
+    [
+     16.5,
+     "practice",
+     "practice:3"
+    ],
+    [
+     18.5,
+     "socialize",
+     "fountain"
+    ],
+    [
+     22.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Hi. Um. I'm Corin.",
+     "I still can't get the gust spell right.",
+     "Did you really fight a gloomwisp?"
+    ]
+   },
+   "likes": "stories about the outside"
+  }
+ }
+}

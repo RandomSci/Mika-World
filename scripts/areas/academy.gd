@@ -46,7 +46,7 @@ func _terrain_mask(x: float, z: float) -> Color:
 
 
 func features() -> Array:
-	return [_materials, _great_hall, _towers, _wings, _fountain_court, _arena, _gardens_layout, _gardens_plants]
+	return [_materials, _great_hall, _towers, _wings, _fountain_court, _arena, _gardens_layout, _gardens_plants, _anchors]
 
 
 func _materials() -> void:
@@ -280,6 +280,40 @@ func _gardens_plants() -> void:
 		Kit.multimesh(self, Kit.prop(flowers[k][0], flowers[k][1]), xs, 45.0, false)
 
 
+## The places of the academy's day (TownLife, data/residents.json): the students' and teachers' quarters (doors in
+## the wings), an open-air lesson on the east lawn of the courtyard (the teacher standing, the class sitting on the
+## grass facing him - two places left free for visitors), the practice spots round the arena's rune circle, the
+## library door, the lawn by the garden fountain where they eat, and the courtyard fountain.
+func _anchors() -> void:
+	var q := 0
+	for sx: float in [-1.0, 1.0]:
+		for z in [1.0, 11.0]:
+			add_anchor("quarters:%d" % q, Vector3(sx * 22.6, height(sx * 22.6, z), z), -sx * PI * 0.5, true)
+			q += 1
+	var teacher := Vector3(12.5, 0, 15.0)
+	add_anchor("lecture", Vector3(teacher.x, height(teacher.x, teacher.z), teacher.z), -PI * 0.5)
+	# the class sits on two benches facing the teacher (three to a bench; the far places free for visitors)
+	var bench_wood := Kit.tri("wood_table_001", "1k", 0.9, 0.0, Color(0.6, 0.48, 0.38))
+	var n := 0
+	for row in 2:
+		n = seat_bench(Vector3(teacher.x - 3.6 - row * 1.5, 0, teacher.z), PI * 0.5, 3, "seat", n, bench_wood)
+	for i in 4:
+		var a := PI + (i - 1.5) * 0.45
+		var pp := Vector3(ARENA.x + cos(a) * 6.5, 0, ARENA.z + sin(a) * 6.5)
+		pp.y = height(pp.x, pp.z)
+		add_anchor("practice:%d" % i, pp, atan2(ARENA.x - pp.x, ARENA.z - pp.z))
+	add_anchor("library", Vector3(0, height(0, -14.6), -14.6), PI, true)
+	# the garden's marble benches (radius 9, seat 0.45 m): one place on each, facing the fountain
+	for i in 4:
+		var a := TAU * i / 4.0 + PI * 0.25
+		var face := Vector3(-cos(a), 0, -sin(a))
+		var bp := Vector3(GARDEN.x + cos(a) * 9.0, 0, GARDEN.z + sin(a) * 9.0) + face * 0.36
+		bp.y = height(bp.x, bp.z)
+		add_anchor("bench:%d" % i, bp, atan2(face.x, face.z))
+	add_anchor("fountain", Vector3(0, height(0, 11.6), 11.6), 0.0)
+	add_anchor("square:0", Vector3(-3.0, height(-3.0, 12.0), 12.0), PI * 0.25)
+
+
 func links() -> void:
 	# ley-line portal back to the sanctuary, at the south edge of the courtyard
 	var pz := 30.0
@@ -302,6 +336,22 @@ func links() -> void:
 	Kit.omni(self, Vector3(0, 1.8, pz - 0.8), Color(0.6, 0.5, 1.0), 1.0, 5.0)
 	add_gate("sanctuary", Vector3(0, 0, pz), Vector3(0, 0.05, pz - 4.0), 0.0, 1.2)
 	add_gate("great_library", Vector3(0, 0, -15.6), Vector3(0, 0.05, -11.0), PI, 1.8)
+	# the free places at the open-air lesson (the back bench): a visitor sits in when a lesson is being taught
+	for i in [3, 4, 5]:
+		var a: Dictionary = anchors.get("seat:%d" % i, {})
+		if a.is_empty():
+			continue
+		var fwd := Vector3(sin(float(a.yaw)), 0, cos(float(a.yaw)))
+		var it := Interactable.make("lesson_seat_%d" % i, "Sit in on the lesson on the east lawn", "study", "academy_courtyard",
+			a.pos, {}, "sit", 60.0)
+		it.stand_point = a.pos
+		it.sit_point = (a.pos as Vector3) - fwd * 0.36
+		it.face_point = (a.pos as Vector3) + fwd * 4.0 + Vector3(0, 1.0, 0)
+		it.seat_body = seat_bodies.get("seat:%d" % i)
+		it.kind = "study"
+		it.radius = 1.0
+		it.custom_activity = _lesson.bind(it)
+		add_interactable(it)
 	add_interactable(Interactable.make("statue_plaque", "Read the founder's plaque on the fountain statue", "read", "academy_courtyard",
 		Vector3(0, 0, 11.0), {"knowledge": {"lore:academy_founding": 1}}, "look_around", 3.0)).radius = 2.4
 	add_interactable(Interactable.make("arena_drill", "Run a casting drill in the arena", "practice", "advanced_magic_arena",
@@ -310,6 +360,52 @@ func links() -> void:
 		Vector3(GARDEN.x + 6.0, 0, GARDEN.z + 6.0), {"items": {"herbs": 1}, "knowledge": {"botany:academy_gardens": 1}}, "", 3.0)).radius = 3.0
 	add_interactable(Interactable.make("garden_fountain_rest", "Rest by the garden fountain", "rest", "academy_gardens",
 		Vector3(GARDEN.x + 3.0, 0, GARDEN.z), {"knowledge": {"calm:academy_gardens": 1}}, "", 3.5)).radius = 2.4
+
+
+## Sitting in on a lesson (V3: magic learned from mentors). She listens while the teacher - a resident living
+## his own day (TownLife) - talks and demonstrates; what she takes away is the next of his lessons she has not
+## heard yet (data/residents.json "lessons"), remembered as her own knowledge.
+func _lesson(c: WorldCharacter, it: Interactable) -> Dictionary:
+	var teacher: Resident = null
+	for r in get_tree().get_nodes_in_group("residents"):
+		if is_instance_valid(r) and (r as Resident).activity == "teach" and (r as Resident).visible:
+			teacher = r
+	if teacher == null:
+		it.effects = {}
+		return {"ok": false, "detail": "no lesson is being taught right now"}
+	var who := c.character_id
+	var mind := WorldState.mind(who)
+	var lessons: Array = teacher.data.get("lessons", [])
+	var next := {}
+	for l in lessons:
+		if not mind.knowledge.has("lesson:%s:%s" % [teacher.id, String(l.id)]):
+			next = l
+			break
+	if next.is_empty() and not lessons.is_empty():
+		next = lessons[randi() % lessons.size()]
+	c.look_head_at(teacher.global_position + Vector3(0, 1.6, 0))
+	var t := 0.0
+	var said := 0
+	var lines: Array = next.get("lines", []) + teacher.data.get("lines", {}).get("teach", [])
+	while t < 55.0 and teacher.activity == "teach":
+		# the teacher speaks to the class and now and then shows it (a small spell at his hands)
+		if int(t / 14.0) >= said and said < lines.size():
+			if VoiceService.instance:
+				VoiceService.instance.say(String(teacher.data.get("voice", teacher.id)), String(lines[said]), {"max_wait": 3.0})
+			if said % 2 == 1:
+				teacher.play("cast", 0.2)
+				teacher.town.spell_spark(teacher)
+			said += 1
+		await get_tree().create_timer(0.5).timeout
+		t += 0.5
+	c.look_head_at(null)
+	var know: Dictionary = (next.get("knowledge", {}) as Dictionary).duplicate()
+	know["lesson:%s:%s" % [teacher.id, String(next.get("id", "general"))]] = 1
+	know["mentor:" + teacher.id] = 1
+	know["lesson_last_min"] = str(WorldState.world_min)
+	it.effects = {"knowledge": know, "skills": next.get("skills", {"spell_theory": 0.1})}
+	return {"ok": true, "detail": "listened to %s's lesson: %s" % [String(teacher.data.get("name", teacher.id)), String(next.get("topic", "the elemental arts"))],
+		"teacher": teacher.id, "topic": String(next.get("topic", "")), "lines_heard": said}
 
 
 func showcase_shots(loc: String) -> Array:

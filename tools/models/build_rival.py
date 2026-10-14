@@ -40,6 +40,22 @@ CLIPS = {
 	"get_up": "LayToIdle", "yes": "Yes", "no": "Idle_No",
 }
 
+# TOWNSFOLK (opts {"clipset": "townsfolk"}): the same builder makes the village's and the academy's residents -
+# everyday work and rest instead of blade work (TownLife, data/residents.json)
+TOWNSFOLK = {
+	"idle": "Idle_Loop", "idle_arms": "Idle_FoldArms_Loop", "talk": "Idle_Talking_Loop", "walk": "Walk_Loop",
+	"walk_formal": "Walk_Formal_Loop", "run": "Jog_Fwd_Loop", "carry": "Walk_Carry_Loop", "push": "Push_Loop",
+	"sit_enter": "Sitting_Enter", "sit": "Sitting_Idle_Loop", "sit_talk": "Sitting_Talking_Loop", "sit_exit": "Sitting_Exit",
+	"interact": "Interact", "pickup": "PickUp_Table", "open": "Chest_Open", "drink": "Consume",
+	"harvest": "Farm_Harvest", "plant": "Farm_PlantSeed", "water": "Farm_Watering", "chop": "TreeChopping_Loop",
+	"fix": "Fixing_Kneeling", "crouch": "Crouch_Idle_Loop", "lantern": "Idle_Lantern_Loop", "torch": "Idle_Torch_Loop",
+	"lean_rail": "Idle_Rail_Loop", "call_rail": "Idle_Rail_Call", "dance": "Dance_Loop",
+	"cast_enter": "Spell_Simple_Enter", "cast_idle": "Spell_Simple_Idle_Loop", "cast": "Spell_Simple_Shoot", "cast_exit": "Spell_Simple_Exit",
+	"yes": "Yes", "no": "Idle_No_Loop", "hit": "Hit_Chest", "death": "Death01", "get_up": "LayToIdle", "flee": "Sprint_Loop",
+}
+if OPTS.get("clipset") == "townsfolk":
+	CLIPS = TOWNSFOLK
+
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
 

@@ -89,7 +89,9 @@ if [ "$want" = all ] || [ "$want" = mi ]; then
   run mi_focus 300 --mitest=focus --luna --save-path=user://test_regress_mi.json
   run mi_luna_read 300 --mitest=luna_read --luna --save-path=user://test_regress_mi.json
   run mi_luna_alchemy 300 --mitest=luna_alchemy --luna --save-path=user://test_regress_mi.json
+  clean mi   # a fresh save: places visited by earlier suites must not leak into "unvisited"
   run mi_explore_mika 300 --mitest=explore --who=mika --luna --save-path=user://test_regress_mi.json
+  clean mi   # a fresh save: places visited by earlier suites must not leak into "unvisited"
   run mi_explore_luna 300 --mitest=explore --who=luna --luna --save-path=user://test_regress_mi.json
   run mi_collision 240 --mitest=collision --luna --save-path=user://test_regress_mi.json
   run mi_interact 300 --mitest=interact --luna --save-path=user://test_regress_mi.json

@@ -16,6 +16,7 @@ var ground: Callable
 var mats := {}
 var rng := RandomNumberGenerator.new()
 var stats := {"houses": 0}
+var doors: Array = []                # [{pos, yaw}] doorsteps in build order (TownLife home:N anchors)
 
 
 func _init(a: Node3D, ground_fn: Callable) -> void:
@@ -125,6 +126,8 @@ func house(pos: Vector3, yaw: float, w: float, d: float, seed: int, storeys := 2
 	root.add_child(smoke)
 	# ---- details: lantern by the door (night), a flower box, a barrel or crates
 	var lamp := Kit.omni(root, Vector3(door_x + 0.9, 2.3, d * 0.5 + 0.6), Color(1.0, 0.66, 0.36), 0.9, 6.0)
+	# the doorstep (TownLife: the resident's way in and out), facing out of the house
+	doors.append({"pos": root.transform * Vector3(door_x, 0.0, hd + 0.75), "yaw": root.rotation.y})
 	if area.has_method("night_only"):
 		area.night_only(lamp)
 	if rng.randf() < 0.6:
