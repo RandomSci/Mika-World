@@ -1,0 +1,299 @@
+{
+ "identity": "luna-achernar-p115-v1",
+ "lines": {
+  "80b1c8d2ef76f2eb0d11d7a07643da70b079a1bf": {
+   "text": "Ah ha ha ha!",
+   "mood": "laugh",
+   "why": "reaction:laugh",
+   "model": "gemini-3.8-flash-tts"
+  },
+  "74265a18049a83353043119759682225b1de8dd9": {
+   "text": "Mm-hm-hm!",
+   "mood": "giggle",
+   "why": "reaction:giggle",
+   "model": "gemini-3.8-flash-tts"
+  },
+  "43dd97844cda1c5b4314dacb691c5c14de810abc": {
+   "text": "Hah—!",
+   "mood": "gasp",
+   "why": "reaction:gasp",
+   "model": "gemini-3.8-flash-tts"
+  },
+  "eb24842fead4560ac578504342fb2df451a4476e": {
+   "text": "Eek!",
+   "mood": "startle",
+   "why": "reaction:startle",
+   "model": "gemini-3.8-flash-tts"
+  },
+  "19c60b830f4f980b4d358bcecee35679cd961708": {
+   "text": "Mm... nnh.",
+   "mood": "effort",
+   "why": "reaction:effort",
+   "model": "gemini-3.8-flash-tts"
+  },
+  "2fa55a731ab926ca1c42510daa64771258b81e98": {
+   "text": "Kh—!",
+   "mood": "oof",
+   "why": "reaction:oof",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "e81a3477a5c199340a06ca13b7eba6a4e6161371": {
+   "text": "Haa... haa...",
+   "mood": "breath",
+   "why": "reaction:breath",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "a1680ae88f02fa00ddf1aa7d846fc3b148cc12ed": {
+   "text": "Orbis lucis.",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "c19ae74ace63d1b044e42ecd21712cdaca495eec": {
+   "text": "Circulus arcanus.",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "0ce5ecf10b36c9825e9fe76839707159de1350b6": {
+   "text": "Spiritus venti, fla!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "cf4f7ca1628bd90aaa71a2a0b9e673397fc73d57": {
+   "text": "Aqua, surge!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "a22d815b21e24e8e8bbeea94e1ef48d4a30c6946": {
+   "text": "Aqua et ventus, surgite!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-3.8-flash-tts"
+  },
+  "731578434255b46b23363d57a337f6b4c9dd3ade": {
+   "text": "Flamma, cresce!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "1834b0d9e8065aee162960274e45290c640aa38b": {
+   "text": "Signum, expergiscere!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "0631d0a0678034f2e650fe7b4d816e40eaf4703a": {
+   "text": "Vires elementorum, in me convenite!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "ca7a7465eb16256a060e4d2f6166cb5ee05b7496": {
+   "text": "Cor lapidis ter pulsat.",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "c1dad77bdb580d7c294928e860507f657eedddc0": {
+   "text": "Quod lapis obliviscitur, aqua meminit.",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "7946ac343b4347749d21ccec0a6635bc3c0eb8cc": {
+   "text": "Signum Reditus.",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "23e2543f14a86da80facffc884c8c642a163e37f": {
+   "text": "Reditus.",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-3.8-flash-tts"
+  },
+  "7c9d4ba3d2185e775274e3f42171a93df19677a5": {
+   "text": "Juramentum sub aqua servatur.",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "0baafb6e47772de6869e20b45f336c0708468380": {
+   "text": "Umbra, perfora!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "8a02f64b06b640d633ad7c058e056a60972414e6": {
+   "text": "Umbra!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "9a03f14f81f95e0d69a949acd01472ed46f6783c": {
+   "text": "Orbis!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "870a213f8505f0350a8d5fa0f7039f8904136987": {
+   "text": "Fla!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "a27b382c934b6f7e33468d3a5d72f380b3659b13": {
+   "text": "Surge!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "5ff38a60454da3d8a6b8bad1e1dfd70f97701811": {
+   "text": "Cresce!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "0b055c6eaacb128fcfe80219c871bfc91a944464": {
+   "text": "Umbra aurea, surge mecum!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "c9282bdc03d2386ac352dbeaa793bd34e03c84fd": {
+   "text": "Flos lucis, aperi te!",
+   "mood": "latin",
+   "why": "incantation",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "75287d7d41cf02e33e25752428ea32192f08bdf9": {
+   "text": "Mika!",
+   "mood": "concerned",
+   "why": "impact:friend_down",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "3a833825ff9a9464d107bb29ca0d4349f7cbdf63": {
+   "text": "Mika, don't move!",
+   "mood": "concerned",
+   "why": "impact:friend_down",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "df388532e38567d3246919dad96e875c25f13f73": {
+   "text": "Mika... Mika, can you hear me?",
+   "mood": "concerned",
+   "why": "impact:friend_down",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "f9a5c8b1c05b9518d55573eaba015d8ff8465110": {
+   "text": "Stay still. Let me look.",
+   "mood": "concerned",
+   "why": "impact:kneel",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "cdedf69ba88cf26cd58948de808c2addf0b0ba10": {
+   "text": "Breathe. I'm right here.",
+   "mood": "concerned",
+   "why": "impact:kneel",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "ee72730c4631d642b11a6f4a237fb9c55531758c": {
+   "text": "Slowly... lean on me.",
+   "mood": "concerned",
+   "why": "impact:kneel",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "c2d61cbc688ca598cc3cba8c6e7a4816ba09cc16": {
+   "text": "Mm. Thank you, Mika.",
+   "mood": "concerned",
+   "why": "impact:thanks",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "71d4799b85468482d4bca3ccc384972d84658260": {
+   "text": "I'm alright... thanks.",
+   "mood": "concerned",
+   "why": "impact:thanks",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "2c6fe240f610c294d975a529005df23e43c43701": {
+   "text": "That... stung.",
+   "mood": "concerned",
+   "why": "impact:recovered",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "0dcfed5c95a71bd6dde8ca026e1ca5896e23c55f": {
+   "text": "I'm fine. Watch it.",
+   "mood": "concerned",
+   "why": "impact:recovered",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "8aa315cc235ca285fb07a745c96346784ac5cff1": {
+   "text": "Too close. I'm backing off.",
+   "mood": "concerned",
+   "why": "impact:retreat",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "9b7b317c91fd4810f3610c3cb2de7a01c51ae02a": {
+   "text": "Not standing there again.",
+   "mood": "concerned",
+   "why": "impact:retreat",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "bce68ac5be976a6408c0be5bf188bcfff4bcfc5d": {
+   "text": "Further back, Mika!",
+   "mood": "concerned",
+   "why": "impact:retreat",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "0e96773eb00a674d1bdaea6d27145c17a91cc873": {
+   "text": "Kyaa! Not so close!",
+   "mood": "surprised",
+   "why": "phoenix:attack",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "104b2733ca0d11a2f7838798f585ff0d14c609e4": {
+   "text": "That's a real fire!",
+   "mood": "surprised",
+   "why": "phoenix:attack",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "bcf40065ccb8805db2097843e45bfbda496d7dc6": {
+   "text": "My hair nearly caught!",
+   "mood": "surprised",
+   "why": "phoenix:attack",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "d430359066c833e0c3a3b6d90a028491ac44be62": {
+   "text": "Ah, ! I felt that!",
+   "mood": "surprised",
+   "why": "phoenix:hit",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "13791e137f99d50f31560a7cbba63fe0736c712b": {
+   "text": "Too hot!",
+   "mood": "surprised",
+   "why": "phoenix:hit",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "b5095bca348b1def4bc3c6d1bd8704f022dbe2a0": {
+   "text": "What's happening to her?!",
+   "mood": "surprised",
+   "why": "phoenix:transform",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "3a893d107a1678e6e3e7d74aade836c7e9ce1803": {
+   "text": "Mika, look!",
+   "mood": "surprised",
+   "why": "phoenix:transform",
+   "model": "gemini-2.5-flash-preview-tts"
+  },
+  "17f0a006bfd605d999495d35dbfd7d488d08b202": {
+   "text": "Hold on to something!",
+   "mood": "surprised",
+   "why": "phoenix:wind",
+   "model": "gemini-2.5-flash-preview-tts"
+  }
+ }
+}

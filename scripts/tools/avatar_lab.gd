@@ -13,9 +13,9 @@ var out := "res://screenshots/avatar_lab"
 var report := {}
 const AVATARS := {
 	"mika_old": ["mika", "res://assets/characters/mika/Mika.vrm"],
-	"mika_celestial": ["mika", "res://assets/characters/mika/stages/l01_celestial/MikaCelestial.vrm"],
+	"mika_celestial": ["mika", "res://assets/characters/mika/stages/l01_celestial/MikaCelestial_hair2.vrm"],
 	"luna_old": ["luna", "res://assets/characters/luna/forms/Luna_Level01.vrm"],
-	"luna_oracle": ["luna", "res://assets/characters/luna/stages/l01_oracle/LunaOracle.vrm"],
+	"luna_oracle": ["luna", "res://assets/characters/luna/stages/l01_oracle/LunaOracle_hair2.vrm"],
 }
 
 
@@ -31,7 +31,7 @@ func _ready() -> void:
 	env.ambient_light_energy = 0.34
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 0.88
-	env.ssao_enabled = true
+	env.ssao_enabled = not RenderProfile.options.has("no-ssao")
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
 	var we := WorldEnvironment.new()

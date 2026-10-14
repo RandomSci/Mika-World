@@ -103,6 +103,28 @@ func _attach_weapons() -> void:
 		weapons.append(holder)
 
 
+## A rival who yields lets the weapons fall: each becomes a prop lying on the ground where it dropped.
+func drop_weapons() -> void:
+	for w in weapons:
+		if not is_instance_valid(w):
+			continue
+		var xf := w.global_transform
+		var world := get_tree().current_scene
+		w.get_parent().remove_child(w)
+		world.add_child(w)
+		w.global_transform = xf
+		var gy := xf.origin.y - 1.0
+		var ray := PhysicsRayQueryParameters3D.create(xf.origin + Vector3.UP * 0.2, xf.origin + Vector3.DOWN * 3.0, 1)
+		var hit := get_world_3d().direct_space_state.intersect_ray(ray)
+		if not hit.is_empty():
+			gy = (hit.position as Vector3).y
+		var lie := Basis(Vector3.UP, randf() * TAU) * Basis(Vector3.FORWARD, PI * 0.5)
+		var tw := w.create_tween().set_parallel(true)
+		tw.tween_property(w, "global_position", Vector3(xf.origin.x + randf_range(-0.3, 0.3), gy + 0.03, xf.origin.z + randf_range(-0.3, 0.3)), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(w, "quaternion", lie.get_rotation_quaternion(), 0.45)
+	weapons.clear()
+
+
 ## The tip of the first weapon (sword trails, slash waves start there).
 func weapon_tip() -> Vector3:
 	if weapons.is_empty():

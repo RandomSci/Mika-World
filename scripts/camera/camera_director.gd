@@ -57,6 +57,20 @@ var _stargaze := {}              # quiet scene: {a, b, t0, shot}
 ## V3 quiet scenes: two mages lying in the grass. Shots alternate between a low side view (bodies in the
 ## foreground, the sky above the trees) and a high three-quarter from the head side (faces); never from the feet
 ## (a skirt), never below hip height from behind the heads.
+## A staged scene (an ambush's standoff, a story beat): `shot` is called every frame with delta and returns
+## {pos, look, fov, rate, cut}; it outranks everything but a performance until end_scene().
+var _scene: Callable = Callable()
+
+
+func begin_scene(shot: Callable) -> void:
+	_scene = shot
+	_since_change = 0.0
+
+
+func end_scene() -> void:
+	_scene = Callable()
+
+
 func begin_stargaze(a: WorldCharacter, b: WorldCharacter) -> void:
 	_stargaze = {"a": a, "b": b, "t0": _now(), "shot": 0}
 
@@ -227,8 +241,19 @@ func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
 
+var _trailer := TrailerCam.new()
+var _shake_t := 0.0
+
+
 func _process(delta: float) -> void:
 	_since_change += delta
+	var real_dt := delta / maxf(Engine.time_scale, 0.05)
+	TrailerCam.tick_global(real_dt)
+	_shake_t += real_dt
+	if rig and rig.camera:
+		var so := TrailerCam.shake_offset(_shake_t)
+		rig.camera.h_offset = so.x
+		rig.camera.v_offset = so.y
 	var world = main.world
 	var sub := ""
 	if world and world.has_method("sub_area_at"):
@@ -255,6 +280,8 @@ func _process(delta: float) -> void:
 func _choose() -> String:
 	if not _perf.is_empty():
 		return "performance"
+	if _scene.is_valid():
+		return "scene"
 	if not _sig.is_empty():
 		return "signature"
 	if not _stargaze.is_empty() and is_instance_valid(_stargaze.a) and is_instance_valid(_stargaze.b):
@@ -278,7 +305,7 @@ func _choose() -> String:
 func _switch(m: String) -> void:
 	mode = m
 	_since_change = 0.0
-	if m in ["spell", "activity", "conversation", "combat", "signature", "stargaze"]:
+	if m in ["spell", "activity", "conversation", "combat", "signature", "stargaze", "scene"]:
 		# keep the side of the screen the viewer already sees Mika on (180° rule)
 		var f := -mika.global_transform.basis.z
 		var right := Vector3(-f.z, 0, f.x)
@@ -299,6 +326,14 @@ func _frame(delta: float) -> void:
 	var look := Vector3.ZERO
 	var fov := 50.0
 	match mode:
+		"scene":
+			var sh: Dictionary = _scene.call(delta) if _scene.is_valid() else {}
+			if sh.is_empty():
+				return
+			if bool(sh.get("cut", false)):
+				_since_change = 0.0
+			_apply(sh.pos, sh.look, float(sh.get("fov", 50.0)), delta, float(sh.get("rate", 3.0)))
+			return
 		"stargaze":
 			var ca: WorldCharacter = _stargaze.a
 			var cb: WorldCharacter = _stargaze.b
@@ -325,19 +360,12 @@ func _frame(delta: float) -> void:
 			_apply(pos, look, fov, delta, 1.6)
 			return
 		"combat":
-			var sh: Dictionary = CombatFraming.shot(main, mika, _combat, _side)
-			if not CombatFraming.clear(mika, sh.pos, _combat):
-				_combat_blocked += delta
-				if _combat_blocked > 0.6:
-					var other: Dictionary = CombatFraming.shot(main, mika, _combat, -_side)
-					if CombatFraming.clear(mika, other.pos, _combat):
-						_side = -_side            # the only reason to cross the line: this side is blocked
-						sh = other
-					_combat_blocked = 0.0
-			else:
-				_combat_blocked = 0.0
-			pos = _clear_line(mika.global_position + Vector3(0, 1.2, 0), sh.pos)
-			_apply(pos, sh.look, sh.fov, delta, 6.0 if not mika._dash.is_empty() else 2.4)
+			# trailer cinematography in every fight (TrailerCam): close moving shots, cuts, punches on big hits
+			var th: Dictionary = _trailer.frame(main, mika, _combat, delta)
+			if th.get("cut", false):
+				_since_change = 0.0
+			pos = _clear_line(mika.global_position + Vector3(0, 1.2, 0), th.pos)
+			_apply(pos, th.look, th.fov, delta, float(th.get("rate", 4.0)))
 			return
 		"signature":
 			var beat_t := _now() - float(_sig.t0)

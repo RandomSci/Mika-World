@@ -322,13 +322,13 @@ func _creature() -> void:
 
 ## --lab=gripcal: the ronin holding the katana under six candidate hand rotations (sword idle), side by side.
 func _gripcal() -> void:
-	var rots := [[0, 0, 0], [0, 0, 90], [0, 0, -90], [90, 0, 0], [-90, 0, 0], [0, 90, 90]]
+	var rots := [[0, 0, -90], [0, 35, -90], [0, -35, -90], [25, 0, -90], [-25, 0, -90], [0, 0, -70]]
 	for i in rots.size():
 		var cr := ClipRig.new()
 		add_child(cr)
 		cr.position = Vector3((i - 2.5) * 1.6, 0, 0)
 		var spec := {"glb": "res://assets/creatures/rivals/ronin.glb", "ground": true, "keep_materials": true, "scale": 1.0,
-			"clips": {"idle": ["idle", 1.0, true]}, "weapons": [{"model": "antique_katana_01", "bone": "hand_r", "pos": [0, 0, 0], "rot": rots[i]}]}
+			"clips": {"idle": ["idle", 1.0, true], "slash": ["slash_a", 0.0, false]}, "weapons": [{"model": "antique_katana_01", "bone": "hand_r", "pos": [0, 0, 0], "rot": rots[i]}]}
 		cr.build(spec, Color(1, 0.5, 0.2))
 		var lbl := Label3D.new()
 		lbl.text = str(rots[i])
@@ -336,12 +336,21 @@ func _gripcal() -> void:
 		lbl.pixel_size = 0.004
 		cr.add_child(lbl)
 	await _wait(1.5)
-	_look(Vector3(0, 1.3, 7.5), Vector3(0, 1.0, 0), 50.0)
+	_look(Vector3(0, 1.3, 6.0), Vector3(0, 1.0, 0), 55.0)
 	await _wait(0.1)
 	await _grab("gripcal_front")
-	_look(Vector3(6.5, 1.4, 3.5), Vector3(0, 1.0, 0), 55.0)
+	_look(Vector3(0, 1.4, -6.0), Vector3(0, 1.0, 0), 55.0)
 	await _wait(0.1)
-	await _grab("gripcal_side")
+	await _grab("gripcal_back")
+	for cr in get_children():
+		if cr is ClipRig:
+			(cr as ClipRig).player.play("slash_a")
+			(cr as ClipRig).player.seek(0.35, true)
+			(cr as ClipRig).player.pause()
+	await _wait(0.2)
+	_look(Vector3(0, 1.3, 6.0), Vector3(0, 1.0, 0), 55.0)
+	await _wait(0.1)
+	await _grab("gripcal_slash")
 
 
 ## --lab=rivals: the four human rivals with their weapons, in idle and mid-technique, front and three-quarter.

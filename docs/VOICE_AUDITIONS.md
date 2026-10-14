@@ -1,7 +1,7 @@
 # Mika and Luna — voice auditions (2026-10-15)
 
-**Nothing here is in production.** Mika and Luna still speak with their current production voices (`data/voices.json`
-→ `speakers`). Oriel keeps Gemini **Kore** and her fallback, unchanged. These files are for the developer to listen
+**APPROVED 2026-10-15** ("change their voice already"): Mika = Leda +15 %, Luna = Achernar +15 % are now the
+production voices; see `docs/VOICES.md`. The text below is the original audition record. Oriel keeps Gemini **Kore** and her fallback, unchanged. These files are for the developer to listen
 to and choose from. A voice changes only after the developer approves one.
 
 ## How they were made

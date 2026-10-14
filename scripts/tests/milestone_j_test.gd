@@ -458,32 +458,51 @@ func _policy() -> void:
 
 # ------------------------------------------------------------------ voices
 func _voices() -> void:
+	# ONE VOICE PER CHARACTER (docs/VOICES.md): Mika = Gemini Leda +15 %, Luna = Gemini Achernar +15 %, for every line,
+	# laugh and incantation; never Edge or Kokoro for them; a line her voice cannot produce is a subtitle only.
 	var vs: VoiceService = main.voice
 	_check(vs != null and vs.enabled, "voice service enabled")
 	if vs == null:
 		return
-	var t0 := _gms()
-	while (not vs.available or vs.edge_status in ["starting", "not started"]) and _gms() - t0 < 40000:
-		await get_tree().process_frame
-	report["edge"] = vs.edge_status
-	report["kokoro"] = vs.status
-	_check(vs.edge_available, "Edge provider is up (confirmed voices)", vs.edge_status)
+	report["identities"] = vs.identities()
+	_check(vs.identities().has("mika") and vs.identities().has("luna"), "Mika and Luna have voice identities", vs.identities())
+	_check(not vs._uses_edge(), "no Edge voice is needed by anyone now", vs.edge_status)
 	var out := {}
+	var own := func(who: String, r: Dictionary) -> bool:
+		var cfg: Dictionary = vs.config.speakers[who]
+		return r.get("audio", false) and r.get("provider", "") == "gemini" and r.get("voice", "") == String(cfg.voice) and r.get("identity", "") == String(cfg.identity)
 	for who in ["mika", "luna"]:
 		var cfg: Dictionary = vs.config.speakers[who]
-		var r: Dictionary = await vs.say(who, "The ward is holding. Stay close to the circle.", {})
+		var r: Dictionary = await vs.say(who, "The ward is holding. Stay close to the circle.", {"mood": "determined"})
 		out[who] = r
-		_check(r.get("audio", false) and r.get("provider", "") == "edge" and r.get("voice", "") == String(cfg.voice), "%s spoke with %s (%s, %s)" % [who, cfg.voice, cfg.pitch, cfg.rate], r)
-	var latin: Dictionary = await vs.say("mika", "Orbis lucis.", {"latin": true})
-	out["latin"] = latin
-	_check(latin.get("provider", "") == "kokoro" and latin.get("phonemes", false), "Latin incantation spoken from IPA through Kokoro", latin)
+		_check(own.call(who, r), "%s spoke in her own voice (%s, %s)" % [who, cfg.voice, cfg.identity], r)
+		var imp: Array = (JSON.parse_string(FileAccess.get_file_as_string("res://data/impacts.json")) as Dictionary).lines[who].friend_down
+		var r2: Dictionary = await vs.say(who, String(imp[0]), {"mood": "concerned"})
+		out[who + "_shipped"] = r2
+		_check(own.call(who, r2) and r2.get("cached", "") == "shipped", "%s: a fixed line plays from the shipped set (no network)" % who, r2)
+		var lat: Dictionary = await vs.say(who, "Orbis lucis.", {"latin": true})
+		out[who + "_latin"] = lat
+		_check(own.call(who, lat) and lat.get("mood", "") == "latin", "%s: a Latin incantation in her own voice" % who, lat)
+		var rx: Dictionary = await vs.react(who, "gasp")
+		out[who + "_gasp"] = rx
+		_check(rx.get("audio", false), "%s: a gasp in her own voice" % who, rx)
 	var lf: Dictionary = vs.split_laughter("Hehe. Again later, maybe.")
 	_check(lf.lead and not String(lf.text).to_lower().contains("hehe"), "laugh token removed from the spoken text", lf)
-	var r2: Dictionary = await vs.say("luna", "Haha, that was close!", {})
-	out["laugh"] = r2
-	_check(r2.has("laughter") and not String(r2.get("text", "")).to_lower().contains("haha"), "a laugh plays as a reaction, the words without it", r2)
+	var r3: Dictionary = await vs.say("luna", "Haha, that was close!", {})
+	out["laugh"] = r3
+	_check(r3.has("laughter") and not String(r3.get("text", "")).to_lower().contains("haha"), "a laugh plays as a reaction, the words without it", r3)
+	# her voice unavailable (no key, a line never rendered): a subtitle, never another voice
+	var key_was: String = vs._gemini_key
+	vs._gemini_key = ""
+	var r4: Dictionary = await vs.say("mika", "This line was never rendered %d." % randi(), {})
+	vs._gemini_key = key_was
+	out["offline"] = r4
+	_check(not r4.get("audio", false) and r4.get("seconds", 0.0) > 1.0 and not (String(r4.get("provider", "")) in ["kokoro", "edge"]), "offline: a subtitle only, never a different voice", r4)
+	var foreign := vs.log.filter(func(e): return String(e.get("speaker", "")) in ["mika", "luna"] and String(e.get("provider", "")) in ["kokoro", "edge"])
+	_check(foreign.is_empty(), "no line of theirs was spoken by another voice", foreign)
 	report["lines"] = out
-	report["voice_log"] = vs.log.slice(maxi(0, vs.log.size() - 10))
+	report["voice_stats"] = vs.identity_stats
+	report["voice_log"] = vs.log.slice(maxi(0, vs.log.size() - 12))
 
 
 # ------------------------------------------------------------------ after a fight

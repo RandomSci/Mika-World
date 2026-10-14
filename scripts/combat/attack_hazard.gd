@@ -21,7 +21,7 @@ var speed := 9.0
 var max_range := 14.0
 var vigor := 0.06
 var heavy := false
-var style := "ember"               # projectile look: ember (glowing bolt) | stone (a thrown boulder) | gale (Mika's training spiral) | shard (Luna's training shard)
+var style := "ember"               # projectile look: ember (glowing bolt) | stone (a thrown boulder) | gale (Mika's training spiral) | shard (Luna's training shard) | crescent (a sword wave) | blade (a thrown knife) | hex (black magic)
 var reflected_at: Node3D = null     # a bolt a mirror threw back: it now flies at the creature that sent it
 var _axis := Vector3.ZERO           # gale: the straight path the weaving bolt travels round
 var _weave_t := 0.0
@@ -99,6 +99,62 @@ func _ready() -> void:
 			sparks.emitting = true
 			_bolt.add_child(sparks)
 			_bolt.add_child(FX.light(FX.palette("umbral")[0], 1.0 * float(RenderProfile.get_setting("magic_light_scale")), 2.8))
+			return
+		if style == "crescent":
+			# a sword technique's wave of cutting light, flat and wide, skimming forward
+			var cq := MeshInstance3D.new()
+			var qm := QuadMesh.new()
+			qm.size = Vector2(1.9, 1.9)
+			cq.mesh = qm
+			var cmat := ShaderMaterial.new()
+			cmat.shader = load("res://shaders/fx/crescent.gdshader")
+			cmat.set_shader_parameter("color", color)
+			cq.material_override = cmat
+			cq.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var fl := Vector3(dir.x, 0, dir.z).normalized()
+			cq.basis = Basis.looking_at(fl if fl.length() > 0.1 else Vector3.FORWARD, Vector3.UP) * Basis(Vector3.RIGHT, -PI * 0.5) * Basis(Vector3.FORWARD, deg_to_rad(randf_range(-18.0, 18.0)))
+			_bolt.add_child(cq)
+			var sp := FX.particles(26, 0.3, FX.pm_motes("wind", "trail"), FX.mote_mesh(0.04, true))
+			sp.emitting = true
+			_bolt.add_child(sp)
+			_bolt.add_child(FX.light(color, 1.4 * float(RenderProfile.get_setting("magic_light_scale")), 3.2))
+			return
+		if style == "blade":
+			# a thrown knife, spinning end over end, a glint trailing it
+			var spin := Node3D.new()
+			spin.name = "Spin"
+			spin.basis = Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.95 else Vector3.FORWARD)
+			_bolt.add_child(spin)
+			var knife := Node3D.new()
+			knife.scale = Vector3.ONE * 0.8
+			spin.add_child(knife)
+			Kit.place_prop_all(knife, "ornate_medieval_dagger", Transform3D.IDENTITY)
+			var gl := FX.particles(12, 0.2, FX.pm_motes("wind", "trail"), FX.mote_mesh(0.03, true))
+			gl.emitting = true
+			_bolt.add_child(gl)
+			return
+		if style == "hex":
+			# black magic: a knot of darkness with a violet rim, bleeding smoke and cinders
+			var orb := MeshInstance3D.new()
+			var om := SphereMesh.new()
+			om.radius = 0.22
+			om.height = 0.44
+			orb.mesh = om
+			var hm := ShaderMaterial.new()
+			hm.shader = load("res://shaders/magic/umbral_core.gdshader")
+			hm.set_shader_parameter("rim_color", color)
+			hm.set_shader_parameter("vein_color", color.lerp(Color(1, 0.3, 0.6), 0.3))
+			hm.set_shader_parameter("intensity", 1.6)
+			orb.material_override = hm
+			orb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_bolt.add_child(orb)
+			var smoke := FX.particles(20, 0.7, FX.pm_puff("smoke"), FX.puff_mesh(0.35))
+			smoke.emitting = true
+			_bolt.add_child(smoke)
+			var cind := FX.particles(26, 0.5, FX.pm_motes("umbral", "trail"), FX.mote_mesh(0.05, true))
+			cind.emitting = true
+			_bolt.add_child(cind)
+			_bolt.add_child(FX.light(color, 1.3 * float(RenderProfile.get_setting("magic_light_scale")), 3.4))
 			return
 		if style == "stone":
 			var rock := MeshInstance3D.new()
@@ -218,6 +274,8 @@ func _physics_process(delta: float) -> void:
 	var step := Vector3(dir.x, dir.y, dir.z).normalized() * speed * delta
 	var from := _bolt.global_position
 	var to := from + step
+	if style == "blade" and _bolt.get_child_count() > 0:
+		(_bolt.get_child(0) as Node3D).rotate_object_local(Vector3.RIGHT, delta * 28.0)
 	if style == "gale":
 		# the spiral weaves round its straight path; the hit test uses where it really is
 		_axis += step
@@ -325,6 +383,14 @@ func _finish(struck: Array, at: Vector3) -> void:
 				FX.burst(get_parent(), at, 20, 0.5, FX.pm_motes("wind", "burst"), FX.mote_mesh(0.045, true))
 			"shard":
 				FX.burst(get_parent(), at, 22, 0.6, FX.pm_motes("umbral", "burst"), FX.mote_mesh(0.045, true))
+			"crescent":
+				FX.burst(get_parent(), at, 26, 0.45, FX.pm_motes("wind", "burst"), FX.mote_mesh(0.045, true))
+				ImpactFX.shockwave(get_parent(), at, color, 1.4)
+			"blade":
+				FX.burst(get_parent(), at, 10, 0.3, FX.pm_motes("wind", "burst"), FX.mote_mesh(0.03, true))
+			"hex":
+				FX.burst(get_parent(), at, 16, 1.2, FX.pm_puff("smoke"), FX.puff_mesh(0.5))
+				FX.burst(get_parent(), at, 34, 0.7, FX.pm_motes("umbral", "burst"), FX.mote_mesh(0.05, true))
 			_:
 				FX.burst(get_parent(), at, 18, 0.5, FX.pm_motes("fire", "burst"), FX.mote_mesh(0.05))
 		queue_free()

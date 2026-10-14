@@ -46,6 +46,7 @@ var inventory := {}              # item -> count
 var skills := {"arcane_orb": 1}  # known spells and their practice level
 var current_goal := ""
 var journey := {}                # the party's multi-day journey (JourneyDirector): persisted, resumed after restarts
+var rivals := {}                 # human rivals met on the road (AmbushDirector): who, how often, how it ended, grudges
 var sanctuary := {}              # data/sanctuary.json: sub-areas, lore, trials, ranks, actions, thoughts
 var trials_done := {}            # trial id -> true
 var npc_state := {}              # traveller id -> {met, visits, relationship, taught, knows_from_mika, used_beats, memories}
@@ -168,7 +169,7 @@ func save_data() -> Dictionary:
 		"progress": minds["mika"].progress, "agents": _agents_data(),
 		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred,
 		"mika_explored": minds["mika"].explored, "habitats": habitats, "play_s": play_s, "world_min": world_min,
-		"journey": journey}
+		"journey": journey, "rivals": rivals}
 
 
 func _agents_data() -> Dictionary:
@@ -270,6 +271,7 @@ func _apply_save(d: Dictionary) -> void:
 	play_s = float(d.get("play_s", 0.0))
 	world_min = float(d.get("world_min", world_min))
 	journey = d.get("journey", {})
+	rivals = d.get("rivals", {})
 	# the world went on while the game was closed: catch up (capped at a week), journeys included (JourneyDirector)
 	var away_s := maxf(0.0, Time.get_unix_time_from_system() - float(d.get("saved_unix", Time.get_unix_time_from_system())))
 	var add := minf(away_s * clock_rate, 7.0 * 1440.0)

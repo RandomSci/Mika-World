@@ -377,10 +377,21 @@ func _fix_vrm1_mtoon_shading() -> void:
 ## (shaders/characters/natural_hair.gdshader). The hairstyle itself - geometry, colour, ornaments - is untouched.
 func _natural_hair() -> void:
 	var hp: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("hair", {})
-	if not bool(hp.get("natural", false)):
+	if not bool(hp.get("natural", false)) or RenderProfile.options.has("no-natural-hair"):
 		return
 	var shader: Shader = load("res://shaders/characters/natural_hair.gdshader")
 	var n := 0
+	# the outer hair's texture: the under layer and the cap take it too (their own darker paint shows through the
+	# gaps between clumps as jagged dark wedges)
+	var outer_tex: Texture2D = null
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m0: MeshInstance3D = mi
+		if m0.mesh == null:
+			continue
+		for si in m0.mesh.get_surface_count():
+			var s0 := m0.get_active_material(si) as ShaderMaterial
+			if s0 and String(s0.resource_name).ends_with("_Hair") and s0.get_shader_parameter("_MainTex"):
+				outer_tex = s0.get_shader_parameter("_MainTex")
 	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
 		var m: MeshInstance3D = mi
 		if m.mesh == null:
@@ -399,16 +410,23 @@ func _natural_hair() -> void:
 			var hm := ShaderMaterial.new()
 			hm.shader = shader
 			hm.resource_name = nm + "_natural"
-			hm.set_shader_parameter("albedo_tex", tex)
 			var sh: Array = hp.get("shade", [0.68, 0.64, 0.8])
 			var under := nm.ends_with("_HairUnder")
 			var cap := nm.ends_with("_HairCap")
-			hm.set_shader_parameter("shade_tint", Color(sh[0], sh[1], sh[2]) * (0.85 if under or cap else 1.0))
+			hm.set_shader_parameter("albedo_tex", outer_tex if (under or cap) and outer_tex else tex)
+			# the under layer / cap shade like the outer hair: a darker under layer shows through the gaps between
+			# clumps as jagged dark wedges ("messy")
+			hm.set_shader_parameter("shade_tint", Color(sh[0], sh[1], sh[2]))
 			var sc: Array = hp.get("sheen_color", [1.0, 0.97, 0.94])
 			hm.set_shader_parameter("sheen_color", Color(sc[0], sc[1], sc[2]))
 			hm.set_shader_parameter("sheen", float(hp.get("sheen", 0.55)) * (0.5 if under else 1.0))
 			hm.set_shader_parameter("sheen2", float(hp.get("sheen2", 0.35)))
 			hm.set_shader_parameter("fibre_density", float(hp.get("fibre_density", 260.0)))
+			hm.set_shader_parameter("fibre_strength", float(hp.get("fibre_strength", 0.22)))
+			hm.set_shader_parameter("detail", float(hp.get("detail", 0.35)) * (0.5 if under or cap else 1.0))
+			if hp.has("mass_color"):
+				var mc: Array = hp.mass_color
+				hm.set_shader_parameter("mass_color", Color(mc[0], mc[1], mc[2], 1.0))
 			hm.set_shader_parameter("root_dark", float(hp.get("root_dark", 0.3)))
 			hm.set_shader_parameter("tip_feather", 0.0 if cap else float(hp.get("tip_feather", 0.12)))
 			hm.set_shader_parameter("gain", float(hp.get("gain", 1.0)))
@@ -1099,8 +1117,10 @@ func dodge(to: Vector3, dur := 0.6) -> float:
 	_finish_action(false, "superseded by dodge")
 	_nav_active = false
 	var from := global_position
+	dur *= 0.75                               # fights are fast: a sharper burst of speed
 	_dash = {"dir": d.normalized(), "dist": d.length(), "t": 0.0, "dur": dur, "from": from}
 	rotation.y = atan2(-d.x, -d.z)            # commit to the direction: a burst of speed, upright
+	_dash_fx(d.normalized(), dur)
 	set_gesture_speed(1.35)
 	play_gesture("dodge_dash", 0.08, 0.25)
 	_begin_action("dodge", {"to": [to.x, to.y, to.z]})
@@ -1111,6 +1131,29 @@ func dodge(to: Vector3, dur := 0.6) -> float:
 	var moved := Vector2(global_position.x - from.x, global_position.z - from.z).length()
 	_finish_action(moved > 0.5, "dodged %.1f m" % moved)
 	return moved
+
+
+## The dash reads: dust kicked up where she pushes off, a pale wind streak trailing her for the burst.
+func _dash_fx(dir: Vector3, dur: float) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	FX.burst(host, global_position + Vector3(0, 0.1, 0), 14, 0.9, FX.pm_puff("dust"), FX.puff_mesh(0.28))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(0.18, 0.55, 0.18)
+	pm.direction = -dir
+	pm.spread = 8.0
+	pm.initial_velocity_min = 0.5
+	pm.initial_velocity_max = 1.5
+	pm.gravity = Vector3.ZERO
+	pm.color_ramp = FX.ramp([Color(0.9, 0.95, 1.0, 0.0), Color(0.85, 0.92, 1.0, 0.55), Color(0.8, 0.9, 1.0, 0.0)], [0.0, 0.25, 1.0])
+	var p := FX.particles(48, 0.35, pm, FX.mote_mesh(0.04, true))
+	p.position = Vector3(0, 0.9, 0)
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(dur).timeout.connect(func(): if is_instance_valid(p): p.emitting = false)
+	get_tree().create_timer(dur + 1.0).timeout.connect(func(): if is_instance_valid(p): p.queue_free())
 
 
 ## Struck by a creature (Milestone J): a visible reaction - a flinch for a light blow, a stagger back for a

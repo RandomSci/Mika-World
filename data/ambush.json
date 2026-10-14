@@ -1,0 +1,50 @@
+{
+ "_note": "Road ambushes by human rivals (AmbushDirector, docs/AMBUSH.md). A band watches the mages from cover and talks about them, steps out and ENCIRCLES them on foot while the leader makes his demand, the mages answer, then the fight (trailer camera). It ends when the band breaks: the leader yields (kneels, drops his blade), the others yield or run; Morrow the Hexer always escapes with a threat and comes back later (WorldState.rivals). Lines: [speaker, text, mood]; speakers are rival_* (Edge voices, data/voices.json) or mika / luna (their own voice identities).",
+ "bands": {
+  "road_thieves": {
+   "name": "Garran's band",
+   "roster": ["rival_cutthroat", "rival_shade", "rival_ronin", "rival_hexer"],
+   "leader": "rival_cutthroat",
+   "recurring": "rival_hexer",
+   "targets": {"rival_cutthroat": "mika", "rival_ronin": "mika", "rival_shade": "luna", "rival_hexer": "luna"},
+   "watch": [
+    ["rival_cutthroat", "There. Two girls, alone on the road. See what's on their fingers?", ""],
+    ["rival_shade", "Storage rings. Old make, too. One of those holds a whole wagon... and they each wear one.", ""],
+    ["rival_ronin", "They are mages, Garran.", ""],
+    ["rival_cutthroat", "Apprentices. Look at them. Spread out, and nobody lets them run.", ""]
+   ],
+   "encircle": [
+    ["rival_cutthroat", "Evening, little mages. Lovely rings. Take them off, slowly, and set them on the ground.", ""],
+    ["mika", "These were gifts. You're not getting them.", "determined"],
+    ["rival_shade", "Oh, she's brave. I like brave. Brave bleeds the same as anyone.", ""],
+    ["luna", "Mika. The one in the dark coat. He's the dangerous one.", "concerned"],
+    ["rival_hexer", "Clever little moon. Give me the silver ring, and your friend keeps all her fingers.", ""],
+    ["luna", "Walk away. This is the only warning you'll get.", "determined"],
+    ["rival_cutthroat", "Take them.", ""]
+   ],
+   "barks": {
+    "rival_cutthroat": ["Cut her off!", "Hold still, girl!", "Is that all the Sanctuary teaches?"],
+    "rival_shade": ["Too slow.", "Behind you.", "Over here, little light."],
+    "rival_ronin": ["Breathe... and cut.", "Your guard is open.", "Good. Again."],
+    "rival_hexer": ["Feel the cold, girl.", "Your light won't last.", "Kneel."],
+    "mika": ["Luna, behind you!", "Not today!", "Get away from her!"],
+    "luna": ["Mika, left!", "Stay close to me.", "I see you."]
+   },
+   "yield": [["rival_cutthroat", "Enough! Enough... we yield. Take your rings and go.", ""]],
+   "flee": {
+    "rival_shade": "Not worth it. I'm gone.",
+    "rival_ronin": "You fought well. I have no more reason to stay.",
+    "rival_hexer": "This isn't over, little moon. I'll have that ring."
+   },
+   "after": [
+    ["mika", "Luna... are you hurt? They really wanted the rings.", "concerned"],
+    ["luna", "Not the rings. Him. He looked at mine like he knew what's inside it.", "concerned"],
+    ["mika", "Then we keep our eyes open. Together.", "determined"]
+   ],
+   "again": [
+    ["rival_hexer", "Did you miss me, little moon? I told you I'd come back for that ring.", ""],
+    ["luna", "You again. You should have stayed away.", "determined"]
+   ]
+  }
+ }
+}

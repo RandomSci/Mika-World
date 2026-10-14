@@ -954,6 +954,9 @@ func _hunt(o: Dictionary) -> Dictionary:
 				st.assists += 1
 				m = dec.monster
 				_maybe_say(_lines("assist", ["I've got this one!", "Hold on, I'm coming!"]), 0.7)
+				# switching targets takes a moment (and must never spin: with several foes on two mages the
+				# assist choice can alternate - without a frame the game froze)
+				await get_tree().create_timer(0.15).timeout
 			"keep_distance", "approach", "reposition":
 				await _move_alert(dec.to, 2.5)
 			"steady":

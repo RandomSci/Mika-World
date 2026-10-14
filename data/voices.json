@@ -1,31 +1,135 @@
 {
- "_note": "Character voice providers (Milestone J). 'edge' = Microsoft Edge neural voices through the DEV service tools/voice/edge_service.py (port 12472, online, cached on disk); 'kokoro' = the local Kokoro-82M DEV service (port 12471, offline). Mika and Luna use the settings confirmed in Mika-Voice-Lab; their 'fallback' is used when the Edge service is unreachable or fails, and for lines spoken from fixed IPA (Latin incantations), which only Kokoro supports. Do not change the confirmed voices without the developer's approval.",
+ "_note": "Character voice providers. ONE VOICE PER CHARACTER (docs/VOICES.md). Mika and Luna each have a locked voice IDENTITY (approved by the developer 2026-10-15: Mika = Gemini 'Leda' +15 %, Luna = Gemini 'Achernar' +15 %): every line, laugh, gasp, cry and Latin incantation goes through the same model, prebuilt voice, persona and formant-preserving pitch processing, so she always sounds like herself. There is NO cross-voice fallback for them: a line is played from the shipped set (assets/voice/<speaker>), the session cache, or a fresh synthesis in her voice; if none is possible the line is shown as a subtitle only. Changing anything in an identity requires bumping 'identity' (it is part of every cache key). 'edge' = Microsoft Edge neural voices (tools/voice/edge_service.py, port 12472); 'kokoro' = local Kokoro-82M (port 12471) - for travellers / NPCs only. The Phoenix (Kore) is unchanged.",
  "speakers": {
   "mika": {
-   "provider": "edge",
-   "voice": "en-US-AvaNeural",
-   "pitch": "+25Hz",
-   "rate": "+5%",
-   "gain": 0.85,
-   "fallback": {
-    "provider": "kokoro",
-    "voice": "af_bella:0.6,jf_alpha:0.4",
-    "gain": 0.7,
-    "speed": 1.0
-   }
+   "provider": "gemini_identity",
+   "identity": "mika-leda-p115-v1",
+   "approved": "2026-10-15 by the developer (\"change their voice already\"): Leda +15 % pitch",
+   "api": "interactions",
+   "model": "gemini-3.8-flash-tts",
+   "alt_model": "gemini-2.5-flash-preview-tts",
+   "voice": "Leda",
+   "persona": "a young girl of about sixteen, a cheerful apprentice mage: bright, gentle, playful and warm, natural youthful voice",
+   "moods": {
+    "neutral": "relaxed, playful and warm, easy natural pace",
+    "happy": "happy and warm, smiling while she talks",
+    "excited": "excited and delighted, bright and a little quick",
+    "surprised": "genuinely surprised, a quick intake of breath at the start",
+    "concerned": "soft and worried, gentle and caring, a little slower",
+    "sad": "sad and quiet, a little heavy, slower",
+    "frustrated": "frustrated and a little sulky, but not shouting",
+    "determined": "focused and determined, steady and firm",
+    "scared": "frightened, breathy and tense, quick",
+    "hurt": "in pain, short of breath, words pushed out through it",
+    "tender": "tender and fond, almost a whisper",
+    "teasing": "teasing lightly, amused",
+    "whisper": "whispering, close and quiet",
+    "latin": "speaking an incantation in classical Latin, every syllable clear and measured, with quiet power",
+    "laugh": "a short natural laugh, no words, light and genuine",
+    "giggle": "a small soft giggle, no words",
+    "gasp": "a sharp startled gasp",
+    "startle": "a sudden startled cry",
+    "oof": "a short grunt of impact, the breath knocked out of her",
+    "effort": "straining with effort, pushing herself up",
+    "breath": "breathing hard after exertion, recovering",
+    "casting": "focused and determined, building from a hushed incantation to a confident cry"
+   },
+   "post": "rubberband=pitch={pitch}:formant=preserved:pitchq=quality:transients=smooth,loudnorm=I=-18:TP=-1.5:LRA=9,volume=0.9",
+   "same_voice_only": true,
+   "emotion_moods": {
+    "happy": "happy",
+    "surprised": "surprised",
+    "sad": "sad",
+    "frustrated": "frustrated",
+    "angry": "determined",
+    "shy": "tender",
+    "curious": "neutral",
+    "worried": "concerned",
+    "scared": "scared"
+   },
+   "previous": {
+    "provider": "edge",
+    "voice": "en-US-AvaNeural",
+    "pitch": "+25Hz",
+    "rate": "+5%",
+    "gain": 0.85,
+    "fallback": {
+     "provider": "kokoro",
+     "voice": "af_bella:0.6,jf_alpha:0.4",
+     "gain": 0.7,
+     "speed": 1.0
+    }
+   },
+   "pitch": {
+    "gemini-3.8-flash-tts": 1.15,
+    "gemini-2.5-flash-preview-tts": 1.24
+   },
+   "pitch_note": "per-model formant-preserving pitch factors, calibrated 2026-10-15 so both models land on the approved voice (median F0: Mika ~340 Hz, Luna ~252 Hz, the auditions' directed +15 %); the 2.5 model's prebuilt voices speak lower"
   },
   "luna": {
-   "provider": "edge",
-   "voice": "ja-JP-NanamiNeural",
-   "pitch": "+30Hz",
-   "rate": "+5%",
-   "gain": 0.85,
-   "fallback": {
-    "provider": "kokoro",
-    "voice": "af_kore:0.6,af_sky:0.4",
-    "gain": 0.75,
-    "speed": 0.97
-   }
+   "provider": "gemini_identity",
+   "identity": "luna-achernar-p115-v1",
+   "approved": "2026-10-15 by the developer (\"change their voice already\"): Achernar +15 % pitch",
+   "api": "interactions",
+   "model": "gemini-3.8-flash-tts",
+   "alt_model": "gemini-2.5-flash-preview-tts",
+   "voice": "Achernar",
+   "persona": "a young girl of about sixteen, a quiet, clever moon mage: soft, calm, curious and a little mysterious, sometimes teasing",
+   "moods": {
+    "neutral": "calm, soft and unhurried, a faint smile in the voice",
+    "happy": "happy and warm, smiling while she talks",
+    "excited": "quietly thrilled, wonder breaking through her usual calm, a little faster",
+    "surprised": "genuinely surprised, a quick intake of breath at the start",
+    "concerned": "soft and worried, gentle and caring, a little slower",
+    "sad": "sad and quiet, a little heavy, slower",
+    "frustrated": "frustrated and a little sulky, but not shouting",
+    "determined": "focused and determined, steady and firm",
+    "scared": "frightened, breathy and tense, quick",
+    "hurt": "in pain, short of breath, words pushed out through it",
+    "tender": "tender and fond, almost a whisper",
+    "teasing": "teasing lightly, amused",
+    "whisper": "whispering, close and quiet",
+    "latin": "speaking an incantation in classical Latin, every syllable clear and measured, with quiet power",
+    "laugh": "a short natural laugh, no words, light and genuine",
+    "giggle": "a small soft giggle, no words",
+    "gasp": "a sharp startled gasp",
+    "startle": "a sudden startled cry",
+    "oof": "a short grunt of impact, the breath knocked out of her",
+    "effort": "straining with effort, pushing herself up",
+    "breath": "breathing hard after exertion, recovering",
+    "casting": "hushed and mysterious, steady and controlled, an incantation with quiet power"
+   },
+   "post": "rubberband=pitch={pitch}:formant=preserved:pitchq=quality:transients=smooth,loudnorm=I=-18:TP=-1.5:LRA=9,volume=0.9",
+   "same_voice_only": true,
+   "emotion_moods": {
+    "happy": "happy",
+    "surprised": "surprised",
+    "sad": "sad",
+    "frustrated": "frustrated",
+    "angry": "determined",
+    "shy": "tender",
+    "curious": "neutral",
+    "worried": "concerned",
+    "scared": "scared"
+   },
+   "previous": {
+    "provider": "edge",
+    "voice": "ja-JP-NanamiNeural",
+    "pitch": "+30Hz",
+    "rate": "+5%",
+    "gain": 0.85,
+    "fallback": {
+     "provider": "kokoro",
+     "voice": "af_kore:0.6,af_sky:0.4",
+     "gain": 0.75,
+     "speed": 0.97
+    }
+   },
+   "pitch": {
+    "gemini-3.8-flash-tts": 1.15,
+    "gemini-2.5-flash-preview-tts": 1.05
+   },
+   "pitch_note": "per-model formant-preserving pitch factors, calibrated 2026-10-15 so both models land on the approved voice (median F0: Mika ~340 Hz, Luna ~252 Hz, the auditions' directed +15 %); the 2.5 model's prebuilt voices speak lower"
   },
   "wandering_mage": {
    "provider": "kokoro",
@@ -66,6 +170,62 @@
     "gain": 0.8,
     "speed": 0.95
    }
+  },
+  "rival_cutthroat": {
+   "provider": "edge",
+   "voice": "en-GB-RyanNeural",
+   "pitch": "-6Hz",
+   "rate": "-4%",
+   "gain": 0.9,
+   "caption": "Garran",
+   "fallback": {
+    "provider": "kokoro",
+    "voice": "bm_lewis",
+    "gain": 0.8,
+    "speed": 0.95
+   }
+  },
+  "rival_shade": {
+   "provider": "edge",
+   "voice": "en-US-AriaNeural",
+   "pitch": "-8Hz",
+   "rate": "+4%",
+   "gain": 0.85,
+   "caption": "Vex",
+   "fallback": {
+    "provider": "kokoro",
+    "voice": "af_nicole",
+    "gain": 0.8,
+    "speed": 1.0
+   }
+  },
+  "rival_ronin": {
+   "provider": "edge",
+   "voice": "en-US-GuyNeural",
+   "pitch": "-10Hz",
+   "rate": "-10%",
+   "gain": 0.85,
+   "caption": "Kaito",
+   "fallback": {
+    "provider": "kokoro",
+    "voice": "am_michael",
+    "gain": 0.8,
+    "speed": 0.92
+   }
+  },
+  "rival_hexer": {
+   "provider": "edge",
+   "voice": "en-GB-ThomasNeural",
+   "pitch": "-14Hz",
+   "rate": "-8%",
+   "gain": 0.9,
+   "caption": "Morrow",
+   "fallback": {
+    "provider": "kokoro",
+    "voice": "bm_fable",
+    "gain": 0.8,
+    "speed": 0.9
+   }
   }
  },
  "reactions": {
@@ -85,7 +245,7 @@
    "*laugh*"
   ],
   "clips": {
-   "_note": "Short laugh sounds rendered once per session in the speaker's own Edge voice (no words). Candidates - to be auditioned by the developer like the voices themselves.",
+   "_note": "Short non-word sounds, rendered in the speaker's OWN voice identity (mood = the clip kind) and shipped with the game.",
    "laugh": {
     "mika": "Ah ha ha ha!",
     "luna": "Ah ha ha ha!",

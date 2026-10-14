@@ -1,146 +1,180 @@
-extends KitArea
-## E1 Mountain Path + E2 Cliff Overlook (Celestial Highlands).
-## A switchback trail climbs ~18 m up a rocky mountainside past cairns; at the east edge a railed
-## stone overlook hangs above a sea of clouds with snow-capped ranges beyond.
+extends MountainRegion
+## E1 Mountain Path + E2 Cliff Overlook (Celestial Highlands) - rebuilt on the realistic toolkit (world-quality gate).
+## A mountainside 280 m across: the trail leaves the village road at the foot (south) and climbs in long
+## switchbacks through the last pines, past cairns and an old stone WAYSTATION, onto bare scree and snow toward the
+## SUMMIT STAIRWAY (north). The frontier road from the Whispering Woods comes over the western shoulder and joins it.
+## The whole east side falls away 150 m to the SEA OF CLOUDS; a stone OVERLOOK juts out over the drop.
 
-const OVERLOOK := Vector3(26, 0, -6)
-const SKY := "res://assets/polyhaven/hdris/alps_field/alps_field_2k.hdr"
-const TRAIL := [Vector2(0, 42), Vector2(-14, 26), Vector2(10, 12), Vector2(-10, -4), Vector2(12, -18), Vector2(0, -36), Vector2(0, -44)]
+const GATE_VILLAGE := Vector2(-10, 134)
+const GATE_WOODS := Vector2(-134, 22)
+const GATE_SUMMIT := Vector2(10, -134)
+const OVERLOOK2 := Vector2(66, -4)
+const WAYSTATION := Vector2(-30, 52)
+const JUNCTION := Vector2(-6, 24)
+const TRAIL_PTS := [GATE_VILLAGE, Vector2(18, 112), Vector2(-22, 88), Vector2(16, 64), Vector2(-16, 42), JUNCTION, Vector2(26, 6),
+	Vector2(-14, -20), Vector2(20, -46), Vector2(-12, -72), Vector2(14, -98), Vector2(6, -118), GATE_SUMMIT]
 
 var stone: ShaderMaterial
-var rock: ShaderMaterial
-
-
-static func resources() -> Array:
-	return textures(["rock_wall_10", "stony_dirt_path", "castle_wall_slates", "snow_02"]) + textures(["leafy_grass"], "2k") + textures(["cliff_side"], "2k") + \
-		models(["mountainside", "namaqualand_boulder_02", "rock_moss_set_02", "boulder_01"]) + [SKY]
-
-
-func env_preset() -> Dictionary:
-	return {"sky_day": SKY,
-		"day": {"sun_rot": Vector3(-26, -140, 0), "sun_energy": 2.5, "sun_color": Color(1.0, 0.9, 0.78), "fog": 0.0005, "fog_color": Color(0.7, 0.76, 0.84), "vol_fog": 0.0, "exposure": 0.9, "bg_energy": 0.85},
-		"night": {"fog": 0.002, "ambient": 1.5, "exposure": 1.35},
-		"vista": {"mountains": false, "ridge_height": 420.0, "mountain_count": 8, "ridge_base": -240.0, "ridge_seed": 33, "snow_line": 40.0, "haze": Color(0.68, 0.74, 0.84), "cloud_sea": -70.0, "green": Color(0.3, 0.32, 0.28)}}
-
-
-var _seg_len := []
-var _seg_total := 0.0
+var slate: Material
 var _overlook_y := 0.0
 
 
-func trail_t(p: Vector2) -> Vector2:
-	# returns (distance to trail, trail height at nearest point)
-	if _seg_len.is_empty():
-		for i in TRAIL.size() - 1:
-			_seg_len.append((TRAIL[i + 1] - TRAIL[i]).length())
-			_seg_total += _seg_len[i]
-	var best := 1e9
-	var hy := 0.0
-	var acc := 0.0
-	for i in TRAIL.size() - 1:
-		var a: Vector2 = TRAIL[i]
-		var b: Vector2 = TRAIL[i + 1]
-		var t := clampf((p - a).dot(b - a) / (b - a).length_squared(), 0.0, 1.0)
-		var d := p.distance_to(a + (b - a) * t)
-		if d < best:
-			best = d
-			hy = (acc + t * _seg_len[i]) / _seg_total * 18.0
-		acc += _seg_len[i]
-	return Vector2(best, hy)
+func _init() -> void:
+	cloud_y = -95.0
+	treeline = 38.0
+	snowline = 66.0
+	trails = [
+		[TRAIL_PTS, 2.6, "main"],
+		[[GATE_WOODS, Vector2(-110, 26), Vector2(-80, 34), Vector2(-50, 30), Vector2(-26, 26), JUNCTION], 2.2, "main"],
+		[[Vector2(26, 6), Vector2(40, 2), Vector2(54, -2), OVERLOOK2 + Vector2(-4, 0)], 1.8, "narrow"],
+		[[Vector2(-16, 42), WAYSTATION + Vector2(4, -3)], 1.4, "narrow"],
+	]
+	clearings = [[OVERLOOK2 + Vector2(-6, 0), 6.0, "glade"], [WAYSTATION, 7.0, "glade"], [JUNCTION, 6.0, "glade"]]
+	streams = []
 
 
-func height(x: float, z: float) -> float:
-	var tr := trail_t(Vector2(x, z))
-	var slope := clampf((42.0 - z) / 86.0, 0.0, 1.0) * 18.0
-	var rough := sin(x * 0.23) * 1.2 + cos(z * 0.19 + x * 0.05) * 1.0 + sin((x - z) * 0.5) * 0.3
-	var mountain := slope + rough + smoothstep(18.0, 34.0, -x) * 9.0
-	var bench := lerpf(tr.y, mountain, smoothstep(2.0, 5.0, tr.x))
-	var ov := 1.0 - smoothstep(6.0, 10.0, Vector2(x - OVERLOOK.x, z - OVERLOOK.z).length())
-	if ov > 0.0:
-		if _overlook_y == 0.0:
-			_overlook_y = trail_t(Vector2(OVERLOOK.x - 8, OVERLOOK.z)).y + 0.2
-		bench = lerpf(bench, _overlook_y, ov)
-	var drop := smoothstep(32.0, 40.0, x) * 60.0
-	return bench - drop
+func gate_spots() -> Array:
+	return [GATE_VILLAGE, GATE_WOODS, GATE_SUMMIT]
 
 
-func build_steps() -> Array:
-	return [_ground, _outcrops, _cairns, _overlook, _links]
+func _edge_x(z: float) -> float:
+	return 74.0 + 9.0 * sin(z * 0.04) + 4.0 * sin(z * 0.13 + 1.0)
 
 
-func _ground() -> void:
-	nav_aabb = AABB(Vector3(-36, -6, -48), Vector3(72, 36, 96))
-	stone = Kit.tri("castle_wall_slates", "1k", 0.5, 0.15, Color(0.85, 0.85, 0.85))
-	rock = Kit.tri("cliff_side", "2k", 0.1, 0.0)
-	magic_receivers = [stone, rock]
-	var mat := Kit.terrain_mat("leafy_grass", "rock_wall_10", "stony_dirt_path", Color(0.78, 0.84, 0.6), Color(0.62, 0.64, 0.66), "2k")
-	mat.set_shader_parameter("grass2_albedo", load("res://assets/polyhaven/textures/snow_02/snow_02_diff_1k.jpg"))
-	Kit.terrain(self, 100.0, 1.0, height, func(x, z):
-		var tr := trail_t(Vector2(x, z))
-		var steep := smoothstep(12.0, 28.0, -x) + smoothstep(30.0, 36.0, x)
-		return Color(1.0 - smoothstep(1.2, 2.4, tr.x), clampf(steep, 0.0, 1.0), 0.0), mat)
-	boundary_box(Vector3(0, 0, 0), Vector3(68, 60, 92))
+func shape(x: float, z: float, h: float) -> float:
+	var p := Vector2(x, z)
+	# the mountainside climbs north: ~0 m at the village road, ~85 m at the summit stairway
+	h = h * 2.2 + (140.0 - z) * 0.3
+	# ribs and gullies across the slope
+	h += 3.0 * sin(x * 0.045 + z * 0.012) + 2.0 * cos(z * 0.06 + x * 0.02)
+	# the western shoulder the frontier road crosses
+	h += 9.0 * exp(-pow((x + 92.0) / 34.0, 2.0)) * (1.0 - smoothstep(0.0, 70.0, absf(z - 20.0)))
+	# the east: everything past the edge falls away to the clouds; the overlook rock stands out over it
+	var d := x - _edge_x(z)
+	var spur := 1.0 - smoothstep(4.0, 11.0, p.distance_to(OVERLOOK2 + Vector2(3, 0)))
+	h -= smoothstep(-6.0, 30.0, d - spur * 12.0) * 175.0
+	return h
 
 
-func _outcrops() -> void:
-	for spec in [[Vector3(-24, 0, 20), 2.2, 0.4], [Vector3(-26, 0, -14), 2.6, 1.6], [Vector3(-20, 0, -34), 2.0, 2.8], [Vector3(20, 0, 30), 1.6, 3.6], [Vector3(24, 0, -30), 1.8, 0.9]]:
-		var p: Vector3 = spec[0]
-		Kit.place_prop(self, "mountainside", Kit.xf(Vector3(p.x, height(p.x, p.z) - 2.5, p.z), spec[2], Vector3.ONE * spec[1]), "", true)
-	for i in 14:
-		var p := Vector2(rng.randf_range(-30, 30), rng.randf_range(-40, 40))
-		if trail_t(p).x < 3.5 or p.distance_to(Vector2(OVERLOOK.x, OVERLOOK.z)) < 9.0 or p.x > 31.0:
-			continue
-		Kit.place_prop(self, ["namaqualand_boulder_02", "boulder_01"][i % 2], Kit.xf(Vector3(p.x, height(p.x, p.y) - 0.3, p.y), rng.randf() * TAU, Vector3.ONE * rng.randf_range(1.2, 2.6)), "", true)
+func features() -> Array:
+	return [_overlook, _waystation, _cairns, _summit_stair, _boulders, func(): outcrops([[Vector2(48, 40), 2.6], [Vector2(-60, -30), 3.0], [Vector2(40, -80), 2.4],
+		[Vector2(-50, 90), 2.2], [Vector2(56, 70), 2.8], [Vector2(-90, -70), 3.2], [Vector2(30, -120), 2.4]])]
 
 
-func _cairns() -> void:
-	for i in range(1, TRAIL.size() - 1):
-		var a: Vector2 = TRAIL[i]
-		var p := a + Vector2(2.6, 1.2)
-		var y := height(p.x, p.y)
-		var hh := 0.0
-		for k in 5:
-			var s := 0.42 - k * 0.06
-			Kit.mesh_node(self, Kit.rock_mesh(s, 1100 + i * 10 + k, 0.2, Vector3(1.2, 0.55, 1.0)), stone, Kit.xf(Vector3(p.x, y + hh + s * 0.4, p.y), k * 0.9))
-			hh += s * 0.75
-		Kit.static_box(self, Vector3(0.9, hh, 0.9), Kit.xf(Vector3(p.x, y + hh * 0.5, p.y)))
-	add_location("mountain_path", Vector3(0, 0, 10), 30.0, Vector3(TRAIL[2].x, trail_t(TRAIL[2]).y, TRAIL[2].y))
-	add_poi("trail_cairn", Vector3(TRAIL[3].x + 2.6, height(TRAIL[3].x + 2.6, TRAIL[3].y + 1.2), TRAIL[3].y + 1.2), "Stone cairn marking the switchbacks", "mountain_path", 2.0)
+func _v(p: Vector2) -> Vector3:
+	return Vector3(p.x, height(p.x, p.y), p.y)
 
 
+func _stone() -> ShaderMaterial:
+	if stone == null:
+		stone = RealKit.stone_mat("mossy_stone_wall") if RealKit.enabled() else Kit.tri("rock_wall_10", "1k", 0.4, 0.9)
+	return stone
+
+
+func _slate() -> Material:
+	if slate == null:
+		slate = Kit.tri("roof_slates_02", "1k", 0.5, 0.15)
+	return slate
+
+
+## The overlook: a paved stone platform with a low parapet, jutting out over the cloud sea.
 func _overlook() -> void:
-	var y := height(OVERLOOK.x, OVERLOOK.z)
-	var root := Node3D.new()
-	root.transform = Kit.xf(Vector3(OVERLOOK.x, y, OVERLOOK.z), -PI * 0.5)
-	add_child(root)
-	Kit.block(root, Vector3(9, 0.5, 7), Kit.xf(Vector3(0, -0.2, -2.0)), stone, true, 0.05)
-	Kit.mesh_node(root, Kit.rock_mesh(1.0, 1200, 0.3, Vector3(5.5, 4.0, 4.5), 2), rock, Kit.xf(Vector3(0, -4.0, -3.5)))
-	for i in 9:
-		var x := -4.0 + i
-		Kit.mesh_node(root, Kit.lathe([Vector2(0.12, 0), Vector2(0.16, 0.15), Vector2(0.08, 0.5), Vector2(0.13, 0.9)], 8), stone, Kit.xf(Vector3(x, 0.05, -5.3)))
-	Kit.block(root, Vector3(9.2, 0.14, 0.38), Kit.xf(Vector3(0, 1.0, -5.3)), stone, true, 0.02)
-	for sx: float in [-1.0, 1.0]:
-		Kit.block(root, Vector3(0.38, 1.1, 6.5), Kit.xf(Vector3(sx * 4.4, 0.55, -2.0)), stone, true, 0.02)
-	Kit.block(root, Vector3(1.8, 0.45, 0.55), Kit.xf(Vector3(0, 0.25, 0.5)), stone, true, 0.03)
-	add_location("cliff_overlook", OVERLOOK, 9.0, Vector3(OVERLOOK.x + 1.0, y + 0.1, OVERLOOK.z))
+	var c := _v(OVERLOOK2)
+	_overlook_y = c.y + 0.4
+	var sb := StoneBuilder.new(height, 91)
+	sb.base_y = c.y - 4.0
+	sb.top_y = c.y + 2.0
+	sb.block(Transform3D(Basis.IDENTITY, Vector3(c.x, _overlook_y - 0.3, c.z)), Vector3(8.0, 0.6, 7.0), 0.3, 0.06)
+	sb.collider(Transform3D(Basis.IDENTITY, Vector3(c.x, _overlook_y - 0.3, c.z)), Vector3(8.0, 0.6, 7.0))
+	# a buttress under the lip
+	sb.block(Transform3D(Basis.IDENTITY, Vector3(c.x + 2.6, _overlook_y - 2.4, c.z)), Vector3(2.6, 3.6, 6.0), 0.4, 0.1)
+	sb.wall(Vector3(c.x + 4.0, _overlook_y, c.z - 3.4), Vector3(c.x + 4.0, _overlook_y, c.z + 3.4), 0.95, 0.5, 0.1)
+	sb.wall(Vector3(c.x - 1.0, _overlook_y, c.z - 3.5), Vector3(c.x + 4.0, _overlook_y, c.z - 3.5), 0.95, 0.5, 0.2)
+	sb.wall(Vector3(c.x - 1.0, _overlook_y, c.z + 3.5), Vector3(c.x + 4.0, _overlook_y, c.z + 3.5), 0.95, 0.5, 0.25)
+	sb.finish(self, _stone(), "Overlook")
+	add_location("cliff_overlook", Vector3(c.x, 0, c.z), 10.0, Vector3(c.x + 1.0, _overlook_y, c.z), "a stone overlook above the sea of clouds")
 
 
-func _links() -> void:
-	add_gate("village", Vector3(0.0, height(0, 45.5), 45.5), Vector3(0.0, height(0, 40) + 0.05, 40.0), 0.0, 2.6)
-	# Milestone K: the frontier road from the Whispering Woods arrives over the western shoulder
-	add_gate("whispering_woods", Vector3(-15.5, height(-15.5, 26.0), 26.0), Vector3(-11.0, height(-11.0, 25.0) + 0.05, 25.0), PI * 0.5, 2.4)
-	var top := Vector2(0, -44)
-	add_gate("celestial_summit", Vector3(top.x, height(top.x, top.y), top.y), Vector3(0.0, height(0, -38.5) + 0.05, -38.5), PI, 2.4)
-	for sx: float in [-1.0, 1.0]:
-		Kit.block(self, Vector3(0.8, 3.2, 0.8), Kit.xf(Vector3(sx * 2.2, height(sx * 2.2, -43.5) + 1.5, -43.5)), stone, true, 0.05)
-	Kit.block(self, Vector3(5.4, 0.6, 1.0), Kit.xf(Vector3(0, height(0, -43.5) + 3.3, -43.5)), stone, false, 0.05)
+## An old stone shelter for travellers: thick walls, a slate roof, a doorway facing the trail, a bench outside.
+func _waystation() -> void:
+	var c := _v(WAYSTATION)
+	var sb := StoneBuilder.new(height, 93)
+	sb.base_y = c.y - 1.0
+	sb.top_y = c.y + 4.0
+	var w := 6.0
+	var d := 4.6
+	var y0 := c.y - 0.2
+	sb.wall(Vector3(c.x - w * 0.5, y0, c.z - d * 0.5), Vector3(c.x + w * 0.5, y0, c.z - d * 0.5), 2.8, 0.6, 0.0)
+	sb.wall(Vector3(c.x - w * 0.5, y0, c.z - d * 0.5), Vector3(c.x - w * 0.5, y0, c.z + d * 0.5), 2.8, 0.6, 0.0)
+	sb.wall(Vector3(c.x + w * 0.5, y0, c.z - d * 0.5), Vector3(c.x + w * 0.5, y0, c.z + d * 0.5), 2.8, 0.6, 0.0)
+	sb.wall(Vector3(c.x - w * 0.5, y0, c.z + d * 0.5), Vector3(c.x - 0.8, y0, c.z + d * 0.5), 2.8, 0.6, 0.0)
+	sb.wall(Vector3(c.x + 0.8, y0, c.z + d * 0.5), Vector3(c.x + w * 0.5, y0, c.z + d * 0.5), 2.8, 0.6, 0.0)
+	sb.block(Transform3D(Basis.IDENTITY, Vector3(c.x, y0 + 2.6, c.z + d * 0.5)), Vector3(2.0, 0.4, 0.62), 0.2, 0.05)
+	sb.block(Transform3D(Basis.IDENTITY, Vector3(c.x + 2.0, y0 + 0.25, c.z + d * 0.5 + 0.9)), Vector3(1.8, 0.45, 0.55), 0.3, 0.05)
+	sb.finish(self, _stone(), "Waystation")
+	# the roof: two pitched slate planes
+	for sgn: float in [-1.0, 1.0]:
+		var rb := Basis(Vector3.RIGHT, sgn * 0.52)
+		Kit.block(self, Vector3(w + 1.0, 0.16, d * 0.62), Transform3D(rb, Vector3(c.x, y0 + 3.45, c.z + sgn * d * 0.27)), _slate(), true, 0.02)
+	# a lantern hook by the door, lit after dark
+	night_only(Kit.omni(self, Vector3(c.x - 1.3, y0 + 2.3, c.z + d * 0.5 + 0.5), Color(1.0, 0.72, 0.42), 1.2, 7.0))
+	add_poi("waystation", Vector3(c.x, y0, c.z + d * 0.5 + 1.6), "An old stone waystation for travellers", "mountain_path", 2.4)
+
+
+## Cairns at the switchback corners (one is the old one travellers add stones to).
+func _cairns() -> void:
+	var sb := StoneBuilder.new(height, 95)
+	var corners := [TRAIL_PTS[2], TRAIL_PTS[3], TRAIL_PTS[4], TRAIL_PTS[7], TRAIL_PTS[8], TRAIL_PTS[9]]
+	var i := 0
+	for q in corners:
+		var off := Vector2(3.2, 1.2) if (q as Vector2).x > 0 else Vector2(-3.2, 1.2)
+		var p: Vector2 = (q as Vector2) + off
+		var y := height(p.x, p.y) - 0.1
+		var layers := 5 + (i % 3)
+		for k in layers:
+			var s := lerpf(0.75, 0.32, float(k) / layers)
+			sb.block(Transform3D(Basis(Vector3.UP, k * 0.9 + i), Vector3(p.x, y + 0.14 + k * 0.26, p.y)), Vector3(s, 0.28, s * 0.85), 0.25, 0.08)
+		sb.collider(Transform3D(Basis.IDENTITY, Vector3(p.x, y + layers * 0.13, p.y)), Vector3(0.8, layers * 0.26, 0.8))
+		if i == 2:
+			add_poi("trail_cairn", Vector3(p.x, y, p.y) + Vector3(0, 0, 1.4), "Stone cairn marking the switchbacks", "mountain_path", 2.0)
+		i += 1
+	sb.finish(self, _stone(), "Cairns")
+	add_location("mountain_path", Vector3(0, 0, 40), 60.0, _v(TRAIL_PTS[4]), "a switchback trail up a mountainside above the clouds")
+
+
+## Where the trail reaches the summit stairway: two worn pillars and a lintel (the old gate of the pilgrims' way).
+func _summit_stair() -> void:
+	var c := _v(GATE_SUMMIT + Vector2(0, 12))
+	var sb := StoneBuilder.new(height, 97)
+	sb.base_y = c.y - 1.0
+	sb.top_y = c.y + 5.0
+	sb.arch(c, 0.0, 3.6, 3.2, 0.9, 0.9, false, 0.0)
+	sb.finish(self, _stone(), "PilgrimGate")
+
+
+func _boulders() -> void:
+	var by_id := {}
+	for i in 70:
+		var p := Vector2(rng.randf_range(-130, 70), rng.randf_range(-130, 130))
+		if trail_at(p.x, p.y) > 0.2 or site_clearing(p, 2.0) or p.x > _edge_x(p.y) - 6.0:
+			continue
+		var id: String = ["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"][rng.randi() % 3]
+		(by_id.get_or_add(id, []) as Array).append(dress.xf_at(p, rng.randf_range(0.6, 2.2), 0.3, 0.3))
+	for id in by_id:
+		NatureKit.scatter(self, NatureKit.mesh(String(id)), by_id[id], {"vis_end": 220.0, "shadow": true, "name": "Boulders"})
+
+
+func links() -> void:
+	edge_gate("village", GATE_VILLAGE)
+	edge_gate("whispering_woods", GATE_WOODS)
+	edge_gate("celestial_summit", GATE_SUMMIT)
 	add_interactable(Interactable.make("cairn_add_stone", "Add a stone to the trail cairn", "offer", "mountain_path",
 		points_of_interest["trail_cairn"].position, {"knowledge": {"custom:cairn_stone": 1}}, "", 2.5)).radius = 2.4
 	add_interactable(Interactable.make("overlook_observe", "Take in the view over the sea of clouds", "observe", "cliff_overlook",
-		Vector3(OVERLOOK.x + 1.0, height(OVERLOOK.x, OVERLOOK.z) + 0.1, OVERLOOK.z), {"knowledge": {"geography:cloud_sea": 1}, "discover": ["cloud_temple", "celestial_observatory"]}, "look_around", 4.0)).radius = 2.6
+		Vector3(OVERLOOK2.x + 1.0, _overlook_y, OVERLOOK2.y), {"knowledge": {"geography:cloud_sea": 1}, "discover": ["cloud_temple", "celestial_observatory"]}, "look_around", 4.0)).radius = 2.6
 
 
 func showcase_shots(loc: String) -> Array:
 	if loc == "cliff_overlook":
-		return [[OVERLOOK + Vector3(-6.5, height(OVERLOOK.x - 6.5, OVERLOOK.z + 3) + 2.2, 3.0), OVERLOOK + Vector3(400, -40, -150), 62.0]]
-	return [[Vector3(-12, height(-12, 34) + 3.0, 34), Vector3(4, height(4, 0) + 2.0, 0), 60.0]]
+		return [[Vector3(OVERLOOK2.x - 7.0, _overlook_y + 2.2, OVERLOOK2.y + 3.0), Vector3(OVERLOOK2.x + 400.0, cloud_y + 20.0, OVERLOOK2.y - 150.0), 62.0]]
+	return []

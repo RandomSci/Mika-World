@@ -76,10 +76,27 @@ var _prev_routine := "patrol"
 var _bound := 0.0                  # held by roots: no moving, no attacking, a struggle
 var _bound_by := ""
 var controls: Array = []           # [t, kind, seconds] of binds / dazes / pushes it took (diagnostics, tests)
+## Human rivals (AmbushDirector): a scene can drive them before the fight ("scripted": walk to a mark while talking,
+## face someone), and they can give up: "yielded" (kneels, drops the weapon) or "fleeing" (runs off, gone).
+var script_goal := Vector3.INF
+var script_speed := 1.4
+var script_face: Node3D = null
+var script_anim := ""
+var afterimages := 0               # ghost copies left behind by its fast dashes (diagnostics, tests)
+
+
+## Fight tempo (the developer: "their movements should be fast"): creatures close in faster than they wander, and
+## their wind-ups are snappier - still telegraphed (the marks show, a quick mage can still dodge).
+const CHASE_TEMPO := 1.35
+const WINDUP_TEMPO := 0.85
 
 
 func setup_monster(p_main: Node, kind_id: String, uid: String, at: Vector3, d: Dictionary) -> void:
 	main = p_main
+	d = d.duplicate(true)
+	for a in d.get("attacks", []):
+		if (a as Dictionary).has("windup"):
+			a["windup"] = float(a.windup) * WINDUP_TEMPO
 	def = d
 	id = uid
 	kind = kind_id
@@ -211,6 +228,7 @@ func apply_damage(dmg: float, element: String) -> Dictionary:
 	if exposed:
 		dmg *= float(def.get("exposed_mult", 1.0))
 	hp = maxf(0.0, hp - dmg)
+	TrailerCam.punch(clampf(0.22 + dmg / maxf(max_hp, 1.0) * 1.6, 0.2, 0.6))
 	_hurt = 0.35
 	if creature:
 		creature.flash(clampf(dmg / (max_hp * 0.25), 0.4, 1.0))
@@ -244,7 +262,7 @@ func apply_damage(dmg: float, element: String) -> Dictionary:
 	if hp <= 0.0:
 		_die(who)
 		var loot := _roll_loot()
-		return {"effect": "defeated", "detail": "%s came apart in light%s" % [label, note], "damage": snappedf(dmg, 0.1), "loot": loot, "exposed": exposed,
+		return {"effect": "defeated", "detail": ("%s went down, knocked out%s" if bool(def.get("humanoid", false)) else "%s came apart in light%s") % [label, note], "damage": snappedf(dmg, 0.1), "loot": loot, "exposed": exposed,
 			"defeat": {"activity": {"id": "defeat:" + kind, "verb": "defeat", "label": "Defeated %s" % def.name, "target": id},
 				"effects": {"knowledge": {"defeated:" + kind: 1}}}}
 	return {"effect": "struck", "detail": "%s was struck%s" % [label, note], "damage": snappedf(dmg, 0.1), "health": state.health, "exposed": exposed}
@@ -328,11 +346,15 @@ func _roll_loot() -> Array:
 
 
 func _die(by: String) -> void:
+	TrailerCam.punch(1.0)
 	_cancel_hazard()
 	mstate = "dying"
 	_sync()
 	defeated.emit(self, by)
 	var pal: Array = def.color
+	if creature and bool(def.get("humanoid", false)):
+		_knocked_out()           # people are never killed: they go down, and later get up and limp away
+		return
 	if creature:
 		_dissolve_creature()
 		return
@@ -343,6 +365,38 @@ func _die(by: String) -> void:
 	tw.tween_callback(queue_free)
 	if _core_mat:
 		_core_mat.emission = Color(pal[0], pal[1], pal[2]).lerp(Color.WHITE, 0.6)
+
+
+## A human rival beaten: falls (the death clip as a fall), lies still, then gets up slowly and walks off - gone.
+func _knocked_out() -> void:
+	if creature is ClipRig:
+		(creature as ClipRig).drop_weapons()
+	creature.play("defeat")
+	FX.burst(get_parent(), global_position + Vector3(0, 0.2, 0), 10, 0.9, FX.pm_puff("dust"), FX.puff_mesh(0.35))
+	await get_tree().create_timer(7.0).timeout
+	if not is_inside_tree():
+		return
+	creature.play("get_up")
+	await get_tree().create_timer(maxf(1.2, (creature as ClipRig).clip_length("get_up") if creature is ClipRig else 1.5)).timeout
+	if not is_inside_tree():
+		return
+	creature.play("walk")
+	gone = true
+	var away := _flat(global_position - (target_mage.global_position if target_mage and is_instance_valid(target_mage) else home)).normalized()
+	if away.length() < 0.1:
+		away = Vector3.FORWARD
+	var walked := 0.0
+	while walked < 26.0 and is_inside_tree():
+		var dt := get_physics_process_delta_time()
+		var nxt := global_position + away * 1.3 * dt
+		if main and main.world and main.world.has_method("ground_at"):
+			nxt.y = lerpf(global_position.y, float(main.world.ground_at(nxt.x, nxt.z)), minf(1.0, dt * 8.0))
+		global_position = nxt
+		rotation.y = lerp_angle(rotation.y, atan2(away.x, away.z), 1.0 - exp(-4.0 * dt))
+		_sync()
+		walked += 1.3 * dt
+		await get_tree().physics_frame
+	queue_free()
 
 
 func _dissolve_creature() -> void:
@@ -469,11 +523,9 @@ func _lost_target() -> bool:
 ## Old forest creatures fear fire (V3 continuation, camping): once hurt and close to a burning campfire, it backs off
 ## into the dark and does not come back; out of sight it is gone (the journey records it as still out there).
 func _fire_fear(delta: float) -> bool:
-	if not bool(def.get("fears_fire", false)):
-		return false
 	if mstate == "fleeing":
 		var fire: Node3D = get_meta("fled_from_fire") as Node3D if has_meta("fled_from_fire") and is_instance_valid(get_meta("fled_from_fire")) else null
-		var src := fire.global_position if fire else home
+		var src: Vector3 = fire.global_position if fire else (get_meta("flee_from") if has_meta("flee_from") else home)
 		var away := _flat(global_position - src).normalized()
 		_move_toward(global_position + away * 4.0, float(def.speed) * 1.1, delta)
 		_face(global_position + away * 4.0, delta, 3.0)
@@ -482,6 +534,8 @@ func _fire_fear(delta: float) -> bool:
 			gone = true            # not dead: gone - it walked out of sight into the forest
 			queue_free()
 		return true
+	if not bool(def.get("fears_fire", false)):
+		return false
 	if hp > max_hp * 0.85 or mstate in ["windup", "strike", "dying"]:
 		return false
 	for f in get_tree().get_nodes_in_group("campfire"):
@@ -495,11 +549,65 @@ func _fire_fear(delta: float) -> bool:
 	return false
 
 
+## ---- scenes with human rivals (AmbushDirector) ----
+## Walk (or run) to a mark under the scene's control, facing `face` when given; "idle"/"talk" when there.
+func script_to(goal: Vector3, speed := 1.4, face: Node3D = null, anim := "") -> void:
+	_cancel_hazard()
+	if mstate != "scripted":
+		_set_state("scripted")
+	script_goal = goal
+	script_speed = speed
+	script_face = face
+	script_anim = anim
+
+
+## The scene lets go: it fights (`target`) or goes back to its own life.
+func release_script(target: WorldCharacter = null) -> void:
+	script_goal = Vector3.INF
+	script_face = null
+	target_mage = target
+	_set_state("chase" if target else "wander")
+
+
+## It gives up: kneels with its hands open and lets the weapon fall (a real prop on the ground).
+func yield_fight() -> void:
+	_cancel_hazard()
+	target_mage = null
+	_set_state("yielded")
+	if creature is ClipRig:
+		(creature as ClipRig).drop_weapons()
+
+
+## It runs for it, away from `from`, and is gone when out of sight (not defeated).
+func flee(from: Vector3) -> void:
+	_cancel_hazard()
+	target_mage = null
+	set_meta("flee_from", from)
+	_set_state("fleeing")
+	if creature:
+		creature.play("move")
+
+
 func _think_j(delta: float) -> void:
 	var flyer := float(def.float) > 0.5
 	if _fire_fear(delta):
 		return
 	match mstate:
+		"scripted":
+			var moving := script_goal != Vector3.INF and _flat(script_goal - global_position).length() > 0.35
+			if moving:
+				_move_toward(script_goal, script_speed, delta, script_face == null)
+			if script_face and is_instance_valid(script_face):
+				_face(script_face.global_position, delta, 5.0)
+			if creature:
+				var want := ("walk" if script_speed < 3.0 else "move") if moving else (script_anim if script_anim != "" else "idle")
+				if creature.state != want:
+					creature.play(want)
+			return
+		"yielded":
+			if creature and creature.state != "yield":
+				creature.play("yield")
+			return
 		"wander":
 			if territory:
 				_territory(delta)
@@ -651,7 +759,7 @@ func _begin_attack(a: Dictionary) -> void:
 			hazard = _make_hazard("arc", c3, fwd, float(a.range) + 0.6, float(a.windup) + float(a.get("strike_s", 0.45)) * 0.6, a)
 			hazard.half_angle = deg_to_rad(float(a.get("half_angle_deg", 12.0)))
 		_:
-			hazard = null       # bolts: the windup is the tell; the bolt itself is the hazard
+			hazard = null       # bolts: the windup is the tell; the bolt itself is the hazard; a blink marks on arrival
 	_set_state("windup")
 	if AudioDirector.instance and a.has("sfx_windup"):
 		AudioDirector.instance.play3d(String(a.sfx_windup), global_position, "SFX", -6.0, "monster_windup")
@@ -683,8 +791,12 @@ func _strike() -> void:
 	_set_state("strike")
 	match String(a.kind):
 		"slam":
-			ImpactFX.shockwave(get_parent(), hazard.center + Vector3(0, 0.05, 0) if hazard else global_position, Color(1.0, 0.8, 0.4), float(a.radius) * 1.3)
+			var hex := String(a.get("style", "")) == "hex"
+			var wc: Array = a.get("color", [1.0, 0.8, 0.4])
+			ImpactFX.shockwave(get_parent(), hazard.center + Vector3(0, 0.05, 0) if hazard else global_position, Color(wc[0], wc[1], wc[2]) if hex else Color(1.0, 0.8, 0.4), float(a.radius) * 1.3)
 			FX.burst(get_parent(), (hazard.center if hazard else global_position) + Vector3(0, 0.2, 0), 22, 1.2, FX.pm_puff("smoke"), FX.puff_mesh(0.45))
+			if hex:
+				FX.burst(get_parent(), (hazard.center if hazard else global_position) + Vector3(0, 0.4, 0), 40, 1.1, FX.pm_motes("umbral", "burst"), FX.mote_mesh(0.06, true))
 			_play_sfx("monster_slam", -2.0)
 			# the shockwave throws anyone else standing near the blow (V3 continuation: real consequences); the
 			# target herself is resolved by the hazard (stepping out of the mark avoids it)
@@ -699,11 +811,33 @@ func _strike() -> void:
 			var dest := global_position + (hazard.dir if hazard else Vector3.FORWARD) * float(a.range)
 			var tw := create_tween()
 			tw.tween_property(self, "global_position", Vector3(dest.x, global_position.y, dest.z), float(a.get("strike_s", 0.45))).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-			if creature is ClipRig:
+			if creature is ClipRig and not bool(creature.spec.get("ground", false)):
 				(creature as ClipRig).hover = -0.9
+			if bool(a.get("afterimage", false)):
+				_trail_afterimages(float(a.get("strike_s", 0.45)), a)
 			_play_sfx("monster_lunge", -3.0)
+		"blink":
+			# an assassin's dash: a real, very fast run round to her flank (afterimages trail it), then the cut
+			var to := target_mage.global_position
+			var side := Vector3(-(to - global_position).z, 0, (to - global_position).x).normalized() * (1.0 if _rng.randf() < 0.5 else -1.0)
+			var dest2 := to + side * 1.25 + _flat(to - global_position).normalized() * 0.4
+			var g2: float = main.world.ground_at(dest2.x, dest2.z) if main.world.has_method("ground_at") else global_position.y
+			var dur := clampf(global_position.distance_to(dest2) / float(a.get("dash_speed", 16.0)), 0.12, 0.5)
+			var tw2 := create_tween()
+			tw2.tween_property(self, "global_position", Vector3(dest2.x, g2, dest2.z), dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+			tw2.tween_callback(func() -> void:
+				if not alive() or target_mage == null or not is_instance_valid(target_mage):
+					return
+				rotation.y = atan2((target_mage.global_position - global_position).x, (target_mage.global_position - global_position).z)
+				hazard = _make_hazard("arc", global_position, _flat(target_mage.global_position - global_position).normalized(), float(a.get("cut_range", 2.0)), 0.12, a)
+				hazard.half_angle = deg_to_rad(float(a.get("half_angle_deg", 55.0)))
+				_play_sfx("monster_lunge", -3.0))
+			_trail_afterimages(dur + 0.1, a)
+			_play_sfx("monster_lunge", -6.0)
 		"bolt", "ember_bolt", "hurl":
 			var from := (creature as ClipRig).mouth_point() if creature is ClipRig else aim_point() + Vector3(0, 0.6, 0)
+			if String(a.get("from", "")) == "weapon" and creature is ClipRig:
+				from = (creature as ClipRig).weapon_tip()
 			var aim := target_mage.global_position + Vector3(0, 1.1, 0)
 			var h := AttackHazard.new()
 			h.kind = "projectile"
@@ -724,6 +858,20 @@ func _strike() -> void:
 	# a ground hazard resolves on its own timer (already at t_hit == windup); nothing else to do here
 	if hazard and String(a.kind) in ["slam", "sweep", "dive"]:
 		pass
+
+
+## Ghost copies of its body left along a fast dash (the pose of that instant, fading out).
+func _trail_afterimages(seconds: float, a: Dictionary) -> void:
+	if not (creature is ClipRig):
+		return
+	var c: Array = a.get("ghost_color", a.get("color", [0.3, 0.2, 0.5]))
+	var n := int(clampf(seconds / 0.07, 2.0, 6.0))
+	for i in n:
+		if not alive() or not is_inside_tree():
+			return
+		Afterimage.spawn(creature as ClipRig, Color(c[0], c[1], c[2]))
+		afterimages += 1
+		await get_tree().create_timer(seconds / n).timeout
 
 
 func _cancel_hazard() -> void:
@@ -1093,11 +1241,35 @@ func _go_to(goal: Vector3, speed: float, delta: float) -> bool:
 
 ## Chasing in a forest: a territory creature paths round obstacles toward the mage; others go straight.
 func _approach(to: Vector3, speed: float, delta: float) -> void:
+	if mstate in ["chase", "attack"]:
+		speed *= CHASE_TEMPO
+		to = _pack_slot(to)
 	if territory and float(def.float) < 0.5:
 		_go_to(to, speed, delta)
 		_face(to, delta, float(def.get("turn", 6.0)))
 	else:
 		_move_toward(to, speed, delta)
+
+
+## A pack closes in round its prey: when several creatures hunt the same mage, each takes its own side of her
+## (evenly spaced by arrival order) instead of queueing behind the first.
+func _pack_slot(to: Vector3) -> Vector3:
+	if target_mage == null or not is_instance_valid(target_mage) or main.spawner == null:
+		return to
+	var hunters: Array = main.spawner.alive.filter(func(x): return is_instance_valid(x) and x.alive() and x.target_mage == target_mage)
+	if hunters.size() < 2:
+		return to
+	hunters.sort_custom(func(a, b): return String(a.id) < String(b.id))
+	var i := hunters.find(self)
+	var base_dir := _flat(global_position - target_mage.global_position).normalized()
+	if base_dir.length() < 0.1:
+		base_dir = Vector3.FORWARD
+	var ang := TAU * float(i) / float(hunters.size())
+	var ring := maxf(float(def.radius) + 1.6, reach() * 0.9)
+	var slot := target_mage.global_position + Vector3.FORWARD.rotated(Vector3.UP, ang) * ring
+	# far away: run straight at her; close: fan out to its own side
+	var d := _flat(global_position - target_mage.global_position).length()
+	return to.lerp(slot, clampf((9.0 - d) / 6.0, 0.0, 1.0))
 
 
 ## Going home (leashed, or withdrawing to the lair). Returns true when there.

@@ -86,6 +86,8 @@ func _run() -> void:
 	_reset_frames()
 	match mode:
 		"face": await _face()
+		"ambush": await _ambush()
+		"tour": await _tour()
 		"companions": await _companions()
 		"duel": await _duel()
 		"env": await _env()
@@ -104,6 +106,7 @@ func _run() -> void:
 		"journey": await _journey()
 		"fixcheck": await _fixcheck()
 		"appearances": await _appearances()
+		"pack": await _pack_hunt()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -2029,6 +2032,8 @@ func _watch_reactions(ph: Phoenix, kind: String, tag: String, stills_only := fal
 func _dev_stage(c: WorldCharacter, at: Vector3) -> void:
 	if main.teleport_guard:
 		main.teleport_guard.allow(c)
+	if main.world and main.world.has_method("ground_at"):
+		at.y = maxf(at.y, float(main.world.ground_at(at.x, at.z)))
 	c.global_position = at + Vector3(0, 0.05, 0)
 	c.world = main.world
 	c.velocity = Vector3.ZERO
@@ -2476,9 +2481,9 @@ func _appearances() -> void:
 	_check(bad.is_empty(), "stage selection: levels 1-10 Celestial/Oracle, the level 10 forms once taken, safe fallback beyond (no level 20+ models yet)", bad)
 	_check(AppearanceRegistry.stages("mika").size() == 11 and AppearanceRegistry.stages("luna").size() == 11, "eleven stage slots per mage (1-10, the level 10 forms, 20 ... 100)")
 	# 2. live: both wear their level 1-10 appearance
-	_check(mika.avatar_path.ends_with("MikaCelestial.vrm"), "Mika wears Celestial Mage at level %d" % WorldState.mind("mika").level(), mika.avatar_path)
+	_check(mika.avatar_path.get_file().begins_with("MikaCelestial"), "Mika wears Celestial Mage at level %d" % WorldState.mind("mika").level(), mika.avatar_path)
 	if luna:
-		_check(luna.avatar_path.ends_with("LunaOracle.vrm"), "Luna wears Celestial Oracle at level %d" % WorldState.mind("luna").level(), luna.avatar_path)
+		_check(luna.avatar_path.get_file().begins_with("LunaOracle"), "Luna wears Celestial Oracle at level %d" % WorldState.mind("luna").level(), luna.avatar_path)
 	_check(mika.face != null and mika.face.bound_count() >= 25 and (luna == null or (luna.face != null and luna.face.bound_count() >= 25)), "their expressive faces are bound (%d / %d components)" % [mika.face.bound_count() if mika.face else 0, luna.face.bound_count() if luna and luna.face else 0])
 	# 3. a save already beyond level 10 (fixture in the DISPOSABLE save): identity preserved through the swap
 	var m := WorldState.mind("mika")
@@ -2497,7 +2502,7 @@ func _appearances() -> void:
 	m.progress["appearance"] = keep_form
 	mika.swap_avatar(TransformationDirector.avatar_for("mika"))
 	await _wait(1.0)
-	_check(mika.avatar_path.ends_with("MikaCelestial.vrm"), "back at her real level she wears Celestial again")
+	_check(mika.avatar_path.get_file().begins_with("MikaCelestial"), "back at her real level she wears Celestial again")
 	# 4. developer preview: shows another stage, progress untouched
 	var lv := m.level()
 	AppearanceRegistry.preview("mika", "classic")
@@ -2511,7 +2516,7 @@ func _appearances() -> void:
 	if main.transformer:
 		var tr: Dictionary = await main.transformer.play("mika", "short", true, 10)
 		await _wait(2.0)
-		_check(tr.get("ok", false) and mika.avatar_path.ends_with("MikaCelestial.vrm"), "the level 10 transformation still plays from Celestial into Bloom (preview, reverted)", tr)
+		_check(tr.get("ok", false) and mika.avatar_path.get_file().begins_with("MikaCelestial"), "the level 10 transformation still plays from Celestial into Bloom (preview, reverted)", tr)
 	# 6. both alive together in the Woods, their own planners, performance measured
 	await _hold_all()
 	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
@@ -2539,3 +2544,259 @@ func _appearances() -> void:
 	if main.mage_brains.has("luna"):
 		report["luna_recent"] = main.mage_brains["luna"].history.slice(-4)
 
+
+## A pack hunts them (the developer: "many monsters hunting them ... fast ... the camera following closely like a
+## trailer"): four Briar Imps close in from different sides and a Mossback brute follows; both mages fight with their
+## own tactics. Checks: the pack surrounds its prey, blows land with consequences, the trailer camera cuts and punches.
+func _pack_hunt() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters.get("luna")
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	if luna == null or not r.get("ok", false):
+		_check(false, "Woods + Luna")
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	main.spawner.enabled = false
+	var vp: Vector2 = w.VIEWPOINT
+	var stand: Vector3 = await main.snap_to_nav(Vector3(vp.x - 9.0, 0, vp.y + 4.0))
+	_dev_stage(mika, stand)
+	_dev_stage(luna, NavigationServer3D.map_get_closest_point(map, stand + Vector3(2.2, 0, 1.4)))
+	await main.focus_mage("mika", true)
+	for who in ["mika", "luna"]:
+		WorldState.mind(who).vigor = 1.0
+	var pack := []
+	for i in 4:
+		var ang := TAU * i / 4.0 + 0.4
+		var at := NavigationServer3D.map_get_closest_point(map, stand + Vector3(cos(ang), 0, sin(ang)) * 16.0)
+		var m: Monster = main.spawner.spawn("briar_imp", at)
+		if m:
+			m.target_mage = mika if i % 2 == 0 else luna
+			m.mstate = "chase"
+			pack.append(m)
+	var brute: Monster = main.spawner.spawn("mossback", NavigationServer3D.map_get_closest_point(map, stand + Vector3(-18, 0, -8)))
+	_check(pack.size() == 4 and brute != null, "four Briar Imps and a Mossback hunt them")
+	main.director.enabled = true
+	var cuts0 := TrailerCam.log.size()
+	var res := {}
+	var go := func(b: SanctuaryBrain, who: String, mon: Monster) -> void:
+		var done := 0
+		while done < 4:
+			var tgt: Monster = mon
+			if tgt == null or not is_instance_valid(tgt) or not tgt.alive():
+				tgt = null
+				for x in main.spawner.alive:
+					if is_instance_valid(x) and x.alive():
+						tgt = x
+						break
+			if tgt == null:
+				break
+			b.current = {"kind": "hunt", "monster": tgt.id, "label": "fight"}
+			var rr: Dictionary = await b.run_activity({"kind": "hunt", "key": "hunt:" + tgt.id, "monster": tgt.id, "monster_kind": tgt.kind, "tier": tgt.tier(), "label": "fight"})
+			b.current = {}
+			res[who + str(done)] = rr.get("detail", "")
+			done += 1
+			mon = null
+		res[who] = "done"
+	go.call(main.mage_brains["mika"], "mika", pack[0])
+	go.call(main.mage_brains["luna"], "luna", pack[1])
+	var sides := {}
+	var t0 := _game_t
+	var k := 0
+	var max_hunting_one := 0
+	var fell := {}
+	var trail := {}
+	var floor_y := {}
+	while _game_t - t0 < 150.0 and not (res.has("mika") and res.has("luna")):
+		# how many close in on one mage from different sides
+		for target in [mika, luna]:
+			var angs := []
+			for m in main.spawner.alive:
+				if is_instance_valid(m) and m.alive() and m.target_mage == target and m.global_position.distance_to(target.global_position) < 6.0:
+					angs.append(snappedf(atan2(m.global_position.z - target.global_position.z, m.global_position.x - target.global_position.x), 0.5))
+			max_hunting_one = maxi(max_hunting_one, angs.size())
+			if angs.size() >= 2:
+				var spread := 0.0
+				for a in angs:
+					for b2 in angs:
+						spread = maxf(spread, absf(angle_difference(a, b2)))
+				sides[target.character_id] = maxf(float(sides.get(target.character_id, 0.0)), spread)
+		if _game_t - t0 > k * 5.0:
+			_shot("pack_%02d" % k)
+			k += 1
+		for c in [mika, luna]:
+			if c.is_on_floor() or not floor_y.has(c.character_id):
+				floor_y[c.character_id] = c.global_position.y
+			var gy := float(floor_y[c.character_id])
+			if c.global_position.y < gy - 3.0 and not fell.has(c.character_id):
+				fell[c.character_id] = {"t": snappedf(_game_t - t0, 0.01), "pos": c.global_position, "ground": gy, "trail": trail.get(c.character_id, []).duplicate()}
+				print("[mktest] FELL ", c.character_id, " ", JSON.stringify(fell[c.character_id]))
+			var tr: Array = trail.get(c.character_id, [])
+			tr.append([snappedf(_game_t - t0, 0.01), c.global_position.snappedf(0.01), c.velocity.snappedf(0.01), c.is_on_floor(), c.current_action,
+				c.reaction.tier if c.reaction and c.reaction.active else "", not c._dash.is_empty(), snappedf(gy, 0.01)])
+			if tr.size() > 40:
+				tr.pop_front()
+			trail[c.character_id] = tr
+		await get_tree().process_frame
+	_check(fell.is_empty(), "nobody falls through the ground", fell)
+	var cuts := TrailerCam.log.slice(cuts0)
+	var shots := cuts.filter(func(e): return e.has("shot")).map(func(e): return e.shot)
+	var punches := cuts.filter(func(e): return e.has("punch")).size()
+	report["pack"] = {"results": res, "spread": sides, "shots": shots, "punches": punches, "reactions": {"mika": mika.reaction.history.size(), "luna": luna.reaction.history.size()},
+		"left_alive": main.spawner.alive.filter(func(x): return is_instance_valid(x) and x.alive()).size()}
+	_check(max_hunting_one >= 2 and float(sides.values().max() if not sides.is_empty() else 0.0) > 1.2, "the pack closed in on its prey from different sides (up to %d at once, spread %.1f rad)" % [max_hunting_one, float(sides.values().max() if not sides.is_empty() else 0.0)], sides)
+	_check(shots.size() >= 6 and Array(shots).duplicate().filter(func(x): return x != shots[0]).size() > 0, "the trailer camera cut between %d shots (%s)" % [shots.size(), ", ".join(PackedStringArray(shots.slice(0, 12)))])
+	_check(punches >= 5, "big hits punched the camera (%d)" % punches)
+	_check(mika.reaction.history.size() + luna.reaction.history.size() >= 2, "blows landed on them with consequences")
+	Engine.time_scale = 1.0
+
+
+# ------------------------------------------------------------------ road ambush by human rivals
+## Garran's band: they watch from cover and talk about the rings, walk out and encircle the girls, make their demand,
+## the girls answer; then every rival fights in his own style (sword waves, an assassin's blinks with afterimages,
+## thrown knives, hex bolts / curse circles); the band breaks (yield / flight, never a killing), and the Hexer is
+## remembered. Nobody teleports (TeleportGuard).
+func _ambush() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters.get("luna")
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	if luna == null or not r.get("ok", false):
+		_check(false, "Woods + Luna")
+		return
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	main.spawner.enabled = false
+	for m in main.spawner.alive:
+		if is_instance_valid(m):
+			m.queue_free()
+	var vp: Vector2 = w.VIEWPOINT
+	var stand: Vector3 = await main.snap_to_nav(Vector3(vp.x - 9.0, 0, vp.y + 4.0))
+	_dev_stage(mika, stand)
+	_dev_stage(luna, NavigationServer3D.map_get_closest_point(map, stand + Vector3(1.4, 0, 0.6)))
+	await main.focus_mage("mika", true)
+	main.director.enabled = true
+	for who in ["mika", "luna"]:
+		WorldState.mind(who).vigor = 1.0
+	var tg0: int = main.teleport_guard.violations.size() if main.teleport_guard else 0
+	var cuts0 := TrailerCam.log.size()
+	var ghosts0 := Afterimage.made
+	var styles := {}
+	var hz_watch := func() -> void:
+		for h in AttackHazard.active(main.world):
+			if is_instance_valid(h) and (h as AttackHazard).owner_monster and String((h as AttackHazard).owner_monster.get("kind")).begins_with("rival_"):
+				styles[(h as AttackHazard).kind + ":" + (h as AttackHazard).style] = true
+	var hz_timer := Timer.new()
+	hz_timer.wait_time = 0.1
+	hz_timer.autostart = true
+	hz_timer.timeout.connect(hz_watch)
+	add_child(hz_timer)
+	var shot_n := {"n": 0}
+	var shots_timer := Timer.new()
+	shots_timer.wait_time = 6.0
+	shots_timer.autostart = true
+	shots_timer.timeout.connect(func() -> void:
+		_shot("ambush_%02d" % int(shot_n.n))
+		shot_n.n = int(shot_n.n) + 1)
+	add_child(shots_timer)
+	var res: Dictionary = await main.ambush.run("road_thieves", {"fight_s": 120.0})
+	hz_timer.queue_free()
+	shots_timer.queue_free()
+	var rec: Dictionary = main.ambush.rec
+	report["ambush"] = {"result": res, "beats": rec.get("beats", []), "said": rec.get("said", []), "outcome": rec.get("outcome", {}),
+		"ring": rec.get("ring", 0.0), "fight_s": rec.get("fight_s", 0.0), "styles": styles.keys(), "afterimages": Afterimage.made - ghosts0,
+		"rivals_state": WorldState.rivals}
+	_check(res.get("ok", false), "the ambush played through", res)
+	_check((rec.get("spawned", []) as Array).size() == 4, "four rivals: cutthroat, shade, ronin, hexer", rec.get("spawned", []))
+	var said: Array = rec.get("said", [])
+	var thug_lines := said.filter(func(e): return String(e.who).begins_with("rival_")).size()
+	var girl_lines := said.filter(func(e): return String(e.who) in ["mika", "luna"]).size()
+	_check(thug_lines >= 6 and girl_lines >= 3, "the thugs talk about them and the girls answer (%d / %d lines)" % [thug_lines, girl_lines])
+	_check(float(rec.get("ring", 0.0)) > PI, "the band encircled them (covers %.1f rad of the circle)" % float(rec.get("ring", 0.0)))
+	var beats: Array = (rec.get("beats", []) as Array).map(func(b): return b.beat)
+	_check(beats.has("watch") and beats.has("encircle") and beats.has("standoff") and beats.has("fight") and beats.has("break"), "watch -> encircle -> standoff -> fight -> break", beats)
+	_check(styles.size() >= 3, "the rivals fought in different styles (%s)" % ", ".join(styles.keys()))
+	_check(Afterimage.made - ghosts0 > 0, "fast dashes left afterimages (%d)" % (Afterimage.made - ghosts0))
+	var outcome: Dictionary = rec.get("outcome", {})
+	_check(outcome.values().has("yielded") or outcome.values().has("fled"), "the band broke: yielded / fled", outcome)
+	_check(WorldState.rivals.has("rival_hexer") and int(WorldState.rivals.rival_hexer.get("met", 0)) >= 1, "the Hexer is remembered (he will be back)", WorldState.rivals)
+	var cuts := TrailerCam.log.slice(cuts0).filter(func(e): return e.has("shot")).size()
+	_check(cuts >= 4, "the trailer camera covered the fight (%d cuts)" % cuts)
+	var tg: Array = main.teleport_guard.violations.slice(tg0) if main.teleport_guard else []
+	_check(tg.is_empty(), "nobody teleported", tg)
+	var voices: Array = main.voice.log.filter(func(e): return String(e.get("speaker", "")) in ["mika", "luna"] and e.get("audio", false))
+	var foreign := voices.filter(func(e): return String(e.get("provider", "")) != "gemini")
+	_check(foreign.is_empty(), "Mika and Luna spoke only in their own voices", foreign)
+
+
+# ------------------------------------------------------------------ region tour (visual quality review)
+## --mktest=tour --areas=a,b,c : travels to each area, stands Mika at its first point of interest for scale and frames
+## an establishing view plus eye-level views of every location's point of interest; measures the frame rate there.
+func _tour() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var areas: Array = String(RenderProfile.options.get("areas", "ancient_grove")).split(",", false)
+	# a fixed review hour (late morning) so every region is judged in the same light
+	var hour := float(RenderProfile.options.get("hour", 10.5))
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + hour * 60.0
+	WorldState.clock_rate = 0.0
+	var out := {}
+	for a in areas:
+		var r: Dictionary = await main.streaming.travel(String(a), mika)
+		if not r.get("ok", false):
+			_check(false, "%s loads" % a, r)
+			continue
+		await _wait(2.0)
+		var w = main.world
+		var pois: Dictionary = w.points_of_interest
+		var first := Vector3.ZERO
+		for k in pois:
+			first = pois[k].position
+			break
+		var stand: Vector3 = await main.snap_to_nav(first + Vector3(0, 0, 2.0))
+		_dev_stage(mika, stand)
+		await _wait(1.0)
+		var aabb: AABB = w.nav_aabb
+		var cen := aabb.get_center()
+		var gy := float(w.ground_height(cen.x, cen.z))
+		var shots := []
+		shots.append([Vector3(cen.x + 40.0, gy + 55.0, cen.z + 125.0), Vector3(cen.x, gy + 5.0, cen.z - 20.0), 55.0, "establish"])
+		var mh := mika.global_position + Vector3(0, 1.2, 0)
+		shots.append([mh + (-mika.global_transform.basis.z) * 3.2 + Vector3(1.2, 0.3, 0), mh, 45.0, "mika_scale"])
+		var i := 0
+		for k in pois:
+			if String(k).begins_with("gate:"):
+				continue
+			var pp: Vector3 = pois[k].position
+			var ang := float(i) * 1.7
+			# eye level, 12 m off, from the first direction with a clear view (no wall or rock between)
+			var cp := pp + Vector3(sin(ang) * 12.0, 0, cos(ang) * 12.0)
+			for tries in 8:
+				var aa := ang + tries * TAU / 8.0
+				var c2 := pp + Vector3(sin(aa) * 12.0, 0, cos(aa) * 12.0)
+				c2.y = float(w.ground_height(c2.x, c2.z)) + 1.7
+				var q := PhysicsRayQueryParameters3D.create(c2, pp + Vector3(0, 1.4, 0))
+				q.collision_mask = 1
+				if mika.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+					cp = c2
+					break
+			cp.y = float(w.ground_height(cp.x, cp.z)) + 1.7
+			shots.append([cp, pp + Vector3(0, 1.4, 0), 55.0, String(k)])
+			i += 1
+			if i >= 6:
+				break
+		for sh in shots:
+			main.camera_rig.set_shot(sh[0], sh[1], float(sh[2]))
+			await _wait(0.8)
+			_shot("%s_%s" % [a, sh[3]])
+		_reset_frames()
+		await _wait(4.0)
+		out[a] = {"pois": pois.keys(), "fps": _fps_stats()}
+		print("[mktest] tour ", a, " ", JSON.stringify(out[a]))
+		_check(true, "%s toured (%d views)" % [a, shots.size()], out[a].fps)
+	report["tour"] = out

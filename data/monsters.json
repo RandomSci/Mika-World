@@ -760,6 +760,1143 @@
    "height": 3.0,
    "aim_height": 1.9,
    "fears_fire": true
+  },
+  "rival_cutthroat": {
+   "weight": 0.0,
+   "tier": "rival",
+   "humanoid": true,
+   "faction": "bandits",
+   "float": 0.0,
+   "radius": 0.45,
+   "height": 1.8,
+   "aim_height": 1.2,
+   "aggro_radius": 16.0,
+   "leash": 60.0,
+   "stagger_s": 0.3,
+   "turn": 9.0,
+   "alert_s": 0.3,
+   "stamina_regen": 0.12,
+   "resist": {
+    "fire": 1.0,
+    "umbral": 1.0,
+    "water": 1.0,
+    "arcane": 1.0,
+    "wind": 1.0
+   },
+   "loot": [
+    {
+     "item": "aether_dust",
+     "chance": 0.6,
+     "count": [
+      1,
+      2
+     ]
+    }
+   ],
+   "name": "Garran the Cutthroat",
+   "hp": 420.0,
+   "speed": 4.6,
+   "color": [
+    0.45,
+    0.3,
+    0.2
+   ],
+   "eye": [
+    1.0,
+    0.6,
+    0.3
+   ],
+   "describe": "the leader of a band of road thieves: a broad, scarred man with a notched machete, who talks first and cuts second",
+   "attack": {
+    "kind": "sweep",
+    "range": 2.2,
+    "vigor": 0.07,
+    "cooldown": 2.2
+   },
+   "body": {
+    "type": "clip",
+    "glb": "res://assets/creatures/rivals/cutthroat.glb",
+    "scale": 1.0,
+    "yaw_offset": 0.0,
+    "aim_y": 1.2,
+    "mouth": [
+     0.0,
+     1.25,
+     0.45
+    ],
+    "ground": true,
+    "keep_materials": true,
+    "clips": {
+     "idle": [
+      "idle",
+      1.0,
+      true
+     ],
+     "move": [
+      "sprint",
+      1.15,
+      true
+     ],
+     "walk": [
+      "walk",
+      1.0,
+      true
+     ],
+     "alert": [
+      "idle_arms",
+      1.0,
+      true
+     ],
+     "talk": [
+      "talk",
+      1.0,
+      true
+     ],
+     "windup": [
+      "slash_a",
+      0.35,
+      false
+     ],
+     "strike": [
+      "slash_a",
+      1.3,
+      false
+     ],
+     "recover": [
+      "idle",
+      1.0,
+      true
+     ],
+     "hit": [
+      "hit",
+      1.2,
+      false
+     ],
+     "defeat": [
+      "death",
+      1.0,
+      false
+     ],
+     "yield": [
+      "crouch",
+      1.0,
+      true
+     ],
+     "slash_w": [
+      "slash_a",
+      0.35,
+      false
+     ],
+     "slash_s": [
+      "slash_a",
+      1.35,
+      false
+     ],
+     "combo_w": [
+      "combo",
+      0.3,
+      false
+     ],
+     "combo_s": [
+      "combo",
+      1.3,
+      false
+     ],
+     "heavy_w": [
+      "heavy_combo",
+      0.3,
+      false
+     ],
+     "heavy_s": [
+      "heavy_combo",
+      1.25,
+      false
+     ],
+     "dash_w": [
+      "dash_strike",
+      0.2,
+      false
+     ],
+     "dash_s": [
+      "dash_strike",
+      1.45,
+      false
+     ],
+     "throw_w": [
+      "throw",
+      0.45,
+      false
+     ],
+     "throw_s": [
+      "throw",
+      1.2,
+      false
+     ],
+     "cast_w": [
+      "cast_enter",
+      0.8,
+      false
+     ],
+     "cast_s": [
+      "cast",
+      1.25,
+      false
+     ],
+     "leap_w": [
+      "leap_start",
+      0.6,
+      false
+     ],
+     "leap_s": [
+      "leap_land",
+      1.3,
+      false
+     ],
+     "get_up": [
+      "get_up",
+      0.8,
+      false
+     ]
+    },
+    "weapons": [
+     {
+      "model": "machete",
+      "bone": "hand_r",
+      "pos": [
+       0,
+       0,
+       0
+      ],
+      "rot": [
+       0,
+       0,
+       -90
+      ],
+      "length": 0.55
+     }
+    ]
+   },
+   "attacks": [
+    {
+     "kind": "sweep",
+     "range": 2.2,
+     "windup": 0.5,
+     "strike_s": 0.4,
+     "recover": 0.45,
+     "vigor": 0.07,
+     "cooldown": 2.2,
+     "stamina": 0.18,
+     "priority": 1.0,
+     "half_angle_deg": 70.0,
+     "color": [
+      1.0,
+      0.7,
+      0.4
+     ],
+     "anim_windup": "slash_w",
+     "anim_strike": "slash_s"
+    },
+    {
+     "kind": "charge",
+     "range": 7.0,
+     "min_range": 3.0,
+     "windup": 0.55,
+     "strike_s": 0.42,
+     "recover": 0.6,
+     "vigor": 0.09,
+     "heavy": true,
+     "cooldown": 6.0,
+     "stamina": 0.3,
+     "priority": 1.4,
+     "half_angle_deg": 14.0,
+     "afterimage": true,
+     "ghost_color": [
+      0.9,
+      0.5,
+      0.25
+     ],
+     "color": [
+      1.0,
+      0.6,
+      0.3
+     ],
+     "anim_windup": "dash_w",
+     "anim_strike": "dash_s"
+    },
+    {
+     "kind": "hurl",
+     "range": 11.0,
+     "min_range": 4.0,
+     "windup": 0.45,
+     "strike_s": 0.35,
+     "vigor": 0.05,
+     "cooldown": 5.0,
+     "stamina": 0.15,
+     "priority": 0.9,
+     "speed": 18.0,
+     "style": "blade",
+     "color": [
+      0.9,
+      0.9,
+      0.95
+     ],
+     "anim_windup": "throw_w",
+     "anim_strike": "throw_s"
+    }
+   ]
+  },
+  "rival_shade": {
+   "weight": 0.0,
+   "tier": "rival",
+   "humanoid": true,
+   "faction": "bandits",
+   "float": 0.0,
+   "radius": 0.45,
+   "height": 1.8,
+   "aim_height": 1.2,
+   "aggro_radius": 16.0,
+   "leash": 60.0,
+   "stagger_s": 0.3,
+   "turn": 9.0,
+   "alert_s": 0.3,
+   "stamina_regen": 0.12,
+   "resist": {
+    "fire": 1.0,
+    "umbral": 1.0,
+    "water": 1.0,
+    "arcane": 1.0,
+    "wind": 1.0
+   },
+   "loot": [
+    {
+     "item": "aether_dust",
+     "chance": 0.6,
+     "count": [
+      1,
+      2
+     ]
+    }
+   ],
+   "name": "Vex the Shade",
+   "hp": 300.0,
+   "speed": 5.6,
+   "color": [
+    0.15,
+    0.13,
+    0.2
+   ],
+   "eye": [
+    0.6,
+    0.4,
+    1.0
+   ],
+   "describe": "an assassin in charcoal leathers with two knives; she never stands where you last saw her",
+   "attack": {
+    "kind": "sweep",
+    "range": 1.9,
+    "vigor": 0.06,
+    "cooldown": 1.8
+   },
+   "body": {
+    "type": "clip",
+    "glb": "res://assets/creatures/rivals/shade.glb",
+    "scale": 1.0,
+    "yaw_offset": 0.0,
+    "aim_y": 1.2,
+    "mouth": [
+     0.0,
+     1.25,
+     0.45
+    ],
+    "ground": true,
+    "keep_materials": true,
+    "clips": {
+     "idle": [
+      "idle",
+      1.0,
+      true
+     ],
+     "move": [
+      "sprint",
+      1.15,
+      true
+     ],
+     "walk": [
+      "walk",
+      1.0,
+      true
+     ],
+     "alert": [
+      "idle_arms",
+      1.0,
+      true
+     ],
+     "talk": [
+      "talk",
+      1.0,
+      true
+     ],
+     "windup": [
+      "slash_a",
+      0.35,
+      false
+     ],
+     "strike": [
+      "slash_a",
+      1.3,
+      false
+     ],
+     "recover": [
+      "idle",
+      1.0,
+      true
+     ],
+     "hit": [
+      "hit",
+      1.2,
+      false
+     ],
+     "defeat": [
+      "death",
+      1.0,
+      false
+     ],
+     "yield": [
+      "crouch",
+      1.0,
+      true
+     ],
+     "slash_w": [
+      "slash_a",
+      0.35,
+      false
+     ],
+     "slash_s": [
+      "slash_a",
+      1.35,
+      false
+     ],
+     "combo_w": [
+      "combo",
+      0.3,
+      false
+     ],
+     "combo_s": [
+      "combo",
+      1.3,
+      false
+     ],
+     "heavy_w": [
+      "heavy_combo",
+      0.3,
+      false
+     ],
+     "heavy_s": [
+      "heavy_combo",
+      1.25,
+      false
+     ],
+     "dash_w": [
+      "dash_strike",
+      0.2,
+      false
+     ],
+     "dash_s": [
+      "dash_strike",
+      1.45,
+      false
+     ],
+     "throw_w": [
+      "throw",
+      0.45,
+      false
+     ],
+     "throw_s": [
+      "throw",
+      1.2,
+      false
+     ],
+     "cast_w": [
+      "cast_enter",
+      0.8,
+      false
+     ],
+     "cast_s": [
+      "cast",
+      1.25,
+      false
+     ],
+     "leap_w": [
+      "leap_start",
+      0.6,
+      false
+     ],
+     "leap_s": [
+      "leap_land",
+      1.3,
+      false
+     ],
+     "get_up": [
+      "get_up",
+      0.8,
+      false
+     ]
+    },
+    "weapons": [
+     {
+      "model": "ornate_medieval_dagger",
+      "bone": "hand_r",
+      "pos": [
+       0,
+       0,
+       0
+      ],
+      "rot": [
+       0,
+       0,
+       -90
+      ],
+      "length": 0.32
+     },
+     {
+      "model": "ornate_medieval_dagger",
+      "bone": "hand_l",
+      "pos": [
+       0,
+       0,
+       0
+      ],
+      "rot": [
+       0,
+       0,
+       90
+      ],
+      "length": 0.32
+     }
+    ],
+    "recolor": {
+     "MI_Ranger": [
+      0.2,
+      0.19,
+      0.25
+     ]
+    }
+   },
+   "attacks": [
+    {
+     "kind": "blink",
+     "range": 9.0,
+     "min_range": 2.5,
+     "windup": 0.35,
+     "strike_s": 0.45,
+     "recover": 0.35,
+     "vigor": 0.08,
+     "cooldown": 4.5,
+     "stamina": 0.25,
+     "priority": 1.5,
+     "dash_speed": 18.0,
+     "cut_range": 2.0,
+     "half_angle_deg": 60.0,
+     "ghost_color": [
+      0.45,
+      0.3,
+      0.9
+     ],
+     "color": [
+      0.6,
+      0.45,
+      1.0
+     ],
+     "anim_windup": "dash_w",
+     "anim_strike": "combo_s"
+    },
+    {
+     "kind": "sweep",
+     "range": 1.9,
+     "windup": 0.35,
+     "strike_s": 0.35,
+     "recover": 0.3,
+     "vigor": 0.06,
+     "cooldown": 1.8,
+     "stamina": 0.15,
+     "priority": 1.0,
+     "half_angle_deg": 65.0,
+     "color": [
+      0.6,
+      0.45,
+      1.0
+     ],
+     "anim_windup": "combo_w",
+     "anim_strike": "combo_s"
+    },
+    {
+     "kind": "hurl",
+     "range": 12.0,
+     "min_range": 3.5,
+     "windup": 0.35,
+     "strike_s": 0.3,
+     "vigor": 0.045,
+     "cooldown": 3.5,
+     "stamina": 0.12,
+     "priority": 0.9,
+     "speed": 20.0,
+     "style": "blade",
+     "color": [
+      0.85,
+      0.85,
+      1.0
+     ],
+     "anim_windup": "throw_w",
+     "anim_strike": "throw_s"
+    }
+   ]
+  },
+  "rival_ronin": {
+   "weight": 0.0,
+   "tier": "rival",
+   "humanoid": true,
+   "faction": "bandits",
+   "float": 0.0,
+   "radius": 0.45,
+   "height": 1.8,
+   "aim_height": 1.2,
+   "aggro_radius": 16.0,
+   "leash": 60.0,
+   "stagger_s": 0.3,
+   "turn": 9.0,
+   "alert_s": 0.3,
+   "stamina_regen": 0.12,
+   "resist": {
+    "fire": 1.0,
+    "umbral": 1.0,
+    "water": 1.0,
+    "arcane": 1.0,
+    "wind": 1.0
+   },
+   "loot": [
+    {
+     "item": "aether_dust",
+     "chance": 0.6,
+     "count": [
+      1,
+      2
+     ]
+    }
+   ],
+   "name": "Kaito the Ronin",
+   "hp": 520.0,
+   "speed": 4.8,
+   "color": [
+    0.3,
+    0.35,
+    0.5
+   ],
+   "eye": [
+    0.6,
+    0.85,
+    1.0
+   ],
+   "describe": "a masterless swordsman selling his blade to thieves; his cuts throw waves of light across a clearing",
+   "attack": {
+    "kind": "sweep",
+    "range": 2.4,
+    "vigor": 0.08,
+    "cooldown": 2.6
+   },
+   "body": {
+    "type": "clip",
+    "glb": "res://assets/creatures/rivals/ronin.glb",
+    "scale": 1.0,
+    "yaw_offset": 0.0,
+    "aim_y": 1.2,
+    "mouth": [
+     0.0,
+     1.25,
+     0.45
+    ],
+    "ground": true,
+    "keep_materials": true,
+    "clips": {
+     "idle": [
+      "idle",
+      1.0,
+      true
+     ],
+     "move": [
+      "sprint",
+      1.15,
+      true
+     ],
+     "walk": [
+      "walk",
+      1.0,
+      true
+     ],
+     "alert": [
+      "idle_arms",
+      1.0,
+      true
+     ],
+     "talk": [
+      "talk",
+      1.0,
+      true
+     ],
+     "windup": [
+      "slash_a",
+      0.35,
+      false
+     ],
+     "strike": [
+      "slash_a",
+      1.3,
+      false
+     ],
+     "recover": [
+      "idle",
+      1.0,
+      true
+     ],
+     "hit": [
+      "hit",
+      1.2,
+      false
+     ],
+     "defeat": [
+      "death",
+      1.0,
+      false
+     ],
+     "yield": [
+      "crouch",
+      1.0,
+      true
+     ],
+     "slash_w": [
+      "slash_a",
+      0.35,
+      false
+     ],
+     "slash_s": [
+      "slash_a",
+      1.35,
+      false
+     ],
+     "combo_w": [
+      "combo",
+      0.3,
+      false
+     ],
+     "combo_s": [
+      "combo",
+      1.3,
+      false
+     ],
+     "heavy_w": [
+      "heavy_combo",
+      0.3,
+      false
+     ],
+     "heavy_s": [
+      "heavy_combo",
+      1.25,
+      false
+     ],
+     "dash_w": [
+      "dash_strike",
+      0.2,
+      false
+     ],
+     "dash_s": [
+      "dash_strike",
+      1.45,
+      false
+     ],
+     "throw_w": [
+      "throw",
+      0.45,
+      false
+     ],
+     "throw_s": [
+      "throw",
+      1.2,
+      false
+     ],
+     "cast_w": [
+      "cast_enter",
+      0.8,
+      false
+     ],
+     "cast_s": [
+      "cast",
+      1.25,
+      false
+     ],
+     "leap_w": [
+      "leap_start",
+      0.6,
+      false
+     ],
+     "leap_s": [
+      "leap_land",
+      1.3,
+      false
+     ],
+     "get_up": [
+      "get_up",
+      0.8,
+      false
+     ]
+    },
+    "weapons": [
+     {
+      "model": "antique_katana_01",
+      "bone": "hand_r",
+      "pos": [
+       0,
+       0,
+       0
+      ],
+      "rot": [
+       0,
+       0,
+       -90
+      ],
+      "length": 0.95
+     }
+    ],
+    "recolor": {
+     "MI_Ranger": [
+      0.42,
+      0.46,
+      0.6
+     ]
+    }
+   },
+   "attacks": [
+    {
+     "kind": "sweep",
+     "range": 2.4,
+     "windup": 0.55,
+     "strike_s": 0.5,
+     "recover": 0.5,
+     "vigor": 0.08,
+     "cooldown": 2.6,
+     "stamina": 0.2,
+     "priority": 1.0,
+     "half_angle_deg": 80.0,
+     "color": [
+      0.6,
+      0.85,
+      1.0
+     ],
+     "anim_windup": "heavy_w",
+     "anim_strike": "heavy_s"
+    },
+    {
+     "kind": "bolt",
+     "range": 13.0,
+     "min_range": 3.5,
+     "windup": 0.6,
+     "strike_s": 0.4,
+     "recover": 0.5,
+     "vigor": 0.08,
+     "heavy": true,
+     "cooldown": 5.5,
+     "stamina": 0.25,
+     "priority": 1.3,
+     "speed": 15.0,
+     "style": "crescent",
+     "from": "weapon",
+     "color": [
+      0.55,
+      0.8,
+      1.0
+     ],
+     "anim_windup": "slash_w",
+     "anim_strike": "slash_s"
+    },
+    {
+     "kind": "charge",
+     "range": 8.0,
+     "min_range": 3.0,
+     "windup": 0.6,
+     "strike_s": 0.38,
+     "recover": 0.7,
+     "vigor": 0.1,
+     "heavy": true,
+     "cooldown": 7.0,
+     "stamina": 0.3,
+     "priority": 1.4,
+     "half_angle_deg": 12.0,
+     "afterimage": true,
+     "ghost_color": [
+      0.5,
+      0.75,
+      1.0
+     ],
+     "color": [
+      0.6,
+      0.85,
+      1.0
+     ],
+     "anim_windup": "dash_w",
+     "anim_strike": "dash_s"
+    }
+   ]
+  },
+  "rival_hexer": {
+   "weight": 0.0,
+   "tier": "rival",
+   "humanoid": true,
+   "faction": "bandits",
+   "float": 0.0,
+   "radius": 0.45,
+   "height": 1.8,
+   "aim_height": 1.2,
+   "aggro_radius": 16.0,
+   "leash": 60.0,
+   "stagger_s": 0.3,
+   "turn": 9.0,
+   "alert_s": 0.3,
+   "stamina_regen": 0.12,
+   "resist": {
+    "fire": 1.0,
+    "umbral": 0.5,
+    "water": 1.0,
+    "arcane": 0.9,
+    "wind": 1.0
+   },
+   "loot": [
+    {
+     "item": "aether_dust",
+     "chance": 0.6,
+     "count": [
+      1,
+      2
+     ]
+    }
+   ],
+   "name": "Morrow the Hexer",
+   "hp": 380.0,
+   "speed": 3.8,
+   "keep_at": 9.0,
+   "color": [
+    0.3,
+    0.15,
+    0.35
+   ],
+   "eye": [
+    0.7,
+    0.3,
+    1.0
+   ],
+   "describe": "a hedge-witch turned to black magic, who sells curses to the band and wants the girls' rings for himself",
+   "attack": {
+    "kind": "bolt",
+    "range": 15.0,
+    "vigor": 0.07,
+    "cooldown": 2.6
+   },
+   "body": {
+    "type": "clip",
+    "glb": "res://assets/creatures/rivals/hexer.glb",
+    "scale": 1.0,
+    "yaw_offset": 0.0,
+    "aim_y": 1.2,
+    "mouth": [
+     0.25,
+     1.35,
+     0.5
+    ],
+    "ground": true,
+    "keep_materials": true,
+    "clips": {
+     "idle": [
+      "idle_unarmed",
+      1.0,
+      true
+     ],
+     "move": [
+      "sprint",
+      1.15,
+      true
+     ],
+     "walk": [
+      "walk",
+      1.0,
+      true
+     ],
+     "alert": [
+      "idle_arms",
+      1.0,
+      true
+     ],
+     "talk": [
+      "talk",
+      1.0,
+      true
+     ],
+     "windup": [
+      "slash_a",
+      0.35,
+      false
+     ],
+     "strike": [
+      "slash_a",
+      1.3,
+      false
+     ],
+     "recover": [
+      "idle",
+      1.0,
+      true
+     ],
+     "hit": [
+      "hit",
+      1.2,
+      false
+     ],
+     "defeat": [
+      "death",
+      1.0,
+      false
+     ],
+     "yield": [
+      "crouch",
+      1.0,
+      true
+     ],
+     "slash_w": [
+      "slash_a",
+      0.35,
+      false
+     ],
+     "slash_s": [
+      "slash_a",
+      1.35,
+      false
+     ],
+     "combo_w": [
+      "combo",
+      0.3,
+      false
+     ],
+     "combo_s": [
+      "combo",
+      1.3,
+      false
+     ],
+     "heavy_w": [
+      "heavy_combo",
+      0.3,
+      false
+     ],
+     "heavy_s": [
+      "heavy_combo",
+      1.25,
+      false
+     ],
+     "dash_w": [
+      "dash_strike",
+      0.2,
+      false
+     ],
+     "dash_s": [
+      "dash_strike",
+      1.45,
+      false
+     ],
+     "throw_w": [
+      "throw",
+      0.45,
+      false
+     ],
+     "throw_s": [
+      "throw",
+      1.2,
+      false
+     ],
+     "cast_w": [
+      "cast_enter",
+      0.8,
+      false
+     ],
+     "cast_s": [
+      "cast",
+      1.25,
+      false
+     ],
+     "leap_w": [
+      "leap_start",
+      0.6,
+      false
+     ],
+     "leap_s": [
+      "leap_land",
+      1.3,
+      false
+     ],
+     "get_up": [
+      "get_up",
+      0.8,
+      false
+     ]
+    },
+    "weapons": [],
+    "recolor": {
+     "MI_Ranger": [
+      0.3,
+      0.18,
+      0.36
+     ]
+    }
+   },
+   "attacks": [
+    {
+     "kind": "bolt",
+     "range": 15.0,
+     "min_range": 2.0,
+     "windup": 0.6,
+     "strike_s": 0.4,
+     "recover": 0.35,
+     "vigor": 0.07,
+     "cooldown": 2.6,
+     "stamina": 0.15,
+     "priority": 1.0,
+     "speed": 11.0,
+     "style": "hex",
+     "color": [
+      0.6,
+      0.25,
+      0.95
+     ],
+     "anim_windup": "cast_w",
+     "anim_strike": "cast_s"
+    },
+    {
+     "kind": "slam",
+     "range": 14.0,
+     "windup": 1.1,
+     "strike_s": 0.5,
+     "recover": 0.8,
+     "vigor": 0.1,
+     "heavy": true,
+     "cooldown": 8.0,
+     "stamina": 0.3,
+     "priority": 1.4,
+     "radius": 2.4,
+     "style": "hex",
+     "half_angle_deg": 180.0,
+     "color": [
+      0.5,
+      0.15,
+      0.75
+     ],
+     "anim_windup": "cast_w",
+     "anim_strike": "cast_s"
+    }
+   ]
   }
  },
  "items": {

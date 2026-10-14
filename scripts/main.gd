@@ -45,6 +45,7 @@ var affect: Affect
 var impacts: ImpactDirector       # area impacts with consequences + the aftermath behaviours (V3 continuation)
 var teleport_guard: TeleportGuard  # the no-teleport rule, watched every physics frame
 var journeys: JourneyDirector      # multi-day journeys across the overland world (persistent)
+var ambush: AmbushDirector         # road ambushes by human rivals (data/ambush.json)
 var companionship: Companionship
 var duel: TrainingDuel
 var performance: PerformanceController
@@ -266,6 +267,10 @@ func _ready() -> void:
 	journeys.name = "Journeys"
 	add_child(journeys)
 	journeys.setup(self)
+	ambush = AmbushDirector.new()
+	ambush.name = "Ambush"
+	add_child(ambush)
+	ambush.setup(self)
 	companionship = Companionship.new()
 	companionship.name = "Companionship"
 	add_child(companionship)
@@ -563,12 +568,17 @@ func _on_area_for_mages(area_id: String) -> void:
 ## Nearest walkable point to `at`, waiting for the navigation map to synchronise after a load (it answers
 ## (0,0,0) until then). Falls back to `at` itself rather than ever placing a mage somewhere arbitrary.
 func snap_to_nav(at: Vector3) -> Vector3:
-	for i in 12:
-		var p := NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, at)
-		if p != Vector3.ZERO and p.distance_to(at) < 3.0:
+	# the navmesh can still be (re)baking right after an area load: wait for it, and never answer a point under
+	# the terrain (a body placed below the ground falls through the world)
+	var gy := -INF
+	if world and world.has_method("ground_at"):
+		gy = float(world.ground_at(at.x, at.z))
+	for i in 45:
+		var p := NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, Vector3(at.x, maxf(at.y, gy), at.z))
+		if p != Vector3.ZERO and Vector2(p.x - at.x, p.z - at.z).length() < 3.0 and (gy == -INF or p.y > gy - 0.6):
 			return p
 		await get_tree().physics_frame
-	return at
+	return Vector3(at.x, maxf(at.y, gy), at.z) if gy != -INF else at
 
 
 ## Follow another mage. Same area: the camera simply changes subject. Another area: everyone in the current

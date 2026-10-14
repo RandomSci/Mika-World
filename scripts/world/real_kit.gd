@@ -10,6 +10,8 @@ extends RefCounted
 
 const TREES := "res://assets/nature/real/real_trees.glb"
 const TREE_INFO := "res://assets/nature/real/real_trees.json"
+const CONIFERS := "res://assets/nature/real/real_conifers.glb"           # spruces / firs (tools/models/build_real_conifers.py)
+const CONIFER_INFO := "res://assets/nature/real/real_conifers.json"
 const PH := "res://assets/polyhaven/models/"
 
 static var _cache := {}
@@ -45,6 +47,17 @@ static func leaf_mat() -> ShaderMaterial:
 		Gusts.register(m)
 		_mats["leaf"] = m
 	return _mats.leaf
+
+
+## Needle sprays (conifers): the same leaf shader with the needle atlas.
+static func needle_mat() -> ShaderMaterial:
+	if not _mats.has("needles"):
+		var m := (leaf_mat().duplicate() as ShaderMaterial)
+		m.set_shader_parameter("albedo_tex", _tex("res://assets/nature/real/needles_albedo.png"))
+		m.set_shader_parameter("normal_tex", _tex("res://assets/nature/real/needles_normal.png"))
+		Gusts.register(m)
+		_mats["needles"] = m
+	return _mats.needles
 
 
 static func bark_mat(kind := "tree_bark_03") -> ShaderMaterial:
@@ -124,6 +137,13 @@ static func _load_trees() -> void:
 		_src[String(mi.name)] = (mi as MeshInstance3D).mesh
 	scene.free()
 	_info = JSON.parse_string(FileAccess.get_file_as_string(TREE_INFO))
+	if ResourceLoader.exists(CONIFERS):
+		var cs: Node = (load(CONIFERS) as PackedScene).instantiate()
+		for mi in cs.find_children("*", "MeshInstance3D", true, false):
+			_src[String(mi.name)] = (mi as MeshInstance3D).mesh
+		cs.free()
+		var ci: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(CONIFER_INFO))
+		_info.merge(ci)
 
 
 ## Two-surface tree (bark + leaves), scaled by s.
@@ -133,7 +153,8 @@ static func _tree(variant: String, far: bool, s: float, bark_kind: String) -> Ar
 	var bark: Mesh = _src[variant + ("_FarBark" if far else "_Bark")]
 	var leaves: Mesh = _src[variant + ("_FarLeaves" if far else "_Leaves")]
 	_append(out, bark, bark_mat(bark_kind), s)
-	var lm := leaf_mat().duplicate() as ShaderMaterial
+	var conifer := variant.begins_with("RealSpruce") or variant.begins_with("RealFir") or variant.begins_with("RealPine")
+	var lm := (needle_mat() if conifer else leaf_mat()).duplicate() as ShaderMaterial
 	lm.set_shader_parameter("crown_height", float(_info[variant].height) * s)
 	Gusts.register(lm)
 	_append(out, leaves, lm, s)
@@ -221,14 +242,16 @@ static func substitute(id: String, crown: String, kit_h: float, far := false) ->
 	var out: ArrayMesh = null
 	var tree_map := {"CommonTree_1": "RealBeech_A", "CommonTree_2": "RealBeech_B", "CommonTree_3": "RealMaple", "CommonTree_4": "RealBeech_A", "CommonTree_5": "RealOak",
 		"TwistedTree_1": "RealOak", "TwistedTree_2": "RealMaple", "TwistedTree_3": "RealOak", "TwistedTree_4": "RealBeech_B", "TwistedTree_5": "RealOak",
-		"Pine_1": "RealBeech_B", "Pine_2": "RealBeech_A", "Pine_3": "RealBeech_B", "Pine_4": "RealMaple", "Pine_5": "RealBeech_A",
+		"Pine_1": "RealSpruce_A", "Pine_2": "RealSpruce_B", "Pine_3": "RealFir", "Pine_4": "RealSpruce_A", "Pine_5": "RealPineYoung",
 		"DeadTree_1": "RealYoung", "DeadTree_2": "RealYoung", "DeadTree_3": "RealYoung", "DeadTree_4": "RealYoung", "DeadTree_5": "RealYoung"}
 	if tree_map.has(id):
 		_load_trees()
 		var v: String = tree_map[id]
 		var target := clampf(kit_h * 1.45, 6.0, 26.0)
+		if v.begins_with("RealSpruce") or v.begins_with("RealFir"):
+			target = clampf(kit_h * 1.3, 9.0, 24.0)
 		var s := clampf(target / float(_info[v].height), 0.3, 1.25)
-		out = _tree(v, far, s, "bark_brown_02" if v in ["RealOak", "RealMaple"] else "tree_bark_03")
+		out = _tree(v, far, s, "bark_brown_02" if v in ["RealOak", "RealMaple", "RealSpruce_A", "RealSpruce_B", "RealFir", "RealPineYoung"] else "tree_bark_03")
 	elif id.begins_with("Bush_"):
 		out = _scan("shrub_02", clampf(kit_h, 0.8, 2.2), -1, true)
 	elif id.begins_with("Clover"):

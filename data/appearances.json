@@ -14,7 +14,7 @@
      "level": 1
     },
     "status": "ready",
-    "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial.vrm",
+    "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial_hair2.vrm",
     "source": "~/Downloads/Mika-Blender-Character-Lab/release/MikaCelestial_2026-10-14 (sha256 bfc7c67c...)",
     "profile": {
      "face": {
@@ -66,13 +66,15 @@
        0.98,
        1.0
       ],
-      "sheen": 0.22,
-      "sheen2": 0.18,
-      "root_dark": 0.28,
-      "tip_feather": 0.12,
-      "gain": 1.28
+      "sheen": 0.176,
+      "sheen2": 0.144,
+      "root_dark": 0.08,
+      "tip_feather": 0.0,
+      "gain": 1.28,
+      "fibre_strength": 0.12
      }
-    }
+    },
+    "hair_refined": "tools/models/refine_hair.py (envelope normals, relaxed clump edges) from the lab's export_ready.blend; the original release is archived as 'v1'"
    },
    {
     "id": "bloom",
@@ -225,6 +227,11 @@
     "id": "classic",
     "name": "Original default (before Celestial)",
     "avatar": "res://assets/characters/mika/Mika.vrm"
+   },
+   {
+    "id": "v1",
+    "name": "Level 1-10 look, original hair (lab release)",
+    "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial.vrm"
    }
   ]
  },
@@ -242,7 +249,7 @@
      "level": 1
     },
     "status": "ready",
-    "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle.vrm",
+    "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle_hair2.vrm",
     "source": "~/Downloads/Mika-Luna-Character-Lab/release/Luna_2026-10-15 (sha256 9660d553...)",
     "profile": {
      "face": {
@@ -294,13 +301,15 @@
        0.9,
        0.78
       ],
-      "sheen": 0.26,
-      "sheen2": 0.22,
-      "root_dark": 0.32,
-      "tip_feather": 0.14,
-      "gain": 1.05
+      "sheen": 0.208,
+      "sheen2": 0.176,
+      "root_dark": 0.08,
+      "tip_feather": 0.0,
+      "gain": 1.22,
+      "fibre_strength": 0.12
      }
-    }
+    },
+    "hair_refined": "tools/models/refine_hair.py (envelope normals, relaxed clump edges) from the lab's export_ready.blend; the original release is archived as 'v1'"
    },
    {
     "id": "eclipse",
@@ -453,6 +462,11 @@
     "id": "classic",
     "name": "Original default (before Oracle)",
     "avatar": "res://assets/characters/luna/forms/Luna_Level01.vrm"
+   },
+   {
+    "id": "v1",
+    "name": "Level 1-10 look, original hair (lab release)",
+    "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle.vrm"
    }
   ]
  }

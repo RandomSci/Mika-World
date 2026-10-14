@@ -46,7 +46,8 @@ void fragment() {
 	float open_ = 1.0 - smoothstep(0.15, 0.55, forest);
 	float bank_w = smoothstep(0.2, 0.7, v_mask.b);
 	float trail = smoothstep(0.25, 0.75, v_mask.r + (mid - 0.5) * 0.25);
-	float steep = 1.0 - smoothstep(0.6, 0.8, v_wn.y);
+	// rock takes over from ~32 degrees and is complete by ~48 (steep earth slopes read as bare dunes otherwise)
+	float steep = 1.0 - smoothstep(0.67, 0.85, v_wn.y);
 
 	vec3 col = mix(texture(litter_alb, p).rgb, texture(litter_alb, rot_uv(p)).rgb, k);
 	vec3 nrm = texture(litter_nrm, p).rgb;
@@ -74,9 +75,15 @@ void fragment() {
 		nrm = mix(nrm, texture(path_nrm, q).rgb, trail);
 	}
 	if (steep > 0.01) {
-		vec2 q = p * 0.6;
-		col = mix(col, mix(texture(rock_alb, q).rgb, texture(rock_alb, rot_uv(q)).rgb, k), steep);
-		nrm = mix(nrm, texture(rock_nrm, q).rgb, steep);
+		// triplanar: a cliff face is textured from the side, not smeared from above
+		vec3 bw = pow(abs(v_wn), vec3(4.0));
+		bw /= (bw.x + bw.y + bw.z);
+		vec3 wp = v_wp * tile * 0.6;
+		vec3 rc = texture(rock_alb, wp.zy).rgb * bw.x + texture(rock_alb, wp.xz).rgb * bw.y + texture(rock_alb, wp.xy).rgb * bw.z;
+		vec3 rc2 = texture(rock_alb, rot_uv(wp.zy)).rgb * bw.x + texture(rock_alb, rot_uv(wp.xz)).rgb * bw.y + texture(rock_alb, rot_uv(wp.xy)).rgb * bw.z;
+		vec3 rn = texture(rock_nrm, wp.zy).rgb * bw.x + texture(rock_nrm, wp.xz).rgb * bw.y + texture(rock_nrm, wp.xy).rgb * bw.z;
+		col = mix(col, mix(rc, rc2, k) * vec3(0.92, 0.94, 0.9), steep);
+		nrm = mix(nrm, rn, steep);
 	}
 	col *= 0.85 + 0.3 * big;
 	ALBEDO = col;
