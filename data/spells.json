@@ -1,5 +1,5 @@
 {
- "_note": "Spell catalogue. Mastery (WorldState.skills[id]) drives power and aim. A spell is only castable once Mika knows it: arcane_orb is known from the start; the others need their incantation knowledge (from reading) and become reliable through practice. Latin: classical forms, translations kept here. Combat: 'damage' scales a spell's power against creatures; 'incantation_short' is what an Adept says (Expert+ casts silently). 'caster' notes whose signature a spell is (others may still learn it later).",
+ "_note": "Spell catalogue. Mastery (WorldState.skills[id]) drives power and aim. A spell is only castable once Mika knows it: arcane_orb is known from the start; the others need their incantation knowledge (from reading) and become reliable through practice. Latin: classical forms, translations kept here. Combat: 'damage' scales a spell's power against creatures; 'incantation_short' is what an Adept says (Expert+ casts silently). 'caster' notes whose signature a spell is (others may still learn it later). V3 spell families: 'family' (sylvan = Mika's wind and growing magic, umbral = Luna's shadow) picks the family pipeline; 'projectile' spiral / ground / ward; 'push' (m), 'bind_s', 'daze_s' are the real effects on creatures; 'ward_s' a ward's base duration; 'cooldown_s' how long a mage waits before using that technique again in a fight.",
  "mastery_tiers": [
   {
    "name": "Untested",
@@ -184,6 +184,127 @@
     "*"
    ],
    "summary": "A narrow spear of gathered shadow edged in gold light. Fast and precise; it cracks stone and disperses wisps."
+  },
+  "gale_spiral": {
+   "name": "Gale Spiral",
+   "element": "wind",
+   "family": "sylvan",
+   "projectile": "spiral",
+   "clip": "wide_arm_spell",
+   "clip_combat": "magic_attack_2h",
+   "range": 13.0,
+   "speed": 9.0,
+   "incantation": "Ventus, volve!",
+   "translation": "Wind, whirl!",
+   "incantation_short": "Volve!",
+   "caster": "mika",
+   "known_from_start": true,
+   "base_power": 0.45,
+   "power_per_mastery": 0.35,
+   "damage": 0.95,
+   "push": 1.3,
+   "target_kinds": [
+    "*"
+   ],
+   "summary": "Mika's signature: a spiral of air braided with leaves that weaves to its mark and bursts, shoving the creature back. A two-handed sweep."
+  },
+  "verdant_bind": {
+   "name": "Verdant Bind",
+   "element": "nature",
+   "family": "sylvan",
+   "projectile": "ground",
+   "clip": "spell_casting",
+   "clip_combat": "spell_casting",
+   "range": 11.0,
+   "speed": 0.0,
+   "incantation": "Radices, tenete!",
+   "translation": "Roots, hold!",
+   "incantation_short": "Tenete!",
+   "caster": "mika",
+   "requires_knowledge": "practical:gale_spiral",
+   "requires_mastery": {
+    "gale_spiral": 0.5
+   },
+   "base_power": 0.35,
+   "power_per_mastery": 0.3,
+   "damage": 0.3,
+   "bind_s": 3.5,
+   "cooldown_s": 9.0,
+   "target_kinds": [
+    "*"
+   ],
+   "summary": "A seam of green races along the ground and roots erupt in a cage round whatever stands there, holding a ground creature for a few seconds. Learned once the Gale Spiral is practised (Apprentice)."
+  },
+  "leaf_ward": {
+   "name": "Leaf Ward",
+   "element": "wind",
+   "family": "sylvan",
+   "projectile": "ward",
+   "clip": "brace",
+   "range": 0.0,
+   "speed": 0.0,
+   "incantation": "Folia, circumdate!",
+   "translation": "Leaves, surround me!",
+   "incantation_short": "Folia!",
+   "caster": "mika",
+   "known_from_start": true,
+   "base_power": 0.3,
+   "power_per_mastery": 0.3,
+   "ward_s": 4.0,
+   "cooldown_s": 6.0,
+   "target_kinds": [
+    "self"
+   ],
+   "summary": "A ring of leaves orbits her and takes the next two light bolts (one heavy) from any side; it moves with her."
+  },
+  "umbral_rift": {
+   "name": "Umbral Rift",
+   "element": "umbral",
+   "family": "umbral",
+   "projectile": "ground",
+   "clip": "spell_casting",
+   "clip_combat": "magic_attack_1h",
+   "range": 12.0,
+   "speed": 0.0,
+   "incantation": "Umbra, hisce!",
+   "translation": "Shadow, split open!",
+   "incantation_short": "Hisce!",
+   "caster": "luna",
+   "requires_knowledge": "practical:umbral_lance",
+   "requires_mastery": {
+    "umbral_lance": 0.5
+   },
+   "base_power": 0.5,
+   "power_per_mastery": 0.3,
+   "damage": 1.0,
+   "daze_s": 1.2,
+   "cooldown_s": 8.0,
+   "target_kinds": [
+    "*"
+   ],
+   "summary": "A six-sided rift opens under the mark and dark crystal spikes erupt through it: damage and a daze to whatever stands inside; the rift cools into a scar. Learned once the Umbral Lance is practised (Apprentice)."
+  },
+  "gilded_mirror": {
+   "name": "Gilded Mirror",
+   "element": "umbral",
+   "family": "umbral",
+   "projectile": "ward",
+   "clip": "brace",
+   "range": 0.0,
+   "speed": 0.0,
+   "incantation": "Speculum aureum!",
+   "translation": "Golden mirror!",
+   "incantation_short": "Speculum!",
+   "caster": "luna",
+   "known_from_start": true,
+   "base_power": 0.3,
+   "power_per_mastery": 0.3,
+   "ward_s": 3.0,
+   "cooldown_s": 6.0,
+   "target_kinds": [
+    "self"
+   ],
+   "summary": "A hexagonal pane of dark glass with a gold rim held before her: it stops one bolt from the front (a bolt from behind still lands); once practised (Adept) it throws a light bolt back."
   }
  }
 }

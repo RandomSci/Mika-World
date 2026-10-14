@@ -1,5 +1,5 @@
 {
- "_note": "Autonomous mages. Each has her own mind (WorldState.mind(id)), planner instance, voice, forms and growth path. Forms: the avatar shown from a level onward when transformed (base form otherwise). Orbit gates: the real milestones needed to cross each 10th level. Temperament scales the planner's option utilities (1.0 = neutral). Activities: which planner activity kinds she uses (story/book reading is Mika's in this slice). Both mages can use every activity kind (Mika additionally follows her Heartstone story leads and talks with the travellers, whose authored lines are written for her).",
+ "_note": "Autonomous mages. Each has her own mind (WorldState.mind(id)), planner instance, voice, forms and growth path. Forms: the avatar shown from a level onward when transformed (base form otherwise). Orbit gates: the real milestones needed to cross each 10th level. Temperament scales the planner's option utilities (1.0 = neutral). Activities: which planner activity kinds she uses (story/book reading is Mika's in this slice). Both mages can use every activity kind (Mika additionally follows her Heartstone story leads and talks with the travellers, whose authored lines are written for her). V3: 'signature_spell' is the technique her family is built round (Mika: the Gale Spiral, wind and growing things; Luna: the Umbral Lance, shadow and gold); 'first_spell' is the lesson she started with (Mika's Arcane Orb stays hers).",
  "mages": {
   "mika": {
    "name": "Mika",
@@ -13,9 +13,11 @@
     }
    },
    "voice": "mika",
-   "signature_spell": "arcane_orb",
+   "signature_spell": "gale_spiral",
    "starting_spells": [
-    "arcane_orb"
+    "arcane_orb",
+    "gale_spiral",
+    "leaf_ward"
    ],
    "spawn": [
     0.0,
@@ -130,6 +132,14 @@
     ],
     "decline": [
      "Not now, sorry!"
+    ],
+    "bind": [
+     "Hold still!",
+     "Roots - hold it!"
+    ],
+    "ward": [
+     "Not this time.",
+     "Leaves!"
     ]
    },
    "explore_taste": {
@@ -241,7 +251,8 @@
      0.4,
      1.6
     ]
-   }
+   },
+   "first_spell": "arcane_orb"
   },
   "luna": {
    "name": "Luna",
@@ -257,7 +268,8 @@
    "voice": "luna",
    "signature_spell": "umbral_lance",
    "starting_spells": [
-    "umbral_lance"
+    "umbral_lance",
+    "gilded_mirror"
    ],
    "spawn": [
     24.0,
@@ -372,6 +384,14 @@
     ],
     "decline": [
      "Not now."
+    ],
+    "rift": [
+     "Stand there, then.",
+     "Open."
+    ],
+    "ward": [
+     "No.",
+     "Mirror."
     ]
    },
    "explore_taste": {

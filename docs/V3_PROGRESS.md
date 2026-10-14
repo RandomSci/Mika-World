@@ -10,7 +10,8 @@ Companion documents: `docs/V3_AUDIT.md` (the audit), `docs/V3_VISUAL_REPORT.md` 
 |---|---|
 | `8b281aa` | K7: the Whispering Woods route (blockout + first dressing) |
 | `5bccd29` | K7b: the environment pass (forest ecosystem, water, den, ruins, pond, night, vista, LOD/shadow stand-ins, navigation fixes) |
-| *(next)* | K8 creature territories + quiet scenes (ground sitting, lying down, stargazing together) |
+| `4ef0a27` | K8 creature territories + quiet scenes (ground sitting, lying down, stargazing together) |
+| *(next)* | K5/K6 the two spell families, wards, creature control effects, family training duels (V3 Part XIII) |
 
 ## 1. Environment (directive Part III) — see `docs/V3_VISUAL_REPORT.md`
 
@@ -64,7 +65,31 @@ Movie Maker recording runs real time much slower than game time; three timers us
 timeout, the training duel, the character's action deadline). All are on game clocks now, so recorded scenes
 behave exactly like live ones.
 
+## 5. Spell identity and defence (directive Part XIII) — see `docs/SPELL_FAMILIES.md`
+
+Two families, different in geometry, posture, energy, timing, motion, impact, sound and defence:
+**Mika / Sylvan** — Gale Spiral (her signature now: a two-handed sweep, leaves lifting round her feet, a weaving
+helix of two ribbons shedding leaves, a burst that shoves the creature back), Verdant Bind (a seam along the ground,
+a cage of grown roots that holds a ground creature — no moving, no attacking — then withers), Leaf Ward (a ring of
+leaves orbiting her that really stops the next two bolts from any side). **Luna / Umbral** — her lance, Umbral Rift
+(shadow drawn into her palm with circling shards, a gold line that snaps to the mark, a hexagonal rift, dark crystal
+spikes that erupt and daze, a scar that stays) and the Gilded Mirror (a hex pane that stops one bolt from the front
+only and, once practised, throws it back). Creatures carry the effects (`Monster.bind / daze / push`), wards are
+judged by the bolt's real path (`Ward`, `AttackHazard`), the tactics pick the technique from the moment
+(`CombatTactics.family_spell / ward_spell`, cooldowns), training duels throw family bolts and use wards. Original
+sounds for the nature element, wards, roots and rifts (bell-free). The Arcane Orb stays Mika's first lesson.
+
+Verified by `--mktest=spells` (PASS, 44 checks: phases from the clip, real push / hold / daze / scar, wards stopping
+real bolts with honest limits — spent after two, front-only mirror, reflection only at Adept — tactics choices, two
+planner fights using the techniques, the sounds), `--mktest=duel` (PASS 12/12: 70 s bout, 10 wards cast, 8 bolts
+really stopped, camera two-shot 2208/2209) and `--mjtest=signature --who=mika` (PASS 10/10 with the new signature).
+Stills: `screenshots/mktest/spells_*.png`, grids `docs/screenshots/milestone_k/spells_k5_*.jpg`; footage
+`screenshots/mktest/clips/spells_k5.mp4` (72 s) and `duel_k5.mp4` (90 s), real game camera, live profile, 1600×900 (the project's viewport; Movie Maker records the window size).
+Not done: creature-side spell languages for shamans / demons / demigods (no such NPCs yet), levitation / flight /
+spatial travel (Part 62-63), Luna's signature visuals beyond the lance, a skirt-safe roll, a decal for the rift scar.
+
 ## Still open from the directive (in order)
 
-combat / spell identity (Part XIII), the Phoenix (Part X), academy and NPC occupations (Part V, VIII), the
-world bible (Part IV), mythology (Part XVII), the Sanctuary hub polish, the GPU driver (hardware).
+the Phoenix (Part X), academy and NPC occupations (Part V, VIII), the world bible (Part IV), mythology (Part XVII),
+advanced magic (Part 62-63: shields beyond wards, counterspell combinations, levitation, teleportation as a learned
+spell), the Sanctuary hub polish, the GPU driver (hardware).

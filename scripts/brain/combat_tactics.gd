@@ -12,6 +12,7 @@ extends RefCounted
 const REACTION_S := 0.22          # nobody reacts instantly
 const DODGE_S := 0.55             # duration of a dodge (roll / side-step)
 const DODGE_DIST := 2.6
+const WARD_UP_S := 0.27           # a ward's brace gesture reaches its release about here (V3 Part XIII)
 
 
 ## Danger she can see coming at her right now: the most urgent perceived hazard that threatens her spot.
@@ -48,18 +49,64 @@ static func dodge_target(me: WorldCharacter, hz: AttackHazard) -> Vector3:
 	return Vector3.INF
 
 
+## Her ward (V3 Part XIII): the defensive technique of her own family she can use right now (known, off
+## cooldown, breath for it), or "".
+static func ward_spell(brain, me: WorldCharacter) -> String:
+	var who: String = brain.agent_id
+	if brain.mind.vigor < 0.12 or Ward.active_for(me) != null:
+		return ""
+	for id in MagicSystem.load_catalog().spells:
+		var s: Dictionary = MagicSystem.spell(id)
+		if String(s.get("projectile", "")) != "ward" or String(s.get("caster", who)) != who:
+			continue
+		if brain.main.magic.can_cast(id, who).ok and brain.spell_ready(id):
+			return id
+	return ""
+
+
+## The technique of her family that fits THIS moment, or her base spell: Mika holds a ground creature that is
+## pressing in on her with roots (then keeps her distance); Luna opens a rift under a creature that stands
+## still in an opening (recovering, staggered, held). Data-driven: ground spells with bind_s / daze_s.
+static func family_spell(brain, me: WorldCharacter, m: Monster, base: String, opening: bool, d: float) -> String:
+	var who: String = brain.agent_id
+	for id in MagicSystem.load_catalog().spells:
+		var s: Dictionary = MagicSystem.spell(id)
+		if not s.has("family") or String(s.get("projectile", "")) != "ground" or String(s.get("caster", "")) != who:
+			continue
+		if not brain.main.magic.can_cast(id, who).ok or not brain.spell_ready(id) or d > float(s.range) - 0.5 or d < 1.5:
+			continue
+		if s.has("bind_s"):
+			if float(m.def.get("float", 0.0)) <= 1.0 and m.is_melee() and m.mstate in ["chase", "attack", "windup", "alert"] and d < m.reach() + 4.5:
+				return id
+		elif s.has("daze_s"):
+			if opening or m.mstate in ["bound", "rest", "recover", "stagger"]:
+				return id
+	return base
+
+
 ## The tactical intention for this moment. `m` is the creature she is fighting, `spell` her chosen spell.
 static func decide(brain, me: WorldCharacter, m: Monster, spell: String) -> Dictionary:
 	var world: Node = brain.main.world
 	var vigor: float = brain.mind.vigor
-	# 1. something is about to land on her and she has time to react: get out of the way
+	# 1. something is about to land on her and she has time to react: get out of the way - or, for a bolt
+	#    she can stop, put her ward up (when tired she would rather keep her ground and her breath)
 	var hz := incoming(me, world)
 	if hz:
 		var tt := hz.time_to(me.global_position)
+		var mine := Ward.active_for(me)
+		if hz.kind == "projectile" and mine != null and (mine.covers(hz.global_position) or mine.kind == "mirror"):
+			# her ward is up: hold her ground (turning the mirror toward the bolt); the ward is judged when it arrives
+			return {"intent": "hold", "face": hz.global_position, "turn": mine.kind == "mirror" and not mine.covers(hz.global_position), "why": "%s is up (%.1f s)" % [MagicSystem.spell(mine.spell_id).name, tt]}
+		var wid := ward_spell(brain, me) if hz.kind == "projectile" else ""
+		# the ward's gesture takes ~0.3 s to bring it up: it needs the bolt still well out
+		if wid != "" and not me.casting and tt >= WARD_UP_S + 0.05 and (vigor < 0.45 or tt < 0.75):
+			return {"intent": "ward", "spell": wid, "hazard": hz, "why": "bolt coming (%.1f s): %s" % [tt, MagicSystem.spell(wid).name]}
 		if tt >= REACTION_S and not me.casting:
 			var to := dodge_target(me, hz)
 			if to != Vector3.INF:
 				return {"intent": "dodge", "to": to, "hazard": hz, "why": "%s coming (%.1f s)" % [hz.kind, tt]}
+		if wid != "" and not me.casting and tt >= WARD_UP_S + 0.02:
+			return {"intent": "ward", "spell": wid, "hazard": hz, "why": "no room to move (%.2f s): %s" % [tt, MagicSystem.spell(wid).name]}
 		return {"intent": "brace", "why": "too late to move (%.2f s)" % tt}
 	# 2. exhausted: withdraw to the ward
 	if vigor < 0.22:
@@ -92,6 +139,9 @@ static func decide(brain, me: WorldCharacter, m: Monster, spell: String) -> Dict
 		return {"intent": "reposition", "to": _side_step_point(me, m), "why": String(v.get("reason", "no clear line"))}
 	if vigor < 0.5 and m.mstate == "return":
 		return {"intent": "steady", "why": "it backed off: catching her breath"}
+	var fam := family_spell(brain, me, m, spell, opening, d)
+	if fam != spell:
+		return {"intent": "cast", "spell": fam, "opening": opening, "why": "%s: %s" % [MagicSystem.spell(fam).name, "it is pressing in" if MagicSystem.spell(fam).has("bind_s") else "it stands exposed"]}
 	return {"intent": "cast", "spell": spell, "opening": opening, "why": "opening" if opening else "in range (%.1f m)" % d}
 
 

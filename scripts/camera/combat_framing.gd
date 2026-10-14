@@ -111,7 +111,8 @@ static func shot(main: Node, mage: WorldCharacter, s: Dictionary, side: float) -
 		var spread := 0.0
 		for e in pts:
 			spread = maxf(spread, Vector2((e.p as Vector3).x - c.x, (e.p as Vector3).z - c.z).length())
-		var dist := clampf(spread * 1.15 + 3.0, 4.2, 9.5) if not s.get("duel", false) else clampf(spread * 0.95 + 2.2, 4.0, 7.5)
+		# (a duel spreads wider than a creature fight once wards and dodges come in: more distance and a wider lens)
+		var dist := clampf(spread * 1.15 + 3.0, 4.2, 9.5) if not s.get("duel", false) else clampf(spread * 1.1 + 2.4, 4.0, 8.5)
 		# candidates around the lateral position: the one with the most clear lines to every subject's body wins
 		# (props in the foreground cut a fight in half); the current side gets a small preference
 		var best_sc := -INF
@@ -124,7 +125,8 @@ static func shot(main: Node, mage: WorldCharacter, s: Dictionary, side: float) -
 				if sc > best_sc:
 					best_sc = sc
 					best_pos = cp
-		out = {"pos": best_pos, "look": c.lerp(mp, 0.35), "fov": clampf(48.0 + spread * 1.0, 48.0, 58.0), "side": side}
+		var fov := clampf(46.0 + spread * 2.4, 50.0, 72.0) if s.get("duel", false) else clampf(48.0 + spread * 1.0, 48.0, 58.0)
+		out = {"pos": best_pos, "look": c.lerp(mp, 0.35), "fov": fov, "side": side}
 	if main.world and main.world.has_method("ground_at"):
 		out.pos.y = maxf(out.pos.y, float(main.world.ground_at(out.pos.x, out.pos.z)) + 0.6)
 	return out

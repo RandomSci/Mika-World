@@ -9,7 +9,8 @@ extends RefCounted
 
 const COLORS := {"arcane": [Color(0.5, 0.72, 1.0), Color(0.85, 0.6, 1.0)], "umbral": [Color(1.0, 0.76, 0.3), Color(0.5, 0.2, 0.95)],
 	"wind": [Color(0.75, 1.0, 0.88), Color(0.9, 1.0, 0.95)], "water": [Color(0.4, 0.78, 1.0), Color(0.8, 0.95, 1.0)],
-	"fire": [Color(1.0, 0.55, 0.15), Color(1.0, 0.85, 0.4)], "eclipse": [Color(1.0, 0.86, 0.5), Color(0.62, 0.42, 1.0)]}
+	"fire": [Color(1.0, 0.55, 0.15), Color(1.0, 0.85, 0.4)], "eclipse": [Color(1.0, 0.86, 0.5), Color(0.62, 0.42, 1.0)],
+	"nature": [Color(0.58, 0.95, 0.5), Color(0.95, 0.88, 0.55)]}
 
 
 static func play(host: Node, at: Vector3, element: String, power: float, lethal := false) -> void:
@@ -94,7 +95,13 @@ static func _element_layer(host: Node, at: Vector3, element: String, pal: Array,
 				pm.gravity = Vector3(0, -9.8, 0)
 				pm.color_ramp = FX.ramp([Color(0.85, 0.95, 1.0, 0.9), Color(pal[0], 0.0)], [0.0, 1.0])), FX.mote_mesh(0.045))
 		"wind":
+			# air and leaves flung outward (Mika's gusts carry leaves), then the dust settles
 			FX.burst(host, at, int(16 * big), 0.8, FX.pm_puff("dust"), FX.puff_mesh(0.45))
+			FX.burst(host, at, int(22 * big), 1.1, FX.pm_leaves("burst"), FX.leaf_mesh(0.07))
+		"nature":
+			# a flurry of leaves and seeds with green motes, little light: growth, not fire
+			FX.burst(host, at, int(30 * big), 1.3, FX.pm_leaves("burst"), FX.leaf_mesh(0.07))
+			FX.burst(host, at, int(20 * big), 0.9, FX.pm_motes("nature", "burst"), FX.mote_mesh(0.045))
 
 
 ## An expanding ring hugging the ground, fading as it grows (only for impacts near the ground).

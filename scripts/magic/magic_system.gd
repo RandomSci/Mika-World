@@ -176,7 +176,7 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 		res["reason"] = "not standing on the ground"
 		return _finish(res)
 	var target: ReactiveElement = null
-	var self_spell: bool = s.get("projectile", "") == "self"
+	var self_spell: bool = s.get("projectile", "") in ["self", "ward"]
 	if not self_spell and target_id != "":
 		target = reactives().get(target_id)
 		if target == null:
@@ -188,7 +188,8 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 			res["outcome"] = "refused"
 			res["reason"] = v.reason
 			return _finish(res)
-	if not main.world.has_space_for_magic(caster.global_position):
+	if String(s.get("projectile", "")) != "ward" and not main.world.has_space_for_magic(caster.global_position):
+		# (a ward stays on her and throws nothing: it needs no room)
 		res["outcome"] = "refused"
 		res["reason"] = "not enough space around her to cast"
 		return _finish(res)
@@ -234,7 +235,12 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 	# in a fight (combat stance) a spell may use its quicker combat gesture instead of the full ritual one
 	var clip := String(s.get("clip_combat", s.clip)) if (caster.combat_stance or caster.has_meta("signature")) else String(s.clip)
 	res["clip"] = clip
-	if String(s.get("projectile", "")) == "lance":
+	if s.has("family"):
+		# V3 Part XIII: the mages' own families (Mika: SylvanSpell, Luna: UmbralSpell)
+		node = caster.cast_spell(SylvanSpell if String(s.family) == "sylvan" else UmbralSpell, clip)
+		if node:
+			(node as FamilySpell).configure(id, s, aim, target, power, mastery(id, who))
+	elif String(s.get("projectile", "")) == "lance":
 		node = caster.cast_spell(CombatSpell, clip)
 		if node:
 			(node as CombatSpell).configure(id, s, aim, target, power, mastery(id, who))
@@ -264,7 +270,12 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 	res["circle_amplified"] = amplified
 	res["mastery_before"] = snappedf(mastery(id, who), 0.01)
 	res["incantation"] = s.incantation
-	if self_spell:
+	if String(s.get("projectile", "")) == "ward":
+		# a ward is judged later, by the bolts that really cross it (Ward.absorb awards that practice)
+		res["effect"] = "warded"
+		res["detail"] = "%s is up: %d charge(s) for %.1f s" % [s.name, int(flight.get("charges", 1)), float(flight.get("seconds", 0.0))]
+		res["changes"] = _award(id, 0.015, "self", "warded", cc.get("first_attempt", false), "", who)
+	elif self_spell:
 		caster.set_meta("magic_charge", power * 0.5)
 		res["effect"] = "charged"
 		res["detail"] = "ambient power gathered: the next spell is %d%% stronger" % int(power * 50)

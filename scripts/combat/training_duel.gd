@@ -6,8 +6,11 @@ extends Node
 ##   * each beat each duelist decides from what SHE perceives: a training bolt coming at her -> dodge (real
 ##     movement) or brace (a ward); otherwise cast a spar bolt when she has breath and her cooldown is over;
 ##     otherwise reposition (circle to a new angle)
-##   * spar bolts are real projectiles (AttackHazard, nonlethal "training" style, the caster's own colours); a
-##     hit is a TOUCH (light flinch, tiny vigor cost) — never a defeat
+##   * spar bolts are real projectiles (AttackHazard) in each mage's OWN language (V3 Part XIII): Mika's is a
+##     weaving spiral of air and leaves from a two-handed sweep, slower and readable; Luna's a dark crystal shard
+##     from a one-handed snap, quicker and straighter. A hit is a TOUCH (light flinch, tiny vigor cost) — never a defeat
+##   * a bolt she cannot dodge in time she may stop with her family's ward (Leaf Ward / Gilded Mirror) - judged
+##     when the bolt really crosses it; a practised mirror throws the bolt back (a counter that can touch)
 ##   * training breath (stamina) drains with casting and dodging and refills slowly: energy management matters
 ##   * it stops safely: first to 3 touches, someone runs out of breath (yields), 70 s, or a creature shows up
 ## Progress is earned only by what really happened: spell practice for touches landed, "dodged in training" for
@@ -17,11 +20,19 @@ signal finished(result: Dictionary)
 
 const TOUCHES_TO_WIN := 3
 const MAX_S := 70.0
-const BOLT_COST := 0.16
+const BOLT_COST := 0.13
 const DODGE_COST := 0.10
 const BOLT_CD := 2.4
-## Training bolts are deliberately readable (slower than combat spells): sparring is about reacting.
-const STYLE := {"mika": {"color": [0.55, 1.0, 0.75], "speed": 7.5, "element": "wind"}, "luna": {"color": [0.72, 0.45, 1.0], "speed": 8.5, "element": "umbral"}}
+const WARD_COST := 0.08
+const WARD_CD := 5.0
+const WARD_UP_S := 0.27            # a ward's brace gesture reaches its release about here
+## Training bolts are deliberately readable (slower than combat spells): sparring is about reacting. Each mage
+## throws hers in her own language (style, gesture, timing): a sweep that takes longer to leave but weaves,
+## or a snap that leaves fast and flies straight.
+const STYLE := {
+	"mika": {"color": [0.6, 1.0, 0.78], "speed": 6.2, "element": "wind", "style": "gale", "gesture": "magic_attack_2h", "gesture_speed": 1.5, "release_at": 0.42},
+	"luna": {"color": [0.72, 0.45, 1.0], "speed": 7.8, "element": "umbral", "style": "shard", "gesture": "cast_quick", "gesture_speed": 1.0, "release_at": 0.3},
+}
 
 var main: Node
 var active := {}
@@ -69,8 +80,12 @@ func run(a: SanctuaryBrain, b: SanctuaryBrain) -> Dictionary:
 	cb.look_at_point(ca.global_position)
 	await get_tree().create_timer(0.8).timeout
 	active = {"a": a, "b": b, "t0": _clock, "touches": {}, "stamina": {}, "cd": {}, "dodges": {}, "dodged": {}, "braced": {}, "casts": {},
-		"center": center, "events": []}
+		"wards": {}, "warded": {}, "reflected": {}, "ward_cd": {}, "center": center, "events": []}
 	for br in [a, b]:
+		active.wards[br.agent_id] = 0
+		active.warded[br.agent_id] = 0
+		active.reflected[br.agent_id] = 0
+		active.ward_cd[br.agent_id] = 0.0
 		active.touches[br.agent_id] = 0
 		active.stamina[br.agent_id] = clampf(0.6 + br.mind.vigor * 0.4, 0.6, 1.0)
 		active.cd[br.agent_id] = _rng.randf_range(0.8, 1.8)
@@ -160,8 +175,9 @@ func _duelist(me_b: SanctuaryBrain, opp_b: SanctuaryBrain, box: Dictionary) -> v
 	while box.stop == "":
 		await get_tree().physics_frame
 		var dt := get_physics_process_delta_time()
-		active.stamina[who] = clampf(float(active.stamina[who]) + dt * 0.035, 0.0, 1.0)
+		active.stamina[who] = clampf(float(active.stamina[who]) + dt * 0.05, 0.0, 1.0)
 		active.cd[who] = maxf(0.0, float(active.cd[who]) - dt)
+		active.ward_cd[who] = maxf(0.0, float(active.ward_cd[who]) - dt)
 		if me.current_action == "dodge" or me.casting:
 			continue
 		# 1) a bolt coming at her that she can see
@@ -171,22 +187,45 @@ func _duelist(me_b: SanctuaryBrain, opp_b: SanctuaryBrain, box: Dictionary) -> v
 			# she only reacts once she has really registered it: a reaction time per bolt, slower when tired
 			if not hz.has_meta("rt_" + who):
 				var tired := 1.0 - float(active.stamina[who])
-				hz.set_meta("rt_" + who, _rng.randf_range(0.22, 0.55) + tired * 0.35)
+				hz.set_meta("rt_" + who, _rng.randf_range(0.2, 0.45) + tired * 0.3)
 			var rt := float(hz.get_meta("rt_" + who))
 			if hz.age < rt:
 				continue
-			if tt > 0.18 and float(active.stamina[who]) > DODGE_COST:
+			if not hz.resolved.is_connected(_on_bolt_resolved):
+				hz.resolved.connect(_on_bolt_resolved)
+			var mine := Ward.active_for(me)
+			if mine != null:
+				# her ward is up: she holds her ground and faces the bolt (the ward is judged when it arrives)
+				var tob := Vector3(hz.global_position.x - me.global_position.x, 0, hz.global_position.z - me.global_position.z)
+				var fwdm := -me.global_transform.basis.z
+				if mine.kind == "mirror" and tob.length() > 0.1 and Vector3(fwdm.x, 0, fwdm.z).normalized().angle_to(tob.normalized()) > 0.3 and me.current_action != "look_at":
+					me.look_at_point(hz.global_position)
+				continue
+			var ward_id := _ward_for(who)
+			var can_ward := ward_id != "" and float(active.ward_cd[who]) <= 0.0 and float(active.stamina[who]) > WARD_COST + 0.05 and Ward.active_for(me) == null
+			# her choice: the ward takes ~0.3 s to come up, so it needs the bolt still well out; she picks it when
+			# she is short of breath or simply chooses to hold her ground (not every time); otherwise a dodge when
+			# there is time and breath; a ward again if there is nowhere to go; else a brace
+			var ward_now := can_ward and tt >= WARD_UP_S + 0.05 and (float(active.stamina[who]) < 0.35 or _rng.randf() < 0.45)
+			if not ward_now and tt > 0.18 and float(active.stamina[who]) > DODGE_COST:
 				var to := CombatTactics.dodge_target(me, hz)
 				if to != Vector3.INF:
 					active.stamina[who] = float(active.stamina[who]) - DODGE_COST
 					active.dodges[who] = int(active.dodges[who]) + 1
-					if not hz.resolved.is_connected(_on_bolt_resolved):
-						hz.resolved.connect(_on_bolt_resolved)
 					hz.set_meta("dodger", who)
+					active.events.append({"t": snappedf(_clock - float(active.t0), 0.1), "act": "dodge", "who": who, "tt": snappedf(tt, 0.2), "breath": snappedf(float(active.stamina[who]), 0.01)})
 					await me.dodge(to, 0.5)
 					me.look_at_point(opp.global_position)
 					continue
-			# no time / no breath: a ward (brace) halves nothing — it just reads as defence; the bolt decides
+			if can_ward and tt >= WARD_UP_S + 0.02:
+				active.stamina[who] = float(active.stamina[who]) - WARD_COST
+				active.ward_cd[who] = WARD_CD
+				active.wards[who] = int(active.wards[who]) + 1
+				hz.set_meta("warder_try", who)
+				active.events.append({"t": snappedf(_clock - float(active.t0), 0.1), "act": "ward", "who": who, "tt": snappedf(tt, 0.2), "breath": snappedf(float(active.stamina[who]), 0.01)})
+				await main.magic.cast(me, ward_id)
+				continue
+			# no time / no breath / no ward ready: a brace halves nothing — it just reads as defence; the bolt decides
 			active.braced[who] = int(active.braced[who]) + 1
 			me.play_gesture("brace", 0.06, 0.3)
 			await get_tree().create_timer(0.45).timeout
@@ -195,6 +234,7 @@ func _duelist(me_b: SanctuaryBrain, opp_b: SanctuaryBrain, box: Dictionary) -> v
 		if float(active.cd[who]) <= 0.0 and float(active.stamina[who]) > BOLT_COST + 0.05:
 			active.stamina[who] = float(active.stamina[who]) - BOLT_COST
 			active.cd[who] = BOLT_CD * _rng.randf_range(0.85, 1.25) * (1.0 if float(active.stamina[who]) > 0.4 else 1.5)
+			active.events.append({"t": snappedf(_clock - float(active.t0), 0.1), "act": "bolt", "who": who, "breath": snappedf(float(active.stamina[who]), 0.01)})
 			await _cast_bolt(me_b, opp)
 			continue
 		# 3) reposition: circle a few metres around the middle, facing her opponent
@@ -213,7 +253,17 @@ func _duelist(me_b: SanctuaryBrain, opp_b: SanctuaryBrain, box: Dictionary) -> v
 	box.done += 1
 
 
-## A spar bolt: face, gesture (quick cast), release from her hand along a slightly led aim; real projectile.
+## Her family's ward spell (data: projectile "ward", caster = her), if she knows one.
+func _ward_for(who: String) -> String:
+	for id in MagicSystem.load_catalog().spells:
+		var s: Dictionary = MagicSystem.spell(id)
+		if String(s.get("projectile", "")) == "ward" and String(s.get("caster", who)) == who and main.magic.can_cast(id, who).ok:
+			return id
+	return ""
+
+
+## A spar bolt: face, HER gesture (Mika a two-handed sweep, Luna a one-handed snap), release from her hands
+## along a slightly led aim when the gesture reaches its release; a real projectile in her family's shape.
 func _cast_bolt(me_b: SanctuaryBrain, opp: WorldCharacter) -> void:
 	var me := me_b.me
 	var who := me_b.agent_id
@@ -222,12 +272,20 @@ func _cast_bolt(me_b: SanctuaryBrain, opp: WorldCharacter) -> void:
 	var t0 := int(_clock * 1000.0)
 	while me.current_action == "look_at" and int(_clock * 1000.0) - t0 < 600:
 		await get_tree().physics_frame
-	me.play_gesture("cast_quick", 0.12, 0.3)
-	await get_tree().create_timer(0.18).timeout
+	var st: Dictionary = STYLE.get(who, STYLE.mika)
+	var gesture := String(st.get("gesture", "cast_quick"))
+	var gs := float(st.get("gesture_speed", 1.0))
+	me.set_gesture_speed(gs)
+	me.play_gesture(gesture, 0.12, 0.3)
+	MagicEvents.emit_phase(me, "spar_bolt", "gather", String(st.element), me.right_hand.global_position if me.right_hand else me.global_position)
+	var release_s := float(st.get("release_at", 0.3)) * me.animation_length(gesture) / maxf(gs, 0.1)
+	await get_tree().create_timer(clampf(release_s, 0.15, 1.2)).timeout
+	me.set_gesture_speed(1.0)
 	if not busy():
 		return
-	var st: Dictionary = STYLE.get(who, STYLE.mika)
 	var from := me.right_hand.global_position + (-me.global_transform.basis.z) * 0.3 if me.right_hand else me.global_position + Vector3(0, 1.3, 0)
+	if String(st.get("style", "")) == "gale" and me.left_hand and me.right_hand:
+		from = (me.left_hand.global_position + me.right_hand.global_position) * 0.5 + (-me.global_transform.basis.z) * 0.3
 	var vel := Vector3(opp.velocity.x, 0, opp.velocity.z)
 	# a light lead on her movement plus the caster's own aim error (mastery-scaled): a still target gets hit,
 	# a moving one often does not
@@ -242,7 +300,7 @@ func _cast_bolt(me_b: SanctuaryBrain, opp: WorldCharacter) -> void:
 	h.speed = float(st.speed)
 	h.max_range = 16.0
 	h.vigor = 0.02
-	h.style = "spar_" + who
+	h.style = String(st.get("style", "spar_" + who))
 	var c: Array = st.color
 	h.color = Color(c[0], c[1], c[2])
 	h.resolved.connect(_on_bolt_resolved)
@@ -269,13 +327,24 @@ func _on_bolt_resolved(h: AttackHazard, struck: Array) -> void:
 		var d := String(h.get_meta("dodger", ""))
 		if d != "":
 			active.dodged[d] = int(active.dodged[d]) + 1
+		var w := String(h.get_meta("warder", ""))
+		if w != "" and h.has_meta("absorbed_by"):
+			active.warded[w] = int(active.warded[w]) + 1
+			active.events.append({"t": snappedf(_clock - float(active.t0), 0.1), "warded": w, "by": String(h.get_meta("absorbed_by"))})
+		elif h.has_meta("warder_try"):
+			active.events.append({"t": snappedf(_clock - float(active.t0), 0.1), "ward_missed": String(h.get_meta("warder_try")), "dodged": d != ""})
 		return
+	if h.has_meta("reflected"):
+		active.reflected[caster] = int(active.reflected[caster]) + 1
 	for c in struck:
 		var wc := c as WorldCharacter
 		if wc == null or caster == "" or wc.character_id == caster:
 			continue
 		active.touches[caster] = int(active.touches[caster]) + 1
-		active.events.append({"t": snappedf(_clock - float(active.t0), 0.1), "touch": caster, "on": wc.character_id})
+		var ev := {"t": snappedf(_clock - float(active.t0), 0.1), "touch": caster, "on": wc.character_id, "reflected": h.has_meta("reflected")}
+		if h.has_meta("ward_bypassed"):
+			ev["ward_bypassed"] = h.get_meta("ward_bypassed")
+		active.events.append(ev)
 		wc.take_hit(h.center, false)
 		var m := WorldState.mind(wc.character_id)
 		m.vigor = clampf(m.vigor - h.vigor, 0.0, 1.0)
@@ -294,6 +363,7 @@ func _conclude(a: SanctuaryBrain, b: SanctuaryBrain, stop: String) -> Dictionary
 		winner = b.agent_id if stop.trim_prefix("yield:") == a.agent_id else a.agent_id   # level on touches: the one still standing
 	var res := {"ok": true, "stop": stop, "winner": winner, "touches": active.touches.duplicate(), "dodges": active.dodges.duplicate(),
 		"dodged": active.dodged.duplicate(), "braced": active.braced.duplicate(), "casts": active.casts.duplicate(),
+		"wards": active.wards.duplicate(), "warded": active.warded.duplicate(), "reflected": active.reflected.duplicate(),
 		"seconds": snappedf(_clock - float(active.t0), 0.1), "events": active.events.duplicate()}
 	res["detail"] = "sparred %.0f s: %s %d - %d %s (%s)" % [res.seconds, MagicSystem.display_name(a.agent_id), ta, tb, MagicSystem.display_name(b.agent_id), stop]
 	# what each really earned: practice from touches landed, a record of real dodges, the bout itself
@@ -304,6 +374,8 @@ func _conclude(a: SanctuaryBrain, b: SanctuaryBrain, stop: String) -> Dictionary
 		var know := {"sparred:" + other: 1}
 		if int(active.dodged[who]) > 0:
 			know["training:dodged"] = 1
+		if int(active.warded[who]) > 0:
+			know["training:warded"] = 1
 		var skills := {}
 		var sig := SignatureCast.spell_for(who)
 		if int(active.touches[who]) > 0 and sig != "" and main.magic.can_cast(sig, who).ok:

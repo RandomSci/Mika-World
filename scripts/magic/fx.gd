@@ -18,6 +18,7 @@ const PALETTES := {
 	"umbral": [Color(1.0, 0.76, 0.3), Color(0.55, 0.25, 0.95)],
 	"eclipse": [Color(1.0, 0.86, 0.5), Color(0.62, 0.42, 1.0)],
 	"bloom": [Color(1.0, 0.82, 0.93), Color(0.72, 0.9, 1.0)],
+	"nature": [Color(0.58, 0.95, 0.5), Color(0.95, 0.88, 0.55)],
 }
 
 
@@ -254,6 +255,117 @@ static func pm_puff(kind: String) -> ParticleProcessMaterial:
 				pm.emission_ring_axis = Vector3.UP
 				pm.radial_accel_min = 2.0
 				pm.radial_accel_max = 3.0
+	)
+
+
+## A leaf card for particles (V3 spell families): a sprite from the nature kit's leaf atlas, the particle
+## colour tinting it, lit from behind so it reads in shade. Mika's wind and growing magic sheds these.
+static func leaf_mesh(size: float, spr := "heart") -> QuadMesh:
+	var key := "leaf:%s:%s" % [size, spr]
+	if not _cache.has(key):
+		var rect: Rect2 = {"round": FoliageBuilder.SPR_ROUND, "heart": FoliageBuilder.SPR_HEART, "thin": FoliageBuilder.SPR_THIN}.get(spr, FoliageBuilder.SPR_ROUND)
+		var q := QuadMesh.new()
+		q.size = Vector2(size, size * rect.size.y / rect.size.x)
+		var m := StandardMaterial3D.new()
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.alpha_scissor_threshold = 0.45
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		m.vertex_color_use_as_albedo = true
+		m.albedo_texture = NatureKit.tex(FoliageBuilder.LEAF_TEX)
+		m.uv1_scale = Vector3(rect.size.x, rect.size.y, 1.0)
+		m.uv1_offset = Vector3(rect.position.x, rect.position.y, 0.0)
+		m.roughness = 0.9
+		m.emission_enabled = true
+		m.emission = Color(0.3, 0.5, 0.2)
+		m.emission_energy_multiplier = 0.7
+		m.backlight_enabled = true
+		m.backlight = Color(0.5, 0.75, 0.3)
+		q.material = m
+		_cache[key] = q
+	return _cache[key]
+
+
+## Leaf motion presets (tumbling cards): lift round the feet, orbit a forming spiral, trail a gust, burst at
+## an impact, ring a ward, sprout from erupting roots.
+static func pm_leaves(kind: String) -> ParticleProcessMaterial:
+	return process("leaves:" + kind, func(pm: ParticleProcessMaterial):
+		pm.gravity = Vector3(0, -0.6, 0)
+		pm.damping_min = 0.3
+		pm.damping_max = 0.9
+		pm.scale_min = 0.6
+		pm.scale_max = 1.3
+		pm.angular_velocity_min = -220.0
+		pm.angular_velocity_max = 220.0
+		pm.color_ramp = ramp([Color(1, 1, 1, 0.0), Color(1, 1, 1, 1.0), Color(1.0, 0.95, 0.75, 1.0), Color(1, 1, 1, 0.0)], [0.0, 0.1, 0.7, 1.0])
+		pm.color_initial_ramp = ramp([Color(0.62, 0.85, 0.42), Color(0.95, 0.9, 0.55), Color(0.5, 0.78, 0.4)])
+		match kind:
+			"lift":
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+				pm.emission_ring_radius = 1.15
+				pm.emission_ring_inner_radius = 0.45
+				pm.emission_ring_height = 0.05
+				pm.emission_ring_axis = Vector3.UP
+				pm.direction = Vector3.UP
+				pm.spread = 20.0
+				pm.initial_velocity_min = 0.8
+				pm.initial_velocity_max = 1.7
+				pm.tangential_accel_min = 3.0
+				pm.tangential_accel_max = 5.0
+				pm.gravity = Vector3(0, 0.25, 0)
+			"orbit":
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+				pm.emission_ring_radius = 0.3
+				pm.emission_ring_inner_radius = 0.18
+				pm.emission_ring_height = 0.1
+				pm.emission_ring_axis = Vector3.UP
+				pm.direction = Vector3.UP
+				pm.spread = 30.0
+				pm.initial_velocity_min = 0.1
+				pm.initial_velocity_max = 0.3
+				pm.tangential_accel_min = 7.0
+				pm.tangential_accel_max = 10.0
+				pm.gravity = Vector3.ZERO
+				pm.damping_min = 1.5
+				pm.damping_max = 2.5
+			"trail":
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+				pm.emission_sphere_radius = 0.14
+				pm.spread = 180.0
+				pm.initial_velocity_min = 0.4
+				pm.initial_velocity_max = 1.2
+				pm.gravity = Vector3(0, -1.2, 0)
+			"burst":
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+				pm.emission_sphere_radius = 0.2
+				pm.spread = 180.0
+				pm.initial_velocity_min = 2.5
+				pm.initial_velocity_max = 5.0
+				pm.gravity = Vector3(0, -2.5, 0)
+				pm.damping_min = 1.5
+				pm.damping_max = 2.5
+			"ward":
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+				pm.emission_ring_radius = 0.85
+				pm.emission_ring_inner_radius = 0.7
+				pm.emission_ring_height = 0.5
+				pm.emission_ring_axis = Vector3.UP
+				pm.initial_velocity_min = 0.05
+				pm.initial_velocity_max = 0.15
+				pm.tangential_accel_min = 2.5
+				pm.tangential_accel_max = 3.5
+				pm.gravity = Vector3.ZERO
+			"sprout":
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+				pm.emission_ring_radius = 1.0
+				pm.emission_ring_inner_radius = 0.2
+				pm.emission_ring_height = 0.05
+				pm.emission_ring_axis = Vector3.UP
+				pm.direction = Vector3.UP
+				pm.spread = 35.0
+				pm.initial_velocity_min = 1.0
+				pm.initial_velocity_max = 2.2
+				pm.gravity = Vector3(0, -1.5, 0)
 	)
 
 

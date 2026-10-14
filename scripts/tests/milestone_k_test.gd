@@ -4,6 +4,10 @@ extends Node
 ## screenshots/mktest/. Uses GAME time (works identically under Godot's Movie Maker recording).
 ##   face        expressive faces in real gameplay: both mages, close-ups, event-driven emotions (no timers),
 ##               blinks (count, interval), speech visemes, listening, personality difference Mika vs Luna
+##   spells      V3 Part XIII: the two spell families in real casts - Mika's Gale Spiral (helix, push), Verdant
+##               Bind (roots hold a chasing creature), Leaf Ward (bolts really stopped, limits honest); Luna's
+##               Umbral Rift (spikes, daze, scar), Gilded Mirror (front only, reflects once practised); the
+##               tactics that choose them; two short real fights
 
 var main: Node
 var mode := ""
@@ -89,6 +93,7 @@ func _run() -> void:
 		"territory": await _territory()
 		"rest": await _rest()
 		"stargaze": await _stargaze()
+		"spells": await _spells()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -1132,3 +1137,394 @@ func _env() -> void:
 		main.camera_rig.set_shot(Vector3(-56, w.height(-56, 56) + 2.6, 56), Vector3(-76, w.height(-76, 42) + 0.5, 42), 55.0)
 		await _wait(1.5)
 		_shot("09b_pond_night")
+
+
+# ------------------------------------------------------------------ spell families (V3 Part XIII, K5/K6)
+func _park(who: String, at: Vector3) -> void:
+	if not main.characters.has(who):
+		return
+	var oc: WorldCharacter = main.characters[who]
+	oc.global_position = NavigationServer3D.map_get_closest_point(oc.get_world_3d().navigation_map, at) + Vector3(0, 0.1, 0)
+
+
+func _find_spell(cls) -> Node:
+	for n in main.characters["mika"].get_parent().get_children():
+		if is_instance_of(n, cls):
+			return n
+	return null
+
+
+func _find_node(cls) -> Node:
+	return _find_spell(cls)
+
+
+## A test bolt flying at `who` from `from` (a creature's bolt if `owner` is given): resolves against her ward
+## and her real position. Returns the hazard's result {struck, absorbed_by, reflected, reflected_hit}.
+func _test_bolt(who: String, from: Vector3, owner: Monster = null, speed := 8.0) -> Dictionary:
+	var c: WorldCharacter = main.characters[who]
+	var h := AttackHazard.new()
+	h.kind = "projectile"
+	h.owner_monster = owner
+	h.center = from
+	h.dir = (c.global_position + Vector3(0, 1.05, 0) - from).normalized()
+	h.speed = speed
+	h.max_range = 30.0
+	h.vigor = 0.03
+	h.style = "ember"
+	var box := {"done": false, "struck": []}
+	h.resolved.connect(func(hz: AttackHazard, struck: Array): box.struck = struck.map(func(x): return x.character_id); box.done = true; box.absorbed_by = String(hz.get_meta("absorbed_by", "")); box.reflected = hz.has_meta("reflected"); box.reflected_hit = String(hz.get_meta("reflected_hit", "")); box.warder = String(hz.get_meta("warder", "")))
+	main.world.add_child(h)
+	var t0 := _gms()
+	while not box.done and _gms() - t0 < 6000:
+		await get_tree().process_frame
+	return box
+
+
+func _cast_watch(who: String, spell: String, target_id: String, tag: String, cls) -> Dictionary:
+	var c: WorldCharacter = main.characters[who]
+	var phases := []
+	var cb := func(cc: Node, sid: String, ph: String, _el: String, _pos: Vector3):
+		if cc == c and sid == spell:
+			phases.append(ph)
+	MagicEvents.spell_phase.connect(cb)
+	var box := {"done": false, "res": {}}
+	var runner := func():
+		box.res = await main.magic.cast(c, spell, target_id)
+		box.done = true
+	runner.call()
+	var t0 := _gms()
+	var seen := {"node": false, "charge_shot": false, "release_shot": false, "release_t": -1}
+	while not box.done and _gms() - t0 < 14000:
+		await get_tree().process_frame
+		var sp := _find_spell(cls)
+		if sp:
+			seen.node = true
+			if sp.get("_fired") is Dictionary:
+				var f: Dictionary = sp.get("_fired")
+				if f.has("charge") and not f.has("release") and not seen.charge_shot and sp.get("t") > sp.call("phase_time", "charge") + 0.25:
+					seen.charge_shot = true
+					_shot(tag + "_charge")
+				if f.has("release"):
+					if seen.release_t < 0:
+						seen.release_t = _gms()
+					if not seen.release_shot and _gms() - int(seen.release_t) > 380:
+						seen.release_shot = true
+						_shot(tag + "_release")
+	MagicEvents.spell_phase.disconnect(cb)
+	var out: Dictionary = box.res.duplicate()
+	out["phases"] = phases
+	out["node_seen"] = seen.node
+	return out
+
+
+func _spells() -> void:
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	for m in main.spawner.alive:
+		if is_instance_valid(m):
+			m.queue_free()
+	var map: RID = mika.get_world_3d().navigation_map
+	var mind_m := WorldState.mind("mika")
+	var mind_l := WorldState.mind("luna")
+	for w in ["mika", "luna"]:
+		WorldState.mind(w).vigor = 1.0
+		main.mage_brains[w].needs.energy = 0.9
+	var lens := {}
+	for cl in ["wide_arm_spell", "magic_attack_2h", "magic_attack_1h", "spell_casting", "brace", "cast_quick"]:
+		lens[cl] = snappedf(mika.animation_length(cl), 0.01)
+	report["clip_lengths"] = lens
+	# ---- the catalogue: two families, nothing granted early
+	var known_m: Array = main.magic.known_spells("mika").filter(func(x): return x.castable).map(func(x): return x.id)
+	var known_l: Array = main.magic.known_spells("luna").filter(func(x): return x.castable).map(func(x): return x.id)
+	_check(known_m.has("gale_spiral") and known_m.has("leaf_ward") and known_m.has("arcane_orb"), "Mika knows her family from the start (Gale Spiral, Leaf Ward) and keeps her first spell", known_m)
+	_check(known_l.has("umbral_lance") and known_l.has("gilded_mirror") and not known_l.has("gale_spiral") and not known_l.has("leaf_ward"), "Luna knows hers (Umbral Lance, Gilded Mirror), not Mika's", known_l)
+	_check(not main.magic.can_cast("verdant_bind", "mika").ok and not main.magic.can_cast("umbral_rift", "luna").ok, "the advanced techniques are refused before practice", [main.magic.can_cast("verdant_bind", "mika").reason])
+	_check(SignatureCast.spell_for("mika") == "gale_spiral" and SignatureCast.spell_for("luna") == "umbral_lance", "signatures: Mika wind, Luna umbral")
+	report["known"] = {"mika": known_m, "luna": known_l}
+
+	# ---- Mika at the training grounds, a thornback (ground, melee) out in front
+	await main.focus_mage("mika", true)
+	_park("luna", Vector3(-3, 0, 2))
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(27, 0, 4)) + Vector3(0, 0.1, 0)
+	mika.rotation.y = atan2(-1.0, 0.0)
+	await _wait(0.6)
+	var at := NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(7.5, 0, 1.0))
+	var tb: Monster = main.spawner.spawn("thornback", at)
+	_check(tb != null, "a thornback to work with")
+	if tb == null:
+		return
+	tb.set_physics_process(false)
+	await _wait(0.8)
+	_shot("00_stage")
+	# 1. GALE SPIRAL: a helix of two ribbons, leaves, a push
+	var p0 := tb.global_position
+	var r1 := await _cast_watch("mika", "gale_spiral", tb.id, "spiral", SylvanSpell)
+	await _wait(0.5)
+	_shot("spiral_after")
+	report["gale_spiral"] = r1
+	_check(r1.get("ok", false) and r1.get("outcome", "") == "hit", "Gale Spiral: cast through the pipeline and hit", [r1.get("outcome"), r1.get("reason", "")])
+	var ph1: Array = r1.get("phases", [])
+	_check(ph1.has("activation") and ph1.has("gather") and ph1.has("charge") and ph1.has("release") and ph1.has("impact"), "its phases follow her clip (activation, gather, charge, release, impact)", ph1)
+	_check(r1.get("node_seen", false) and String(r1.get("clip", "")) == "wide_arm_spell", "cast by SylvanSpell with her sweeping two-handed gesture", [r1.get("node_seen"), r1.get("clip")])
+	var pushed := float(r1.get("reaction", {}).get("pushed_m", 0.0))
+	var moved := Vector2(tb.global_position.x - p0.x, tb.global_position.z - p0.z).length()
+	_check(pushed > 0.3 and moved > 0.25, "the gust shoved the thornback back (real displacement)", [snappedf(pushed, 0.01), snappedf(moved, 0.01)])
+	_check(float(r1.get("reaction", {}).get("damage", 0.0)) > 0.0, "and hurt it", r1.get("reaction", {}).get("damage"))
+	# 2. VERDANT BIND: once the spiral is practised (fixture in the DISPOSABLE save), roots hold a chasing creature
+	mind_m.skills["gale_spiral"] = maxf(float(mind_m.skills.get("gale_spiral", 0.0)), 0.6)
+	mind_m.knowledge["practical:gale_spiral"] = 1
+	var cc: Dictionary = main.magic.can_cast("verdant_bind", "mika")
+	_check(cc.ok, "Verdant Bind unlocked by practice (Apprentice spiral + practical understanding)", cc)
+	tb.hp = tb.max_hp
+	tb.global_position = NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(8.5, 0, -0.5))
+	tb.target_mage = mika
+	tb.mstate = "chase"
+	tb.set_physics_process(true)
+	var t0 := _gms()
+	while _gms() - t0 < 3000 and Vector2(tb.global_position.x - mika.global_position.x, tb.global_position.z - mika.global_position.z).length() > 6.4:
+		await get_tree().process_frame
+	var d_cast := Vector2(tb.global_position.x - mika.global_position.x, tb.global_position.z - mika.global_position.z).length()
+	var r2 := await _cast_watch("mika", "verdant_bind", tb.id, "bind", SylvanSpell)
+	report["verdant_bind"] = r2
+	report["bind_cast_distance"] = snappedf(d_cast, 0.1)
+	var bound_state := tb.mstate
+	var cage := _find_node(SylvanSpell.RootCage)
+	var roots := 0
+	if cage:
+		roots = (cage as SylvanSpell.RootCage).roots.size()
+	await _wait(0.45)
+	_shot("bind_roots")
+	var pb := tb.global_position
+	var attacked_box := {"n": 0}
+	tb.attacked.connect(func(_m, _c, _a): attacked_box.n += 1)
+	await _wait(2.0)
+	_shot("bind_hold")
+	var held := Vector2(tb.global_position.x - pb.x, tb.global_position.z - pb.z).length()
+	_check(r2.get("ok", false) and r2.get("outcome", "") == "hit" and String(r2.get("effect", "")) == "bound", "Verdant Bind: the seam reached it and the roots caught it (judged when they closed)", [r2.get("outcome"), r2.get("effect"), r2.get("reason", ""), r2.get("distance_from_target_m")])
+	_check(bound_state == "bound" and roots >= 7, "a cage of roots grew round it and it is held", [bound_state, roots])
+	_check(held < 0.35 and attacked_box.n == 0, "while held it neither moved nor attacked (2 s)", [snappedf(held, 0.02), attacked_box.n])
+	var t1 := _gms()
+	while tb.mstate == "bound" and _gms() - t1 < 6000:
+		await get_tree().process_frame
+	_check(tb.mstate != "bound", "and the roots let it go when they withered", [tb.mstate, (_gms() - t1) / 1000.0])
+	# it goes back to being a creature: hold it still for the ward test
+	tb.set_physics_process(false)
+	tb.global_position = NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(7.0, 0, 1.5))
+	# 3. LEAF WARD: a ring of leaves that really stops bolts - two, then it is spent and the third lands
+	var r3 := await _cast_watch("mika", "leaf_ward", "", "ward_leaf", SylvanSpell)
+	report["leaf_ward"] = r3
+	var wd := Ward.active_for(mika)
+	_check(r3.get("ok", false) and String(r3.get("effect", "")) == "warded" and wd != null and wd.kind == "leaf", "Leaf Ward: cast (her brace), a ward node orbits her", [r3.get("effect"), r3.get("reason", ""), wd != null])
+	await _wait(0.4)
+	_shot("ward_leaf")
+	var from := mika.global_position + Vector3(6.0, 1.3, 0.5)
+	var b1 := await _test_bolt("mika", from, tb)
+	_shot("ward_leaf_absorb")
+	var b2 := await _test_bolt("mika", mika.global_position + Vector3(-5.5, 1.3, 2.0), tb)
+	await _wait(0.3)
+	var b3 := await _test_bolt("mika", from, tb)
+	report["leaf_bolts"] = [b1, b2, b3]
+	_check(b1.get("absorbed_by", "") == "leaf" and (b1.struck as Array).is_empty(), "a bolt from the front was stopped by the leaves", b1)
+	_check(b2.get("absorbed_by", "") == "leaf" and (b2.struck as Array).is_empty(), "a second bolt, from behind, too (the ring covers every side)", b2)
+	_check(b3.get("absorbed_by", "") == "" and (b3.struck as Array).has("mika"), "the third landed: the ward was spent (honest limits)", b3)
+	_check(float(mind_m.skills.get("leaf_ward", 0.0)) > 0.02, "stopping real bolts is practice for the ward", mind_m.skills.get("leaf_ward"))
+
+	# ---- Luna and an emberwing (a flyer that hovers and spits bolts). The stream's spotlight would hand the
+	# camera back to Mika: an explicit (locked) focus, as a developer's F3 does.
+	main.focus_locked = false
+	await main.focus_mage("luna", true)
+	_park("mika", Vector3(-3, 0, 2))
+	tb.queue_free()
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(27, 0, 4)) + Vector3(0, 0.1, 0)
+	luna.rotation.y = atan2(-1.0, 0.0)
+	_check(main.focus == "luna", "the camera follows Luna for her part", main.focus)
+	await _wait(5.0)      # the sub-area's establishing shot plays out first
+	var at2 := NavigationServer3D.map_get_closest_point(map, luna.global_position + Vector3(8.0, 0, 0.5))
+	var ew: Monster = main.spawner.spawn("emberwing", at2)
+	_check(ew != null, "an emberwing to work with")
+	if ew == null:
+		return
+	ew.set_physics_process(false)
+	await _wait(0.8)
+	# 4. UMBRAL RIFT (fixture: the lance practised)
+	mind_l.skills["umbral_lance"] = maxf(float(mind_l.skills.get("umbral_lance", 0.0)), 0.6)
+	mind_l.knowledge["practical:umbral_lance"] = 1
+	_check(main.magic.can_cast("umbral_rift", "luna").ok, "Umbral Rift unlocked by practice (Apprentice lance)", main.magic.can_cast("umbral_rift", "luna"))
+	var hp0 := ew.hp
+	var r4 := await _cast_watch("luna", "umbral_rift", ew.id, "rift", UmbralSpell)
+	report["umbral_rift"] = r4
+	var dazed_state := ew.mstate
+	var rift := _find_node(UmbralSpell.Rift)
+	var spikes_up := 0
+	if rift:
+		for sp in (rift as UmbralSpell.Rift).spikes:
+			if sp.visible:
+				spikes_up += 1
+	await _wait(0.2)
+	_shot("rift_erupt")
+	# a fixed close shot of the eruption and, later, of the scar (the director's framing stays on Luna)
+	if rift:
+		var rp: Vector3 = (rift as Node3D).global_position
+		var toward := Vector3(luna.global_position.x - rp.x, 0, luna.global_position.z - rp.z).normalized()
+		var sidev := toward.cross(Vector3.UP)
+		main.director.enabled = false
+		main.camera_rig.set_shot(rp + toward * 3.2 + sidev * 2.6 + Vector3(0, 1.9, 0), rp + Vector3(0, 0.9, 0), 46.0)
+		await _wait(0.15)
+		_shot("rift_erupt_close")
+		main.director.enabled = true
+	_check(r4.get("ok", false) and r4.get("outcome", "") == "hit" and String(r4.get("clip", "")) == "spell_casting", "Umbral Rift: cast by UmbralSpell and hit (judged when it erupted)", [r4.get("outcome"), r4.get("reason", ""), r4.get("clip")])
+	_check(String(r4.get("effect", "")) == "dazed" and dazed_state == "stagger", "the eruption dazed the emberwing (it reels; its attack is lost)", [r4.get("effect"), dazed_state])
+	_check(ew.hp < hp0 and spikes_up >= 7, "dark crystal spikes burst up through the rift and hurt it", [snappedf(hp0 - ew.hp, 0.1), spikes_up])
+	await _wait(3.0)
+	_shot("rift_scar")
+	var scar_ok := false
+	if rift and is_instance_valid(rift):
+		scar_ok = float(((rift as UmbralSpell.Rift).quad.material_override as ShaderMaterial).get_shader_parameter("scorch")) > 0.9
+		var rp2: Vector3 = (rift as Node3D).global_position
+		var toward2 := Vector3(luna.global_position.x - rp2.x, 0, luna.global_position.z - rp2.z).normalized()
+		main.director.enabled = false
+		main.camera_rig.set_shot(rp2 + toward2 * 3.0 + Vector3(0, 2.6, 0), rp2 + Vector3(0, 0.2, 0), 50.0)
+		await _wait(0.15)
+		_shot("rift_scar_close")
+		main.director.enabled = true
+	_check(scar_ok, "the rift cooled into a scar that stays on the ground", scar_ok)
+	# 5. GILDED MIRROR: front only; reflects once practised
+	var r5 := await _cast_watch("luna", "gilded_mirror", "", "ward_mirror", UmbralSpell)
+	report["gilded_mirror"] = r5
+	var wm := Ward.active_for(luna)
+	_check(r5.get("ok", false) and wm != null and wm.kind == "mirror" and not wm.reflects, "Gilded Mirror: a pane before her (no reflection yet at Apprentice)", [r5.get("effect"), r5.get("reason", ""), wm != null])
+	await _wait(0.4)
+	_shot("ward_mirror")
+	var ffront := luna.global_position + Vector3(6.5, 1.5, 0.3)
+	var m1 := await _test_bolt("luna", ffront, ew)
+	_shot("ward_mirror_absorb")
+	await _wait(0.4)
+	var r5b: Dictionary = await main.magic.cast(luna, "gilded_mirror")
+	await _wait(0.3)
+	var m2 := await _test_bolt("luna", luna.global_position + Vector3(-6.0, 1.5, 1.0), ew)
+	report["mirror_bolts"] = [m1, m2]
+	_check(m1.get("absorbed_by", "") == "mirror" and (m1.struck as Array).is_empty(), "a bolt from the front was stopped on the glass", m1)
+	_check(r5b.get("ok", false) and m2.get("absorbed_by", "") == "" and (m2.struck as Array).has("luna"), "a bolt from behind landed: the mirror covers only her front", [r5b.get("effect"), m2])
+	# Adept: the pane throws the bolt back at the creature that sent it
+	mind_l.skills["gilded_mirror"] = 1.6
+	var wold := Ward.active_for(luna)
+	if wold:
+		wold._spend("test")
+	await _wait(0.3)
+	var r5c: Dictionary = await main.magic.cast(luna, "gilded_mirror")
+	var wr := Ward.active_for(luna)
+	var hp1 := ew.hp
+	await _wait(0.25)
+	var m3 := await _test_bolt("luna", ffront, ew)
+	_shot("ward_mirror_reflect")
+	report["mirror_reflect"] = m3
+	_check(r5c.get("ok", false) and wr != null and wr.reflects and m3.get("reflected", false) and (m3.struck as Array).is_empty(), "practised (Adept): the mirror threw the bolt back", [r5c.get("effect"), wr != null and wr.reflects, m3])
+	_check(ew.hp < hp1 or m3.get("reflected_hit", "") != "", "and the bolt struck the emberwing that sent it", [snappedf(hp1 - ew.hp, 0.1), m3.get("reflected_hit", "")])
+	mind_l.skills["gilded_mirror"] = 0.3
+
+	# ---- the tactics that choose them
+	ew.set_physics_process(true)
+	ew.mstate = "recover"
+	var fam_l := CombatTactics.family_spell(lb, luna, ew, "umbral_lance", true, 7.0)
+	_check(fam_l == "umbral_rift", "Luna's tactics: a creature standing exposed -> the rift", fam_l)
+	ew.mstate = "chase"
+	var fam_l2 := CombatTactics.family_spell(lb, luna, ew, "umbral_lance", false, 7.0)
+	_check(fam_l2 == "umbral_lance", "...and the lance while it moves", fam_l2)
+	_check(CombatTactics.ward_spell(lb, luna) == "gilded_mirror" or Ward.active_for(luna) != null, "her ward is the mirror", CombatTactics.ward_spell(lb, luna))
+	var tb2: Monster = main.spawner.spawn("thornback", NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(4.0, 0, 0.0)))
+	if tb2:
+		tb2.set_physics_process(false)
+		tb2.mstate = "chase"
+		tb2.target_mage = mika
+		var fam_m := CombatTactics.family_spell(mb, mika, tb2, "gale_spiral", false, 4.0)
+		_check(fam_m == "verdant_bind", "Mika's tactics: a ground creature pressing in -> the roots", fam_m)
+		ew.mstate = "chase"
+		var fam_m2 := CombatTactics.family_spell(mb, mika, ew, "gale_spiral", false, 6.0)
+		_check(fam_m2 == "gale_spiral", "...and the spiral against a flyer (roots cannot reach it)", fam_m2)
+		tb2.queue_free()
+	_check(CombatTactics.ward_spell(mb, mika) == "leaf_ward", "her ward is the ring of leaves", CombatTactics.ward_spell(mb, mika))
+
+	# ---- two short real fights through the planner (the techniques chosen by the moment, not scripted)
+	await _wait(0.5)
+	ew.queue_free()
+	main.focus_locked = false
+	await main.focus_mage("mika", true)
+	_park("luna", Vector3(-3, 0, 2))
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(27, 0, 4)) + Vector3(0, 0.1, 0)
+	mika.rotation.y = atan2(-1.0, 0.0)
+	mind_m.vigor = 1.0
+	await _wait(4.5)
+	var tb3: Monster = main.spawner.spawn("thornback", NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(9.0, 0, 0.5)))
+	var fight_m := {}
+	if tb3:
+		tb3.target_mage = mika
+		tb3.mstate = "chase"
+		var fbox := {"done": false, "res": {}}
+		var frun := func():
+			fbox.res = await mb._hunt({"monster": tb3.id})
+			fbox.done = true
+		frun.call()
+		var tf := _gms()
+		var n := 0
+		while not fbox.done and _gms() - tf < 50000:
+			await get_tree().process_frame
+			n += 1
+			if n % 120 == 60:
+				_shot("fight_mika_%02d" % (n / 120))
+		if not fbox.done:
+			mb._cancel = true
+			await _wait(2.0)
+		fight_m = fbox.res
+		report["fight_mika"] = fight_m
+		var tac: Dictionary = fight_m.get("tactics", {})
+		_check(tac.get("spells", {}).has("verdant_bind") or tac.get("effects", {}).has("bound"), "in a real fight Mika used the roots on the crawler", tac)
+		_check(int(tac.get("casts", 0)) >= 2 and tac.get("spells", {}).has("gale_spiral"), "and her spiral", tac.get("spells"))
+	await _wait(0.5)
+	for m in main.spawner.alive:
+		if is_instance_valid(m):
+			m.queue_free()
+	main.focus_locked = false
+	await main.focus_mage("luna", true)
+	_park("mika", Vector3(-3, 0, 2))
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(27, 0, 4)) + Vector3(0, 0.1, 0)
+	luna.rotation.y = atan2(-1.0, 0.0)
+	mind_l.vigor = 1.0
+	mind_l.skills["gilded_mirror"] = 0.3
+	await _wait(4.5)
+	var ew2: Monster = main.spawner.spawn("emberwing", NavigationServer3D.map_get_closest_point(map, luna.global_position + Vector3(9.0, 0, 0.5)))
+	if ew2:
+		ew2.target_mage = luna
+		ew2._set_state("chase")
+		var fbox2 := {"done": false, "res": {}}
+		var frun2 := func():
+			fbox2.res = await lb._hunt({"monster": ew2.id})
+			fbox2.done = true
+		frun2.call()
+		var tf2 := _gms()
+		var n2 := 0
+		while not fbox2.done and _gms() - tf2 < 50000:
+			await get_tree().process_frame
+			n2 += 1
+			if n2 % 120 == 60:
+				_shot("fight_luna_%02d" % (n2 / 120))
+		if not fbox2.done:
+			lb._cancel = true
+			await _wait(2.0)
+		report["fight_luna"] = fbox2.res
+		var tac2: Dictionary = fbox2.res.get("tactics", {})
+		_check(int(tac2.get("casts", 0)) >= 2 and tac2.get("spells", {}).has("umbral_lance"), "in a real fight Luna used her lance", tac2.get("spells"))
+		_check(int(tac2.get("wards", 0)) > 0 or tac2.get("spells", {}).has("umbral_rift"), "and her family's other techniques (a mirror against its bolts, or the rift in an opening)", tac2)
+	main.focus_locked = false
+	# ---- sound: each family in its own voice
+	var sounds := {}
+	if AudioDirector.instance:
+		for e in AudioDirector.instance.log:
+			sounds[String(e.sound)] = int(sounds.get(String(e.sound), 0)) + 1
+	report["sounds"] = sounds
+	_check(sounds.has("spell_nature_release") and sounds.has("roots_erupt") and sounds.has("ward_leaf_up") and sounds.has("ward_leaf_absorb"), "Mika's techniques sound like leaves, wood and earth", sounds.keys().filter(func(k): return String(k).begins_with("spell_nature") or String(k).begins_with("roots") or String(k).begins_with("ward_leaf")))
+	_check(sounds.has("rift_open") and sounds.has("rift_erupt") and sounds.has("ward_mirror_up") and sounds.has("ward_mirror_absorb") and sounds.has("ward_mirror_reflect"), "Luna's like glass, shadow and crystal", sounds.keys().filter(func(k): return String(k).begins_with("rift") or String(k).begins_with("ward_mirror")))

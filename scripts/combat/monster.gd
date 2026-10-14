@@ -70,6 +70,10 @@ var _tgoal := Vector3.INF
 var _tplan_t := 0.0
 var _perception := 1.0
 var _prev_routine := "patrol"
+## V3 Part XIII: control effects the mages' families put on it (data-driven from the spell: bind_s / daze_s / push)
+var _bound := 0.0                  # held by roots: no moving, no attacking, a struggle
+var _bound_by := ""
+var controls: Array = []           # [t, kind, seconds] of binds / dazes / pushes it took (diagnostics, tests)
 
 
 func setup_monster(p_main: Node, kind_id: String, uid: String, at: Vector3, d: Dictionary) -> void:
@@ -83,7 +87,7 @@ func setup_monster(p_main: Node, kind_id: String, uid: String, at: Vector3, d: D
 	home = at
 	aim_radius = float(d.radius) + 0.15
 	aim_offset = Vector3(0, maxf(float(d.float), 0.45 if kind_id != "hollow_sentinel" else 1.4), 0)
-	supports = ["arcane", "umbral", "wind", "water", "fire", "mist", "rune", "eclipse"]
+	supports = ["arcane", "umbral", "wind", "water", "fire", "mist", "rune", "eclipse", "nature"]
 	_rng.seed = hash(uid)
 	_strafe_dir = 1.0 if _rng.randf() < 0.5 else -1.0
 	_build()
@@ -155,7 +159,7 @@ func is_melee() -> bool:
 
 ## A visible opening: it just finished an attack or is stuck/staggered/resting.
 func observed_opening() -> bool:
-	return mstate in ["recover", "stagger", "rest"] or (_t - _last_strike_t) < 0.9
+	return mstate in ["recover", "stagger", "rest", "bound"] or (_t - _last_strike_t) < 0.9
 
 
 func _attacks() -> Array:
@@ -167,7 +171,28 @@ func _attacks() -> Array:
 # ------------------------------------------------------------------ taking magic
 func react(element: String, power: float, point: Vector3, spell_id: String) -> Dictionary:
 	_spell = spell_id
-	return super.react(element, power, point, spell_id)
+	var r := super.react(element, power, point, spell_id)
+	# V3 Part XIII: what the spell DOES to it besides hurting it, from the spell's data - roots hold it, a rift
+	# dazes it, a gust shoves it. Only when the hit was real and it is still standing.
+	var sp := MagicSystem.spell(spell_id)
+	if alive() and r.get("effect", "none") not in ["none", "defeated"]:
+		if sp.has("bind_s") and bind(float(sp.bind_s) * (0.75 + 0.25 * minf(power, 1.0)), spell_id):
+			r["effect"] = "bound"
+			r["detail"] = "%s was caught: roots closed round its legs and held it" % label
+			r["bound_s"] = snappedf(_bound, 0.1)
+		if sp.has("daze_s") and daze(float(sp.daze_s) * (0.7 + 0.3 * minf(power, 1.0))):
+			r["effect"] = "dazed" if r.get("effect", "") != "bound" else "bound"
+			r["detail"] = String(r.get("detail", "")) + "; it reeled, dazed, in the rift's light"
+			r["dazed_s"] = snappedf(_stagger, 0.1)
+		if sp.has("push"):
+			var dir := _flat(aim_point() - point)
+			if dir.length() < 0.2:
+				dir = _flat(MagicSystem.last_cast_dir)
+			var moved := push(dir.normalized(), float(sp.push) * (0.6 + 0.6 * minf(power, 1.2)))
+			if moved > 0.05:
+				r["detail"] = String(r.get("detail", "")) + "; the gust shoved it back %.1f m" % moved
+				r["pushed_m"] = snappedf(moved, 0.01)
+	return r
 
 
 func _hit(element: String, power: float) -> Dictionary:
@@ -231,6 +256,60 @@ func _react_fire(p: float, _pt: Vector3) -> Dictionary: return _hit("fire", p)
 func _react_mist(p: float, _pt: Vector3) -> Dictionary: return _hit("mist", p)
 func _react_rune(p: float, _pt: Vector3) -> Dictionary: return _hit("rune", p)
 func _react_eclipse(p: float, _pt: Vector3) -> Dictionary: return _hit("eclipse", p)
+func _react_nature(p: float, _pt: Vector3) -> Dictionary: return _hit("nature", p)
+
+
+# ------------------------------------------------------------------ control effects (V3 Part XIII)
+## Roots close round it: it cannot move or attack until they wither. A creature high in the air is out of
+## reach of roots; a heavy one with real poise breaks them sooner.
+func bind(seconds: float, by := "") -> bool:
+	if not alive() or seconds <= 0.0 or float(def.float) > 1.0:
+		return false
+	_cancel_hazard()
+	_bound = seconds * (1.0 - 0.5 * float(def.get("poise", 0.0)))
+	_bound_by = by
+	controls.append([snappedf(_t, 0.01), "bind", snappedf(_bound, 0.1)])
+	_set_state("bound")
+	_sync()
+	return true
+
+
+## A short daze: it reels (no moving, no attacking) and its attack is lost.
+func daze(seconds: float) -> bool:
+	if not alive() or seconds <= 0.0:
+		return false
+	_cancel_hazard()
+	_stagger = maxf(_stagger, seconds)
+	controls.append([snappedf(_t, 0.01), "daze", snappedf(_stagger, 0.1)])
+	if creature:
+		_set_state("stagger")
+	_sync()
+	return true
+
+
+## Shoved along `dir` (flat): the body really travels (clamped to walkable ground for a ground creature) and it
+## loses a beat. Returns the distance really covered.
+func push(dir: Vector3, dist: float) -> float:
+	if not alive() or dist <= 0.0:
+		return 0.0
+	var d := _flat(dir).normalized()
+	var dest := global_position + d * dist
+	if float(def.float) < 0.5 and main and main.world:
+		var np := NavigationServer3D.map_get_closest_point(main.world.get_world_3d().navigation_map, dest)
+		if Vector2(np.x - dest.x, np.z - dest.z).length() > 0.6:
+			dest = global_position + d * dist * 0.35       # a tree or a wall behind it: it goes only so far
+		else:
+			dest = Vector3(np.x, dest.y, np.z)
+	if main and main.world and main.world.has_method("ground_at"):
+		dest.y = float(main.world.ground_at(dest.x, dest.z)) + (global_position.y - (float(main.world.ground_at(global_position.x, global_position.z))))
+	var moved := _flat(dest - global_position).length()
+	_stagger = maxf(_stagger, 0.35)
+	if creature and mstate not in ["bound", "dying"]:
+		_set_state("stagger")
+	var tw := create_tween()
+	tw.tween_property(self, "global_position", dest, 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	controls.append([snappedf(_t, 0.01), "push", snappedf(moved, 0.01)])
+	return moved
 
 
 func _roll_loot() -> Array:
@@ -291,6 +370,8 @@ func _set_state(s: String) -> void:
 		match s:
 			"wander", "chase", "return", "attack", "rest", "retreat":
 				creature.play("move" if s != "attack" and s != "rest" else "idle")
+			"bound":
+				creature.play("idle")
 			"alert":
 				creature.play("alert")
 			"stagger":
@@ -312,6 +393,7 @@ func _physics_process(delta: float) -> void:
 	_cd = maxf(0.0, _cd - delta)
 	_hurt = maxf(0.0, _hurt - delta)
 	_stagger = maxf(0.0, _stagger - delta)
+	_bound = maxf(0.0, _bound - delta)
 	for k in _attack_cd:
 		_attack_cd[k] = maxf(0.0, float(_attack_cd[k]) - delta)
 	stamina = clampf(stamina + delta * float(def.get("stamina_regen", 0.08)), 0.0, 1.0)
@@ -326,6 +408,12 @@ func _physics_process(delta: float) -> void:
 		_sync()
 		return
 	if _stagger > 0.0:
+		return
+	if mstate == "bound":
+		_struggle(delta)
+		if _bound <= 0.0:
+			mstate = "chase" if target_mage and is_instance_valid(target_mage) else "return"
+		_sync()
 		return
 	match mstate:
 		"wander":
@@ -392,7 +480,13 @@ func _think_j(delta: float) -> void:
 				_set_state("chase")
 		"stagger":
 			if _stagger <= 0.0:
-				_set_state("chase")
+				_set_state("chase" if target_mage and is_instance_valid(target_mage) else "return")
+		"bound":
+			_struggle(delta)
+			if creature:
+				creature.move_speed = 0.0
+			if _bound <= 0.0:
+				_set_state("chase" if target_mage and is_instance_valid(target_mage) else "return")
 		"windup":
 			if _lost_target():
 				_cancel_hazard()
@@ -657,6 +751,14 @@ func _move_toward(to: Vector3, speed: float, delta: float, face := true) -> void
 	global_position = nxt
 	if face:
 		_face(to, delta, float(def.get("turn", 6.0)))
+
+
+## Held by roots: it strains against them (small jerks of the body) and keeps its eyes on her.
+func _struggle(delta: float) -> void:
+	var jerk := sin(_t * 17.0) * sin(_t * 5.3)
+	rotation.y += jerk * 0.9 * delta
+	if target_mage and is_instance_valid(target_mage):
+		_face(target_mage.global_position, delta, 1.5)
 
 
 func _face(to: Vector3, delta: float, rate := 6.0) -> void:

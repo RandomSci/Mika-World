@@ -150,7 +150,7 @@ func _palette(spell_id: String, element: String) -> String:
 		"rune_activation": return "rune"
 		"elemental_charge": return "self"
 		"mist_veil": return "mist"
-	return element if element in ["arcane", "wind", "water", "fire", "mist", "umbral"] else "arcane"
+	return element if element in ["arcane", "wind", "water", "fire", "mist", "umbral", "nature"] else "arcane"
 
 
 func _on_phase(caster: Node, spell_id: String, phase: String, element: String, pos: Vector3) -> void:

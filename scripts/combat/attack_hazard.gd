@@ -21,7 +21,10 @@ var speed := 9.0
 var max_range := 14.0
 var vigor := 0.06
 var heavy := false
-var style := "ember"               # projectile look: ember (glowing bolt) | stone (a thrown boulder)
+var style := "ember"               # projectile look: ember (glowing bolt) | stone (a thrown boulder) | gale (Mika's training spiral) | shard (Luna's training shard)
+var reflected_at: Node3D = null     # a bolt a mirror threw back: it now flies at the creature that sent it
+var _axis := Vector3.ZERO           # gale: the straight path the weaving bolt travels round
+var _weave_t := 0.0
 var t_hit := 0.0                    # seconds from spawn until it lands (area / arc)
 var age := 0.0
 var color := Color(1.0, 0.55, 0.25)
@@ -57,8 +60,46 @@ func _ready() -> void:
 			look_at(global_position - Vector3(dir.x, 0, dir.z), Vector3.UP)
 	else:
 		global_position = center
+		_axis = center
 		_bolt = Node3D.new()
 		add_child(_bolt)
+		if style == "gale":
+			# Mika's training spiral: a small weaving current of air shedding leaves - no glowing ball
+			var head := FX.quad("res://shaders/magic/wind_arcs.gdshader", 0.55, {"color": color, "arcs": 3, "intensity": 2.6, "draw_progress": 1.0, "spin": 5.5}, false)
+			head.basis = Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.95 else Vector3.FORWARD)
+			_bolt.add_child(head)
+			var leaves := FX.particles(22, 0.6, FX.pm_leaves("trail"), FX.leaf_mesh(0.06))
+			leaves.emitting = true
+			_bolt.add_child(leaves)
+			var gust := FX.particles(34, 0.4, FX.pm_motes("wind", "trail"), FX.mote_mesh(0.06, true))
+			gust.emitting = true
+			_bolt.add_child(gust)
+			_bolt.add_child(FX.light(color, 0.9 * float(RenderProfile.get_setting("magic_light_scale")), 2.6))
+			return
+		if style == "shard":
+			# Luna's training shard: a short dark crystal with a gold rim, straight and quick
+			var shard := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.0
+			cm.bottom_radius = 0.05
+			cm.height = 0.52
+			cm.radial_segments = 6
+			cm.rings = 1
+			shard.mesh = cm
+			var sm := ShaderMaterial.new()
+			sm.shader = load("res://shaders/magic/umbral_core.gdshader")
+			sm.set_shader_parameter("rim_color", FX.palette("umbral")[0])
+			sm.set_shader_parameter("vein_color", color)
+			sm.set_shader_parameter("intensity", 1.3)
+			shard.material_override = sm
+			shard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			shard.basis = Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.95 else Vector3.FORWARD) * Basis(Vector3.RIGHT, -PI * 0.5)
+			_bolt.add_child(shard)
+			var sparks := FX.particles(28, 0.35, FX.pm_motes("umbral", "trail"), FX.mote_mesh(0.045, true))
+			sparks.emitting = true
+			_bolt.add_child(sparks)
+			_bolt.add_child(FX.light(FX.palette("umbral")[0], 1.0 * float(RenderProfile.get_setting("magic_light_scale")), 2.8))
+			return
 		if style == "stone":
 			var rock := MeshInstance3D.new()
 			var sm2 := SphereMesh.new()
@@ -177,16 +218,54 @@ func _physics_process(delta: float) -> void:
 	var step := Vector3(dir.x, dir.y, dir.z).normalized() * speed * delta
 	var from := _bolt.global_position
 	var to := from + step
+	if style == "gale":
+		# the spiral weaves round its straight path; the hit test uses where it really is
+		_axis += step
+		_weave_t += delta
+		var f := Vector3(dir.x, dir.y, dir.z).normalized()
+		var perp := f.cross(Vector3.UP)
+		perp = perp.normalized() if perp.length() > 0.05 else Vector3.RIGHT
+		var upv := perp.cross(f).normalized()
+		to = _axis + (perp * cos(_weave_t * 10.0) + upv * sin(_weave_t * 10.0)) * 0.14
 	_travelled += step.length()
 	var struck := []
 	for c in _mages():
 		if c == owner_mage:
 			continue
+		if c.has_meta("transforming"):
+			continue
+		# a ward she has up is judged first: does this bolt really cross it, from a side it covers?
+		var w := Ward.active_for(c)
+		if w and w.covers(from) and w.intercepts(from, to):
+			var at := w.hit_point(from, to)
+			var how := w.absorb(self, at)
+			set_meta("warder", (c as WorldCharacter).character_id)
+			if how == "reflected":
+				_reflect(c as WorldCharacter, at)
+				return
+			set_meta("absorbed_by", w.kind)
+			_finish([], at)
+			return
 		var cp: Vector3 = c.global_position + Vector3(0, 1.0, 0)
 		var seg := Geometry3D.get_closest_point_to_segment(cp, from, to)
-		if seg.distance_to(cp) < 0.55 and not c.has_meta("transforming"):
+		if seg.distance_to(cp) < 0.55:
+			if w:
+				# struck despite a ward: say why (diagnostics for the duel log / tests)
+				set_meta("ward_bypassed", {"kind": w.kind, "covers": w.covers(from), "pane_dist": snappedf((w.hit_point(from, to) - (w._centre() + w._fwd() * 0.55)).length(), 0.01) if w.kind == "mirror" else -1.0, "age": snappedf(w._age, 0.01)})
 			struck.append(c)
 			break
+	# a bolt thrown back by a mirror: it can strike the creature that sent it
+	if reflected_at and is_instance_valid(reflected_at) and reflected_at.has_method("apply_damage") and (reflected_at as Monster).alive():
+		var mp: Vector3 = (reflected_at as Monster).aim_point()
+		var seg2 := Geometry3D.get_closest_point_to_segment(mp, from, to)
+		if seg2.distance_to(mp) < (reflected_at as Monster).aim_radius + 0.3:
+			(reflected_at as Monster).last_attacker = owner_mage
+			var dmg := vigor * 260.0
+			var rr: Dictionary = (reflected_at as Monster).apply_damage(dmg, "umbral")
+			ImpactFX.play(get_parent(), seg2, "umbral", 0.6, rr.get("effect", "") == "defeated")
+			set_meta("reflected_hit", rr.get("effect", ""))
+			_finish([], seg2)
+			return
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	q.exclude = _exclude
 	q.collision_mask = 1
@@ -194,6 +273,33 @@ func _physics_process(delta: float) -> void:
 	_bolt.global_position = to if hit.is_empty() else hit.position
 	if not struck.is_empty() or not hit.is_empty() or _travelled > max_range:
 		_finish(struck, _bolt.global_position)
+
+
+## Thrown back by `c`'s mirror: it now belongs to her and flies at whoever sent it (the mage across the
+## training ground, or the creature), gold-lit, a little faster.
+func _reflect(c: WorldCharacter, at: Vector3) -> void:
+	var back_to := center + dir * -1.0
+	if owner_mage and is_instance_valid(owner_mage):
+		back_to = owner_mage.global_position + Vector3(0, 1.05, 0)
+	elif owner_monster and is_instance_valid(owner_monster):
+		back_to = (owner_monster as Monster).aim_point()
+		reflected_at = owner_monster
+	dir = (back_to - at).normalized()
+	owner_mage = c
+	owner_monster = null
+	set_meta("caster", c.character_id)
+	set_meta("reflected", true)
+	_travelled = 0.0
+	max_range = maxf(max_range, 22.0)
+	speed *= 1.15
+	_axis = at
+	_bolt.global_position = at
+	for n in _bolt.get_children():
+		if n is OmniLight3D:
+			(n as OmniLight3D).light_color = FX.palette("umbral")[0]
+		elif n is MeshInstance3D and (n as MeshInstance3D).material_override is ShaderMaterial:
+			((n as MeshInstance3D).material_override as ShaderMaterial).set_shader_parameter("color", FX.palette("umbral")[0])
+	FX.burst(get_parent(), at, 20, 0.5, FX.pm_motes("umbral", "burst"), FX.mote_mesh(0.045, true))
 
 
 func _resolve_ground() -> void:
@@ -211,10 +317,16 @@ func _finish(struck: Array, at: Vector3) -> void:
 	remove_from_group("attack_hazard")
 	resolved.emit(self, struck)
 	if kind == "projectile":
-		if style == "stone":
-			FX.burst(get_parent(), at, 12, 1.0, FX.pm_puff("dust"), FX.puff_mesh(0.45))
-		else:
-			FX.burst(get_parent(), at, 18, 0.5, FX.pm_motes("fire", "burst"), FX.mote_mesh(0.05))
+		match style:
+			"stone":
+				FX.burst(get_parent(), at, 12, 1.0, FX.pm_puff("dust"), FX.puff_mesh(0.45))
+			"gale":
+				FX.burst(get_parent(), at, 16, 0.9, FX.pm_leaves("burst"), FX.leaf_mesh(0.06))
+				FX.burst(get_parent(), at, 20, 0.5, FX.pm_motes("wind", "burst"), FX.mote_mesh(0.045, true))
+			"shard":
+				FX.burst(get_parent(), at, 22, 0.6, FX.pm_motes("umbral", "burst"), FX.mote_mesh(0.045, true))
+			_:
+				FX.burst(get_parent(), at, 18, 0.5, FX.pm_motes("fire", "burst"), FX.mote_mesh(0.05))
 		queue_free()
 	else:
 		var tw := create_tween()

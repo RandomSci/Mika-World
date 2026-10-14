@@ -901,7 +901,7 @@ func _hunt(o: Dictionary) -> Dictionary:
 	# Milestone J: a tactical loop. Each beat she decides from what she perceives (CombatTactics) and
 	# Godot executes it: dodges are real movement, casts go through the truthful spell pipeline.
 	me.set_combat_stance(true)
-	var st := {"casts": 0, "hits": 0, "dodges": 0, "dodged": 0, "struck": 0, "signature": 0, "assists": 0, "intents": {}}
+	var st := {"casts": 0, "hits": 0, "dodges": 0, "dodged": 0, "struck": 0, "signature": 0, "assists": 0, "intents": {}, "wards": 0, "spells": {}, "effects": {}}
 	var t_fight := Time.get_ticks_msec()
 	while is_instance_valid(m) and m.alive() and int(st.casts) < 12 and not _cancel and Time.get_ticks_msec() - t_fight < 90000:
 		var dec := CombatTactics.decide(self, me, m, spell)
@@ -921,6 +921,20 @@ func _hunt(o: Dictionary) -> Dictionary:
 			"brace":
 				me.play_gesture("brace", 0.06, 0.3)
 				await get_tree().create_timer(0.4).timeout
+			"hold":
+				# her ward is up: stand, face the bolt, let the ward answer it
+				if bool(dec.get("turn", false)):
+					me.look_at_point(dec.face)
+				await get_tree().create_timer(0.12).timeout
+			"ward":
+				# her family's defence, a real one: the bolt is judged against the ward when it arrives
+				var wid := String(dec.spell)
+				var wres: Dictionary = await main.magic.cast(me, wid)
+				st.wards += 1
+				st.spells[wid] = int(st.spells.get(wid, 0)) + 1
+				if wres.get("ok", false):
+					_note_cooldown(wid)
+					_maybe_say(_lines("ward", ["Not this time."]), 0.35)
 			"retreat":
 				me.set_combat_stance(false)
 				_maybe_say(_lines("retreat", ["Too much. I need to step back.", "Back to the circle."]), 1.0)
@@ -941,9 +955,20 @@ func _hunt(o: Dictionary) -> Dictionary:
 					res = await SignatureCast.perform(main, me, m)
 					st.signature += 1
 				else:
-					res = await main.magic.cast(me, spell, m.id)
+					var sp := String(dec.get("spell", spell))
+					res = await main.magic.cast(me, sp, m.id)
+					st.spells[sp] = int(st.spells.get(sp, 0)) + 1
+					if res.get("ok", false):
+						_note_cooldown(sp)
 				st.casts += 1
 				needs.energy = clampf(needs.energy - 0.04, 0.0, 1.0)
+				var eff := String(res.get("effect", ""))
+				if eff != "":
+					st.effects[eff] = int(st.effects.get(eff, 0)) + 1
+				if eff == "bound":
+					_maybe_say(_lines("bind", ["Hold still!"]), 0.8)
+				elif eff == "dazed":
+					_maybe_say(_lines("rift", ["Stand there, then."]), 0.6)
 				if res.get("outcome", "") == "hit":
 					st.hits += 1
 				elif res.get("outcome", "") == "refused":
@@ -975,6 +1000,18 @@ func _hunt(o: Dictionary) -> Dictionary:
 
 ## Recent tactical decisions (overlay, tests, bridge): what she chose and why.
 var tactics_log: Array = []
+## V3 Part XIII: when each technique of her family may be used again (game time), from the spell's cooldown_s.
+var spell_cd := {}
+
+
+func spell_ready(id: String) -> bool:
+	return WorldState.game_time() >= float(spell_cd.get(id, 0.0))
+
+
+func _note_cooldown(id: String) -> void:
+	var cd := float(MagicSystem.spell(id).get("cooldown_s", 0.0))
+	if cd > 0.0:
+		spell_cd[id] = WorldState.game_time() + cd
 
 func _note_tactic(dec: Dictionary) -> void:
 	tactics_log.append({"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.1), "intent": dec.intent, "why": dec.get("why", "")})

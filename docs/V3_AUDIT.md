@@ -21,9 +21,9 @@ Godot runs). Where something is an estimate it says so.
 | K1 expressive faces, affect model, character light balance | **done** | `--mktest=face` 16/16 |
 | K2 companions (grounded conversations, invitations, walking together, two-shot/OTS camera) | **done** | `--mktest=companions` PASS on a copy of the real save |
 | K3 friendly training duels | **done** | `--mktest=duel` PASS |
-| K7 Whispering Woods, one continuous route | **done, visually unfinished** (see §4) | `--mktest=env` 15/15 landmarks reachable; `screenshots/mktest/clips/woods_walk_day.mp4` (179 s, 1080p, real game camera) |
+| K7 Whispering Woods, one continuous route | **done, visually unfinished** (see §4) | `--mktest=env` 15/15 landmarks reachable; `screenshots/mktest/clips/woods_walk_day.mp4` (179 s, 1600×900, real game camera) |
 | K4 better monster models | not started (sources evaluated in Milestone J; Ultimate Monsters download was quota-blocked) | — |
-| K5/K6 distinct Mika (wind/nature) vs Luna (arcane/umbral) spell VFX | not started; today both use the shared elemental pipeline with per-element layers (8 spells in `data/spells.json`) | — |
+| K5/K6 distinct Mika (wind/nature) vs Luna (arcane/umbral) spell VFX | **done** (2026-10-14, after this audit): two families with their own pipelines, wards, creature control effects, family training bolts — `docs/SPELL_FAMILIES.md` | `--mktest=spells` PASS |
 | K8 creature territories | not started; creatures still spawn only in the Sanctuary hub from fixed anchors (`scripts/combat/spawner.gd`, `current_id != "sanctuary"` gate) | — |
 | K9 learned teleportation / spatial-magic knowledge | not started (the ruins' inscription exists as a prop, not yet as a knowledge clue) | — |
 | K10 expeditions, K11 consistency model, K13 wilderness audio (partly: waterfall/stream/den beds exist), K14 controlled benchmark, K15 credits doc, K17 20 demos, K18 report | open | — |

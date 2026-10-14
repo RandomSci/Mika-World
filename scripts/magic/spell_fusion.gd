@@ -10,6 +10,9 @@ signal fused(fusion: Dictionary)
 const WINDOW_S := 2.5
 const RECIPES := {
 	"eclipse_convergence": {"name": "Eclipse Convergence", "elements": ["arcane", "umbral"], "bonus": 0.9, "element": "eclipse"},
+	# V3 spell families: Mika's wind and growing magic meeting Luna's shadow
+	"veiled_tempest": {"name": "Veiled Tempest", "elements": ["wind", "umbral"], "bonus": 0.8, "element": "eclipse"},
+	"thorned_night": {"name": "Thorned Night", "elements": ["nature", "umbral"], "bonus": 0.85, "element": "eclipse"},
 }
 
 var main: Node
