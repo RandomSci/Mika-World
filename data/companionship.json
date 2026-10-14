@@ -200,6 +200,26 @@
    "stargaze_done": [
     "Okay. Up, before I fall asleep here.",
     "We should head back. Thank you for this."
+   ],
+   "share_worry": [
+    "That {creature}... I had to back off. I hate that I had to back off.",
+    "I ran from a {creature} today. Not my proudest moment.",
+    "There's a {creature} I couldn't handle. Yet."
+   ],
+   "react_worry": [
+    "Then we get ready for it. Together, if you want.",
+    "You came back in one piece. That's what counts.",
+    "Next time you'll know how it moves."
+   ],
+   "share_triumph": [
+    "Remember that {creature}? I beat it. I actually beat it!",
+    "I went back for the {creature}. This time I was ready.",
+    "The {creature} - it's done. I practised, and it worked."
+   ],
+   "react_triumph": [
+    "See? I told you you'd get it!",
+    "That's amazing. Show me how you did it?",
+    "You were ready this time. It showed."
    ]
   },
   "luna": {
@@ -360,6 +380,26 @@
    "stargaze_done": [
     "Enough. My back is damp.",
     "Up. Before you start humming."
+   ],
+   "share_worry": [
+    "A {creature} drove me off. I don't intend to let that stand.",
+    "I withdrew from a {creature}. I need to be better before I face it again.",
+    "There's a {creature} out there that was stronger than me. For now."
+   ],
+   "react_worry": [
+    "Withdrawing was the right call. Now you prepare.",
+    "Tell me how it moved. We'll work it out.",
+    "Then practise your ward. That's where it got you, wasn't it?"
+   ],
+   "share_triumph": [
+    "The {creature} that drove me off. I went back. It's finished.",
+    "I faced the {creature} again. I was ready this time.",
+    "That {creature} - I beat it. Preparation is everything."
+   ],
+   "react_triumph": [
+    "Good. You earned that one.",
+    "I knew you would. You never let things go.",
+    "Then it was worth the practice."
    ]
   }
  }

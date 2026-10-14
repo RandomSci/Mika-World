@@ -114,6 +114,16 @@ static func topics(who: String, other: String) -> Array:
 					out.append({"kind": "ask_creature", "topic": topic, "fill": fill, "creature": topic.trim_prefix("monster:"), "w": 1.1})
 				elif topic.begins_with("clue:"):
 					out.append({"kind": "ask_clue", "topic": topic, "fill": {"topic": _clue_title(topic)}, "w": 1.0})
+	# unfinished business and a fight finally won (V3 Part 5: what happened shapes what she talks about)
+	for k in m.knowledge:
+		var kk := String(k)
+		if (kk.begins_with("unfinished:") or kk.begins_with("overcame:")) and m.knowledge[k] is Dictionary and not told_other.call(kk):
+			var ent: Dictionary = m.knowledge[k]
+			var nm2 := String(ent.get("name", kk.get_slice(":", 1))).to_lower()
+			if kk.begins_with("unfinished:"):
+				out.append({"kind": "worry", "topic": kk, "fill": {"creature": nm2}, "w": 1.35})
+			else:
+				out.append({"kind": "triumph", "topic": kk, "fill": {"creature": nm2}, "w": 1.3})
 	# shared memories (each recalls her OWN record of it)
 	for k in m.knowledge:
 		var ks2 := String(k)
@@ -188,6 +198,12 @@ func _exchange(sp: String, ls: String, t: Dictionary) -> Array:
 		"reminisce":
 			out.append({"who": sp, "text": line(sp, "reminisce", t.fill)})
 			out.append({"who": ls, "text": line(ls, "reminisce_reply")})
+		"worry":
+			out.append({"who": sp, "text": line(sp, "share_worry", t.fill), "teach": {"to": ls, "topic": t.topic, "text": "%s had to back away from a %s" % [MagicSystem.display_name(sp), t.fill.creature]}})
+			out.append({"who": ls, "text": line(ls, "react_worry", t.fill)})
+		"triumph":
+			out.append({"who": sp, "text": line(sp, "share_triumph", t.fill), "teach": {"to": ls, "topic": t.topic, "text": "%s beat the %s in the end" % [MagicSystem.display_name(sp), t.fill.creature]}})
+			out.append({"who": ls, "text": line(ls, "react_triumph", t.fill)})
 	return out
 
 

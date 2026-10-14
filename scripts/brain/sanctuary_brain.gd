@@ -227,6 +227,15 @@ func options() -> Array:
 		var npc = main.npcs.present[nid]
 		if is_instance_valid(npc) and npc.state == "idle" and not _talked_this_visit.has(nid + str(main.dialogue.state_of(nid).visits)):
 			out.append({"kind": "converse", "key": "converse:" + nid, "npc": nid, "label": "talk with %s" % main.dialogue.travellers[nid].name})
+	# getting ready for an unfinished fight: drill her family's ward (a real cast each time; mastery grows)
+	if not unfinished().is_empty() and mind.vigor > 0.5:
+		for wid in MagicSystem.load_catalog().spells:
+			var ws: Dictionary = MagicSystem.spell(wid)
+			if String(ws.get("projectile", "")) == "ward" and String(ws.get("caster", agent_id)) == agent_id and main.magic.can_cast(wid, agent_id).ok:
+				var uf: Dictionary = unfinished()[0]
+				out.append({"kind": "drill", "key": "drill:" + wid, "spell": wid, "for": String(uf.get("kind", "")),
+					"label": "drill her %s (getting ready for the %s)" % [String(ws.get("name", wid)).to_lower(), String(uf.get("name", "creature")).to_lower()]})
+				break
 	# a lesson being taught where she is (the academy's teacher living his own day): a free place on the bench
 	if _allowed("lesson") and main.get("town") and main.town.teaching() != null:
 		var last := float(String(mind.knowledge.get("lesson_last_min", "-9999")))
@@ -378,8 +387,15 @@ func score(o: Dictionary) -> Dictionary:
 		"converse":
 			u = 0.55 + needs.social * 0.5
 			why.append("visitor present")
+		"drill":
+			u = 0.3 + needs.mastery * 0.3 + 0.35 - (1.0 - needs.energy) * 0.4 - (1.0 - mind.vigor) * 0.4
+			why.append("unfinished business with the %s +0.35" % String(o.get("for", "")).replace("_", " "))
 		"lesson":
 			u = 0.45 + needs.curiosity * 0.3 + needs.mastery * 0.35 - (1.0 - needs.energy) * 0.2
+			var unf := unfinished()
+			if not unf.is_empty():
+				u += 0.2
+				why.append("to be readier for the %s +0.20" % String(unf[0].get("name", "creature")).to_lower())
 			if o.first:
 				u += 0.25
 				why.append("a real teacher, never heard him +0.25")
@@ -403,6 +419,12 @@ func score(o: Dictionary) -> Dictionary:
 			if o.attacking_me:
 				u += 0.65 * mind.vigor
 				why.append("it is attacking me")
+			elif mind.knowledge.has("unfinished:" + String(o.monster_kind)):
+				# not ready: it keeps her away; the readier she has made herself, the more a rematch draws her
+				var rd := clampf(readiness(String(o.monster_kind)), 0.0, 1.0)
+				var adj := -0.35 + 0.75 * rd
+				u += adj
+				why.append(("a rematch she has prepared for %+.2f" if rd >= 1.0 else "not ready for it yet (readiness %d%%) %+.2f") % ([adj] if rd >= 1.0 else [int(rd * 100), adj]))
 		"roam":
 			var cs: Dictionary = o.cand
 			u = 0.12 + needs.curiosity * 0.45 + float(cs.score) * 0.3
@@ -591,6 +613,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"rest": return await _rest(o)
 		"alchemy": return await _use("alchemy_table")
 		"lesson": return await _use(String(o.interactable))
+		"drill": return await _drill(o)
 		"converse": return await _converse(o)
 		"journal": return await _journal()
 		"attune": return await _attune(o)
@@ -965,6 +988,7 @@ func _hunt(o: Dictionary) -> Dictionary:
 			"retreat":
 				me.set_combat_stance(false)
 				_maybe_say(_lines("retreat", ["Too much. I need to step back.", "Back to the circle."]), 1.0, "retreat")
+				_remember_unfinished(m)
 				await _recover()
 				return {"ok": false, "detail": "withdrew to the circle after %d cast(s), %d hit(s), %d dodge(s)" % [st.casts, st.hits, st.dodges], "tactics": st}
 			"assist":
@@ -1009,6 +1033,7 @@ func _hunt(o: Dictionary) -> Dictionary:
 	me.set_combat_stance(false)
 	threat = null
 	if not is_instance_valid(m) or not m.alive():
+		_remember_overcome(String(o.get("monster_kind", "")))
 		needs.mastery = clampf(needs.mastery - 0.2, 0.0, 1.0)
 		me.play_gesture("victory_nod", 0.3, 0.5)
 		me.set_expression("happy", 0.6)
@@ -1029,6 +1054,73 @@ func _hunt(o: Dictionary) -> Dictionary:
 		me.set_combat_stance(false)
 		return {"ok": true, "detail": "it fled after %d cast(s), %d hit(s)" % [st.casts, st.hits], "hits": st.hits, "tactics": st, "fled": true}
 	return {"ok": false, "detail": "%d cast(s), %d hit(s); it is still there" % [st.casts, st.hits], "hits": st.hits, "tactics": st}
+
+
+## V3 Part 5 (experiences lead to future actions): a creature she had to withdraw from is UNFINISHED BUSINESS in
+## her own mind - what it was, when, how strong she was then. Until she is readier (a level higher, or a lesson /
+## a new ward since) her planner keeps her away from it and leans toward getting ready (wards, lessons); once she
+## is, a rematch is attractive. Beating it closes the episode ("overcame:<kind>"), and both are things she can tell
+## her companion about. Nothing is scripted: the scores move, her own choices do the rest.
+func _remember_unfinished(m: Monster) -> void:
+	if m == null or not is_instance_valid(m):
+		return
+	var k := "unfinished:" + m.kind
+	var prev: Dictionary = mind.knowledge.get(k, {}) if mind.knowledge.get(k) is Dictionary else {}
+	mind.knowledge[k] = {"kind": m.kind, "name": String(m.def.get("name", m.kind)), "at": WorldState.clock_text(), "world_min": WorldState.world_min,
+		"level": mind.level(), "lessons": _lessons_heard(), "wards": _ward_mastery(), "times": int(prev.get("times", 0)) + 1}
+	_private_thought("That %s was too much for me. Next time I'll be ready for it." % String(m.def.get("name", m.kind)).to_lower())
+
+
+func _remember_overcome(kind: String) -> void:
+	var k := "unfinished:" + kind
+	if kind == "" or not mind.knowledge.has(k):
+		return
+	var u: Dictionary = mind.knowledge[k] if mind.knowledge[k] is Dictionary else {}
+	mind.knowledge.erase(k)
+	mind.knowledge["overcame:" + kind] = {"kind": kind, "name": String(u.get("name", kind)), "at": WorldState.clock_text(), "after": int(u.get("times", 1)), "first_at": String(u.get("at", ""))}
+	_private_thought("I beat the %s this time. I was ready." % String(u.get("name", kind)).to_lower())
+
+
+func _drill(o: Dictionary) -> Dictionary:
+	var wid := String(o.spell)
+	var m0 := MagicSystem.mastery(wid, agent_id)
+	var done := 0
+	for i in 3:
+		if _cancel:
+			break
+		current.stage = "drilling the %s (%d/3)" % [String(MagicSystem.spell(wid).get("name", wid)).to_lower(), i + 1]
+		var r: Dictionary = await main.magic.cast(me, wid)
+		if r.get("ok", false):
+			done += 1
+		# let it fade, breathe, set her feet again
+		await get_tree().create_timer(rng.randf_range(2.5, 4.0)).timeout
+	var m1 := MagicSystem.mastery(wid, agent_id)
+	return {"ok": done > 0, "detail": "drilled her %s %d time(s) (mastery %.2f -> %.2f), getting ready for the %s" % [String(MagicSystem.spell(wid).get("name", wid)).to_lower(), done, m0, m1, String(o.get("for", "")).replace("_", " ")],
+		"mastery": [m0, m1]}
+
+
+func _lessons_heard() -> int:
+	return mind.knowledge.keys().filter(func(x): return String(x).begins_with("lesson:")).size()
+
+
+func _ward_mastery() -> float:
+	var t := 0.0
+	for id in MagicSystem.load_catalog().spells:
+		if String(MagicSystem.spell(id).get("projectile", "")) == "ward":
+			t += MagicSystem.mastery(id, agent_id)
+	return t
+
+
+## How much readier she is for an unfinished fight than when she withdrew (0 = no different).
+func readiness(kind: String) -> float:
+	var u = mind.knowledge.get("unfinished:" + kind)
+	if not (u is Dictionary):
+		return 1.0
+	return float(mind.level() - int(u.get("level", 0))) + float(_lessons_heard() - int(u.get("lessons", 0))) * 0.5 + (_ward_mastery() - float(u.get("wards", 0.0))) * 0.8
+
+
+func unfinished() -> Array:
+	return mind.knowledge.keys().filter(func(x): return String(x).begins_with("unfinished:")).map(func(x): return mind.knowledge[x])
 
 
 ## Recent tactical decisions (overlay, tests, bridge): what she chose and why.

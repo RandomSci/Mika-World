@@ -39,7 +39,8 @@
     "gather",
     "perform",
     "roam",
-    "lesson"
+    "lesson",
+    "drill"
    ],
    "temperament": {
     "research": 1.1,
@@ -297,7 +298,8 @@
     "gather",
     "perform",
     "roam",
-    "lesson"
+    "lesson",
+    "drill"
    ],
    "temperament": {
     "hunt": 1.35,

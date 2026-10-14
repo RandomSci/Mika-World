@@ -108,6 +108,7 @@ func _run() -> void:
 		"appearances": await _appearances()
 		"pack": await _pack_hunt()
 		"town": await _town()
+		"rematch": await _rematch()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3023,3 +3024,72 @@ func _town() -> void:
 	for rid in t.residents:
 		report["academy_day"][rid] = (t.residents[rid] as Resident).log.map(func(e): return "%s %s" % [e.t, e.what])
 	print("[town] academy: ", JSON.stringify(report["academy_day"]))
+
+
+# ------------------------------------------------------------------ unfinished business (V3 Part 5)
+func _rematch() -> void:
+	var luna: WorldCharacter = main.characters.get("luna")
+	if luna == null:
+		_check(false, "Luna exists (run with --luna)")
+		return
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	var lm := WorldState.mind("luna")
+	await _hold_all()
+	main.director.enabled = true
+	var map: RID = luna.get_world_3d().navigation_map
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(26, 0, 6)) + Vector3(0, 0.1, 0)
+	await main.focus_mage("luna", true)
+	# 1) tired out, she meets something strong: a real fight she withdraws from
+	lm.vigor = 0.26
+	var mon: Monster = main.spawner.spawn("hollow_sentinel", NavigationServer3D.map_get_closest_point(map, luna.global_position + Vector3(8, 0, 1)))
+	await _wait(1.5)
+	var hopts := lb.options().filter(func(o): return o.kind == "hunt")
+	var fr := {}
+	if not hopts.is_empty():
+		fr = await lb.run_activity(hopts[0].merged(lb.score(hopts[0])))
+	report["fight1"] = fr.get("detail", "")
+	var unf = lm.knowledge.get("unfinished:hollow_sentinel")
+	_check(unf is Dictionary, "she withdrew and remembers it as unfinished business (%s)" % fr.get("detail", ""), unf)
+	if is_instance_valid(mon):
+		mon.queue_free()
+	await _wait(2.0)
+	lm.vigor = 1.0
+	# 2) her planner now leans toward getting ready, and keeps her away from it
+	var opts: Array = lb.options()
+	var drill: Array = opts.filter(func(o): return String(o.kind) == "drill")
+	_check(not drill.is_empty(), "getting ready is now an option (drill her ward)", drill)
+	var probe: Monster = main.spawner.spawn("hollow_sentinel", NavigationServer3D.map_get_closest_point(map, luna.global_position + Vector3(14, 0, 2)))
+	await _wait(1.0)
+	var h2: Array = lb.options().filter(func(o): return String(o.kind) == "hunt" and String(o.monster_kind) == "hollow_sentinel")
+	var s_before := {}
+	if not h2.is_empty():
+		s_before = lb.score(h2[0])
+	_check(not s_before.is_empty() and (s_before.get("why", []) as Array).any(func(w): return String(w).begins_with("not ready")), "she would rather not face it yet", s_before)
+	if is_instance_valid(probe):
+		probe.queue_free()
+	# 3) she drills (real casts), twice
+	var r0 := lb.readiness("hollow_sentinel")
+	for i in 2:
+		if not drill.is_empty():
+			var dr: Dictionary = await lb.run_activity(drill[0])
+			report["drill_%d" % i] = dr.get("detail", "")
+			lm.vigor = 1.0
+	var r1 := lb.readiness("hollow_sentinel")
+	_check(r1 > r0, "drilling made her readier (%.2f -> %.2f)" % [r0, r1], [report.get("drill_0", ""), report.get("drill_1", "")])
+	# 4) she tells Mika about it (her own memory)
+	var tps: Array = Companionship.topics("luna", "mika")
+	_check(tps.any(func(t): return String(t.kind) == "worry"), "it is something she would tell Mika about", tps.slice(0, 4))
+	# 5) the rematch: rested and readier, she faces it again
+	var mon2: Monster = main.spawner.spawn("hollow_sentinel", NavigationServer3D.map_get_closest_point(map, luna.global_position + Vector3(9, 0, 1)))
+	if mon2:
+		mon2.hp = mon2.max_hp * 0.45
+	await _wait(1.5)
+	var h3: Array = lb.options().filter(func(o): return String(o.kind) == "hunt" and String(o.monster_kind) == "hollow_sentinel")
+	if not h3.is_empty():
+		var sc: Dictionary = lb.score(h3[0])
+		report["rematch_score"] = sc
+		var fr2: Dictionary = await lb.run_activity(h3[0].merged(sc))
+		report["fight2"] = fr2.get("detail", "")
+	_check(lm.knowledge.has("overcame:hollow_sentinel") and not lm.knowledge.has("unfinished:hollow_sentinel"), "the rematch closed it: she overcame the hollow sentinel (%s)" % report.get("fight2", ""), lm.knowledge.get("overcame:hollow_sentinel"))
+	var tps2: Array = Companionship.topics("luna", "mika")
+	_check(tps2.any(func(t): return String(t.kind) == "triumph"), "and now that is what she would tell Mika", tps2.slice(0, 4))
