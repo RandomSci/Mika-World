@@ -1,0 +1,401 @@
+{
+ "_note": "Level-based appearance registry (docs/APPEARANCES.md). Each mage has her own ordered stages. A stage is chosen by her OWN progression: 'requires' {level: N} (reached) and/or {form: id} (the form she took in its transformation cinematic - progress.appearance, the existing Level 10 behaviour). The highest-order READY stage whose requirements hold wins; a planned stage (no model yet) is skipped, so she keeps the latest available look (safe fallback). Changing stage never touches her identity, memories, skills, inventory or progress. 'profile' overrides per stage: face (FaceController cfg), light (key/ambient balance), springs (stiffness/drag scales), motion (body-language profile), material fixes. 'archive' keeps previous default looks for rollback and comparison (never selected automatically).",
+ "mika": {
+  "stages": [
+   {
+    "id": "celestial",
+    "order": 1,
+    "name": "Celestial Mage",
+    "levels": [
+     1,
+     10
+    ],
+    "requires": {
+     "level": 1
+    },
+    "status": "ready",
+    "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial.vrm",
+    "source": "~/Downloads/Mika-Blender-Character-Lab/release/MikaCelestial_2026-10-14 (sha256 bfc7c67c...)",
+    "profile": {
+     "face": {
+      "brows_through_fringe": false
+     },
+     "motion": "mika",
+     "springs": {
+      "stiffness": 1.0,
+      "drag": 1.0
+     },
+     "hair": {
+      "natural": true,
+      "shade": [
+       0.62,
+       0.6,
+       0.86
+      ],
+      "sheen_color": [
+       1.0,
+       0.98,
+       1.0
+      ],
+      "sheen": 0.22,
+      "sheen2": 0.18,
+      "root_dark": 0.28,
+      "tip_feather": 0.12,
+      "gain": 1.28
+     }
+    }
+   },
+   {
+    "id": "bloom",
+    "order": 10,
+    "name": "Bloom Form",
+    "levels": [
+     10,
+     19
+    ],
+    "requires": {
+     "level": 10,
+     "form": "bloom"
+    },
+    "status": "ready",
+    "avatar": "res://assets/characters/mika/forms/Mika_Level10.vrm",
+    "transformation": "level 10 (data/transformations.json, full cinematic once, then permanent)",
+    "profile": {
+     "motion": "mika"
+    }
+   },
+   {
+    "id": "l20",
+    "order": 20,
+    "name": "Level 20 form (future)",
+    "levels": [
+     20,
+     29
+    ],
+    "requires": {
+     "level": 20
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l30",
+    "order": 30,
+    "name": "Level 30 form (future)",
+    "levels": [
+     30,
+     39
+    ],
+    "requires": {
+     "level": 30
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l40",
+    "order": 40,
+    "name": "Level 40 form (future)",
+    "levels": [
+     40,
+     49
+    ],
+    "requires": {
+     "level": 40
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l50",
+    "order": 50,
+    "name": "Level 50 form (future)",
+    "levels": [
+     50,
+     59
+    ],
+    "requires": {
+     "level": 50
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l60",
+    "order": 60,
+    "name": "Level 60 form (future)",
+    "levels": [
+     60,
+     69
+    ],
+    "requires": {
+     "level": 60
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l70",
+    "order": 70,
+    "name": "Level 70 form (future)",
+    "levels": [
+     70,
+     79
+    ],
+    "requires": {
+     "level": 70
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l80",
+    "order": 80,
+    "name": "Level 80 form (future)",
+    "levels": [
+     80,
+     89
+    ],
+    "requires": {
+     "level": 80
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l90",
+    "order": 90,
+    "name": "Level 90 form (future)",
+    "levels": [
+     90,
+     99
+    ],
+    "requires": {
+     "level": 90
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l100",
+    "order": 100,
+    "name": "Level 100 form (future)",
+    "levels": [
+     100,
+     100
+    ],
+    "requires": {
+     "level": 100
+    },
+    "status": "planned",
+    "avatar": ""
+   }
+  ],
+  "archive": [
+   {
+    "id": "classic",
+    "name": "Original default (before Celestial)",
+    "avatar": "res://assets/characters/mika/Mika.vrm"
+   }
+  ]
+ },
+ "luna": {
+  "stages": [
+   {
+    "id": "oracle",
+    "order": 1,
+    "name": "Celestial Oracle",
+    "levels": [
+     1,
+     10
+    ],
+    "requires": {
+     "level": 1
+    },
+    "status": "ready",
+    "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle.vrm",
+    "source": "~/Downloads/Mika-Luna-Character-Lab/release/Luna_2026-10-15 (sha256 9660d553...)",
+    "profile": {
+     "face": {
+      "brows_through_fringe": false
+     },
+     "motion": "luna",
+     "springs": {
+      "stiffness": 1.35,
+      "drag": 1.4
+     },
+     "hair": {
+      "natural": true,
+      "shade": [
+       0.5,
+       0.38,
+       0.34
+      ],
+      "sheen_color": [
+       1.0,
+       0.9,
+       0.78
+      ],
+      "sheen": 0.26,
+      "sheen2": 0.22,
+      "root_dark": 0.32,
+      "tip_feather": 0.14,
+      "gain": 1.05
+     }
+    }
+   },
+   {
+    "id": "eclipse",
+    "order": 10,
+    "name": "Gilded Eclipse Form",
+    "levels": [
+     10,
+     19
+    ],
+    "requires": {
+     "level": 10,
+     "form": "eclipse"
+    },
+    "status": "ready",
+    "avatar": "res://assets/characters/luna/forms/Luna_Level10.vrm",
+    "transformation": "level 10 (data/transformations.json, full cinematic once, then permanent)",
+    "profile": {
+     "motion": "luna"
+    }
+   },
+   {
+    "id": "l20",
+    "order": 20,
+    "name": "Level 20 form (future)",
+    "levels": [
+     20,
+     29
+    ],
+    "requires": {
+     "level": 20
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l30",
+    "order": 30,
+    "name": "Level 30 form (future)",
+    "levels": [
+     30,
+     39
+    ],
+    "requires": {
+     "level": 30
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l40",
+    "order": 40,
+    "name": "Level 40 form (future)",
+    "levels": [
+     40,
+     49
+    ],
+    "requires": {
+     "level": 40
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l50",
+    "order": 50,
+    "name": "Level 50 form (future)",
+    "levels": [
+     50,
+     59
+    ],
+    "requires": {
+     "level": 50
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l60",
+    "order": 60,
+    "name": "Level 60 form (future)",
+    "levels": [
+     60,
+     69
+    ],
+    "requires": {
+     "level": 60
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l70",
+    "order": 70,
+    "name": "Level 70 form (future)",
+    "levels": [
+     70,
+     79
+    ],
+    "requires": {
+     "level": 70
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l80",
+    "order": 80,
+    "name": "Level 80 form (future)",
+    "levels": [
+     80,
+     89
+    ],
+    "requires": {
+     "level": 80
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l90",
+    "order": 90,
+    "name": "Level 90 form (future)",
+    "levels": [
+     90,
+     99
+    ],
+    "requires": {
+     "level": 90
+    },
+    "status": "planned",
+    "avatar": ""
+   },
+   {
+    "id": "l100",
+    "order": 100,
+    "name": "Level 100 form (future)",
+    "levels": [
+     100,
+     100
+    ],
+    "requires": {
+     "level": 100
+    },
+    "status": "planned",
+    "avatar": ""
+   }
+  ],
+  "archive": [
+   {
+    "id": "classic",
+    "name": "Original default (before Oracle)",
+    "avatar": "res://assets/characters/luna/forms/Luna_Level01.vrm"
+   }
+  ]
+ }
+}

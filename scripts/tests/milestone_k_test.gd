@@ -103,6 +103,7 @@ func _run() -> void:
 		"wayside": await _wayside_look()
 		"journey": await _journey()
 		"fixcheck": await _fixcheck()
+		"appearances": await _appearances()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -2455,4 +2456,86 @@ func _fixcheck() -> void:
 	main.camera_rig.set_shot(Vector3(bx + 10.0, ww.height(bx + 10.0, bz + 30.0) + 3.0, bz + 30.0), Vector3(bx, ww.height(bx, bz + 20.0), bz + 15.0), 60.0)
 	await _wait(1.5)
 	_shot("woods_river_2")
+
+
+# ------------------------------------------------------------------ level-based appearances
+## The appearance registry (data/appearances.json) in the real game: the Celestial stages for levels 1-10, the
+## level 10 forms through their existing transformation, safe fallback past the last available model, saves already
+## beyond level 10, a developer preview that never touches progress, and both mages living together in the Woods.
+func _appearances() -> void:
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters.get("luna")
+	# 1. selection rules
+	var cases := [["mika", 1, "", "celestial"], ["mika", 9, "", "celestial"], ["mika", 10, "", "celestial"], ["mika", 10, "bloom", "bloom"],
+		["mika", 25, "bloom", "bloom"], ["mika", 100, "bloom", "bloom"], ["luna", 1, "", "oracle"], ["luna", 15, "eclipse", "eclipse"], ["luna", 95, "eclipse", "eclipse"]]
+	var bad := []
+	for cse in cases:
+		var got := String(AppearanceRegistry.pick(cse[0], cse[1], cse[2]).get("id", ""))
+		if got != String(cse[3]):
+			bad.append("%s L%d form '%s' -> %s (want %s)" % [cse[0], cse[1], cse[2], got, cse[3]])
+	_check(bad.is_empty(), "stage selection: levels 1-10 Celestial/Oracle, the level 10 forms once taken, safe fallback beyond (no level 20+ models yet)", bad)
+	_check(AppearanceRegistry.stages("mika").size() == 11 and AppearanceRegistry.stages("luna").size() == 11, "eleven stage slots per mage (1-10, the level 10 forms, 20 ... 100)")
+	# 2. live: both wear their level 1-10 appearance
+	_check(mika.avatar_path.ends_with("MikaCelestial.vrm"), "Mika wears Celestial Mage at level %d" % WorldState.mind("mika").level(), mika.avatar_path)
+	if luna:
+		_check(luna.avatar_path.ends_with("LunaOracle.vrm"), "Luna wears Celestial Oracle at level %d" % WorldState.mind("luna").level(), luna.avatar_path)
+	_check(mika.face != null and mika.face.bound_count() >= 25 and (luna == null or (luna.face != null and luna.face.bound_count() >= 25)), "their expressive faces are bound (%d / %d components)" % [mika.face.bound_count() if mika.face else 0, luna.face.bound_count() if luna and luna.face else 0])
+	# 3. a save already beyond level 10 (fixture in the DISPOSABLE save): identity preserved through the swap
+	var m := WorldState.mind("mika")
+	var before := {"knowledge": m.knowledge.size(), "skills": m.skills.size(), "xp": float(m.progress.xp)}
+	var keep_level := m.level()
+	var keep_form := String(m.progress.get("appearance", ""))
+	m.progress.level = 15
+	m.progress["appearance"] = "bloom"
+	var ok := mika.swap_avatar(TransformationDirector.avatar_for("mika"))
+	await _wait(1.0)
+	_check(ok and mika.avatar_path.ends_with("Mika_Level10.vrm"), "a level 15 save with the Bloom form taken shows the Bloom form", mika.avatar_path)
+	_check(m.knowledge.size() == before.knowledge and m.skills.size() == before.skills and float(m.progress.xp) == before.xp, "the change of look touched nothing she knows or has", before)
+	m.progress.level = 27
+	_check(TransformationDirector.avatar_for("mika").ends_with("Mika_Level10.vrm"), "level 27 (no level 20 model yet): she keeps her latest look (fallback)")
+	m.progress.level = keep_level
+	m.progress["appearance"] = keep_form
+	mika.swap_avatar(TransformationDirector.avatar_for("mika"))
+	await _wait(1.0)
+	_check(mika.avatar_path.ends_with("MikaCelestial.vrm"), "back at her real level she wears Celestial again")
+	# 4. developer preview: shows another stage, progress untouched
+	var lv := m.level()
+	AppearanceRegistry.preview("mika", "classic")
+	mika.swap_avatar(TransformationDirector.avatar_for("mika"))
+	await _wait(1.0)
+	_check(mika.avatar_path.ends_with("Mika.vrm") and m.level() == lv and String(m.progress.get("appearance", "")) == keep_form, "developer preview of the archived look changes nothing she has earned")
+	AppearanceRegistry.preview("mika", "")
+	mika.swap_avatar(TransformationDirector.avatar_for("mika"))
+	await _wait(1.0)
+	# 5. the level 10 transformation still plays (preview: it changes nothing and reverts)
+	if main.transformer:
+		var tr: Dictionary = await main.transformer.play("mika", "short", true, 10)
+		await _wait(2.0)
+		_check(tr.get("ok", false) and mika.avatar_path.ends_with("MikaCelestial.vrm"), "the level 10 transformation still plays from Celestial into Bloom (preview, reverted)", tr)
+	# 6. both alive together in the Woods, their own planners, performance measured
+	await _hold_all()
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "the Woods load with both new appearances")
+	if luna:
+		var map: RID = mika.get_world_3d().navigation_map
+		_dev_stage(luna, NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(2, 0, 1)))
+	main.director.enabled = true
+	for w in main.mage_brains:
+		main.mage_brains[w].hold = false
+		main.mage_brains[w].set_enabled(true)
+	_reset_frames()
+	var shots := 0
+	var t0 := _game_t
+	while _game_t - t0 < 45.0:
+		await _wait(9.0)
+		_shot("living_%d" % shots)
+		shots += 1
+	var fps := _fps_stats()
+	report["together_fps"] = fps
+	report["vram_mb"] = snappedf(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0, 0.1)
+	report["static_mem_mb"] = snappedf(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, 0.1)
+	_check(float(fps.get("avg_fps", 0)) >= 25.0, "both together in the Woods at %.1f fps (GPU %.1f ms, VRAM %.0f MB)" % [float(fps.get("avg_fps", 0)), float(fps.get("gpu_ms", 0)), float(report.vram_mb)], fps)
+	report["mika_recent"] = main.mage_brains["mika"].history.slice(-4)
+	if main.mage_brains.has("luna"):
+		report["luna_recent"] = main.mage_brains["luna"].history.slice(-4)
 

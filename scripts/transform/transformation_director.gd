@@ -88,16 +88,11 @@ static func appearance(who: String) -> String:
 	return String(WorldState.mind(who).progress.get("appearance", ""))
 
 
-## Avatar path for her saved appearance (base avatar when none / when the form's file is missing).
+## Avatar path for what she wears now: the level-based appearance registry (data/appearances.json) - her stage from
+## her own level and the form she has taken (the level 10 form once its cinematic played). Falls back safely.
 static func avatar_for(who: String) -> String:
 	Progression.load_data()
-	var mp: Dictionary = Progression.mages.get(who, {})
-	var form := appearance(who)
-	for lvl in mp.get("forms", {}):
-		var f: Dictionary = mp.forms[lvl]
-		if String(f.id) == form and ResourceLoader.exists(String(f.avatar)):
-			return String(f.avatar)
-	return String(mp.get("base_avatar", "res://assets/characters/mika/Mika.vrm"))
+	return AppearanceRegistry.avatar_for(who)
 
 
 func is_transformed(who: String) -> bool:

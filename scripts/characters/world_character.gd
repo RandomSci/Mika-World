@@ -176,6 +176,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	avatar = instance if instance else (scene if scene else load(avatar_path)).instantiate()
 	avatar.transform = Transform3D.IDENTITY
 	_extend_skirt_colliders()
+	_tune_springs()
 	avatar.name = "Avatar"
 	avatar.rotation.y = PI  # VRM 1.0 faces +Z; Godot forward is -Z
 	add_child(avatar)
@@ -183,6 +184,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_fix_vrm1_mtoon_shading()
+	_fix_open_surface_outlines()
+	_natural_hair()
 	_lab_hair_fix()
 	_light_balance = Vector2(-1, -1)          # a new avatar's materials need the balance again
 	_setup_animation()
@@ -239,6 +242,14 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 
 
 signal avatar_swapped(path: String)
+
+## The appearance stage of the avatar she wears (data/appearances.json) and its profile overrides.
+func stage() -> Dictionary:
+	return AppearanceRegistry.stage_for_avatar(character_id, avatar_path)
+
+
+func stage_profile() -> Dictionary:
+	return stage().get("profile", {})
 
 ## Change her appearance to another VRM of the same humanoid (a transformation form, or back to base).
 ## Refused while casting or holding something. `scene` may be a preloaded PackedScene (no hitch).
@@ -303,6 +314,79 @@ func _fix_vrm1_mtoon_shading() -> void:
 	print("[character] %s: converted VRM1 MToon shading on %d materials" % [character_id, fixed])
 
 
+## Natural hair shading for appearance stages that ask for it (profile.hair.natural): the model's own strand texture
+## and colours, with fine fibres, root depth, an anisotropic sheen band and soft tapered tips
+## (shaders/characters/natural_hair.gdshader). The hairstyle itself - geometry, colour, ornaments - is untouched.
+func _natural_hair() -> void:
+	var hp: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("hair", {})
+	if not bool(hp.get("natural", false)):
+		return
+	var shader: Shader = load("res://shaders/characters/natural_hair.gdshader")
+	var n := 0
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var src := m.get_active_material(si)
+			var nm := String(src.resource_name) if src else ""
+			if not (nm.ends_with("_Hair") or nm.ends_with("_HairUnder") or nm.ends_with("_HairCap")):
+				continue
+			var tex: Texture2D = null
+			var sm := src as ShaderMaterial
+			if sm:
+				tex = sm.get_shader_parameter("_MainTex")
+			if tex == null:
+				continue
+			var hm := ShaderMaterial.new()
+			hm.shader = shader
+			hm.resource_name = nm + "_natural"
+			hm.set_shader_parameter("albedo_tex", tex)
+			var sh: Array = hp.get("shade", [0.68, 0.64, 0.8])
+			var under := nm.ends_with("_HairUnder")
+			var cap := nm.ends_with("_HairCap")
+			hm.set_shader_parameter("shade_tint", Color(sh[0], sh[1], sh[2]) * (0.85 if under or cap else 1.0))
+			var sc: Array = hp.get("sheen_color", [1.0, 0.97, 0.94])
+			hm.set_shader_parameter("sheen_color", Color(sc[0], sc[1], sc[2]))
+			hm.set_shader_parameter("sheen", float(hp.get("sheen", 0.55)) * (0.5 if under else 1.0))
+			hm.set_shader_parameter("sheen2", float(hp.get("sheen2", 0.35)))
+			hm.set_shader_parameter("fibre_density", float(hp.get("fibre_density", 260.0)))
+			hm.set_shader_parameter("root_dark", float(hp.get("root_dark", 0.3)))
+			hm.set_shader_parameter("tip_feather", 0.0 if cap else float(hp.get("tip_feather", 0.12)))
+			hm.set_shader_parameter("gain", float(hp.get("gain", 1.0)))
+			m.set_surface_override_material(si, hm)
+			n += 1
+	if n > 0:
+		print("[character] %s: natural hair shading on %d surfaces" % [character_id, n])
+
+
+## MToon's outline is an "inverted hull": the surface pushed out along its normals and drawn back-faces-only. On a
+## closed mesh that is a rim; on OPEN, double-sided geometry (hair strand ribbons, sheer sleeves, skirt panels) the
+## pushed-out copy lies in FRONT of the visible face and paints it the outline colour - the level 1-10 Celestial
+## models' lavender/brown hair rendered navy/black. Blender's preview never showed it. Remove the outline pass from
+## double-sided materials (closed meshes keep theirs). Render-time only: the VRM files are untouched.
+func _fix_open_surface_outlines() -> void:
+	var n := 0
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var mat := m.get_active_material(si) as ShaderMaterial
+			if mat == null or mat.shader == null or mat.next_pass == null:
+				continue
+			if not String(mat.shader.resource_path).contains("cull_off"):
+				continue
+			var nxt := mat.next_pass as ShaderMaterial
+			if nxt and nxt.shader and String(nxt.shader.resource_path).to_lower().contains("outline"):
+				var copy := mat.duplicate() as ShaderMaterial
+				copy.next_pass = null
+				m.set_surface_override_material(si, copy)
+				n += 1
+	if n > 0:
+		print("[character] %s: removed the inverted-hull outline from %d double-sided surfaces" % [character_id, n])
+
+
 ## Character Lab hair correction, applied at render time (the VRM files are untouched; several are marked
 ## modification-prohibited): VRoid exported the hair with a strong coloured EMISSIVE and a pure-white shade colour,
 ## so it renders flat, tinted and can never show form. Replace with a small neutral lift and a real shade tone
@@ -354,6 +438,8 @@ func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
 				if sm.get_shader_parameter("_ShadeShift") != null:
 					sm.set_shader_parameter("_CharSunScale", key.x)
 					sm.set_shader_parameter("_CharAmbientScale", key.y)
+				elif sm.shader and String(sm.shader.resource_path).ends_with("natural_hair.gdshader"):
+					sm.set_shader_parameter("sun_scale", key.x)          # the hair sits in the same light key as her face
 				mat = sm.next_pass
 
 
@@ -361,6 +447,32 @@ func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
 ## when the thighs are horizontal (sitting) the front skirt falls through the knee half of the legs.
 ## Replace them with a capsule from hip to knee (same radius family, slightly fuller) before the VRM
 ## secondary system builds its runtime colliders. Walking is unaffected (the capsule follows the thigh).
+## Per-stage spring tuning (data/appearances.json profile.springs): {stiffness, drag, gravity} scales for every
+## chain, and per-chain-prefix overrides {"chains": {"HairBack": {...}}}. Works on copies of the chain resources (the
+## imported VRM stays untouched). Luna's long gown hair needs firmer, more damped springs than the lab's preview bake.
+func _tune_springs() -> void:
+	var sp: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("springs", {})
+	if sp.is_empty():
+		return
+	var sec = avatar.find_child("secondary", true, false)
+	if sec == null or sec.get("spring_bones") == null:
+		return
+	var out = sec.spring_bones.duplicate()           # keeps the array's own element type
+	for i in out.size():
+		var c: Resource = (out[i] as Resource).duplicate()
+		var k := {"stiffness": float(sp.get("stiffness", 1.0)), "drag": float(sp.get("drag", 1.0)), "gravity": float(sp.get("gravity", 1.0))}
+		for pre in sp.get("chains", {}):
+			if String(c.get("comment")).begins_with(String(pre)):
+				var o: Dictionary = sp.chains[pre]
+				for key in o:
+					k[key] = float(o[key])
+		c.set("stiffness_scale", float(c.get("stiffness_scale")) * k.stiffness)
+		c.set("drag_force_scale", clampf(float(c.get("drag_force_scale")) * k.drag, 0.0, 1.0))
+		c.set("gravity_scale", float(c.get("gravity_scale")) * k.gravity)
+		out[i] = c
+	sec.spring_bones = out
+
+
 func _extend_skirt_colliders() -> void:
 	var sec = avatar.find_child("secondary", true, false)
 	if sec == null or sec.get("spring_bones") == null:
@@ -718,7 +830,8 @@ func _setup_expressions() -> void:
 	_expr.clear()
 	_expr_weight.clear()
 	_expr_target.clear()
-	var cfg: Dictionary = Progression.mages.get(character_id, {}).get("face", {}) if Progression.mages else {}
+	var cfg: Dictionary = (Progression.mages.get(character_id, {}).get("face", {}) if Progression.mages else {}).duplicate()
+	cfg.merge(stage_profile().get("face", {}), true)          # this appearance stage's own face settings
 	face = FaceController.attach(self, avatar, cfg)
 	if face:
 		head_posture = HeadPosture.new()

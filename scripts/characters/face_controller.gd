@@ -85,18 +85,31 @@ var brow_alpha := 0.45
 var debug_brow := []
 
 
+## A blend shape by its VRoid component name. Models rebuilt in Blender (the level 1-10 Celestial stages) keep the
+## VRoid morphs but carry a mesh prefix ("Face.M_F00_000_00_Fcl_BRW_Joy"): match the name or its suffix.
+static func find_shape(m: MeshInstance3D, comp: String) -> int:
+	var i := m.find_blend_shape_by_name(comp)
+	if i >= 0:
+		return i
+	for k in m.mesh.get_blend_shape_count():
+		var n := String(m.mesh.get_blend_shape_name(k))
+		if n.ends_with("_" + comp) or n.ends_with("." + comp):
+			return k
+	return -1
+
+
 static func attach(character: Node3D, avatar: Node, cfg: Dictionary) -> FaceController:
 	var fc := FaceController.new()
 	fc.c = character
 	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
-		if m.mesh and m.mesh.get_blend_shape_count() > 20 and m.find_blend_shape_by_name("Fcl_BRW_Joy") >= 0:
+		if m.mesh and m.mesh.get_blend_shape_count() > 20 and find_shape(m, "Fcl_BRW_Joy") >= 0:
 			fc.face = m
 			break
 	if fc.face == null:
 		return null
 	for k in COMPONENTS:
-		var i := fc.face.find_blend_shape_by_name(COMPONENTS[k])
+		var i := find_shape(fc.face, COMPONENTS[k])
 		if i >= 0:
 			fc.idx[k] = i
 			fc.springs[k] = [0.0, 0.0]
@@ -199,6 +212,10 @@ func legacy(ex: String, weight: float) -> void:
 func blink_now() -> void:
 	if _blink_t < 0.0:
 		_blink_t = 0.0
+
+
+func bound_count() -> int:
+	return idx.size()
 
 
 func dominant() -> String:
