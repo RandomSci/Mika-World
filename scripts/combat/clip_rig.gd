@@ -59,12 +59,57 @@ func build(p_spec: Dictionary, eye: Color) -> void:
 			_own_emission[nm] = [mat.emission_enabled, mat.emission, mat.emission_energy_multiplier]
 			_mats[nm] = mat
 			m.set_surface_override_material(si, mat)
+	_attach_weapons()
 	mouth_glow = FX.light(eye, 0.0, 3.0)
 	var mp: Array = spec.get("mouth", [0, 1.2, 0.6])
 	mouth_glow.position = Vector3(mp[0], mp[1], mp[2])
 	_pivot.add_child(mouth_glow)
 	_prev_yaw = global_rotation.y
 	_entered("idle")
+
+
+## Weapons in their hands (human rivals): spec.weapons = [{model, bone, pos [x,y,z], rot [deg x,y,z], scale}] -
+## Poly Haven props (katana, sabre, dagger, machete, mace) on a bone attachment of the model's own skeleton.
+var weapons: Array[Node3D] = []
+
+
+func _attach_weapons() -> void:
+	var sk: Skeleton3D = model.find_child("*", true, false) as Skeleton3D
+	for n in model.find_children("*", "Skeleton3D", true, false):
+		sk = n
+		break
+	if sk == null:
+		return
+	for wspec in spec.get("weapons", []):
+		var bone := String(wspec.get("bone", "hand_r"))
+		if sk.find_bone(bone) < 0:
+			continue
+		var ba := BoneAttachment3D.new()
+		ba.bone_name = bone
+		sk.add_child(ba)
+		var holder := Node3D.new()
+		var pp: Array = wspec.get("pos", [0, 0, 0])
+		var rr: Array = wspec.get("rot", [0, 0, 0])
+		holder.position = Vector3(pp[0], pp[1], pp[2])
+		holder.rotation_degrees = Vector3(rr[0], rr[1], rr[2])
+		holder.scale = Vector3.ONE * float(wspec.get("scale", 1.0))
+		ba.add_child(holder)
+		if wspec.has("part"):
+			Kit.place_prop(holder, String(wspec.model), Transform3D.IDENTITY, String(wspec.part))
+		else:
+			Kit.place_prop_all(holder, String(wspec.model), Transform3D.IDENTITY)
+		for mi in holder.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		weapons.append(holder)
+
+
+## The tip of the first weapon (sword trails, slash waves start there).
+func weapon_tip() -> Vector3:
+	if weapons.is_empty():
+		return aim_point()
+	var w := weapons[0]
+	var ln := float(spec.get("weapons", [{}])[0].get("length", 0.9))
+	return w.global_transform * Vector3(0, ln, 0)
 
 
 func clip_length(st: String) -> float:

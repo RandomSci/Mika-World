@@ -113,6 +113,10 @@ func _run() -> void:
 			await _fx()
 		"creature":
 			await _creature()
+		"gripcal":
+			await _gripcal()
+		"rivals":
+			await _rivals()
 		_:
 			print("[lab] unknown lab ", lab)
 	var f := FileAccess.open(out + "/oriel_lab.json", FileAccess.WRITE)
@@ -314,3 +318,53 @@ func _creature() -> void:
 		_look(Vector3(2.6, 1.6, 2.2) * k, Vector3(0, 0.9, 0) * k, 42.0)
 		await _wait(0.05)
 		await _grab("creature_%s_%s_34" % [id, st])
+
+
+## --lab=gripcal: the ronin holding the katana under six candidate hand rotations (sword idle), side by side.
+func _gripcal() -> void:
+	var rots := [[0, 0, 0], [0, 0, 90], [0, 0, -90], [90, 0, 0], [-90, 0, 0], [0, 90, 90]]
+	for i in rots.size():
+		var cr := ClipRig.new()
+		add_child(cr)
+		cr.position = Vector3((i - 2.5) * 1.6, 0, 0)
+		var spec := {"glb": "res://assets/creatures/rivals/ronin.glb", "ground": true, "keep_materials": true, "scale": 1.0,
+			"clips": {"idle": ["idle", 1.0, true]}, "weapons": [{"model": "antique_katana_01", "bone": "hand_r", "pos": [0, 0, 0], "rot": rots[i]}]}
+		cr.build(spec, Color(1, 0.5, 0.2))
+		var lbl := Label3D.new()
+		lbl.text = str(rots[i])
+		lbl.position = Vector3(0, 2.1, 0)
+		lbl.pixel_size = 0.004
+		cr.add_child(lbl)
+	await _wait(1.5)
+	_look(Vector3(0, 1.3, 7.5), Vector3(0, 1.0, 0), 50.0)
+	await _wait(0.1)
+	await _grab("gripcal_front")
+	_look(Vector3(6.5, 1.4, 3.5), Vector3(0, 1.0, 0), 55.0)
+	await _wait(0.1)
+	await _grab("gripcal_side")
+
+
+## --lab=rivals: the four human rivals with their weapons, in idle and mid-technique, front and three-quarter.
+func _rivals() -> void:
+	var defs: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/monsters.json")).monsters
+	var ids := ["rival_cutthroat", "rival_shade", "rival_ronin", "rival_hexer"]
+	var rigs := []
+	for i in ids.size():
+		if not defs.has(ids[i]):
+			continue
+		var cr := ClipRig.new()
+		add_child(cr)
+		cr.position = Vector3((i - 1.5) * 1.8, 0, 0)
+		cr.build(defs[ids[i]].body, Color(1, 0.4, 0.3))
+		rigs.append(cr)
+	await _wait(1.5)
+	for st in ["idle", "combo_strike", "dash_strike", "cast_strike"]:
+		for cr in rigs:
+			(cr as ClipRig).play(st)
+		await _wait(0.55)
+		_look(Vector3(0.0, 1.35, 6.8), Vector3(0, 1.0, 0), 50.0)
+		await _wait(0.05)
+		await _grab("rivals_%s_front" % st)
+		_look(Vector3(5.5, 1.6, 4.5), Vector3(0, 0.95, 0), 55.0)
+		await _wait(0.05)
+		await _grab("rivals_%s_34" % st)

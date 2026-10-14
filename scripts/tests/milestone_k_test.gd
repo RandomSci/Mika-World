@@ -100,6 +100,9 @@ func _run() -> void:
 		"showcase": await _showcase()
 		"no_teleport": await _no_teleport()
 		"mossback": await _mossback()
+		"wayside": await _wayside_look()
+		"journey": await _journey()
+		"fixcheck": await _fixcheck()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -2196,4 +2199,260 @@ func _mossback() -> void:
 	_check(res.size() == 2, "both fights resolved (%s)" % [", ".join(res.keys().map(func(x): return "%s: %s" % [x, str(res[x].get("detail", ""))]))], res)
 	report["mossback"]["defeated"] = defeated
 	_shot("mossback_zz_end")
+
+
+## A Wayside stretch of the old forest track: does it load, and does it look like the Woods' forest?
+func _wayside_look() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	Wayside.params = {"route": "whispering_woods|ancient_grove", "km": 21.0, "seed": int(RenderProfile.options.get("seed", 4721)),
+		"from": "whispering_woods", "to": "ancient_grove", "title": "the old forest track west"}
+	var r: Dictionary = await main.streaming.travel("wayside", mika)
+	_check(r.get("ok", false), "a stretch of the old forest track loads (%d ms build, %d ms nav)" % [int(r.get("build_ms", 0)), int(r.get("nav_bake_ms", 0))], r)
+	if not r.get("ok", false):
+		return
+	var w: Wayside = main.world
+	main.director.enabled = false
+	var c: Vector3 = w.camp.center
+	_check(not (w.camp.wood as Array).is_empty() and w.camp.has("fire"), "a campsite with fire stones and %d branches of dry wood around" % (w.camp.wood as Array).size())
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	var want := c + Vector3(0, 0, 2.2)
+	var on := NavigationServer3D.map_get_closest_point(map, want)
+	_check(Vector2(on.x - want.x, on.z - want.z).length() < 1.5, "the campsite is on the navmesh", {"want": want, "nearest": on})
+	report["nav_polys"] = w.nav_region.navigation_mesh.get_polygon_count() if w.nav_region and w.nav_region.navigation_mesh else -1
+	report["nav_map_regions"] = NavigationServer3D.map_get_regions(map).size()
+	WorldState.world_min = 360.0 + 6.0 * 60.0
+	main.camera_rig.set_shot(c + Vector3(7, 2.4, 6), c + Vector3(0, 0.6, 0), 50.0)
+	_reset_frames()
+	await _wait(4.0)
+	report["fps_camp_noon"] = _fps_stats()
+	# GPU cost by layer (diagnostic): hide each dressing layer in turn
+	var layers := {}
+	var groups := {}
+	for ch in w.get_children():
+		if ch is Node3D and (ch as Node3D).visible:
+			var key := String(ch.get_class()) if String(ch.name).begins_with("@") else String(ch.name).rstrip("0123456789_")
+			groups.get_or_add(key, []).append(ch)
+	report["top_level"] = groups.keys().map(func(k): return "%s x%d" % [k, (groups[k] as Array).size()])
+	for key in groups:
+		for n in groups[key]:
+			(n as Node3D).visible = false
+		_reset_frames()
+		await _wait(1.5)
+		layers[key] = _fps_stats().get("gpu_ms", -1)
+		for n in groups[key]:
+			(n as Node3D).visible = true
+	var e: Environment = w.env
+	for flag in ["volumetric_fog_enabled", "ssao_enabled", "ssil_enabled", "sdfgi_enabled", "glow_enabled", "ssr_enabled"]:
+		if e.get(flag):
+			e.set(flag, false)
+			_reset_frames()
+			await _wait(1.5)
+			layers["env:" + flag] = _fps_stats().get("gpu_ms", -1)
+			e.set(flag, true)
+	report["gpu_without_layer"] = layers
+	var p1 := w.road_point(0.15)
+	main.camera_rig.set_shot(p1 + Vector3(4, 2.2, 6), p1 + Vector3(-10, 1.2, -2), 55.0)
+	await _wait(2.0)
+	_shot("road")
+	main.camera_rig.set_shot(c + Vector3(7, 2.4, 6), c + Vector3(0, 0.6, 0), 50.0)
+	await _wait(1.5)
+	_shot("camp")
+	var fp := w.road_point(0.62)
+	main.camera_rig.set_shot(fp + Vector3(6, 2.0, 7), fp + Vector3(-2, 0.5, 0), 55.0)
+	await _wait(1.5)
+	_shot("ford")
+	for hh in [6.0, 9.0, 18.4, 19.4, 22.0]:
+		WorldState.world_min = 1440.0 + hh * 60.0
+		w.set_time_of_day(hh)
+		main.camera_rig.set_shot(c + Vector3(7, 2.4, 6), c + Vector3(0, 0.6, 0), 50.0)
+		await _wait(1.2)
+		_shot("camp_%02d" % int(hh * 10.0 / 10.0))
+
+
+# ------------------------------------------------------------------ a complete multi-day journey (V3 continuation)
+## Mika and Luna walk from the Whispering Woods to the Ancient Grove: 46 km of the old forest track, about two days.
+## Everything is real and live: walking to the Woods' west gate, stretches of road (time passes at road pace),
+## waypoints, a camp at dusk (firewood, fire, supper, talk, the watch, a creature at night), the morning, and the
+## arrival - with the TeleportGuard watching every frame.
+func _journey() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters.get("luna")
+	if luna == null:
+		_check(false, "Luna exists (run with --luna)")
+		return
+	var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+	_check(r.get("ok", false), "they start in the Whispering Woods")
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	# TEST STAGING: the two of them at the crossroads, ready to set out, Day 1 07:00
+	var start := NavigationServer3D.map_get_closest_point(map, Vector3(-30, 0, 4))
+	_dev_stage(mika, start)
+	_dev_stage(luna, NavigationServer3D.map_get_closest_point(map, start + Vector3(1.2, 0, 1.0)))
+	WorldState.world_min = 360.0 + 60.0
+	main.director.enabled = not DisplayServer.get_name() == "headless"
+	main.spawner.enabled = false
+	for who in ["mika", "luna"]:
+		WorldState.mind(who).vigor = 1.0
+	var jd: JourneyDirector = main.journeys
+	var plan := jd.start("ancient_grove", "the Forgotten Forest Shrine: Luna wants to read its glyph stones, said to speak of folding distance", ["mika", "luna"], "luna")
+	_check(plan.get("ok", false) and float(plan.km) >= 40.0, "a journey is planned: Woods -> Ancient Grove, %.0f km (about %.1f days on foot)" % [float(plan.get("km", 0)), float(plan.get("days_estimate", 0))], plan)
+	CampScene.stock_rings(mika, luna)
+	var v0 := (main.teleport_guard.violations as Array).size()
+	var day0 := WorldState.day()
+	var t_real := Time.get_ticks_msec()
+	var shots := {"n": 0, "on": true}
+	var snap := func() -> void:
+		while shots.on:
+			await get_tree().create_timer(15.0).timeout
+			if shots.on:
+				_shot("j_%03d_%s" % [shots.n, jd.stage.replace(" ", "_").replace(":", "").replace(",", "").left(40)])
+				shots.n = int(shots.n) + 1
+	snap.call()
+	var j: Dictionary = await jd.run_live(12)
+	shots.on = false
+	var secs := (Time.get_ticks_msec() - t_real) / 1000.0
+	report["journey"] = {"log": j.get("log", []), "camps": j.get("camps", []), "supplies": j.get("supplies", {}), "condition": j.get("condition", {}),
+		"unresolved": j.get("unresolved", []), "discoveries": j.get("discoveries", []), "arrived": j.get("arrived", ""), "real_s": snappedf(secs, 0.1), "clock": WorldState.clock_text()}
+	for e in j.get("log", []):
+		print("[journey-log] %s  %s" % [e.when, e.what])
+	_check(String(j.get("phase", "")) == "done" and main.streaming.current_id == "ancient_grove", "they arrived at the Ancient Grove (%s)" % j.get("arrived", "not arrived"), {"phase": j.get("phase"), "area": main.streaming.current_id})
+	_check(WorldState.day() > day0, "the journey took more than one day (Day %d -> Day %d)" % [day0, WorldState.day()])
+	var waypoints := (j.get("log", []) as Array).filter(func(e): return String(e.kind) == "waypoint")
+	_check(waypoints.size() >= 3, "they passed the places along the track (%s)" % ", ".join(waypoints.map(func(e): return String(e.what).get_slice(" (", 0))))
+	var camps: Array = j.get("camps", [])
+	_check(camps.size() >= 1, "they camped for the night (%d camp)" % camps.size())
+	if not camps.is_empty():
+		var c: Dictionary = camps[0]
+		var beats: Array = (c.beats as Array).map(func(b): return String(b.beat))
+		print("[journey-camp] beats ", beats)
+		_check(beats.has("choose_site") and beats.has("from the ring"), "they chose the campsite and drew their things from their storage rings", beats)
+		_check(int(c.meal.get("firewood_carried", 0)) >= 1, "Mika carried firewood back from the trees (%d)" % int(c.meal.get("firewood_carried", 0)), c.meal)
+		_check(beats.has("bedroll laid out"), "Luna laid out the bedrolls")
+		_check(beats.has("the fire catches"), "the fire was struck from sparks and caught")
+		_check(beats.has("cooking") and int(c.meal.get("bites", 0)) >= 2, "supper cooked on the fire and eaten (%d spoonfuls)" % int(c.meal.get("bites", 0)), c.meal)
+		_check(int(c.get("talk_lines", 0)) >= 2, "they talked by the fire (%d lines)" % int(c.get("talk_lines", 0)))
+		_check(not (c.watch as Array).is_empty(), "the watch was decided by the danger of the road (%s)" % str((c.watch as Array)[0] if not (c.watch as Array).is_empty() else ""))
+		_check(not (c.encounter as Dictionary).is_empty(), "something came out of the dark at night (%s: %s)" % [c.encounter.get("kind", "-"), c.encounter.get("outcome", "-")], c.encounter)
+		_check(beats.has("packed"), "in the morning they packed up and walked on")
+	var v: Array = (main.teleport_guard.violations as Array).slice(v0)
+	_check(v.is_empty(), "nobody was ever moved instantly on the whole journey (%d frames watched)" % main.teleport_guard.frames, v)
+
+
+## Visual checks for the developer's 2026-10-15 notes: the storage ring, the ford, bodies parting the plants, the
+## Woods river as one continuous surface.
+func _fixcheck() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters.get("luna")
+	Wayside.params = {"route": "whispering_woods|ancient_grove", "km": 21.0, "seed": 4721, "from": "whispering_woods", "to": "ancient_grove", "title": "the old forest track west"}
+	var r: Dictionary = await main.streaming.travel("wayside", mika)
+	_check(r.get("ok", false), "the stretch loads")
+	var w: Wayside = main.world
+	main.director.enabled = false
+	var map: RID = mika.get_world_3d().navigation_map
+	WorldState.world_min = 360.0 + 5.0 * 60.0
+	await get_tree().physics_frame
+	# 1. the ring: an apple drawn out of it into her palm
+	var p0: Vector3 = await main.snap_to_nav(w.road_point(0.3))
+	_dev_stage(mika, p0)
+	await _wait(1.0)
+	var ring := StorageRing.attach(mika)
+	ring.stock({"apple": "an apple"})
+	var fwd := -mika.global_transform.basis.z
+	var hand := mika.right_hand.global_position
+	main.camera_rig.set_shot(hand + fwd * 0.55 + mika.global_transform.basis.x * 0.25 + Vector3(0, 0.12, 0), hand, 32.0)
+	mika.play_gesture("pick_chest", 0.3, 0.5)
+	await _wait(0.6)
+	var h := HoldableObject.new()
+	h.setup("apple", "an apple", "an apple")
+	h.grasp_height = 0.04
+	w.add_child(h)
+	var mdl := Node3D.new()
+	Kit.place_prop_all(mdl, "food_apple_01", Kit.xf(Vector3.ZERO))
+	h.add_child(mdl)
+	ring.draw("apple", h)
+	await _wait(0.2)
+	_shot("ring_drawing")
+	await _wait(0.5)
+	hand = mika.right_hand.global_position
+	main.camera_rig.set_shot(hand + fwd * 0.38 + mika.global_transform.basis.x * 0.12 + Vector3(0, -0.12, 0), hand, 34.0)
+	await _wait(0.4)
+	_shot("ring_holding")
+	_check(mika.handler.held == h and not ring.has("apple"), "the apple came out of the ring into her hand")
+	await ring.store("apple", "an apple")
+	_check(ring.has("apple"), "and went back in")
+	# 2. the ford: she wades across on the stones
+	var fz := Wayside.FORD.y
+	var fx := w.stream_x(fz)
+	var east: Vector3 = await main.snap_to_nav(Vector3(fx + 6.0, 0, fz))
+	var west: Vector3 = await main.snap_to_nav(Vector3(fx - 6.0, 0, fz))
+	_dev_stage(mika, east)
+	await _wait(0.5)
+	main.camera_rig.set_shot(Vector3(fx + 2.0, w.height(fx, fz) + 1.6, fz + 6.5), Vector3(fx, w.height(fx, fz) + 0.4, fz), 50.0)
+	mika.navigate_to(west)
+	var t := 0.0
+	var shot_mid := false
+	while mika.current_action == "navigate_to" and t < 15.0:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+		if not shot_mid and absf(mika.global_position.x - fx) < 0.8:
+			shot_mid = true
+			_shot("ford_crossing")
+	_check(shot_mid and mika.global_position.distance_to(west) < 2.0, "she crossed the ford on foot")
+	main.camera_rig.set_shot(Vector3(fx + 9.0, w.height(fx, fz) + 3.0, fz - 8.0), Vector3(fx, w.height(fx, fz), fz + 4.0), 55.0)
+	await _wait(0.6)
+	_shot("stream_banks")
+	# 3. through the plants: across a thicket of undergrowth beside the road
+	var ug := w.find_child("Undergrowth", false, false)
+	var spot := Vector3.INF
+	if ug:
+		for mmi in ug.find_children("*", "MultiMeshInstance3D", true, false):
+			var mm := (mmi as MultiMeshInstance3D).multimesh
+			for i in range(0, mm.instance_count, 7):
+				var q := (mmi as MultiMeshInstance3D).global_transform * mm.get_instance_transform(i).origin
+				if q.distance_to(p0) < 30.0 and w.trail_at(q.x, q.z) < 0.05 and w.site_water_dist(Vector2(q.x, q.z)) > 4.0:
+					spot = q
+					break
+			if spot != Vector3.INF:
+				break
+	_check(spot != Vector3.INF, "found a thicket to walk through")
+	if spot != Vector3.INF:
+		var a: Vector3 = await main.snap_to_nav(spot + Vector3(2.5, 0, 0))
+		var b: Vector3 = await main.snap_to_nav(spot - Vector3(2.5, 0, 0))
+		_dev_stage(mika, a)
+		await _wait(0.5)
+		main.camera_rig.set_shot(spot + Vector3(0.3, 0.9, 3.2), spot + Vector3(0, 0.4, 0), 45.0)
+		mika.navigate_to(b)
+		t = 0.0
+		var k := 0
+		while mika.current_action == "navigate_to" and t < 10.0:
+			await get_tree().physics_frame
+			t += get_physics_process_delta_time()
+			if Vector2(mika.global_position.x - spot.x, mika.global_position.z - spot.z).length() < 0.6 and k < 2:
+				_shot("plants_%d" % k)
+				k += 1
+				var parted := 0
+				for wr in Gusts._mats:
+					var m: ShaderMaterial = wr.get_ref()
+					if m and float(m.get_shader_parameter("body_on")) > 0.5:
+						var arr = m.get_shader_parameter("body_pos")
+						if arr is PackedVector4Array and (arr as PackedVector4Array).size() > 0 and Vector3((arr as PackedVector4Array)[0].x, (arr as PackedVector4Array)[0].y, (arr as PackedVector4Array)[0].z).distance_to(mika.global_position) < 0.5:
+							parted += 1
+				report["plant_materials_parting"] = parted
+				_check(parted > 0, "the plants around her are told where her body is (%d plant materials part round her)" % parted)
+				await _wait(0.35)
+	# 4. the Woods river, one surface
+	r = await main.streaming.travel("whispering_woods", mika)
+	var ww = main.world
+	var bz: float = ww.BRIDGE.y + 18.0
+	var bx: float = ww.river_x(bz)
+	main.camera_rig.set_shot(Vector3(bx - 14.0, ww.height(bx - 14.0, bz) + 4.0, bz + 6.0), Vector3(bx, ww.height(bx, bz) + 0.5, bz - 6.0), 55.0)
+	await _wait(2.0)
+	_shot("woods_river")
+	main.camera_rig.set_shot(Vector3(bx + 10.0, ww.height(bx + 10.0, bz + 30.0) + 3.0, bz + 30.0), Vector3(bx, ww.height(bx, bz + 20.0), bz + 15.0), 60.0)
+	await _wait(1.5)
+	_shot("woods_river_2")
 

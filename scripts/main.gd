@@ -44,6 +44,7 @@ var attention: AttentionDirector
 var affect: Affect
 var impacts: ImpactDirector       # area impacts with consequences + the aftermath behaviours (V3 continuation)
 var teleport_guard: TeleportGuard  # the no-teleport rule, watched every physics frame
+var journeys: JourneyDirector      # multi-day journeys across the overland world (persistent)
 var companionship: Companionship
 var duel: TrainingDuel
 var performance: PerformanceController
@@ -261,6 +262,10 @@ func _ready() -> void:
 	teleport_guard.name = "TeleportGuard"
 	add_child(teleport_guard)
 	teleport_guard.setup(self)
+	journeys = JourneyDirector.new()
+	journeys.name = "Journeys"
+	add_child(journeys)
+	journeys.setup(self)
 	companionship = Companionship.new()
 	companionship.name = "Companionship"
 	add_child(companionship)

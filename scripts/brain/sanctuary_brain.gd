@@ -904,6 +904,9 @@ func _hunt(o: Dictionary) -> Dictionary:
 	var st := {"casts": 0, "hits": 0, "dodges": 0, "dodged": 0, "struck": 0, "signature": 0, "assists": 0, "intents": {}, "wards": 0, "spells": {}, "effects": {}}
 	var t_fight := Time.get_ticks_msec()
 	while is_instance_valid(m) and m.alive() and int(st.casts) < 12 and not _cancel and Time.get_ticks_msec() - t_fight < 90000:
+		if m.mstate == "fleeing":
+			st["fled"] = true             # it is running from them (the fire): let it go
+			break
 		if me.reaction and me.reaction.active and me.reaction.tier in ["stagger", "down"]:
 			# knocked off her feet: nothing to decide until she is up again (BodyReaction owns her body)
 			current.stage = "recovering (%s)" % me.reaction.phase
@@ -1002,6 +1005,9 @@ func _hunt(o: Dictionary) -> Dictionary:
 					picked += 1
 		return {"ok": true, "detail": "won after %d cast(s), %d hit(s), %d dodge(s); picked up %d thing(s)" % [st.casts, st.hits, st.dodges, picked],
 			"hits": st.hits, "loot": tries_loot, "tactics": st}
+	if st.get("fled", false):
+		me.set_combat_stance(false)
+		return {"ok": true, "detail": "it fled after %d cast(s), %d hit(s)" % [st.casts, st.hits], "hits": st.hits, "tactics": st, "fled": true}
 	return {"ok": false, "detail": "%d cast(s), %d hit(s); it is still there" % [st.casts, st.hits], "hits": st.hits, "tactics": st}
 
 

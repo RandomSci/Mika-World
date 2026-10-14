@@ -758,7 +758,8 @@
     }
    ],
    "height": 3.0,
-   "aim_height": 1.9
+   "aim_height": 1.9,
+   "fears_fire": true
   }
  },
  "items": {

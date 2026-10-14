@@ -153,6 +153,7 @@
    ],
    "interior": true
   },
+  "wayside": {"region": "enchanted_forest", "scene": "res://scenes/areas/wayside.tscn", "generated": true, "note": "a stretch of an overland route, generated per route and km by the JourneyDirector (docs/WORLD_TRAVEL.md)"},
   "whispering_woods": {
    "region": "arcane_sanctuary",
    "scene": "res://scenes/areas/whispering_woods.tscn",
@@ -169,6 +170,7 @@
   }
  },
  "locations": {
+  "the_road": {"area": "wayside", "region": "enchanted_forest", "name": "On the road", "description": "A stretch of an overland route between the regions.", "status": "playable"},
   "ritual_sanctuary": {
    "area": "sanctuary",
    "region": "arcane_sanctuary",

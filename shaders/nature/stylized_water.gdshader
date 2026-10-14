@@ -19,6 +19,10 @@ uniform float ripple = 0.35;
 uniform vec4 glow_color : source_color = vec4(0.3, 0.8, 0.75, 1.0);
 uniform float glow = 0.0;
 uniform float spec = 0.6;
+uniform float shore_soft = 0.07;
+uniform float sheen_base = 0.12;       // how much sky colour sits on the water head-on
+uniform float sheen_fres = 0.45;       // and at grazing angles
+uniform float foam_amount = 0.85;       // metres of water depth over which the edge fades in
 
 varying vec3 v_wp;
 
@@ -50,15 +54,16 @@ void fragment() {
 	vec3 body = mix(bed * shallow.rgb * 1.25, deep.rgb, smoothstep(0.0, 1.0, k));
 	// fresnel sky sheen
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);
-	vec3 col = mix(body, sky_tint.rgb, 0.12 + fres * 0.45);
+	vec3 col = mix(body, sky_tint.rgb, sheen_base + fres * sheen_fres);
 	// foam at the shore / around stones, broken by noise
 	float fn = texture(noise_tex, uv * 0.5 + flow * t * 2.0).r;
-	float foam = (1.0 - smoothstep(0.0, foam_width, wdepth - (fn - 0.5) * foam_width * 0.8)) * 0.85;
+	float foam = (1.0 - smoothstep(0.0, foam_width, wdepth - (fn - 0.5) * foam_width * 0.8)) * foam_amount;
 	col = mix(col, foam_color.rgb, foam);
 	ALBEDO = col * 0.85;
 	EMISSION = glow_color.rgb * glow * (0.4 + h0 * 0.6) + col * 0.12;
 	ROUGHNESS = mix(0.06, 0.4, foam);
 	METALLIC = 0.0;
 	SPECULAR = spec;
-	ALPHA = 1.0;
+	// a soft shoreline: where the water thins to nothing over the bank it fades out instead of ending in a line
+	ALPHA = smoothstep(0.0, shore_soft, wdepth);
 }

@@ -59,6 +59,8 @@ func slope(x: float, z: float) -> float:
 
 ## Distance to open water (river / pond); negative inside.
 func water_dist(p: Vector2) -> float:
+	if a.has_method("site_water_dist"):
+		return a.site_water_dist(p)        # a Wayside stretch (generated travel area) has its own water
 	var dr := absf(p.x - a.river_x(p.y)) - 5.5
 	var dp: float = p.distance_to(a.POND) - (a.POND_R + 1.0)
 	var dpool: float = p.distance_to(a.pool_center()) - 9.0
@@ -67,6 +69,8 @@ func water_dist(p: Vector2) -> float:
 
 ## Landmark clearings that must stay open (stairs, ruins core, bridge ends, gates, the sparring ground).
 func in_clearing(p: Vector2, margin := 0.0) -> bool:
+	if a.has_method("site_clearing"):
+		return a.site_clearing(p, margin)
 	var clear := [[a.STAIR_BASE + Vector2(0, -6), 8.0], [a.STAIR_LANDING, 7.0], [a.RUIN_GATE, 7.0], [a.INSCRIPTION, 9.0],
 		[a.VIEWPOINT, 7.0], [a.BRIDGE, 10.0], [a.CROSS, 7.0], [a.ENTRY, 8.0], [a.ALCOVE, 5.0], [a.DEN, 9.0],
 		[a.FRONTIER_END, 10.0], [Vector2(-130, -6), 9.0]]
@@ -94,6 +98,8 @@ func inside(p: Vector2, border := 4.0) -> bool:
 ## stairs, the mushroom GROVE by the pond path, the POND, the STREAMSIDE banks, the FALLS APPROACH, the open
 ## RUIN COURT, MONSTER territory east of the river, the bleak FRONTIER ridge; "wood" elsewhere.
 func zone(p: Vector2) -> String:
+	if a.has_method("site_zone"):
+		return a.site_zone(p)
 	if p.distance_to(a.ENTRY + Vector2(0, -6)) < 22.0:
 		return "glade"
 	if p.distance_to(a.CROSS) < 14.0:
@@ -656,7 +662,7 @@ func atmosphere() -> void:
 		a.night_only(night)
 		flies += 1
 	# the hidden pond: a cloud of fireflies over the water
-	for j in 4:
+	for j in (0 if a.has_method("site_zone") else 4):
 		var pp: Vector2 = a.POND + Vector2.from_angle(j * TAU / 4.0) * 7.0
 		var ff := _particles(true, 2.2)
 		ff.position = Vector3(pp.x, a.height(a.POND.x, a.POND.y) + 2.4, pp.y)

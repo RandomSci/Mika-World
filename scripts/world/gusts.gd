@@ -31,6 +31,10 @@ static func register(m: Material) -> void:
 		if w.get_ref() == m:
 			return
 	_mats.append(weakref(m))
+	# the runner must exist for the bodies parting the plants (not only once a gust is emitted)
+	var ml := Engine.get_main_loop() as SceneTree
+	if ml and ml.root:
+		_ensure(ml.root)
 
 
 static func registered() -> int:
@@ -65,7 +69,9 @@ static func _level(g: Dictionary) -> float:
 
 
 static func _ensure(host: Node) -> void:
-	if _node != null and is_instance_valid(_node) and _node.is_inside_tree():
+	if _node != null and is_instance_valid(_node) and not _node.is_queued_for_deletion():
+		return                       # in the tree, or being added this frame
+	if host == null or host.get_tree() == null:
 		return
 	_node = Gusts.new()
 	_node.name = "Gusts"
@@ -73,7 +79,43 @@ static func _ensure(host: Node) -> void:
 	host.get_tree().root.add_child.call_deferred(_node)
 
 
+## Bodies part the plants (V3 continuation): every visible mage and creature, nearest the camera first, up to six,
+## uploaded to every registered plant material each frame.
+const BODIES := 6
+var _bodies_last := PackedVector4Array()
+
+
+func _bodies() -> void:
+	var cam := get_viewport().get_camera_3d()
+	var list := []
+	for n in get_tree().get_nodes_in_group("avoid"):
+		var b := n as Node3D
+		if b == null or not b.is_visible_in_tree():
+			continue
+		var r := 0.42
+		if n is WorldCharacter:
+			r = 0.42 if (n as WorldCharacter).ground_pose == "" else 0.7
+		elif n.get("def") is Dictionary:
+			r = float(n.get("def").get("radius", 0.5)) + 0.25
+		var d := cam.global_position.distance_to(b.global_position) if cam else 0.0
+		list.append([d, Vector4(b.global_position.x, b.global_position.y, b.global_position.z, r)])
+	list.sort_custom(func(a, c): return float(a[0]) < float(c[0]))
+	var arr := PackedVector4Array()
+	for i in BODIES:
+		arr.append(list[i][1] if i < list.size() else Vector4(0, -9999, 0, 0))
+	if arr == _bodies_last:
+		return
+	_bodies_last = arr
+	var on := 1.0 if not list.is_empty() else 0.0
+	for w in _mats:
+		var m: ShaderMaterial = w.get_ref()
+		if m:
+			m.set_shader_parameter("body_pos", arr)
+			m.set_shader_parameter("body_on", on)
+
+
 func _process(delta: float) -> void:
+	_bodies()
 	for g in _gusts:
 		g.age = float(g.age) + delta
 	_gusts = _gusts.filter(func(g): return float(g.age) < float(g.life))

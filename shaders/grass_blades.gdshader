@@ -24,6 +24,9 @@ void vertex() {
 	float sway = (sin(TIME * 1.7 + world.x * 0.35 + world.z * 0.22) * 0.5 + n) * wind_strength;
 	float bend = UV.y * UV.y;
 	VERTEX += (inverse(mat3(MODEL_MATRIX)) * vec3(wind_dir.x, 0.0, wind_dir.y)) * sway * bend;
+	if (body_on > 0.5) {
+		VERTEX += inverse(mat3(MODEL_MATRIX)) * body_offset(world, max(world.y - MODEL_MATRIX[3].y, 0.0));
+	}
 	if (gust_on > 0.5) {
 		vec3 root = MODEL_MATRIX[3].xyz;
 		VERTEX += inverse(mat3(MODEL_MATRIX)) * gust_offset(gust_push(root) * 0.3, max(world.y - root.y, 0.0), 0.45);

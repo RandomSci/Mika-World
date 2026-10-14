@@ -26,6 +26,9 @@ void vertex() {
 	if (gust_on > 0.5) {
 		off += gust_offset(gust_push(root) * 0.45, hm, max(plant_height, 0.3));
 	}
+	if (body_on > 0.5) {
+		off += body_offset(wp, hm);
+	}
 	VERTEX += inverse(mat3(MODEL_MATRIX)) * off;
 }
 

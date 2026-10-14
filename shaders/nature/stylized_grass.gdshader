@@ -35,6 +35,9 @@ void vertex() {
 	float bend = (gust * 0.85 + flut) * wind_strength * h * h;
 	VERTEX.x += bend;
 	VERTEX.z += bend * 0.45;
+	if (body_on > 0.5) {
+		VERTEX += inverse(mat3(MODEL_MATRIX)) * body_offset(wp, max(wp.y - MODEL_MATRIX[3].y, 0.0));
+	}
 	if (gust_on > 0.5) {
 		vec3 root = MODEL_MATRIX[3].xyz;
 		VERTEX += inverse(mat3(MODEL_MATRIX)) * gust_offset(gust_push(root) * 0.35, max(wp.y - root.y, 0.0), max(tuft_height, 0.2));

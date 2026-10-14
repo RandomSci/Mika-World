@@ -21,6 +21,8 @@ signal defeated(monster: Monster, by: String)
 signal attacked(monster: Monster, mage: WorldCharacter, amount: float)
 
 var def := {}
+static var last_fled := {}          # the last creature that fled from a fire (kind, uid)
+var gone := false                  # walked away out of the world (fled), not defeated
 var hp := 100.0
 var max_hp := 100.0
 var home := Vector3.ZERO
@@ -136,7 +138,7 @@ func tier() -> String:
 
 
 func alive() -> bool:
-	return hp > 0.0 and mstate != "dying"
+	return hp > 0.0 and mstate != "dying" and not gone
 
 
 func aim_point() -> Vector3:
@@ -464,8 +466,39 @@ func _lost_target() -> bool:
 
 
 ## Milestone J behaviour (creatures with a body + attack list).
+## Old forest creatures fear fire (V3 continuation, camping): once hurt and close to a burning campfire, it backs off
+## into the dark and does not come back; out of sight it is gone (the journey records it as still out there).
+func _fire_fear(delta: float) -> bool:
+	if not bool(def.get("fears_fire", false)):
+		return false
+	if mstate == "fleeing":
+		var fire: Node3D = get_meta("fled_from_fire") as Node3D if has_meta("fled_from_fire") and is_instance_valid(get_meta("fled_from_fire")) else null
+		var src := fire.global_position if fire else home
+		var away := _flat(global_position - src).normalized()
+		_move_toward(global_position + away * 4.0, float(def.speed) * 1.1, delta)
+		_face(global_position + away * 4.0, delta, 3.0)
+		if _flat(global_position - src).length() > 32.0:
+			last_fled = {"kind": String(kind), "uid": id, "t": Time.get_ticks_msec()}
+			gone = true            # not dead: gone - it walked out of sight into the forest
+			queue_free()
+		return true
+	if hp > max_hp * 0.85 or mstate in ["windup", "strike", "dying"]:
+		return false
+	for f in get_tree().get_nodes_in_group("campfire"):
+		if float(f.get("heat")) > 0.3 and _flat((f as Node3D).global_position - global_position).length() < 10.0:
+			_cancel_hazard()
+			set_meta("fled_from_fire", f)
+			_set_state("fleeing")
+			if AudioDirector.instance:
+				AudioDirector.instance.play3d("monster_slam", global_position, "SFX", -10.0, "monster_flee")
+			return true
+	return false
+
+
 func _think_j(delta: float) -> void:
 	var flyer := float(def.float) > 0.5
+	if _fire_fear(delta):
+		return
 	match mstate:
 		"wander":
 			if territory:

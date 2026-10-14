@@ -1,0 +1,40 @@
+{
+ "_note": "CampScene lines (their own production voices). {place}, {purpose}, {km}, {day}, {ford}, {food} are filled from the journey record; lines whose keys are missing are skipped. Fireside talk picks topics from what really happened that day.",
+ "lines": {
+  "mika": {
+   "choose_site": ["Here. Flat ground, water close by, and those big trees will keep the wind off.", "This clearing's good - we can hear the stream from here.", "Let's stop here. I can't feel my feet anymore."],
+   "firewood": ["I'll find some dry wood.", "Firewood first, before it gets dark."],
+   "fire_lit": ["There we go... come on, little flame.", "Got it! Fire's going."],
+   "cook": ["Sweet potatoes again. I'm not complaining.", "Hand me the pot? I'll start supper."],
+   "serve": ["Here - careful, it's hot.", "Yours. Eat it while it's warm."],
+   "eat": ["Mm... that's actually good.", "Walking all day makes anything taste like a feast."],
+   "sleep_first": ["Wake me when it's my turn. Don't let me sleep through it.", "Okay... I'll sleep first. Night, Luna."],
+   "woken": ["Mm...? What is it?", "I'm up, I'm up..."],
+   "after_encounter": ["My heart's still pounding. Did you see the size of it?", "It ran from the fire... I didn't think anything that big could be scared."],
+   "take_watch": ["I'll watch now. You sleep - I couldn't sleep after that anyway.", "My turn. Go on, rest."],
+   "wake_mate": ["Luna... it's morning. The sun's up.", "Morning, sleepyhead. We've still got road ahead."],
+   "pack": ["Let's pack up. The road won't walk itself.", "Fire's out. Everything packed? Then let's go."]
+  },
+  "luna": {
+   "agree_site": ["Mm. Good choice.", "The stream will lull us to sleep."],
+   "bedrolls": ["I'll lay out the bedrolls.", "Leave the bedding to me."],
+   "water": ["I'll fetch water.", "The stream's just there. I'll fill the pot."],
+   "thanks_food": ["Thank you, Mika.", "It smells wonderful."],
+   "first_watch": ["I'll keep first watch. The moon keeps me awake anyway.", "Sleep. I'll watch the dark for a while."],
+   "notice": ["...Something's out there.", "Branches breaking. Something big."],
+   "wake_mika": ["Mika. Mika, wake up - quietly.", "Mika... don't make a sound. Get up."],
+   "after_encounter": ["It didn't want us. It wanted the fire gone.", "Old creatures fear fire. I think we were lucky."],
+   "sleep_now": ["...Alright. Wake me at dawn.", "Thank you. Don't let the fire die."],
+   "morning": ["Mm... already? It feels like I just closed my eyes.", "Good morning... is there anything left to eat?"],
+   "ready": ["Ready when you are.", "Let's go."]
+  }
+ },
+ "talk": [
+  {"need": "purpose", "a": "mika", "lines": [["mika", "Do you really think the {dest} has answers about {purpose_short}?"], ["luna", "I think it has questions we haven't learned to ask yet. That's a start."]]},
+  {"need": "ford", "a": "luna", "lines": [["luna", "Your boots are still wet from {ford}, aren't they."], ["mika", "Squelch, squelch, all afternoon. Don't laugh."]]},
+  {"need": "village", "a": "mika", "lines": [["mika", "The bread from {village} was the best thing I've eaten all week."], ["luna", "You said that about the cheese too."]]},
+  {"need": "km", "a": "luna", "lines": [["luna", "We walked {km} kilometres today. My legs know every one of them."], ["mika", "Tomorrow will be easier. ...Probably."]]},
+  {"need": "stars", "a": "mika", "lines": [["mika", "The sky is different out here. So many more stars than at the Sanctuary."], ["luna", "There's no light to hide them. That's how the old astronomers saw the world."]]},
+  {"need": "fight", "a": "luna", "lines": [["luna", "Your shoulder still hurts from that troll, doesn't it."], ["mika", "Only when I breathe. ...Or move."]]}
+ ]
+}

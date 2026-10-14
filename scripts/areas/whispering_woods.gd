@@ -361,36 +361,39 @@ func _water() -> void:
 		for kv in [["shallow", Color(0.26, 0.33, 0.25)], ["deep", Color(0.02, 0.045, 0.035)], ["sky_tint", Color(0.42, 0.5, 0.5)], ["foam_color", Color(0.78, 0.82, 0.8)], ["spec", 0.95], ["ripple", 0.12]]:
 			wm.set_shader_parameter(kv[0], kv[1])
 	mats.water = wm
-	# the river below the falls: segments following the bed, from the plunge pool south
-	var z := FALLS.y + 12.0
-	while z < HALF:
-		var seg := 6.0
-		var x0 := river_x(z + seg * 0.5)
-		var w := MeshInstance3D.new()
-		var pm := PlaneMesh.new()
-		pm.size = Vector2(15.0, seg + 0.6)
-		w.mesh = pm
-		w.material_override = wm
-		w.position = Vector3(x0, height(x0, z + seg * 0.5) + 1.25, z + seg * 0.5)
-		w.rotation.y = -atan((river_x(z + seg) - river_x(z)) / seg)
-		w.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(w)
-		z += seg
-	# the upper river on the terrace, up to the lip
+	# the river below the falls and the upper river on the terrace: each ONE continuous ribbon along the bed (V3
+	# continuation: the old row of flat rectangles showed straight edges and steps on the banks); its edges are buried
+	# in the banks, so the shoreline is the terrain's own curve
+	var low_c: Array = []
+	var low_w: Array = []
+	var z := FALLS.y + 10.0
+	while z <= HALF + 0.01:
+		var x0 := river_x(z)
+		low_c.append(Vector3(x0, height(x0, z) + 1.25, z))
+		low_w.append(8.5)
+		z += 2.0
+	# a level-out of the per-point bed noise: the surface of moving water is smooth along its length
+	for it in 2:
+		for i in range(1, low_c.size() - 1):
+			var p0: Vector3 = low_c[i]
+			p0.y = ((low_c[i - 1] as Vector3).y + p0.y * 2.0 + (low_c[i + 1] as Vector3).y) * 0.25
+			low_c[i] = p0
+	RiverRibbon.tune_forest(wm)
+	var lower := RiverRibbon.build(low_c, low_w, wm)
+	lower.name = "RiverLower"
+	add_child(lower)
+	var up_c: Array = []
+	var up_w: Array = []
 	z = -HALF
-	while z < FALLS.y - 0.5:
-		var seg2 := minf(6.0, FALLS.y - 0.5 - z)
-		var x1 := river_x(z + seg2 * 0.5)
-		var w2 := MeshInstance3D.new()
-		var pm2 := PlaneMesh.new()
-		pm2.size = Vector2(15.0, seg2 + 0.6)
-		w2.mesh = pm2
-		w2.material_override = wm
-		w2.position = Vector3(x1, upper_water_y(), z + seg2 * 0.5)
-		w2.rotation.y = -atan((river_x(z + seg2) - river_x(z)) / maxf(seg2, 0.1))
-		w2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(w2)
-		z += seg2
+	while z <= FALLS.y - 0.5:
+		up_c.append(Vector3(river_x(z), upper_water_y(), z))
+		up_w.append(8.0)
+		z += 2.0
+	up_c.append(Vector3(river_x(FALLS.y - 0.5), upper_water_y(), FALLS.y - 0.5))
+	up_w.append(8.0)
+	var upper := RiverRibbon.build(up_c, up_w, wm)
+	upper.name = "RiverUpper"
+	add_child(upper)
 	# the plunge pool
 	var pool := MeshInstance3D.new()
 	var pc := CylinderMesh.new()

@@ -49,6 +49,10 @@ void vertex() {
 		VERTEX += inverse(mat3(MODEL_MATRIX)) * gust_offset(push, wpv.y - root.y, max(canopy_top, 2.0));
 		gusting = min(length(push), 2.0);
 	}
+	if (body_on > 0.5) {
+		vec3 wpb = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+		VERTEX += inverse(mat3(MODEL_MATRIX)) * body_offset(wpb, max(wpb.y - MODEL_MATRIX[3].y, 0.0));
+	}
 	VERTEX += NORMAL * sin(TIME * 6.0 + dot(VERTEX, vec3(3.1, 2.7, 4.3))) * flutter * h * (1.0 + 5.0 * gusting);
 	// spherised normal: out from the crown centre
 	vec3 out_dir = normalize(VERTEX - canopy_center + vec3(0.0001));
