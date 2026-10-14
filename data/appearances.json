@@ -23,7 +23,36 @@
      "motion": "mika",
      "springs": {
       "stiffness": 1.0,
-      "drag": 1.0
+      "drag": 1.0,
+      "chains": {
+       "HairBack": {
+        "stiffness": 8.0,
+        "drag": 1.3,
+        "gravity": 2.0
+       },
+       "HairSide": {
+        "stiffness": 7.0,
+        "drag": 1.3,
+        "gravity": 1.8
+       },
+       "HairRibbon": {
+        "stiffness": 3.0,
+        "drag": 1.2
+       },
+       "Sleeve": {
+        "stiffness": 6.0,
+        "drag": 1.3,
+        "gravity": 1.2
+       },
+       "Skirt": {
+        "stiffness": 2.5,
+        "drag": 1.2
+       },
+       "Sash": {
+        "stiffness": 2.5,
+        "drag": 1.2
+       }
+      }
      },
      "hair": {
       "natural": true,
@@ -221,8 +250,37 @@
      },
      "motion": "luna",
      "springs": {
-      "stiffness": 1.35,
-      "drag": 1.4
+      "stiffness": 1.0,
+      "drag": 1.0,
+      "chains": {
+       "HairBack": {
+        "stiffness": 8.5,
+        "drag": 1.35,
+        "gravity": 2.2
+       },
+       "HairSide": {
+        "stiffness": 7.5,
+        "drag": 1.35,
+        "gravity": 2.0
+       },
+       "Sleeve": {
+        "stiffness": 6.5,
+        "drag": 1.35,
+        "gravity": 1.3
+       },
+       "Earring": {
+        "stiffness": 2.0,
+        "drag": 1.2
+       },
+       "HeadTassel": {
+        "stiffness": 2.0,
+        "drag": 1.2
+       },
+       "HipMedallion": {
+        "stiffness": 2.5,
+        "drag": 1.3
+       }
+      }
      },
      "hair": {
       "natural": true,

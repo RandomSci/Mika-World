@@ -147,6 +147,10 @@ func _run() -> void:
 		await _faces()
 	if mode in ["walk", "all"]:
 		await _walk()
+	if mode in ["ears", "all"]:
+		await _ears()
+	if mode in ["sit", "all"]:
+		await _sit()
 	var f := FileAccess.open(out + "/avatar_lab.json", FileAccess.WRITE)
 	f.store_string(JSON.stringify(report, "  "))
 	f.close()
@@ -216,3 +220,40 @@ func _walk() -> void:
 		await _grab("run_%02d" % k)
 	for c in [m, l]:
 		(c as WorldCharacter).set_move_input(Vector3.ZERO, false)
+
+
+func _ears() -> void:
+	var c := _spawn("mika_celestial", Vector3.ZERO, 0.0)
+	await _wait(2.0)
+	report["ears"] = c.ears != null
+	for e in ["neutral", "surprised", "sad", "frustrated", "curious", "happy"]:
+		if c.face:
+			for o in ["surprised", "sad", "frustrated", "curious", "happy"]:
+				c.face.set_hold(o, 0.0)
+			if e != "neutral":
+				c.face.set_hold(e, 1.0)
+		await _wait(1.2)
+		var head := c.skeleton.global_transform * c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Head")).origin
+		var fwd := -c.global_transform.basis.z
+		_look(head + fwd * 0.95 + c.global_transform.basis.x * 0.35 + Vector3(0, 0.12, 0), head + Vector3(0, 0.12, 0), 34.0)
+		await _grab("ears_%s" % e)
+	c.queue_free()
+
+
+func _sit() -> void:
+	var m := _spawn("mika_celestial", Vector3(-0.9, 0, 0), 0.0)
+	var l := _spawn("luna_oracle", Vector3(0.9, 0, 0), 0.0)
+	await _wait(1.5)
+	for c in [m, l]:
+		(c as WorldCharacter).play_gesture("sit_ground_enter", 0.3, 0.3)
+		(c as WorldCharacter).set_ground_pose("sit", (c as WorldCharacter).animation_length("sit_ground_enter") * 0.9)
+	await _wait(2.2)
+	for c in [m, l]:
+		(c as WorldCharacter).play_gesture("sit_ground_loop", 0.3, 0.6)
+	await _wait(1.5)
+	_look(Vector3(0, 0.9, -3.4), Vector3(0, 0.45, 0), 42.0)
+	await _grab("sit_front")
+	_look(Vector3(3.2, 1.0, -1.4), Vector3(0, 0.45, 0), 42.0)
+	await _grab("sit_34")
+	for c in [m, l]:
+		(c as Node).queue_free()

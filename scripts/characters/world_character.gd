@@ -81,6 +81,10 @@ const CLIPS := {
 	"rx_kneel_rise": ["ual_rest:Fixing_Kneeling[4.3-5.17]", false, true],
 	"rx_crouch_help": ["ual_rest:Crouch_Idle", true, true],
 	"rx_reach_help": ["ual_react:Interact", false, true],
+	# body language (data/motion_profiles.json): Luna's poised formal walk; a few idles
+	"walk_formal": ["ual_react:Walk_Formal_Loop", true, true],
+	"idle_folded": ["ual_react:Idle_FoldArms_Loop", true, true],
+	"consume": ["ual_react:Consume", false, true],
 }
 const UAL_PACK := "res://assets/animations/ual/ual_combat.glb"
 const UAL_PACKS := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_rest": "res://assets/animations/ual/ual_rest.glb",
@@ -239,6 +243,60 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	left_hand = _attach("LeftHand")
 	right_hand = _attach("RightHand")
 	chest = _attach("UpperChest")
+	apply_motion_profile()
+
+
+## Her own body language (data/motion_profiles.json, chosen by the appearance stage's profile.motion): locomotion
+## clip and pace, turn and look speeds, idle glances, gesture tempo, Mika's ears.
+var motion := {}
+var ears: EarController
+var _glance_t := 4.0
+static var _motion_data := {}
+
+
+func apply_motion_profile() -> void:
+	if _motion_data.is_empty():
+		var f := FileAccess.open("res://data/motion_profiles.json", FileAccess.READ)
+		_motion_data = JSON.parse_string(f.get_as_text()) if f else {}
+	var key := String(stage_profile().get("motion", ""))
+	motion = _motion_data.get(key, {})
+	if motion.is_empty():
+		return
+	walk_speed = float(motion.get("walk_speed", walk_speed))
+	run_speed = float(motion.get("run_speed", run_speed))
+	turn_speed = float(motion.get("turn_speed", turn_speed))
+	if head_look:
+		head_look.duration = float(motion.get("head_look_s", head_look.duration))
+	for el in eye_looks:
+		el.duration = float(motion.get("eye_look_s", el.duration))
+	var wc := String(motion.get("walk_clip", "walk"))
+	if anim_tree and has_clip(wc):
+		var loco := (anim_tree.tree_root as AnimationNodeBlendTree).get_node("loco") as AnimationNodeBlendSpace1D
+		(loco.get_blend_point_node(1) as AnimationNodeAnimation).animation = "mx/" + wc
+	if ears and is_instance_valid(ears):
+		ears.queue_free()
+	ears = null
+	if float(motion.get("ears", 0.0)) > 0.0:
+		ears = EarController.attach(self, float(motion.ears))
+
+
+## Idle glances: when she stands doing nothing, she looks around now and then - Mika quickly and often, Luna rarely
+## and slowly (her own profile).
+func _idle_glance(delta: float) -> void:
+	if motion.is_empty() or current_action != "idle" or casting or (reaction and reaction.active) or velocity.length() > 0.3:
+		return
+	_glance_t -= delta
+	if _glance_t > 0.0:
+		return
+	var ge: Array = motion.get("glance_every", [5.0, 9.0])
+	_glance_t = randf_range(float(ge[0]), float(ge[1]))
+	if head_look and head_look.influence > 0.05:
+		return              # something else is directing her gaze
+	var rng_deg := float(motion.get("glance_range_deg", 60.0))
+	var fwd := -global_transform.basis.z
+	var dir := fwd.rotated(Vector3.UP, deg_to_rad(randf_range(-rng_deg, rng_deg)))
+	look_head_at(global_position + dir * 6.0 + Vector3(0, randf_range(1.0, 2.2), 0))
+	get_tree().create_timer(randf_range(1.2, 2.4)).timeout.connect(func(): if is_instance_valid(self) and current_action == "idle": look_head_at(null))
 
 
 signal avatar_swapped(path: String)
@@ -814,7 +872,7 @@ func _retarget_paths(anim: Animation, skel_path: String, in_place: bool) -> void
 
 ## Playback rate of the current gesture / dance clip (1 = authored speed).
 func set_gesture_speed(scale: float) -> void:
-	anim_tree.set("parameters/gesture_speed/scale", scale)
+	anim_tree.set("parameters/gesture_speed/scale", scale * float(motion.get("gesture_tempo", 1.0)))
 
 
 func has_clip(clip: String) -> bool:
@@ -1194,7 +1252,7 @@ func _physics_process(delta: float) -> void:
 		ref = clampf(_speed_smoothed / walk_speed, 0.6, 1.3)
 	elif blend > 1.0:
 		ref = clampf(_speed_smoothed / lerpf(walk_speed, run_speed, blend - 1.0), 0.7, 1.25)
-	anim_tree.set("parameters/loco_speed/scale", ref)
+	anim_tree.set("parameters/loco_speed/scale", ref * float(motion.get("loco_tempo", 1.0)))
 
 
 ## Step-up for small ledges (rock lips, disc rims, kerbs) that navigation treats as climbable
@@ -1219,6 +1277,7 @@ func _try_step_up(dir: Vector3) -> void:
 
 func _process(delta: float) -> void:
 	_update_expressions(delta)
+	_idle_glance(delta)
 
 
 # ------------------------------------------------------------------ observation
