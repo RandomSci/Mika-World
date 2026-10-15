@@ -110,6 +110,7 @@ var nav_agent: NavigationAgent3D
 var world: Node  # the active area (magic bounce / rune floor), set by the streaming manager
 var sword: SwordLayer  # optional magical-sword layer
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
+var cloth_clearance: ClothClearance   # hands kept out of her clothes (profile.clearance)
 var head_look: LookAtModifier3D  # eases her head toward what she reads / inspects
 var eye_looks: Array[LookAtModifier3D] = []
 var handler: ObjectHandler       # right-arm IK + holding objects
@@ -205,6 +206,10 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	pose_adjust.name = "PoseAdjust"
 	pose_adjust.influence = 0.0
 	skeleton.add_child(pose_adjust)
+	var clr: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("clearance", {})
+	cloth_clearance = ClothClearance.attach(skeleton, clr) if not clr.is_empty() else null
+	if cloth_clearance and RenderProfile.options.has("no-clearance"):
+		cloth_clearance.enabled = false
 	if _head_target == null:
 		_head_target = Node3D.new()
 		_head_target.name = "HeadLookTarget"
@@ -556,13 +561,25 @@ func _tune_springs() -> void:
 			if String(c.get("comment")).begins_with(String(pre)):
 				var o: Dictionary = sp.chains[pre]
 				for key in o:
-					k[key] = o[key] if o[key] is String else float(o[key])
+					k[key] = o[key] if (o[key] is String or o[key] is bool) else float(o[key])
 		c.set("stiffness_scale", float(c.get("stiffness_scale")) * k.stiffness)
 		c.set("drag_force_scale", clampf(float(c.get("drag_force_scale")) * k.drag, 0.0, 1.0))
 		c.set("gravity_scale", float(c.get("gravity_scale")) * k.gravity)
 		c.set("hit_radius_scale", float(c.get("hit_radius_scale")) * k.hit_radius)
 		# "body": simulate the chain in her own frame (the skeleton), not the world - a run does not leave the hair
 		# behind to be dragged through her shoulders; her turns, bounce and arm swing still move it
+		if bool(k.get("arms", false)):
+			# collide with her arms too (a sleeve drape hangs beside the arm it belongs to)
+			var arms_g = null
+			for sb2 in sec.spring_bones:
+				for cg in sb2.collider_groups:
+					for col in cg.colliders:
+						if String(col.bone).ends_with("UpperArm") and arms_g == null:
+							arms_g = cg
+			if arms_g != null and not (arms_g in c.get("collider_groups")):
+				var groups = c.get("collider_groups").duplicate()
+				groups.append(arms_g)
+				c.set("collider_groups", groups)
 		if String(k.get("center", "")) == "body":
 			var skel_node: Node = avatar.find_child("GeneralSkeleton", true, false)
 			if skel_node:
@@ -585,6 +602,44 @@ func _shoulder_colliders() -> void:
 	if sec == null or sec.get("spring_bones") == null or sk == null:
 		return
 	var done := {}
+	# the skirt's own arm colliders (its "hands" group): forearm and hand at their real width, so a hanging hand
+	# pushes the frill aside instead of passing through it (profile.springs.shoulders.forearm / .hand)
+	if cfg.has("forearm"):
+		for sb in sec.spring_bones:
+			if not String(sb.comment).begins_with("Skirt"):
+				continue
+			for cg in sb.collider_groups:
+				if cg.has_meta("mika_skirt_arms"):
+					continue
+				var has_fore := false
+				for col in cg.colliders:
+					if String(col.bone).ends_with("LowerArm"):
+						has_fore = true
+				if not has_fore:
+					continue
+				cg.set_meta("mika_skirt_arms", true)
+				var ks: Array = cg.colliders.duplicate()
+				for side in ["Left", "Right"]:
+					var la := sk.find_bone(side + "LowerArm")
+					var hd := sk.find_bone(side + "Hand")
+					var fm := sk.find_bone(side + "MiddleProximal")
+					if la < 0 or hd < 0:
+						continue
+					var fa = load("res://addons/vrm/vrm_collider.gd").new()
+					fa.bone = sk.get_bone_name(la)
+					fa.offset = Vector3.ZERO
+					fa.tail = sk.get_bone_rest(hd).origin
+					fa.radius = float(cfg.forearm)
+					fa.is_capsule = true
+					ks.append(fa)
+					var hc = load("res://addons/vrm/vrm_collider.gd").new()
+					hc.bone = sk.get_bone_name(hd)
+					hc.offset = Vector3.ZERO
+					hc.tail = (sk.get_bone_rest(fm).origin * 1.8) if fm >= 0 else Vector3(0, 0.12, 0)
+					hc.radius = float(cfg.get("hand", 0.07))
+					hc.is_capsule = true
+					ks.append(hc)
+				cg.colliders.assign(ks)
 	for sb in sec.spring_bones:
 		if not String(sb.comment).begins_with("Hair"):
 			continue
@@ -1328,6 +1383,15 @@ func _finish_action(ok: bool, detail: String) -> void:
 # ------------------------------------------------------------------ simulation
 func _physics_process(delta: float) -> void:
 	_gclock += delta
+	if cloth_clearance:
+		# hands rest folded in front only while they would otherwise hang into the frill: not while she casts,
+		# holds something, has the sword out, sits / lies, runs or is knocked about
+		var spd := Vector2(velocity.x, velocity.z).length()
+		# on a seat (the knees-together correction on, no ground pose): hands on her lap, above the skirt
+		cloth_clearance.seated = pose_adjust.influence > 0.5 and pose_adjust.mode == ""
+		cloth_clearance.allow = not casting and not (handler and handler.held != null) and not (sword and sword.drawn) \
+			and (pose_adjust.influence < 0.05 or cloth_clearance.seated) and spd < walk_speed * 1.35 \
+			and not (reaction and reaction.active) and not lifted
 	if reaction:
 		reaction.physics(delta)
 		if reaction.active:

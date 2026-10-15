@@ -288,6 +288,8 @@ func _run() -> void:
 	report["jitter_idle"] = await _jitter(m, 4.0)
 	m.set("_glance_t", 4.0)
 	print("[outfittest] jitter ", JSON.stringify(report["jitter_idle"]))
+	if m.get("cloth_clearance"):
+		print("[outfittest] hands at rest (folded in front): ", JSON.stringify(m.cloth_clearance.weight))
 	await _views(m, "idle", 0.95, 3.1, ["front", "back", "side", "side_l", "front34"])
 	var head := _bone(m, "Head")
 	var fwd := -m.global_transform.basis.z
@@ -314,6 +316,7 @@ func _run() -> void:
 		if gait[0] == "walk":
 			report["jitter_walk"] = await _jitter(m, 2.0)
 		report["hair_clip_" + gait[0]] = await _hair_clip(m, 1.5)
+
 		print("[outfittest] hair_clip_%s %s" % [gait[0], JSON.stringify(report["hair_clip_" + gait[0]])])
 		await _views(m, gait[0], 0.95, 3.4, ["front", "side", "back"] if gait[0] == "walk" else ["side", "back"])
 		m.set_move_input(Vector3.ZERO, false)
