@@ -102,12 +102,14 @@
        "HairBack": {
         "stiffness": 8.0,
         "drag": 1.3,
-        "gravity": 2.0
+        "gravity": 2.0,
+        "hit_radius": 2.2
        },
        "HairSide": {
         "stiffness": 7.0,
         "drag": 1.3,
-        "gravity": 1.8
+        "gravity": 1.8,
+        "hit_radius": 2.2
        },
        "HairRibbon": {
         "stiffness": 3.0,
@@ -126,7 +128,18 @@
         "stiffness": 2.5,
         "drag": 1.2
        }
+      },
+      "shoulders": {
+       "radius": 0.06,
+       "cap": 0.065
       }
+     },
+     "skin": {
+      "tint": [
+       0.97,
+       0.89,
+       0.85
+      ]
      }
     },
     "note": "Same face, body, skeleton and expressions as the celestial stage; outfit and hair replaced by the 12 generated pieces. The celestial stage stays as order 1 (automatic fallback) and is archived as celestial_hair2 for rollback."

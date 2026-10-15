@@ -185,6 +185,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	avatar = instance if instance else (scene if scene else load(avatar_path)).instantiate()
 	avatar.transform = Transform3D.IDENTITY
 	_extend_skirt_colliders()
+	_shoulder_colliders()
 	_tune_springs()
 	avatar.name = "Avatar"
 	avatar.rotation.y = PI  # VRM 1.0 faces +Z; Godot forward is -Z
@@ -196,6 +197,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_fix_open_surface_outlines()
 	_natural_hair()
 	_lab_hair_fix()
+	_skin_tone()
 	_light_balance = Vector2(-1, -1)          # a new avatar's materials need the balance again
 	_setup_animation()
 	_setup_expressions()
@@ -549,7 +551,7 @@ func _tune_springs() -> void:
 	var out = sec.spring_bones.duplicate()           # keeps the array's own element type
 	for i in out.size():
 		var c: Resource = (out[i] as Resource).duplicate()
-		var k := {"stiffness": float(sp.get("stiffness", 1.0)), "drag": float(sp.get("drag", 1.0)), "gravity": float(sp.get("gravity", 1.0))}
+		var k := {"stiffness": float(sp.get("stiffness", 1.0)), "drag": float(sp.get("drag", 1.0)), "gravity": float(sp.get("gravity", 1.0)), "hit_radius": 1.0}
 		for pre in sp.get("chains", {}):
 			if String(c.get("comment")).begins_with(String(pre)):
 				var o: Dictionary = sp.chains[pre]
@@ -558,8 +560,88 @@ func _tune_springs() -> void:
 		c.set("stiffness_scale", float(c.get("stiffness_scale")) * k.stiffness)
 		c.set("drag_force_scale", clampf(float(c.get("drag_force_scale")) * k.drag, 0.0, 1.0))
 		c.set("gravity_scale", float(c.get("gravity_scale")) * k.gravity)
+		c.set("hit_radius_scale", float(c.get("hit_radius_scale")) * k.hit_radius)
 		out[i] = c
 	sec.spring_bones = out
+
+
+## Shoulder colliders for the hair (profile.springs.shoulders {radius, cap}): a model whose torso colliders stop at
+## the upper chest and whose arm colliders start at the arm joint leaves the top of each shoulder bare, and long
+## hair falls through it. Adds a capsule along each collarbone (shoulder joint to arm joint) and a sphere over the
+## shoulder cap to every collider group the hair uses that already holds the chest. On the imported resources once
+## (guarded), like the skirt's capsules.
+func _shoulder_colliders() -> void:
+	var cfg: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("springs", {}).get("shoulders", {})
+	if cfg.is_empty():
+		return
+	var sec = avatar.find_child("secondary", true, false)
+	var sk: Skeleton3D = avatar.find_child("GeneralSkeleton", true, false)
+	if sec == null or sec.get("spring_bones") == null or sk == null:
+		return
+	var done := {}
+	for sb in sec.spring_bones:
+		if not String(sb.comment).begins_with("Hair"):
+			continue
+		for cg in sb.collider_groups:
+			if done.has(cg) or cg.has_meta("mika_shoulders"):
+				continue
+			done[cg] = true
+			var chest := false
+			for col in cg.colliders:
+				if String(col.bone).ends_with("UpperChest"):
+					chest = true
+			if not chest:
+				continue
+			cg.set_meta("mika_shoulders", true)
+			var kept: Array = cg.colliders.duplicate()
+			for side in ["Left", "Right"]:
+				var arm := sk.find_bone(side + "UpperArm")
+				var sh := sk.find_bone(side + "Shoulder")
+				if arm < 0:
+					arm = sk.find_bone("J_Bip_%s_UpperArm" % side.left(1))
+					sh = sk.find_bone("J_Bip_%s_Shoulder" % side.left(1))
+				if arm < 0 or sh < 0:
+					continue
+				var cap = load("res://addons/vrm/vrm_collider.gd").new()
+				cap.bone = sk.get_bone_name(sh)
+				cap.offset = Vector3.ZERO
+				cap.tail = sk.get_bone_rest(arm).origin
+				cap.radius = float(cfg.get("radius", 0.06))
+				cap.is_capsule = true
+				kept.append(cap)
+				var ball = load("res://addons/vrm/vrm_collider.gd").new()
+				ball.bone = sk.get_bone_name(arm)
+				ball.offset = Vector3.ZERO
+				ball.radius = float(cfg.get("cap", 0.065))
+				kept.append(ball)
+			cg.colliders.assign(kept)
+
+
+## Skin tone for a stage (profile.skin {tint: [r, g, b]}): the skin materials' base colour multiplied, from the
+## model's own value each time (a cached material is never tinted twice). The textures stay untouched.
+func _skin_tone() -> void:
+	var cfg: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("skin", {})
+	var tint := Color(1, 1, 1)
+	if cfg.has("tint"):
+		var t: Array = cfg.tint
+		tint = Color(float(t[0]), float(t[1]), float(t[2]))
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var mat := m.get_active_material(si)
+			if not (mat is ShaderMaterial) or not String(mat.resource_name).ends_with("_SKIN"):
+				continue
+			var sm := mat as ShaderMaterial
+			if sm.get_shader_parameter("_Color") == null:
+				continue
+			if not sm.has_meta("skin_base"):
+				if cfg.is_empty():
+					continue
+				sm.set_meta("skin_base", sm.get_shader_parameter("_Color"))
+			var base: Color = sm.get_meta("skin_base")
+			sm.set_shader_parameter("_Color", Color(base.r * tint.r, base.g * tint.g, base.b * tint.b, base.a))
 
 
 func _extend_skirt_colliders() -> void:
