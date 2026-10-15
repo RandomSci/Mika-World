@@ -102,6 +102,11 @@ func setup(m: Node) -> void:
 	if vf:
 		config = JSON.parse_string(vf.get_as_text())
 	_load_gemini_key()
+	# the live show: Mika-Live speaks Mika with its Kokoro voice, so her own lines here use that same voice (one
+	# voice per character on the stream; --live-voice=identity keeps her Gemini identity instead)
+	if RenderProfile.options.has("live-link") and String(RenderProfile.options.get("live-voice", "kokoro")) == "kokoro":
+		config.get_or_add("speakers", {})["mika"] = {"provider": "kokoro", "voice": "af_bella:0.6,jf_alpha:0.4", "gain": 0.7, "speed": 1.0,
+			"note": "live: the same voice Mika-Live speaks her with (conf.yaml kokoro_tts)"}
 	if enabled:
 		_start_service()
 		if _uses_edge():
@@ -866,6 +871,15 @@ func busy() -> bool:
 	return _busy or not _queue.is_empty()
 
 
+## Stop speaking now and drop what is queued (the live show interrupted her).
+func stop() -> void:
+	for job in _queue:
+		job.done = true
+	_queue.clear()
+	if _player and _player.playing:
+		_player.stop()
+
+
 func _pump() -> void:
 	_busy = true
 	while not _queue.is_empty():
@@ -879,7 +893,10 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 	var started := Time.get_ticks_msec()
 	var res := {"speaker": speaker, "text": text, "audio": false, "fallback": true}
 	var wav := PackedByteArray()
-	if enabled and _can_synthesize(speaker):
+	if opts.get("wav") is PackedByteArray and (opts.wav as PackedByteArray).size() > 44:
+		wav = opts.wav                          # already spoken elsewhere (Mika-Live's own voices over the live link)
+		res["external"] = true
+	elif enabled and _can_synthesize(speaker):
 		var key := _cache_key(speaker, text, opts)
 		if _cache.has(key) and (typeof(_cache[key]) != TYPE_STRING or float(opts.get("max_wait", 0.0)) <= 0.0):
 			while typeof(_cache[key]) == TYPE_STRING:   # prefetch still in flight

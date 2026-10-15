@@ -54,6 +54,7 @@ var ambush: AmbushDirector         # road ambushes by human rivals (data/ambush.
 var companionship: Companionship
 var duel: TrainingDuel
 var performance: PerformanceController
+var live_link: LiveLink                    # --live-link: Mika-Live's Stage (null otherwise)
 var quiet_test := false                      # older single-mage tests: no Luna / creatures unless asked
 var _spot_t := 0.0
 var _spot_since := 0.0
@@ -86,6 +87,11 @@ func _ready() -> void:
 	add_child(streaming)
 	# places to find (data/discoveries.json): set into each area as it opens, behind the travel card
 	streaming.before_reveal.append(func(): await Discoveries.populate(world))
+	if not RenderProfile.options.has("no-grade"):
+		var grade := StreamGrade.new()
+		grade.name = "StreamGrade"
+		add_child(grade)
+		grade.setup(self)
 
 	stream_profile = String(RenderProfile.options.get("stream-profile", "mika"))
 	var chars := Node3D.new()
@@ -338,6 +344,12 @@ func _ready() -> void:
 	bridge.attach_brain(brain, director)
 	if RenderProfile.options.has("brain"):
 		set_brain(true)
+	# the live show (Mika-Live drives chat, speech and the broadcast; this world is its Stage)
+	if RenderProfile.options.has("live-link"):
+		live_link = LiveLink.new()
+		live_link.name = "LiveLink"
+		add_child(live_link)
+		live_link.setup(self)
 	# the other mages live their own lives from the start (B only hands Mika to the player and back)
 	for who in mage_brains:
 		if who != "mika" and not RenderProfile.options.has("no-luna-brain"):
