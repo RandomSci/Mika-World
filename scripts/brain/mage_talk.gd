@@ -187,7 +187,9 @@ func _phrase(a: String, b: String, lines: Array) -> Array:
 		return lines
 	var out := []
 	for i in lines.size():
-		var tx := VoiceService.clean(String(got[i]))
+		# the model sometimes answers each line as {"speaker", "text"} instead of a plain string
+		var gi = got[i]
+		var tx := VoiceService.clean(String(gi.get("text", "")) if gi is Dictionary else str(gi))
 		var nl: Dictionary = (lines[i] as Dictionary).duplicate()
 		# lines that state a remembered fact verbatim (a clue's own words) are kept exactly
 		if not nl.has("teach") or String(nl.teach.get("text", "")) != String(nl.text):

@@ -335,6 +335,15 @@ func backfill(who: String) -> float:
 		if String(k).begins_with("defeated:"):
 			for p in xp_for_entry(m, {"changes": {}, "activity": {"id": "defeat:" + String(k).trim_prefix("defeated:")}}):
 				total += float(p[0])
-	m.progress.xp = float(m.progress.xp) + total
+	if _paced(who):
+		# what she already knows is paced like everything else (a fresh save wakes at Level 1, the rest banked)
+		var room := maxf(paced_ceiling(float(m.progress.get("played_s", 0.0)) / 3600.0) - float(m.progress.xp), 0.0)
+		if total > room:
+			m.progress["xp_bank"] = float(m.progress.get("xp_bank", 0.0)) + total - room
+			m.progress.xp = float(m.progress.xp) + room
+		else:
+			m.progress.xp = float(m.progress.xp) + total
+	else:
+		m.progress.xp = float(m.progress.xp) + total
 	check_level(who, true)
 	return total
