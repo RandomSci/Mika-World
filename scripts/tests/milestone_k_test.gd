@@ -137,6 +137,7 @@ func _run() -> void:
 		"stones": await _stones()
 		"view": await _view()
 		"dance": await _dance()
+		"pacing": await _pacing()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -4409,4 +4410,36 @@ func _dance_body_check(c: WorldCharacter, base := {}) -> Dictionary:
 		if not hit.is_empty():
 			below = maxf(below, ((hit.position as Vector3).y + maxf(sk.get_bone_global_rest(bi).origin.y, 0.02) * 0.6) - p.y)
 	return {"hair_deg": worst, "below": below, "strand": strand, "angles": angles}
+
+
+# ------------------------------------------------------------------ stream pacing (Task 1)
+## --mktest=pacing --pacing-test: XP earned ahead of the pacing curve is banked (never lost) and released as played
+## hours accrue; each level arrives no earlier than its target hour (Level 2 at 2 h ... Level 9 by ~380 h).
+func _pacing() -> void:
+	await _hold_all()
+	var pr: Progression = main.progression
+	var m := WorldState.mind("luna")
+	m.progress.xp = 0.0
+	m.progress.level = 1
+	m.progress["played_s"] = 0.0
+	m.progress["xp_bank"] = 0.0
+	pr.gain("luna", 600.0, "a burst of discoveries")
+	_check(float(m.progress.xp) <= 0.01 and absf(float(m.progress.xp_bank) - 600.0) < 0.1, "a burst at hour 0 is banked, not lost (xp %.1f, bank %.1f)" % [float(m.progress.xp), float(m.progress.xp_bank)])
+	m.progress.played_s = 2.0 * 3600.0
+	pr._pace_t = 99.0
+	pr._process(0.0)
+	_check(m.level() == 2, "after 2 played hours she reaches Level 2 (level %d, xp %.1f)" % [m.level(), float(m.progress.xp)])
+	pr.gain("luna", 5000.0, "more")
+	m.progress.played_s = 379.0 * 3600.0
+	pr._pace_t = 99.0
+	pr._process(0.0)
+	_check(m.level() == 8, "at 379 h she is still Level 8 (level %d)" % m.level())
+	m.progress.played_s = 381.0 * 3600.0
+	pr._pace_t = 99.0
+	pr._process(0.0)
+	_check(m.level() == 9, "by ~380 h she is Level 9 (level %d, %.0f XP banked)" % [m.level(), float(m.progress.xp_bank)])
+	m.progress.played_s = 600.0 * 3600.0
+	pr._pace_t = 99.0
+	pr._process(0.0)
+	_check(m.level() == 9, "Level 10 still needs its Orbit Gate (level %d)" % m.level())
 

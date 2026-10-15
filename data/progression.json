@@ -77,5 +77,23 @@
   "5": "Kindled",
   "10": "First Orbit",
   "20": "Second Orbit"
+ },
+ "pacing": {
+  "_note": "Stream pacing (Task 1, 2026-10-16): Levels 1-9 last about three weeks of 24/7 streaming. Each level's XP threshold may be reached no earlier than its target in PLAYED hours (per mage, saved); XP earned ahead of that curve is banked and released as the hours pass, so a burst of discoveries is never lost, only paced. If she finds less to do, she levels more slowly (nothing is given for free). Applies to persistent (real) saves only; tests and --no-pacing are unpaced. Level 10 also needs its Orbit Gate.",
+  "enabled": true,
+  "until_level": 10,
+  "level_hours": {
+   "1": 0,
+   "2": 2,
+   "3": 10,
+   "4": 30,
+   "5": 60,
+   "6": 110,
+   "7": 180,
+   "8": 270,
+   "9": 380,
+   "10": 504
+  },
+  "release_every_s": 10
  }
 }

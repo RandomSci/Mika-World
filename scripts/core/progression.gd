@@ -50,7 +50,8 @@ static func describe(who: String) -> Dictionary:
 	var hi := xp_for(lv + 1)
 	return {"level": lv, "xp": snappedf(float(m.progress.xp), 0.1), "level_floor": snappedf(lo, 0.1), "next_level_xp": snappedf(hi, 0.1),
 		"fraction": clampf((float(m.progress.xp) - lo) / maxf(hi - lo, 1.0), 0.0, 1.0), "title": title(lv),
-		"gate": gate_status(who, (lv / 10 + 1) * 10), "forms_unlocked": m.progress.forms_unlocked}
+		"gate": gate_status(who, (lv / 10 + 1) * 10), "forms_unlocked": m.progress.forms_unlocked,
+		"played_h": snappedf(float(m.progress.get("played_s", 0.0)) / 3600.0, 0.01), "xp_banked": snappedf(float(m.progress.get("xp_bank", 0.0)), 0.1)}
 
 
 static func title(level: int) -> String:
@@ -198,8 +199,69 @@ static func _tier_index(v: float) -> int:
 	return idx
 
 
+## Stream pacing (data/progression.json "pacing"): the most XP a mage may hold after `hours` of play - each level's
+## threshold is reached no earlier than its target hour (interpolated between targets). INF when pacing is off.
+static func paced_ceiling(hours: float) -> float:
+	load_data()
+	var pc: Dictionary = data.get("pacing", {})
+	if not bool(pc.get("enabled", false)):
+		return INF
+	var pts := []
+	for k in pc.get("level_hours", {}):
+		pts.append([float(pc.level_hours[k]), int(k)])
+	pts.sort_custom(func(a, b): return a[0] < b[0])
+	if pts.is_empty() or hours >= float(pts[-1][0]):
+		return INF
+	for i in range(pts.size() - 1):
+		var a: Array = pts[i]
+		var b: Array = pts[i + 1]
+		if hours < float(b[0]):
+			var t := (hours - float(a[0])) / maxf(float(b[0]) - float(a[0]), 0.001)
+			return lerpf(xp_for(int(a[1])), xp_for(int(b[1])), clampf(t, 0.0, 1.0))
+	return INF
+
+
+func _paced(who: String) -> bool:
+	var pc: Dictionary = data.get("pacing", {})
+	return bool(pc.get("enabled", false)) and (WorldState.persistent or RenderProfile.options.has("pacing-test")) and not RenderProfile.options.has("no-pacing") \
+		and WorldState.mind(who).level() < int(pc.get("until_level", 10))
+
+
+var _pace_t := 0.0
+
+
+## Played hours accrue per mage while the world runs; banked XP is released as the pacing curve allows.
+func _process(delta: float) -> void:
+	if data.is_empty() or main == null:
+		return
+	_pace_t += delta
+	var every := float(data.get("pacing", {}).get("release_every_s", 10))
+	if _pace_t < every:
+		return
+	for who in WorldState.minds:
+		var m := WorldState.mind(who)
+		m.progress["played_s"] = float(m.progress.get("played_s", 0.0)) + _pace_t
+		var bank := float(m.progress.get("xp_bank", 0.0))
+		if bank > 0.01:
+			var room := paced_ceiling(float(m.progress.played_s) / 3600.0) - float(m.progress.xp) if _paced(who) else INF
+			var rel := minf(bank, maxf(room, 0.0))
+			if rel > 0.01:
+				m.progress.xp_bank = bank - rel
+				m.progress.xp = float(m.progress.xp) + rel
+				xp_gained.emit(who, rel, "what she has learned settles in")
+				check_level(who)
+	_pace_t = 0.0
+	WorldState._dirty = true
+
+
 func gain(who: String, amount: float, reason: String) -> void:
 	var m := WorldState.mind(who)
+	if _paced(who):
+		# ahead of the pacing curve: the rest is banked (released later as she plays on), never lost
+		var room := maxf(paced_ceiling(float(m.progress.get("played_s", 0.0)) / 3600.0) - float(m.progress.xp), 0.0)
+		if amount > room:
+			m.progress["xp_bank"] = float(m.progress.get("xp_bank", 0.0)) + amount - room
+			amount = room
 	m.progress.xp = float(m.progress.xp) + amount
 	recent.append({"who": who, "amount": snappedf(amount, 0.1), "reason": reason.left(80), "t": snappedf(Time.get_ticks_msec() / 1000.0, 0.1)})
 	if recent.size() > 30:
