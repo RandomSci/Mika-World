@@ -161,16 +161,15 @@ class CapsuleCollider:
 			tail_position = p_center_transform * p_skel_global_xform_inv * node.global_transform * tail_offset
 
 	func collision(p_bone_position: Vector3, p_bone_radius: float, p_bone_length: float, p_out: Vector3, p_position_offset: Vector3 = Vector3.ZERO) -> Vector3:
+		# Mika World fix: the nearest point of the capsule's axis to the TAIL being moved (p_out), with t as a 0..1
+		# fraction of the axis. Upstream projected the joint's origin and divided by |P| instead of |P|^2, so a
+		# capsule acted as a small sphere near its start (hair passed through the middle of an upper arm).
 		var P: Vector3 = tail_position - position
-		var Q: Vector3 = p_bone_position - position - p_position_offset
-		var dot = P.dot(Q)
-		if dot <= 0:
+		var Q: Vector3 = p_out - position - p_position_offset
+		var len2: float = P.length_squared()
+		if len2 < 1e-10:
 			return super.collision(p_bone_position, p_bone_radius, p_bone_length, p_out, p_position_offset)
-
-		var t: float = dot / P.length()
-		if t >= 1.0:
-			return super.collision(p_bone_position, p_bone_radius, p_bone_length, p_out, p_position_offset + P)
-
+		var t: float = clampf(P.dot(Q) / len2, 0.0, 1.0)
 		return super.collision(p_bone_position, p_bone_radius, p_bone_length, p_out, p_position_offset + P * t)
 
 	func draw_debug(mesh: ImmediateMesh, center_transform_inv: Transform3D) -> void:

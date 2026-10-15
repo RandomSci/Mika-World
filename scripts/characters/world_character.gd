@@ -556,11 +556,17 @@ func _tune_springs() -> void:
 			if String(c.get("comment")).begins_with(String(pre)):
 				var o: Dictionary = sp.chains[pre]
 				for key in o:
-					k[key] = float(o[key])
+					k[key] = o[key] if o[key] is String else float(o[key])
 		c.set("stiffness_scale", float(c.get("stiffness_scale")) * k.stiffness)
 		c.set("drag_force_scale", clampf(float(c.get("drag_force_scale")) * k.drag, 0.0, 1.0))
 		c.set("gravity_scale", float(c.get("gravity_scale")) * k.gravity)
 		c.set("hit_radius_scale", float(c.get("hit_radius_scale")) * k.hit_radius)
+		# "body": simulate the chain in her own frame (the skeleton), not the world - a run does not leave the hair
+		# behind to be dragged through her shoulders; her turns, bounce and arm swing still move it
+		if String(k.get("center", "")) == "body":
+			var skel_node: Node = avatar.find_child("GeneralSkeleton", true, false)
+			if skel_node:
+				c.set("center_node", sec.get_path_to(skel_node))
 		out[i] = c
 	sec.spring_bones = out
 
@@ -587,9 +593,35 @@ func _shoulder_colliders() -> void:
 				continue
 			done[cg] = true
 			var chest := false
+			var arms := false
 			for col in cg.colliders:
 				if String(col.bone).ends_with("UpperChest"):
 					chest = true
+				if String(col.bone).ends_with("UpperArm"):
+					arms = true
+			if arms and cfg.has("arm"):
+				# the model's arm capsules are the bare arm (4 cm); with the sleeve and the swing of a run the hair
+				# needs the arm's full width, along the whole upper arm
+				cg.set_meta("mika_shoulders", true)
+				var ka: Array = cg.colliders.duplicate()
+				for side in ["Left", "Right"]:
+					var ua := sk.find_bone(side + "UpperArm")
+					if ua < 0:
+						ua = sk.find_bone("J_Bip_%s_UpperArm" % side.left(1))
+					var la := sk.find_bone(side + "LowerArm")
+					if la < 0:
+						la = sk.find_bone("J_Bip_%s_LowerArm" % side.left(1))
+					if ua < 0 or la < 0:
+						continue
+					var cap2 = load("res://addons/vrm/vrm_collider.gd").new()
+					cap2.bone = sk.get_bone_name(ua)
+					cap2.offset = Vector3.ZERO
+					cap2.tail = sk.get_bone_rest(la).origin
+					cap2.radius = float(cfg.arm)
+					cap2.is_capsule = true
+					ka.append(cap2)
+				cg.colliders.assign(ka)
+				continue
 			if not chest:
 				continue
 			cg.set_meta("mika_shoulders", true)

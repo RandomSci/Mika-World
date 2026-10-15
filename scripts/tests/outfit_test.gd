@@ -91,6 +91,51 @@ func _tris(c: WorldCharacter) -> Dictionary:
 	return {"total": t, "meshes": meshes}
 
 
+## Hair through her shoulders / arms: every hair joint (J_Sec_Hair*, not the ribbons) against capsules of her real
+## shoulders (collarbone to arm joint, 5.5 cm) and upper arms (4.5 cm), every frame for `seconds`. A strand is
+## ~1.5 cm thick, so a joint closer than radius + 1.5 cm means hair inside her. -> {frames, frames_inside_pct, max_cm, worst_joint}
+func _hair_clip(m: WorldCharacter, seconds: float) -> Dictionary:
+	var sk := m.skeleton
+	var hair := []
+	for i in sk.get_bone_count():
+		var nm := sk.get_bone_name(i)
+		if nm.begins_with("J_Sec_Hair") and not nm.contains("Ribbon"):
+			hair.append(i)
+	var segs := []
+	for side in ["Left", "Right"]:
+		var sh := sk.find_bone(side + "Shoulder")
+		var ua := sk.find_bone(side + "UpperArm")
+		var la := sk.find_bone(side + "LowerArm")
+		if sh >= 0 and ua >= 0:
+			segs.append([sh, ua, 0.055])
+		if ua >= 0 and la >= 0:
+			segs.append([ua, la, 0.045])
+	var frames := 0
+	var inside := 0
+	var worst := 0.0
+	var worst_nm := ""
+	var t0 := Time.get_ticks_usec()
+	while (Time.get_ticks_usec() - t0) / 1e6 < seconds:
+		await sk.skeleton_updated
+		frames += 1
+		var any := false
+		for s in segs:
+			var a := sk.get_bone_global_pose(s[0]).origin
+			var b := sk.get_bone_global_pose(s[1]).origin
+			for j in hair:
+				var p := sk.get_bone_global_pose(j).origin
+				var d := p.distance_to(Geometry3D.get_closest_point_to_segment(p, a, b))
+				var depth := float(s[2]) + 0.015 - d
+				if depth > 0.0:
+					any = true
+					if depth > worst:
+						worst = depth
+						worst_nm = sk.get_bone_name(j)
+		if any:
+			inside += 1
+	return {"frames": frames, "frames_inside_pct": snappedf(100.0 * inside / maxf(frames, 1), 0.1), "max_cm": snappedf(worst * 100.0, 0.1), "worst_joint": worst_nm}
+
+
 func _jitter(m: WorldCharacter, seconds: float) -> Dictionary:
 	var sk := m.skeleton
 	var tips := []
@@ -268,7 +313,9 @@ func _run() -> void:
 		await _wait(2.2)
 		if gait[0] == "walk":
 			report["jitter_walk"] = await _jitter(m, 2.0)
-		await _views(m, gait[0], 0.95, 3.4, ["front", "side", "back"] if gait[0] == "walk" else ["side"])
+		report["hair_clip_" + gait[0]] = await _hair_clip(m, 1.5)
+		print("[outfittest] hair_clip_%s %s" % [gait[0], JSON.stringify(report["hair_clip_" + gait[0]])])
+		await _views(m, gait[0], 0.95, 3.4, ["front", "side", "back"] if gait[0] == "walk" else ["side", "back"])
 		m.set_move_input(Vector3.ZERO, false)
 		if gait[0] == "walk":
 			m.set("_glance_t", 1e9)
