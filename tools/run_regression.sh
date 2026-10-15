@@ -2,7 +2,7 @@
 # Restart/persistence regression suite (headless, bounded, no API calls, no voice, no bridge).
 # Uses only disposable saves (user://test_regress_*.json). The real save is never written; "realcopy" tests a byte copy of it.
 #   tools/run_regression.sh            all suites
-#   tools/run_regression.sh integrity  one suite: integrity | npc | realcopy | trials | mh | mi | visual (windowed: music, audience, transformation)
+#   tools/run_regression.sh integrity  one suite: stones | integrity | npc | realcopy | trials | mh | mi | visual (windowed: music, audience, transformation)
 # A suite fails on a FAIL line, a non-zero exit, a timeout or ANY "SCRIPT ERROR" in its log.
 set -u
 cd "$(dirname "$0")/.."
@@ -19,12 +19,12 @@ run() {   # run <name> <timeout_s> <user args...>
   timeout "$t" "$GODOT" --headless --path . -- "${COMMON[@]}" "$@" >"$log" 2>&1
   local code=$?
   local errs; errs=$(grep -c "SCRIPT ERROR" "$log")
-  if [ $code -ne 0 ] || [ "$errs" -ne 0 ] || ! grep -qE "^\[(persisttest|mhtest|mitest)\] PASS" "$log"; then
+  if [ $code -ne 0 ] || [ "$errs" -ne 0 ] || ! grep -qE "^\[(persisttest|mhtest|mitest|mktest)\] PASS" "$log"; then
     echo "FAIL  $name (exit $code, script errors $errs) -> $log"
-    grep -E "^\[(persisttest|mhtest|mitest)\]   FAIL|SCRIPT ERROR" -A2 "$log" | head -20
+    grep -E "^\[(persisttest|mhtest|mitest|mktest)\]   FAIL|SCRIPT ERROR" -A2 "$log" | head -20
     fails=$((fails + 1))
   else
-    echo "PASS  $name ($(grep -cE '^\[(persisttest|mhtest|mitest)\]   ok' "$log") checks)"
+    echo "PASS  $name ($(grep -cE '^\[(persisttest|mhtest|mitest|mktest)\]   ok' "$log") checks)"
   fi
 }
 
@@ -38,16 +38,20 @@ runw() {
   timeout "$t" "$GODOT" --path . --resolution 1600x900 -- --profile=live --no-bridge --no-visitors --no-weather "$@" >"$log" 2>&1
   local code=$?
   local errs; errs=$(grep -c "SCRIPT ERROR" "$log")
-  if [ $code -ne 0 ] || [ "$errs" -ne 0 ] || ! grep -qE "^\[(persisttest|mhtest|mitest)\] PASS" "$log"; then
+  if [ $code -ne 0 ] || [ "$errs" -ne 0 ] || ! grep -qE "^\[(persisttest|mhtest|mitest|mktest)\] PASS" "$log"; then
     echo "FAIL  $name (exit $code, script errors $errs) -> $log"
-    grep -E "^\[(persisttest|mhtest|mitest)\]   FAIL|SCRIPT ERROR" -A2 "$log" | head -20
+    grep -E "^\[(persisttest|mhtest|mitest|mktest)\]   FAIL|SCRIPT ERROR" -A2 "$log" | head -20
     fails=$((fails + 1))
   else
-    echo "PASS  $name ($(grep -cE '^\[(persisttest|mhtest|mitest)\]   ok' "$log") checks)"
+    echo "PASS  $name ($(grep -cE '^\[(persisttest|mhtest|mitest|mktest)\]   ok' "$log") checks)"
   fi
 }
 
 want="${1:-all}"
+if [ "$want" = all ] || [ "$want" = stones ]; then
+  # every area's built stone rests on the ground or on stone (no floating walls, lintels, cornices, deck slabs)
+  run stones 900 --luna --mktest=stones --save-path=user://test_regress_stones.json
+fi
 if [ "$want" = all ] || [ "$want" = integrity ]; then
   run integrity 120 --persisttest=integrity --save-path=user://test_regress_integrity.json
 fi

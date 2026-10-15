@@ -151,10 +151,13 @@ func _shrine() -> void:
 	sb.wall(Vector3(c.x - 8.0, ty, fz), Vector3(c.x - 2.0, ty, fz), 6.4, 1.4, 0.15)
 	sb.wall(Vector3(c.x + 2.0, ty, fz), Vector3(c.x + 8.0, ty, fz), 6.4, 1.4, 0.25)
 	sb.arch(Vector3(c.x, ty, fz), 0.0, 4.0, 3.4, 0.9, 1.4, true, 0.0)
+	# the cornice lies on what is left of the wall; where the wall under it has fallen, so has the cornice
 	for i in 10:
 		if i == 2 or i == 7:
 			continue
-		sb.block(Transform3D(Basis.IDENTITY, Vector3(c.x - 7.6 + i * 1.7, ty + 6.7, fz)), Vector3(1.6, 0.55, 1.9), 0.6, 0.06)
+		var cp := Vector3(c.x - 7.6 + i * 1.7, ty + 6.7, fz)
+		if not sb.block_on(cp, Vector3(1.6, 0.55, 1.9), 0.6, 0.06, 0.4):
+			sb.rubble(Vector3(cp.x + sb.rng.randf_range(-0.6, 0.6), 0, fz + 2.0 + sb.rng.randf_range(0.0, 1.6)), Vector3(1.6, 0.55, 1.9))
 	# broken pillars along the court, an altar before the door
 	var ph := [4.4, 2.2, 3.6, 1.4]
 	for i in 4:

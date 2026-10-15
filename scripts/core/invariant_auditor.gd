@@ -12,6 +12,8 @@ extends Node
 ##   weapon         a fighter's blade: its tip never inside its own body or the ground, and in a strike it
 ##                  points toward the one it strikes at
 ##   facing         whoever attacks faces what it attacks (a creature winding up / striking; a mage casting at one)
+##   stones         every stone of a built structure (walls, ruins, arches, steps, terraces) rests on the ground or on
+##                  another stone: none hangs in the air. Checked once per area, on arrival.
 ##   on_ground      nobody floats or sinks: feet within FOOT_MAX of the ground under them (unless lifted by a
 ##                  spell, seated, lying, mid-dodge or travelling)
 ##
@@ -35,6 +37,8 @@ var _arrived_t := 0.0
 var _mstate_prev := {}
 var _persist := {}
 var _last_pos := {}
+var _stones_area := ""
+var _stones_t := 0.0
 
 
 func setup(m: Node) -> void:
@@ -147,6 +151,7 @@ func _process(delta: float) -> void:
 				_check_feet(r, "res:" + String(rid))
 	_check_camera()
 	_check_fights()
+	_check_stones_once()
 	for who in main.characters:
 		var c: WorldCharacter = main.characters[who]
 		if not is_instance_valid(c) or not c.visible or not c.is_inside_tree():
@@ -157,6 +162,124 @@ func _process(delta: float) -> void:
 			var d: float = (c.handler.held as Node3D).global_position.distance_to(c.handler.palm())
 			if d > 0.6:
 				_flag("%s:%s" % [who, (c.handler.held as Node).name], "held_in_hand", {"dist": snappedf(d, 0.01)})
+
+
+# ------------------------------------------------------------------ built stone
+## Once per area, a moment after it has opened: every StoneBuilder block must stand on the ground (the terrain's
+## collider or the area's height) or on another block below it. A block with nothing under it floats.
+func _check_stones_once() -> void:
+	# thousands of raycasts in one frame: only in test / QA runs (the built world is the same every run), never live
+	if not RenderProfile.options.has("mktest"):
+		return
+	if main.get("streaming") == null or main.streaming.state != "idle" or main.get("world") == null:
+		_stones_t = 0.0
+		return
+	var area := String(main.streaming.current_id)
+	if area == _stones_area:
+		return
+	_stones_t += 0.5
+	if _stones_t < 1.5:
+		return
+	_stones_area = area
+	var r := check_stones(main.world)
+	if int(r.floating) > 0:
+		for s in r.structures:
+			_flag("stone:%s:%s" % [area, s.name], "stones:floating", {"count": s.count, "of": s.of, "at": s.at})
+
+
+## Every floating block under `root`, per structure: {checked, floating, structures: [{name, count, of, at}]}.
+static func check_stones(root: Node) -> Dictionary:
+	var out := {"checked": 0, "floating": 0, "structures": []}
+	if root == null or not root.is_inside_tree():
+		return out
+	var space := (root as Node3D).get_world_3d().direct_space_state if root is Node3D else null
+	var ground_fn: Callable = Callable(root, "ground_at") if root.has_method("ground_at") else Callable()
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		if not mi.has_meta("stone_boxes") or not (mi as Node3D).is_visible_in_tree():
+			continue
+		var xf: Transform3D = (mi as Node3D).global_transform
+		var anchor := -INF
+		if mi.has_meta("stone_anchor_y"):
+			anchor = (xf * Vector3(0, float(mi.get_meta("stone_anchor_y")), 0)).y
+		var boxes: Array = []
+		for b in mi.get_meta("stone_boxes"):
+			boxes.append(xf * (b as AABB))
+		# a 1 m grid over x/z, so each block only meets its neighbours
+		var grid := {}
+		for i in boxes.size():
+			var bb: AABB = boxes[i]
+			for gx in range(floori(bb.position.x), floori(bb.end.x) + 1):
+				for gz in range(floori(bb.position.z), floori(bb.end.z) + 1):
+					var k := Vector2i(gx, gz)
+					if not grid.has(k):
+						grid[k] = []
+					grid[k].append(i)
+		var bad := []
+		for i in boxes.size():
+			var bb: AABB = boxes[i]
+			out.checked += 1
+			if bb.position.y <= anchor + 0.02 or _stone_supported(i, bb, boxes, grid, space, ground_fn):
+				continue
+			var under := -INF               # the highest stone top below it within its footprint (diagnostic)
+			for j in boxes.size():
+				var ob: AABB = boxes[j]
+				if j != i and ob.end.y <= bb.position.y + 0.02 and ob.position.x < bb.end.x and ob.end.x > bb.position.x and ob.position.z < bb.end.z and ob.end.z > bb.position.z:
+					under = maxf(under, ob.end.y)
+			bad.append([bb.get_center(), minf(_stone_gap(bb, space, ground_fn), bb.position.y - under)])
+		if not bad.is_empty():
+			out.floating += bad.size()
+			out.structures.append({"name": String(mi.name), "count": bad.size(), "of": boxes.size(),
+				"at": bad.slice(0, 6).map(func(e: Array): return [snappedf(e[0].x, 0.1), snappedf(e[0].y, 0.1), snappedf(e[0].z, 0.1)]),
+				"gap_m": bad.slice(0, 6).map(func(e: Array): return snappedf(e[1], 0.01))})
+	return out
+
+
+## How far a block hangs above what is under its middle (the ground or anything solid, down to 30 m).
+static func _stone_gap(bb: AABB, space: PhysicsDirectSpaceState3D, ground_fn: Callable) -> float:
+	var c := bb.get_center()
+	var below := -INF
+	if ground_fn.is_valid():
+		below = float(ground_fn.call(c.x, c.z))
+	if space:
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(c.x, bb.position.y - 0.01, c.z), Vector3(c.x, bb.position.y - 30.0, c.z), 1 | 512))
+		if not hit.is_empty():
+			below = maxf(below, (hit.position as Vector3).y)
+	return bb.position.y - below
+
+
+static func _stone_supported(i: int, bb: AABB, boxes: Array, grid: Dictionary, space: PhysicsDirectSpaceState3D, ground_fn: Callable) -> bool:
+	var bottom := bb.position.y
+	var c := bb.get_center()
+	# the middle, and near each corner and end (a lintel or a slab bridging a gap rests on its ends)
+	var pts := [Vector3(c.x, 0, c.z)]
+	for f: float in [0.3, 0.46]:
+		var hx := bb.size.x * f
+		var hz := bb.size.z * f
+		pts.append_array([Vector3(c.x - hx, 0, c.z - hz), Vector3(c.x + hx, 0, c.z - hz), Vector3(c.x - hx, 0, c.z + hz), Vector3(c.x + hx, 0, c.z + hz),
+			Vector3(c.x - hx, 0, c.z), Vector3(c.x + hx, 0, c.z), Vector3(c.x, 0, c.z - hz), Vector3(c.x, 0, c.z + hz)])
+	# the ground: the area's height, or anything solid (terrain, a rock, a floor) just under it
+	for p: Vector3 in pts:
+		if ground_fn.is_valid() and bottom <= float(ground_fn.call(p.x, p.z)) + 0.15:
+			return true
+	if space:
+		for p: Vector3 in pts:
+			# solid ground / floors (1) and the roofs a chimney stands on (HouseBuilder.ROOF_LAYER)
+			var q := PhysicsRayQueryParameters3D.create(Vector3(p.x, bottom + 0.05, p.z), Vector3(p.x, bottom - 0.2, p.z), 1 | 512)
+			if not space.intersect_ray(q).is_empty():
+				return true
+	# another block that reaches up to it from below
+	var grown := bb.grow(0.08)
+	var seen := {}
+	for gx in range(floori(bb.position.x), floori(bb.end.x) + 1):
+		for gz in range(floori(bb.position.z), floori(bb.end.z) + 1):
+			for j in grid.get(Vector2i(gx, gz), []):
+				if j == i or seen.has(j):
+					continue
+				seen[j] = true
+				var ob: AABB = boxes[j]
+				if ob.position.y < bottom - 0.02 and ob.end.y >= bottom - 0.1 and grown.intersects(ob):
+					return true
+	return false
 
 
 ## The camera on the followed mage (the director's subject), whatever shot it is in.

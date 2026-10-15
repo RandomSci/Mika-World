@@ -14,6 +14,9 @@ var ground: Callable         # (x, z) -> y
 var base_y := 0.0            # for the height channel
 var top_y := 6.0
 var blocks := 0
+var boxes: Array = []        # every block's bounds (parent space): the auditor checks each one stands on something
+var anchor_y := -INF         # blocks whose bottom is at or below this height (parent space) are built INTO something
+							 # that is not stone (a chimney's foot inside its roof), so they stand on that
 
 
 func _init(ground_fn: Callable, seed := 1) -> void:
@@ -59,7 +62,55 @@ func block(xf: Transform3D, size: Vector3, moss := 0.0, bevel := 0.06) -> void:
 				polys.append([Vector3(sx * h.x, sy * (h.y - b), sz * (h.z - b)), Vector3(sx * (h.x - b), sy * h.y, sz * (h.z - b)), Vector3(sx * (h.x - b), sy * (h.y - b), sz * h.z)])
 	for poly in polys:
 		_emit(poly, xf, tone, moss)
+	boxes.append(xf * AABB(-h, size))
 	blocks += 1
+
+
+## The highest top of the blocks already laid under a footprint (centre p, half extents half.x / half.y on x / z),
+## among those no higher than `below`; -INF when there is none.
+func top_under(p: Vector3, half: Vector2, below: float) -> float:
+	var t := -INF
+	for b: AABB in boxes:
+		if b.end.y <= below + 0.05 and b.position.x < p.x + half.x and b.end.x > p.x - half.x and b.position.z < p.z + half.y and b.end.z > p.z - half.y:
+			t = maxf(t, b.end.y)
+	return t
+
+
+## A cap stone (a cornice, a lintel, a coping) laid ON the stones under it: its bottom set on their top, however
+## ragged the courses below came out. False (nothing laid) when nothing is within `max_drop` under where it would
+## go - the caller decides what fell (rubble()).
+func block_on(p: Vector3, size: Vector3, moss := 0.0, bevel := 0.06, max_drop := 0.35, yaw := 0.0) -> bool:
+	var bottom := p.y - size.y * 0.5
+	var t := top_under(p, Vector2(size.x, size.z) * 0.48, bottom + max_drop)
+	if t == -INF or bottom - t > max_drop:
+		return false
+	block(Transform3D(Basis(Vector3.UP, yaw) * _jit(0.6), Vector3(p.x, t + size.y * 0.5 - 0.01, p.z)), size, moss, bevel)
+	return true
+
+
+## A fallen stone lying on the ground near p: tipped, half sunk, mossy.
+func rubble(p: Vector3, size: Vector3) -> void:
+	var gy: float = ground.call(p.x, p.z)
+	var tip := Basis.from_euler(Vector3(rng.randf_range(-0.35, 0.35), rng.randf() * TAU, rng.randf_range(-0.35, 0.35)))
+	block(Transform3D(tip, Vector3(p.x, gy + size.y * 0.3, p.z)), size * rng.randf_range(0.85, 1.0), 0.8, 0.12)
+
+
+## Foundation courses under a footprint (centre x/z of p, size.x by size.z, yaw) from `top` down into the ground
+## at its lowest corner: a block set level on a slope stands on these instead of on air.
+func footing(p: Vector3, size: Vector3, top: float, yaw := 0.0) -> void:
+	var basis := Basis(Vector3.UP, yaw)
+	var low := INF
+	for sx: float in [-0.5, 0.0, 0.5]:
+		for sz: float in [-0.5, 0.0, 0.5]:
+			var q := p + basis * Vector3(sx * size.x, 0, sz * size.z)
+			low = minf(low, float(ground.call(q.x, q.z)))
+	var y := top
+	while y > low - 0.12:
+		var ch := minf(0.5, y - (low - 0.15))
+		if ch < 0.08:
+			break
+		block(Transform3D(basis * _jit(0.6), Vector3(p.x, y - ch * 0.5, p.z)), Vector3(size.x * 0.98, ch, size.z * 0.98), 0.1, 0.04)
+		y -= ch + 0.005
 
 
 ## A plain box (no chamfer, no jitter): fill that is meant to be seen only in the joints.
@@ -75,6 +126,7 @@ func _box(xf: Transform3D, size: Vector3, tone: float) -> void:
 				v[(a + 2) % 3] = c[1] * h[(a + 2) % 3]
 				pts.append(v)
 			_emit(pts, xf, tone, 0.0)
+	boxes.append(xf * AABB(-h, size))
 
 
 func _emit(pts: Array, xf: Transform3D, tone: float, moss: float) -> void:
@@ -118,7 +170,10 @@ func wall(a: Vector3, b: Vector3, height: float, thick: float, ruin := 0.0, cour
 	var n_courses := int(ceil(height / course))
 	var phase := rng.randf() * 10.0
 	var max_h := 0.0
+	var below: Array = []           # the spans [t0, t1] laid in the course under this one
+	var first := -1                 # the first course laid (it rests on the ground, or on a lintel)
 	for c in n_courses:
+		var laid: Array = []
 		var t := 0.0 if c % 2 == 0 else -rng.randf_range(0.3, 0.6)
 		while t < L:
 			var bl := rng.randf_range(0.7, 1.25)
@@ -138,6 +193,15 @@ func wall(a: Vector3, b: Vector3, height: float, thick: float, ruin := 0.0, cour
 				continue
 			if ruin > 0.0 and c > 0 and rng.randf() < ruin * 0.18 * float(c) / n_courses:
 				continue
+			# a stone needs a stone under it: where the course below has fallen, everything above it fell too
+			if first >= 0 and c > first:
+				var rests := false
+				for s in below:
+					if minf(t1, float(s[1])) - maxf(t0, float(s[0])) > 0.2:
+						rests = true
+						break
+				if not rests:
+					continue
 			var p := a + dir * mid
 			var gy: float = ground.call(p.x, p.z) if base_y_abs == INF else base_y_abs + 0.18
 			var ch := course * rng.randf_range(0.9, 1.04)
@@ -146,6 +210,17 @@ func wall(a: Vector3, b: Vector3, height: float, thick: float, ruin := 0.0, cour
 			var centre := Vector3(p.x, gy - 0.18 + y0 + ch * 0.5, p.z) + basis * Vector3(0, 0, rng.randf_range(-0.04, 0.04))
 			block(Transform3D(basis * _jit(1.2), centre), size, 0.75 if top else rng.randf() * 0.25)
 			max_h = maxf(max_h, y0 + ch)
+			laid.append([t0, t1])
+		if not laid.is_empty() and first < 0:
+			first = c
+			# masonry over an opening rests on a lintel: one long stone, its ends bedded in the jambs either side
+			if y_from > 0.01:
+				var pm := (a + b) * 0.5
+				var gl: float = ground.call(pm.x, pm.z) if base_y_abs == INF else base_y_abs + 0.18
+				var lh := minf(0.5, course * 0.8)
+				block(Transform3D(basis, Vector3(pm.x, gl - 0.18 + c * course - lh * 0.5, pm.z)), Vector3(L + 0.5, lh, thick * 0.98), 0.2, 0.03)
+		if first >= 0:
+			below = laid
 	# the wall's core: a recessed fill behind the stones, so a joint is a deep dark joint and never a hole to the
 	# sky (an intact wall is solid; a ruin keeps its gaps)
 	if ruin < 0.15 and max_h > y_from + 0.2:
@@ -268,6 +343,7 @@ func _drum(base: Vector3, r: float, h: float, sides: int, rot: float, moss: floa
 		# side faces: emit with outward normal
 		_emit_side(quad, xf, tone, moss * 0.3)
 		_emit([Vector3(0, h, 0), a0 + Vector3(0, h, 0), a1 + Vector3(0, h, 0)], Transform3D(tilt, base), tone, moss)
+	boxes.append(Transform3D(tilt, base) * AABB(Vector3(-r, 0, -r), Vector3(r * 2.0, h, r * 2.0)))
 	blocks += 1
 
 
@@ -322,6 +398,9 @@ func finish(parent: Node3D, mat: Material, name := "Stone", shadow := true) -> M
 	mi.mesh = st.commit()
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.set_meta("stone_boxes", boxes)
+	if anchor_y > -INF:
+		mi.set_meta("stone_anchor_y", anchor_y)
 	parent.add_child(mi)
 	if not colliders.is_empty():
 		var body := StaticBody3D.new()

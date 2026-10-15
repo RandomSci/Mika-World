@@ -134,6 +134,8 @@ func _run() -> void:
 		"gfxcal": await _gfxcal()
 		"adaptive": await _adaptive()
 		"weapons": await _weapons()
+		"stones": await _stones()
+		"view": await _view()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -4185,4 +4187,55 @@ func _weapons() -> void:
 	_check(wv.is_empty(), "no blade through its wielder, into the ground or pointing away in a strike", wv)
 	main.director.enabled = true
 	main.camera_rig.clear_shot()
+
+
+# ------------------------------------------------------------------ built stone: nothing floats
+## --mktest=stones [--areas=a,b]: every area's built stone (walls, ruins, arches, steps, terraces) - each block rests
+## on the ground or on a block below it (InvariantAuditor.check_stones, the same rule the auditor runs on arrival).
+func _stones() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var areas: Array = String(RenderProfile.options.get("areas", "")).split(",", false) if RenderProfile.options.has("areas") else \
+		["sanctuary", "whispering_woods", "ancient_grove", "river_valley", "highland_path", "celestial_summit", "crystal_caverns",
+		"deep_caverns", "village", "observatory_hill", "academy", "mentor_tower", "great_library"]
+	for area in areas:
+		if area != main.streaming.current_id:
+			await main.streaming.travel(area, mika)
+		await _wait(1.0)
+		var r := InvariantAuditor.check_stones(main.world)
+		for s in r.structures:
+			print("[mktest] stones %s/%s: %d of %d float, at %s, gap below %s m" % [area, s.name, s.count, s.of, str(s.at), str(s.gap_m)])
+			# a picture of the first one, from 7 m off and a little above, so it can be judged by eye
+			var at: Array = s.at[0]
+			var bp := Vector3(at[0], at[1], at[2])
+			var from := bp + Vector3(5.0, 3.0, 5.0)
+			main.camera_rig.set_shot(from, bp, 55.0)
+			await _wait(0.8)
+			_shot("%s_%s" % [area, String(s.name)])
+		main.camera_rig.clear_shot()
+		_check(int(r.floating) == 0, "%s: every stone stands on something (%d blocks checked)" % [area, int(r.checked)], r.floating)
+
+
+## --mktest=view --area=<id> --views="fx,fy,fz>ax,ay,az;..." [--hour=H]: pictures from given points (QA of one spot).
+func _view() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var area := String(RenderProfile.options.get("area", main.streaming.current_id))
+	if area != main.streaming.current_id:
+		await main.streaming.travel(area, mika)
+	if RenderProfile.options.has("hour"):
+		WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + float(RenderProfile.options.hour) * 60.0
+		WorldState.clock_rate = 0.0
+	await _wait(1.5)
+	var i := 0
+	for v in String(RenderProfile.options.get("views", "")).split(";", false):
+		var ft := v.split(">")
+		var f := ft[0].split_floats(",")
+		var t := ft[1].split_floats(",")
+		main.camera_rig.set_shot(Vector3(f[0], f[1], f[2]), Vector3(t[0], t[1], t[2]), 55.0)
+		await _wait(1.0)
+		_shot("%s_%d" % [area, i])
+		i += 1
+	main.camera_rig.clear_shot()
+	_check(i > 0, "%d views taken" % i)
 

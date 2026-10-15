@@ -99,7 +99,9 @@ func _observatory() -> void:
 	sb.top_y = c.y + 2.0
 	for i in 16:
 		var a := TAU * i / 16.0
-		sb.block(Transform3D(Basis(Vector3.UP, a), c + Vector3(cos(a) * 4.6, 0.05, sin(a) * 4.6)), Vector3(1.7, 0.3, 0.9), 0.15, 0.04)
+		var fp := c + Vector3(cos(a) * 4.6, 0.05, sin(a) * 4.6)
+		sb.block(Transform3D(Basis(Vector3.UP, a), fp), Vector3(1.7, 0.3, 0.9), 0.15, 0.04)
+		sb.footing(fp, Vector3(1.7, 0, 0.9), fp.y - 0.15, a)       # the slope falls away on the low side
 	sb.finish(self, _stone(), "ObservatoryRing")
 	rune_disc(c + Vector3(0, 0.08, 0), 4.0, Color(0.9, 0.75, 0.45), Color(0.7, 0.55, 1.0), 33.0)
 	var brass := Kit.metal(Color(0.8, 0.6, 0.32), 0.25)
@@ -155,13 +157,20 @@ func _temple_base() -> void:
 		var x := -w * 0.5
 		while x < w * 0.5 - 0.01:
 			var bw := minf(1.8, w * 0.5 - x)
-			sb.block(Transform3D(Basis.IDENTITY, Vector3(TEMPLE.x + x + bw * 0.5, yy + 0.25, TEMPLE.z - tier * 0.4 + d * 0.5 - 0.45)), Vector3(bw, 0.5, 0.9), 0.2, 0.04)
-			sb.block(Transform3D(Basis.IDENTITY, Vector3(TEMPLE.x + x + bw * 0.5, yy + 0.25, TEMPLE.z - tier * 0.4 - d * 0.5 + 0.45)), Vector3(bw, 0.5, 0.9), 0.2, 0.04)
+			for sz: float in [1.0, -1.0]:
+				var bp := Vector3(TEMPLE.x + x + bw * 0.5, yy + 0.25, TEMPLE.z - tier * 0.4 + sz * (d * 0.5 - 0.45))
+				sb.block(Transform3D(Basis.IDENTITY, bp), Vector3(bw, 0.5, 0.9), 0.2, 0.04)
+				if tier == 0:
+					sb.footing(bp, Vector3(bw, 0, 0.9), yy)        # where the slope falls away under the podium
 			x += bw
 		# the podium's fill and the temple floor: worn flagstones (the stone material grows moss on every top face)
+		sb._box(Transform3D(Basis.IDENTITY, Vector3(TEMPLE.x, yy + 0.24, TEMPLE.z - tier * 0.4)), Vector3(w - 0.5, 0.48, d - 1.7), -1.0)   # the core the courses above bed on (hidden)
 		Kit.block(self, Vector3(w - 0.4, 0.5, d - 1.6), Kit.xf(Vector3(TEMPLE.x, yy + 0.25, TEMPLE.z - tier * 0.4)), Kit.tri("monastery_stone_floor", "2k", 0.35, 0.0, Color(0.86, 0.84, 0.8)), false, 0.03)
 		for sx: float in [-1.0, 1.0]:
-			sb.block(Transform3D(Basis.IDENTITY, Vector3(TEMPLE.x + sx * (w * 0.5 - 0.45), yy + 0.25, TEMPLE.z - tier * 0.4)), Vector3(0.9, 0.5, d), 0.2, 0.04)
+			var sp := Vector3(TEMPLE.x + sx * (w * 0.5 - 0.45), yy + 0.25, TEMPLE.z - tier * 0.4)
+			sb.block(Transform3D(Basis.IDENTITY, sp), Vector3(0.9, 0.5, d), 0.2, 0.04)
+			if tier == 0:
+				sb.footing(sp, Vector3(0.9, 0, d), yy)
 	sb.steps(Vector3(TEMPLE.x, height(TEMPLE.x, TEMPLE.z + 12.0), TEMPLE.z + 12.0), Vector3(TEMPLE.x, y0 + 0.9, TEMPLE.z + 5.0), 5.0, 0.45, 0.16, 0.5)
 	sb.finish(self, _stone(), "TemplePodium")
 	Kit.static_box(self, Vector3(15.2, 1.5, 11.0), Kit.xf(Vector3(TEMPLE.x, y0 + 0.15, TEMPLE.z - 0.8)))

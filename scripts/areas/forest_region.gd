@@ -507,20 +507,31 @@ func stone_bridge(z: float, x0: float, x1: float, mat: Material, seed := 61) -> 
 	else:
 		arches = [[(x0 + x1) * 0.5, span * 0.42, base - 1.0]]
 	var thick := 0.6
+	# each ring's crown stays UNDER the deck (the deck slab is 0.4 thick and humps 1.4 over the middle): a ring
+	# springing too high pushed its crown through the walkway
+	for ar in arches:
+		var deck_bottom := base + 1.9 + 1.4 * sin(PI * (float(ar[0]) - x0) / span) - 0.45
+		ar[2] = minf(float(ar[2]), deck_bottom - float(ar[1]) - thick)
 	for ar in arches:
 		sb.ring(Vector3(ar[0], ar[2], z), 0.0, ar[1], thick, depth, 11 if float(ar[1]) < 3.0 else 13)
+	# the piers stand where two arches meet, under both arches' feet (an arch's foot never hangs in the air)
 	var piers := []
+	var pw := 1.1
 	if n_arch == 3:
-		piers = [x0 + span * 0.2, x1 - span * 0.2]
+		for k in 2:
+			var foot_a: float = float(arches[k][0]) + float(arches[k][1])            # right foot of the left arch
+			var foot_b: float = float(arches[k + 1][0]) - float(arches[k + 1][1])    # left foot of the right arch
+			piers.append((foot_a + foot_b) * 0.5)
+			pw = maxf(pw, absf(foot_b - foot_a) + 0.3)
 	for px in piers:
 		var bed := height(px, z) - 0.6
 		var y := bed
 		while y < base - 1.0:
 			var ch := minf(0.55, base - 1.0 - y)
-			sb.block(Transform3D(sb._jit(0.6), Vector3(px, y + ch * 0.5, z)), Vector3(1.1, ch, depth), 0.1)
+			sb.block(Transform3D(sb._jit(0.6), Vector3(px, y + ch * 0.5, z)), Vector3(pw, ch, depth), 0.1)
 			sb.block(Transform3D(Basis(Vector3.UP, PI * 0.25), Vector3(px, y + ch * 0.5, z - depth * 0.5)), Vector3(0.78, ch, 0.78), 0.1)
 			y += ch + 0.01
-		sb.collider(Transform3D(Basis.IDENTITY, Vector3(px, (bed + base - 1.0) * 0.5, z)), Vector3(1.1, base - 1.0 - bed, depth))
+		sb.collider(Transform3D(Basis.IDENTITY, Vector3(px, (bed + base - 1.0) * 0.5, z)), Vector3(pw, base - 1.0 - bed, depth))
 	var deck_y := func(x: float) -> float:
 		var top := base + 1.9
 		if x < x0:
@@ -546,12 +557,15 @@ func stone_bridge(z: float, x0: float, x1: float, mat: Material, seed := 61) -> 
 			if absf(dx) < ro:
 				yt = maxf(yt, float(ar[2]) + sqrt(ro * ro - dx * dx) - 0.15)
 		for px2 in piers:
-			if absf(xm - float(px2)) < 0.6:
+			if absf(xm - float(px2)) < pw * 0.5:
 				yt = maxf(yt, base - 1.0)
 		var dtop: float = deck_y.call(xm) - 0.32
 		if yt > -INF and dtop - yt > 0.12:
 			for side: float in [-1.0, 1.0]:
 				sb.block(Transform3D(sb._jit(0.5), Vector3(xm, (yt + dtop) * 0.5, z + side * (depth * 0.5 - 0.3))), Vector3(0.88, dtop - yt, 0.6), 0.05)
+		if yt > -INF and dtop - yt > 0.0:
+			# the fill between the spandrel faces: the deck's middle rests on it, not on air
+			sb._box(Transform3D(Basis.IDENTITY, Vector3(xm, (yt + dtop + 0.12) * 0.5, z)), Vector3(0.9, dtop - yt + 0.12, depth - 1.1), -1.0)
 		x += 0.9
 	x = x0 - 6.0
 	var slice_i := 0

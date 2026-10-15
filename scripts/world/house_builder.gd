@@ -129,6 +129,7 @@ func house(pos: Vector3, yaw: float, w: float, d: float, seed: int, storeys := 2
 	var chim_h := top + rise + 1.4
 	var cw := xf * Vector3(cx, 0, cz)
 	var y := top + rise * 0.4
+	csb.anchor_y = cw.y + y + 0.05                 # its foot is inside the roof (hidden under the slope)
 	while y < chim_h:
 		csb.block(Transform3D(Basis(Vector3.UP, yaw), cw + Vector3(0, base + y + 0.18 - pos.y, 0)), Vector3(0.8, 0.36, 0.8), 0.05, 0.03)
 		y += 0.38

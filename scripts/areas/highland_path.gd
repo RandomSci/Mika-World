@@ -109,8 +109,12 @@ func _waystation() -> void:
 	sb.wall(Vector3(c.x + w * 0.5, y0, c.z - d * 0.5), Vector3(c.x + w * 0.5, y0, c.z + d * 0.5), 2.8, 0.6, 0.0)
 	sb.wall(Vector3(c.x - w * 0.5, y0, c.z + d * 0.5), Vector3(c.x - 0.8, y0, c.z + d * 0.5), 2.8, 0.6, 0.0)
 	sb.wall(Vector3(c.x + 0.8, y0, c.z + d * 0.5), Vector3(c.x + w * 0.5, y0, c.z + d * 0.5), 2.8, 0.6, 0.0)
-	sb.block(Transform3D(Basis.IDENTITY, Vector3(c.x, y0 + 2.6, c.z + d * 0.5)), Vector3(2.0, 0.4, 0.62), 0.2, 0.05)
-	sb.block(Transform3D(Basis.IDENTITY, Vector3(c.x + 2.0, y0 + 0.25, c.z + d * 0.5 + 0.9)), Vector3(1.8, 0.45, 0.55), 0.3, 0.05)
+	# the door's lintel, bedded on the jambs' top courses (the walls follow the ground, so not at a fixed height)
+	sb.block_on(Vector3(c.x, y0 + 2.6, c.z + d * 0.5), Vector3(2.0, 0.4, 0.62), 0.2, 0.05, 2.0)
+	# the bench outside, on a plinth where the ground falls away in front of the door
+	var bench := Vector3(c.x + 2.0, y0 + 0.25, c.z + d * 0.5 + 0.9)
+	sb.block(Transform3D(Basis.IDENTITY, bench), Vector3(1.8, 0.45, 0.55), 0.3, 0.05)
+	sb.footing(bench, Vector3(1.6, 0, 0.5), bench.y - 0.225)
 	sb.finish(self, _stone(), "Waystation")
 	# the roof: two pitched slate planes
 	for sgn: float in [-1.0, 1.0]:
