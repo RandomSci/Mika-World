@@ -89,7 +89,7 @@
     },
     "status": "ready",
     "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial_L1Outfit.vrm",
-    "source": "~/Downloads/Mika-Transformation-Lab/l1_outfit (tools/o10_place.py + tools/o12_rig.py) from MIKA_L1_Outfit_3D.zip (sha256 888b9ac0...); vrm sha256 bbeea6eb...",
+    "source": "~/Downloads/Mika-Transformation-Lab/l1_outfit (tools/o10_place.py + tools/o12_rig.py) from MIKA_L1_Outfit_3D.zip (sha256 888b9ac0...); vrm sha256 b6e1ce68205596bc... (shipped build; bbeea6eb... was the first build)",
     "profile": {
      "face": {
       "brows_through_fringe": false
