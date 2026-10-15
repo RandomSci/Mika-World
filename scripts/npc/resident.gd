@@ -35,6 +35,7 @@ var _look_until := 0.0
 var _gen := 0                       # bumps when the plan changes (a running activity coroutine stops)
 var _door := ""                     # the anchor of the door they went in by (they come out of the same one)
 var rng := RandomNumberGenerator.new()
+var _hangs := {}                     # clip -> a hanging tool kept upright under the fist (Grip.hang)
 var tools := {}                     # clip -> the prop in their hand while they do it (an axe for chopping ...)
 
 
@@ -102,13 +103,28 @@ func _make_tools() -> void:
 		ba.bone_name = bone
 		sk.add_child(ba)
 		var holder := Node3D.new()
-		var pp: Array = t.get("pos", [0, 0, 0])
-		var rr: Array = t.get("rot", [0, 0, -90])
-		holder.position = Vector3(pp[0], pp[1], pp[2])
-		holder.rotation_degrees = Vector3(rr[0], rr[1], rr[2])
-		holder.scale = Vector3.ONE * float(t.get("scale", 1.0))
 		ba.add_child(holder)
-		Kit.place_prop_all(holder, String(t.model), Transform3D.IDENTITY)
+		var sc := float(t.get("scale", 1.0))
+		Kit.place_prop_all(holder, String(t.model), Transform3D(Basis.from_scale(Vector3.ONE * sc), Vector3.ZERO))
+		# held as a hand holds it (Grip): measured from the hand bones and from the prop itself
+		var side := "l" if bone.ends_with("_l") else "r"
+		var hand_grip := Grip.hand_frame(sk, side)
+		var kind := String(t.get("grip", "hang" if (String(t.model).contains("lantern") or String(t.model).contains("bucket")) else "tool"))
+		if hand_grip.basis == Basis() and hand_grip.origin == Vector3.ZERO:
+			kind = "legacy"
+		match kind:
+			"tool":
+				var tf := Grip.tool_frame(holder)
+				if not tf.is_empty():
+					holder.transform = hand_grip * (tf.xf as Transform3D).affine_inverse()
+			"hang":
+				holder.top_level = true
+				_hangs[clip] = {"holder": holder, "hand": ba, "grip": hand_grip, "at": Grip.hang_point(holder)}
+			_:
+				var pp: Array = t.get("pos", [0, 0, 0])
+				var rr: Array = t.get("rot", [0, 0, -90])
+				holder.position = Vector3(pp[0], pp[1], pp[2])
+				holder.rotation_degrees = Vector3(rr[0], rr[1], rr[2])
 		holder.visible = false
 		tools[clip] = holder
 
@@ -118,6 +134,9 @@ func play(clip: String, blend := 0.3, rate := 1.0) -> void:
 		return
 	for k in tools:
 		(tools[k] as Node3D).visible = k == clip
+		if k == clip and _hangs.has(k):
+			var hh: Dictionary = _hangs[k]
+			Grip.hang(hh.holder, hh.hand, hh.grip, hh.at, global_rotation.y)    # in her hand from the first frame
 	if not anim.has_animation(clip):
 		clip = "idle"
 	if clip == _clip and rate == anim.speed_scale:
@@ -185,6 +204,19 @@ func place_now() -> void:
 		_begin_activity()
 
 
+## Never walk into something solid (a bench, a wall, a stall): a knee-high probe ahead; if it is blocked, the
+## nearest free heading within 80 degrees (they slide round it), else they stop for this frame.
+func _clear_step(dir: Vector3) -> Vector3:
+	var space := get_world_3d().direct_space_state
+	var base := global_position + Vector3(0, 0.3, 0)
+	for off: float in [0.0, 0.45, -0.45, 0.9, -0.9, 1.4, -1.4]:
+		var d := dir.rotated(Vector3.UP, off)
+		var q := PhysicsRayQueryParameters3D.create(base, base + d * 0.55, 1)
+		if space.intersect_ray(q).is_empty():
+			return d
+	return Vector3.ZERO
+
+
 func _ground(p: Vector3) -> Vector3:
 	if area.has_method("ground_at"):
 		p.y = float(area.ground_at(p.x, p.z))
@@ -192,12 +224,20 @@ func _ground(p: Vector3) -> Vector3:
 
 
 func _process(delta: float) -> void:
+	for hk in _hangs:
+		var hh: Dictionary = _hangs[hk]
+		if (hh.holder as Node3D).visible:
+			Grip.hang(hh.holder, hh.hand, hh.grip, hh.at, global_rotation.y)
 	if area == null or not is_instance_valid(area):
 		return
 	var b := block_at(WorldState.hour_f())
 	if int(b[0]) != block:
 		block = int(b[0])
-		_change_to(String(b[1]), resolve_anchor(String(b[2])))
+		if _sheltering:
+			_resume = [String(b[1]), resolve_anchor(String(b[2]))]     # the hour changed in the rain: go on with it after
+		else:
+			_change_to(String(b[1]), resolve_anchor(String(b[2])))
+	_rain_check()
 	if state == "walking":
 		if not _follow(delta):
 			_arrived()
@@ -206,6 +246,61 @@ func _process(delta: float) -> void:
 	if _look_at and is_instance_valid(_look_at) and Time.get_ticks_msec() / 1000.0 < _look_until:
 		var d := _look_at.global_position - global_position
 		rotation.y = lerp_angle(rotation.y, atan2(d.x, d.z), 1.0 - exp(-6.0 * delta))
+
+
+## Rain: whoever is out in it with no roof or awning over their place goes to the nearest doorstep (under its door
+## hood) and waits it out; when it eases off they go back to what their hour holds. Indoors, asleep or already
+## under cover, they carry on.
+var _sheltering := false
+var _resume: Array = []
+var _rain_t := 0.0
+
+func _rain_check() -> void:
+	_rain_t += get_process_delta_time()
+	if _rain_t < 1.0:
+		return
+	_rain_t = 0.0
+	var wx = town.main.get("weather") if town and town.main else null
+	if wx == null:
+		return
+	var raining: bool = float(wx.rain) > 0.45 and not wx.sheltered_area()
+	if raining and not _sheltering and state != "inside" and activity != "sleep":
+		var here: Vector3 = anchor(anchor_key).pos
+		if wx.covered(here):
+			return                       # a stall awning, a porch: dry where they are
+		# home, if they have one here: indoors until it passes
+		var home_key := String(data.get("home", ""))
+		_sheltering = true
+		_resume = [activity, anchor_key]
+		if home_key != "" and area.anchors.has(home_key):
+			_note("the rain: home, indoors (" + home_key + ")")
+			_change_to("shelter_in", home_key)
+			return
+		# no home here: the nearest doorstep that is really covered and nobody else is standing at
+		var best := ""
+		var bd := INF
+		for k in area.anchors:
+			if not String(k).begins_with("home:") or not wx.covered(area.anchors[k].pos) or TownLife.shelter_taken(area, String(k), self):
+				continue
+			var d: float = (area.anchors[k].pos as Vector3).distance_to(global_position)
+			if d < bd:
+				bd = d
+				best = String(k)
+		if best == "":
+			_sheltering = false
+			_resume = []
+			return
+		_note("the rain: sheltering at " + best)
+		_change_to("shelter", best)
+	elif not raining and _sheltering:
+		_sheltering = false
+		var r := _resume
+		_resume = []
+		_note("the rain has eased: back to " + (String(r[0]) if not r.is_empty() else "the day"))
+		if not r.is_empty():
+			_change_to(String(r[0]), String(r[1]))
+		else:
+			block = -1
 
 
 func _change_to(act: String, key: String) -> void:
@@ -259,6 +354,7 @@ func _follow(delta: float) -> bool:
 		var d := away.length()
 		if d > 0.01 and d < 1.2:
 			dir = (dir + away.normalized() * (1.2 - d) * 1.5).normalized()
+	dir = _clear_step(dir)
 	global_position = _ground(global_position + dir * minf(_speed * delta, to.length()))
 	rotation.y = lerp_angle(rotation.y, atan2(dir.x, dir.z), 1.0 - exp(-8.0 * delta))
 	return true
@@ -268,7 +364,7 @@ func _arrived() -> void:
 	state = "at:" + activity
 	var a := anchor(anchor_key)
 	_face_yaw = float(a.yaw)
-	if bool(a.get("inside", false)) and activity in ["sleep", "study", "work"]:
+	if bool(a.get("inside", false)) and activity in ["sleep", "study", "work", "shelter_in"]:
 		_go_inside()
 		return
 	_begin_activity()
@@ -367,6 +463,10 @@ func _run(gen: int) -> void:
 			"carry_home":
 				_go_inside()
 				return
+			"shelter":
+				# waiting out the rain under a door hood: arms folded, a glance up at the sky now and then
+				play("idle_arms" if anim and anim.has_animation("idle_arms") else "idle", 0.5)
+				w = rng.randf_range(6.0, 11.0)
 			_:
 				play("idle", 0.4)
 				w = rng.randf_range(4.0, 8.0)

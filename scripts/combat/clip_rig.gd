@@ -88,16 +88,28 @@ func _attach_weapons() -> void:
 		ba.bone_name = bone
 		sk.add_child(ba)
 		var holder := Node3D.new()
-		var pp: Array = wspec.get("pos", [0, 0, 0])
-		var rr: Array = wspec.get("rot", [0, 0, 0])
-		holder.position = Vector3(pp[0], pp[1], pp[2])
-		holder.rotation_degrees = Vector3(rr[0], rr[1], rr[2])
-		holder.scale = Vector3.ONE * float(wspec.get("scale", 1.0))
 		ba.add_child(holder)
+		var sc := Transform3D(Basis.from_scale(Vector3.ONE * float(wspec.get("scale", 1.0))), Vector3.ZERO)
 		if wspec.has("part"):
-			Kit.place_prop(holder, String(wspec.model), Transform3D.IDENTITY, String(wspec.part))
+			Kit.place_prop(holder, String(wspec.model), sc, String(wspec.part))
 		else:
-			Kit.place_prop_all(holder, String(wspec.model), Transform3D.IDENTITY)
+			Kit.place_prop_all(holder, String(wspec.model), sc)
+		# held as a fighter holds it (Grip): the handle in the fist, the blade rising from the thumb side, the edge
+		# leading - measured from the hand bones and the weapon itself, never a guessed offset
+		var side := "l" if bone.ends_with("_l") else "r"
+		var hand_grip := Grip.hand_frame(sk, side)
+		var bf := Grip.blade_frame(holder) if String(wspec.get("grip", "blade")) == "blade" else Grip.tool_frame(holder)
+		if bf.is_empty() and String(wspec.get("grip", "blade")) == "blade":
+			bf = Grip.tool_frame(holder)
+		if not bf.is_empty() and hand_grip.basis != Basis():
+			holder.transform = hand_grip * (bf.xf as Transform3D).affine_inverse()
+			if bf.has("tip"):
+				holder.set_meta("tip_local", bf.tip)       # the weapon's tip in the holder's space (InvariantAuditor)
+		else:
+			var pp: Array = wspec.get("pos", [0, 0, 0])
+			var rr: Array = wspec.get("rot", [0, 0, 0])
+			holder.position = Vector3(pp[0], pp[1], pp[2])
+			holder.rotation_degrees = Vector3(rr[0], rr[1], rr[2])
 		for mi in holder.find_children("*", "MeshInstance3D", true, false):
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		weapons.append(holder)

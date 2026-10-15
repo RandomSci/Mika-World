@@ -128,6 +128,9 @@ func _run() -> void:
 		"soak": await _soak()
 		"weather": await _weather()
 		"crown": await _crown()
+		"grove": await _grove()
+		"audit": await _audit()
+		"bench": await _bench()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3544,8 +3547,35 @@ func _weather() -> void:
 			var lr: Dictionary = await mb.run_activity(ls[0])
 			report["listen_" + place] = lr
 			_check(lr.get("ok", false) and float(lr.get("seconds", 0)) > 15.0, "%s: %s" % [place, lr.get("detail", "")], lr)
+	# the townsfolk too: out in it with no roof over their place, they go to a doorstep under its hood
+	if main.get("town") and not main.town.residents.is_empty():
+		var t2 := _gms()
+		var wet := []
+		while _gms() - t2 < 60000:
+			await _wait(3.0)
+			wet = []
+			for rid in main.town.residents:
+				var rr = main.town.residents[rid]
+				if is_instance_valid(rr) and rr.visible and rr.state != "walking" and not wx.sheltered_at(rr.global_position):
+					wet.append([rid, rr.activity, rr.state])
+			if wet.is_empty():
+				break
+		report["town_in_rain"] = main.town.residents.keys().map(func(k): return [k, main.town.residents[k].activity, main.town.residents[k].state])
+		_check(wet.is_empty(), "in the storm no one in the Village is left standing in the rain", wet)
+		var near: Resident = null
+		for rid in main.town.residents:
+			var r3 = main.town.residents[rid]
+			if is_instance_valid(r3) and r3.visible and r3.activity == "shelter":
+				near = r3
+				break
+		if near:
+			await _res_shot(near, "weather_resident_sheltering")
 	wx.set_weather("clear", 3.0)
 	await _wait(30.0)
+	if main.get("town") and not main.town.residents.is_empty():
+		await _wait(5.0)
+		var still: Array = main.town.residents.keys().filter(func(k): return main.town.residents[k].activity == "shelter")
+		_check(still.is_empty(), "the rain over, they went back to their day", still)
 	_check(wx.rain < 0.05 and absf(main.world.sun.light_energy - sun0) < sun0 * 0.15, "it clears again (sun %.2f)" % main.world.sun.light_energy, wx.describe())
 
 
@@ -3638,4 +3668,237 @@ func _crown() -> void:
 		_check(g1.met, "the Level 100 gate is open (hear all nine rings)", g1)
 		_check((a2.get("down", {}) as Dictionary).get("ok", false), "back down safely")
 	_check(main.teleport_guard.violations.size() == tg0, "no one was ever moved instantly: the air carried her (violations %d)" % (main.teleport_guard.violations.size() - tg0), main.teleport_guard.violations.slice(tg0))
+
+
+# ------------------------------------------------------------------ the Gilded Grove (two wards become one)
+func _grove() -> void:
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 15.0 * 60.0
+	WorldState.clock_rate = 0.0
+	await main.streaming.travel("whispering_woods", mika)
+	await _wait(3.0)
+	for w in ["mika", "luna"]:
+		WorldState.mind(w).vigor = 1.0
+	var base := mika.global_position
+	_park("luna", base + Vector3(2.2, 0, 0))
+	luna.visible = true                 # she is here too (not left behind in the Sanctuary's background)
+	luna.set_physics_process(true)
+	await _wait(0.6)
+	mika.look_at_point(base + Vector3(0, 0, 8))
+	luna.look_at_point(luna.global_position + Vector3(0, 0, 8))
+	await _wait(0.6)
+	var dist0 := mika.global_position.distance_to(luna.global_position)
+	var r1: Dictionary = await main.magic.cast(mika, "leaf_ward")
+	await _wait(0.3)
+	var box := {"r2": {}}
+	var caster := func():
+		box.r2 = await main.magic.cast(luna, "gilded_mirror")
+	caster.call()
+	var g: Ward = null
+	var tg := _gms()
+	while _gms() - tg < 6000:
+		var w := Ward.active_for(luna)
+		if w and w.kind == "grove":
+			g = w
+			break
+		await get_tree().process_frame
+	while box.r2.is_empty() and _gms() - tg < 8000:
+		await get_tree().process_frame
+	var r2: Dictionary = box.r2
+	_check(r1.get("ok", false) and r2.get("ok", false) and g != null and g.kind == "grove" and Ward.active_for(mika) == g,
+		"Leaf Ward and Gilded Mirror, %.1f m apart, became one dome over both: the Gilded Grove" % dist0, [r1.get("reason", ""), r2.get("reason", ""), g.kind if g else "none"])
+	if g == null or g.kind != "grove":
+		return
+	report["grove_up"] = {"charges": g.charges, "seconds": snappedf(g.seconds, 0.1), "radius": snappedf(g._radius(), 0.01)}
+	_check(WorldState.mind("mika").knowledge.has("fusion:gilded_grove") and WorldState.mind("luna").knowledge.has("fusion:gilded_grove"), "both of them learned it, each in her own mind")
+	var c := g._centre()
+	main.camera_rig.set_shot(c + Vector3(-3.5, 1.4, 6.5), c + Vector3(0, 0.3, 0), 52.0)
+	await _wait(0.9)
+	_shot("grove_up")
+	# their bodies hold it: arms up and out, leaning in (BodyLanguage barrier channel)
+	_check(mika.body_language and luna.body_language and mika.body_language.barrier > 0.6 and luna.body_language.barrier > 0.6,
+		"both of them visibly hold the dome (barrier hold %.2f / %.2f)" % [mika.body_language.barrier if mika.body_language else -1.0, luna.body_language.barrier if luna.body_language else -1.0])
+	var mf := -mika.global_transform.basis.z
+	main.camera_rig.set_shot(mika.global_position + Vector3(mf.x, 0, mf.z).normalized() * 2.6 + Vector3(0.6, 1.5, 0), mika.global_position + Vector3(0, 1.25, 0), 45.0)
+	await _wait(0.6)
+	_shot("grove_hold_close")
+	# a bolt at Luna's BACK (her mirror alone covers only her front): the grove stops it
+	print("[mktest] grove before bolts: done=%s age=%.2f/%.2f charges=%d r=%.2f centre=%s log=%s" % [g.done, g._age, g.seconds, g.charges, g._radius(), g._centre(), g.log])
+	var knocked := {"mika": 0.0, "luna": 0.0}
+	var watch_knock := func():
+		var t0 := _gms()
+		while _gms() - t0 < 3000:
+			for w in knocked:
+				var bl: BodyLanguage = main.characters[w].body_language
+				if bl:
+					knocked[w] = maxf(knocked[w], bl._impact)
+			await get_tree().process_frame
+	watch_knock.call()
+	var b1 := await _test_bolt("luna", luna.global_position + Vector3(0.5, 1.5, -7.0))
+	_check(knocked.mika > 0.3 and knocked.luna > 0.3, "the blow on the dome knocked them both back a little (%.2f / %.2f)" % [knocked.mika, knocked.luna])
+	_check((b1.struck as Array).is_empty() and String(b1.get("absorbed_by", "")) == "grove" or bool(b1.get("reflected", false)), "a bolt at Luna's back: the grove took it (the mirror alone would not have)", b1)
+	await _wait(0.2)
+	_shot("grove_block")
+	# a bolt at Mika from the side: covered too, and thrown back (the combination's gift)
+	var b2 := await _test_bolt("mika", mika.global_position + Vector3(-7.0, 1.5, 1.0))
+	_check((b2.struck as Array).is_empty() and bool(b2.get("reflected", false)), "a bolt at Mika's side: thrown back off the dome", b2)
+	report["grove_bolts"] = [b1, b2]
+	_check(float(WorldState.mind("mika").skills.get("leaf_ward", 0.0)) > 0.0 and float(WorldState.mind("luna").skills.get("gilded_mirror", 0.0)) > 0.0, "each blow was practice for each mage's own ward")
+	# they part: the grove comes apart
+	_park("luna", mika.global_position + Vector3(6.0, 0, 0))
+	await _wait(0.5)
+	_check((not is_instance_valid(g) or g.done) and Ward.active_for(mika) == null, "when they step apart, the grove comes apart")
+	# alone, too far apart, the two wards stay two
+	var r3: Dictionary = await main.magic.cast(mika, "leaf_ward")
+	await _wait(0.3)
+	var r4: Dictionary = await main.magic.cast(luna, "gilded_mirror")
+	await _wait(0.6)
+	var wm := Ward.active_for(mika)
+	var wl := Ward.active_for(luna)
+	print("[mktest] grove apart: r3=%s r4=%s wm=%s wl=%s" % [r3.get("reason", r3.get("effect", "")), r4.get("reason", r4.get("effect", "")), wm.kind if wm else "none", wl.kind if wl else "none"])
+	_check(r3.get("ok", false) and r4.get("ok", false) and wm != null and wl != null and wm.kind == "leaf" and wl.kind == "mirror", "six metres apart, the wards stay their own")
+
+
+# ------------------------------------------------------------------ the automatic audit (InvariantAuditor)
+## Every area, every interaction she can do there (walk to it, use it / read it), and the townsfolk's working
+## day - all under the auditor's rules (at the object and facing it, tool in hand, nobody floating or sunk).
+## A still of each interaction mid-way: screenshots/mktest/audit_<area>_<id>.png.
+func _audit() -> void:
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var au: InvariantAuditor = main.auditor
+	BookReader.test_time_scale = 0.3
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 10.0 * 60.0
+	WorldState.clock_rate = 0.0
+	var areas: Array = String(RenderProfile.options.get("areas", "")).split(",", false) if RenderProfile.options.has("areas") else \
+		["sanctuary", "whispering_woods", "ancient_grove", "river_valley", "highland_path", "celestial_summit", "crystal_caverns",
+		"deep_caverns", "village", "observatory_hill", "academy", "mentor_tower", "great_library"]
+	var rows := []
+	for area in areas:
+		if area != main.streaming.current_id:
+			await main.streaming.travel(area, mika)
+			await _wait(2.0)
+		for id in main.world.interactables.keys():
+			var it: Interactable = main.world.interactables.get(id)
+			if it == null or it.custom_activity.is_valid() or not it._requirements_met("mika") or (not it.repeatable and it.times_done > 0):
+				continue
+			it.duration_override = 1.8
+			var v0 := au.violations.size()
+			var tag := "audit_%s_%s" % [area, id]
+			var shot_box := {"armed": true}
+			var shoot := func():
+				var t0 := _gms()
+				while not it.busy and _gms() - t0 < 30000 and shot_box.armed:
+					await get_tree().process_frame
+				await _wait(1.8)
+				if shot_box.armed:
+					_shot(tag)
+			shoot.call()
+			var r: Dictionary = await mb._use(id)
+			shot_box.armed = false
+			var new_v := au.violations.slice(v0)
+			rows.append({"area": area, "id": id, "ok": r.get("ok", false), "detail": String(r.get("detail", "")).left(80), "violations": new_v.map(func(v): return v.rule)})
+			print("[mktest] audit %s/%s ok=%s violations=%s" % [area, id, r.get("ok", false), new_v.map(func(v): return [v.rule, v.get("dist", v.get("face_deg", v.get("gap", "")))])])
+			await _wait(0.4)
+		# where people live: a working day at speed, every tool and every pair of feet checked
+		if main.get("town") and not main.town.residents.is_empty():
+			WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 7.0 * 60.0
+			WorldState.clock_rate = 6.0
+			var t1 := _gms()
+			var shots := 0
+			while _gms() - t1 < 100000:
+				await _wait(12.0)
+				for rid in main.town.residents:
+					var rr = main.town.residents[rid]
+					if shots < 4 and is_instance_valid(rr) and rr.visible and rr.tools.values().any(func(h): return (h as Node3D).visible):
+						await _res_shot(rr, "audit_%s_tool_%s" % [area, rid])
+						shots += 1
+						break
+			WorldState.clock_rate = 0.0
+			WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 10.0 * 60.0
+	BookReader.test_time_scale = 1.0
+	report["audit_rows"] = rows
+	report["audit"] = au.summary()
+	report["audit_violations"] = au.violations
+	print("[mktest] audit summary ", JSON.stringify(au.summary()))
+	_check(rows.size() > 10, "the audit used %d interactions across %d areas" % [rows.size(), areas.size()])
+	_check(au.violations.is_empty(), "no visible defects found by the auditor (%d checks)" % au.checks.values().reduce(func(a, b): return a + b, 0), au.summary())
+
+
+# ------------------------------------------------------------------ performance benchmark (test-only overrides)
+## --mktest=bench --bench-fps=30|60|0 (0 = uncapped): the FPS cap and VSync are overridden HERE, for this run only
+## (production profiles untouched). Representative scenes with both mages, 45 s measured each after a warm-up:
+## the Sanctuary, the dense Whispering Woods, the Village at work (residents), an ambush fight (rivals, magic).
+## "[bench] start/end <scene> <unix time>" lines align external GPU/CPU/temperature samples.
+func _bench() -> void:
+	var cap := int(RenderProfile.options.get("bench-fps", "30"))
+	var mika: WorldCharacter = main.characters["mika"]
+	var apply_cap := func():
+		Engine.max_fps = cap
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	apply_cap.call()
+	main.spawner.enabled = false
+	main.director.enabled = true
+	var results := {}
+	var scenes: Array = String(RenderProfile.options.get("bench-scenes", "sanctuary,forest,town,combat")).split(",", false)
+	for sc in scenes:
+		var fight := {}
+		match sc:
+			"sanctuary":
+				if main.streaming.current_id != "sanctuary":
+					await main.streaming.travel("sanctuary", mika)
+			"forest":
+				await main.streaming.travel("whispering_woods", mika)
+			"town":
+				WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 10.0 * 60.0
+				WorldState.clock_rate = 2.0
+				await main.streaming.travel("village", mika)
+			"combat":
+				WorldState.clock_rate = 0.0
+				await _hold_all()
+				await main.streaming.travel("whispering_woods", mika)
+				await _wait(2.0)
+				var vp: Vector2 = main.world.get("viewpoint") if main.world.get("viewpoint") != null else Vector2(mika.global_position.x, mika.global_position.z)
+				var runner := func():
+					fight["res"] = await main.ambush.run("road_thieves", {"fight_s": 75.0})
+				runner.call()
+		apply_cap.call()
+		if sc != "combat":
+			for w in main.mage_brains:
+				(main.mage_brains[w] as SanctuaryBrain).hold = false
+		await _wait(8.0 if sc == "combat" else 6.0)
+		_frame_ms.clear()
+		_gpu_ms.clear()
+		_cpu_ms.clear()
+		print("[bench] start %s %.3f" % [sc, Time.get_unix_time_from_system()])
+		await _wait(45.0)
+		print("[bench] end %s %.3f" % [sc, Time.get_unix_time_from_system()])
+		var st := _fps_stats()
+		var s2: Array = _frame_ms.duplicate()
+		s2.sort()
+		s2.reverse()
+		var n1 := maxi(1, int(s2.size() * 0.01))
+		var worst := 0.0
+		for i in n1:
+			worst += float(s2[i])
+		st["low1_fps"] = snappedf(1000.0 / (worst / n1), 0.1)
+		st["p99_ms"] = snappedf(float(s2[int(s2.size() * 0.01)]), 0.1)
+		st["cap"] = cap
+		st["window"] = [DisplayServer.window_get_size().x, DisplayServer.window_get_size().y]
+		st["vsync"] = DisplayServer.window_get_vsync_mode()
+		results[sc] = st
+		print("[bench] result %s %s" % [sc, JSON.stringify(st)])
+		if sc == "combat":
+			var t0 := _gms()
+			while not fight.has("res") and _gms() - t0 < 90000:
+				await get_tree().process_frame
+	report["bench"] = results
+	_check(results.size() == scenes.size(), "benchmarked %d scenes at cap %s" % [results.size(), str(cap) if cap > 0 else "none"], results)
 

@@ -109,6 +109,8 @@ func _process(delta: float) -> void:
 	if target == null:
 		return
 	var desired := target.global_position + Vector3(0, height, 0)
+	if desired.distance_to(_focus) > 6.0:
+		_focus = desired          # she arrived somewhere new (a travel, a fold): the lens is with her at once, not sweeping in
 	_focus = _focus.lerp(desired, 1.0 - exp(-14.0 * delta))
 	global_position = _focus
 	rotation = Vector3(pitch, yaw, 0)

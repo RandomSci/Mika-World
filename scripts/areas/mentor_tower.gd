@@ -212,6 +212,8 @@ func links() -> void:
 		Vector3(0, height(0, 9.0) + 0.12, 9.0), {"skills": {"arcane_orb": 0.3}}, "magic_attack_2h", 2.8)).radius = 3.6
 	add_interactable(Interactable.make("lookout_survey", "Survey the realm from the tower lookout", "observe", "mentors_tower",
 		points_of_interest["tower_lookout"].position, {"knowledge": {"geography:from_tower": 1}, "discover": ["academy_courtyard", "village_square"]}, "look_around", 4.0)).radius = 2.4
+	# the gallery has no walkable stair (the spiral is the old builders' ornament): only Rising Air brings her up
+	interactables["lookout_survey"].requires = {"knowledge": {"incantation:rising_air": 1}}
 
 
 func showcase_shots(_loc: String) -> Array:

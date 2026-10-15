@@ -20,6 +20,7 @@ const GATE_RIVER := Vector2(110, -134)
 
 var stone: ShaderMaterial
 var glyph_mats: Array = []
+var _glyph_spots: Array = []         # [[pos2, y, yaw]] the five glyph stones (the reading stands before the middle one)
 var _shrine_root: Node3D
 
 
@@ -209,6 +210,7 @@ func _glyph_stones() -> void:
 		sb.collider(Transform3D(Basis(Vector3.UP, yaw), Vector3(p.x, y + 1.1, p.y)), Vector3(1.1, 2.7, 0.55))
 		spots.append([p, y, yaw])
 	sb.finish(self, _stone(), "GlyphStones")
+	_glyph_spots = spots
 	for i in spots.size():
 		var p2: Vector2 = spots[i][0]
 		var yaw2: float = spots[i][2]
@@ -251,9 +253,26 @@ func links() -> void:
 	add_interactable(Interactable.make("collect_glowcap", "Gather a glowcap mushroom", "collect", "ancient_grove",
 		_v(ELDEST + Vector2(3.5, 3.0)), {"items": {"glowcap": 1}}, "", 2.0)).radius = 2.6
 	var top := height(SHRINE.x, SHRINE.y) + 0.9
+	# the glyphs are read AT the glyph stones: she stands before the middle stone's carved face and looks at it
+	var gpos := Vector3(SHRINE.x, top, SHRINE.y - 1.8)
+	var gstand = null
+	var gface = null
+	if _glyph_spots.size() >= 3:
+		var mid: Array = _glyph_spots[2]
+		var mp: Vector2 = mid[0]
+		var gb := Basis(Vector3.UP, float(mid[2]))
+		var face_c := Vector3(mp.x, float(mid[1]) + 1.5, mp.y) + gb * Vector3(0, 0, -0.3)
+		var st := Vector3(mp.x, 0, mp.y) + gb * Vector3(0, 0, -1.7)
+		st.y = height(st.x, st.z)
+		gpos = Vector3(mp.x, float(mid[1]) + 0.2, mp.y) + gb * Vector3(0, 0, -0.9)
+		gstand = st
+		gface = face_c
 	add_interactable(Interactable.make("shrine_glyphs_read", "Read the runic glyphs on the shrine stones", "study", "forgotten_forest_shrine",
-		Vector3(SHRINE.x, top, SHRINE.y - 1.8), {"knowledge": {"lore:runic_script": 1}}, "look_around", 4.0)).radius = 2.4
+		gpos, {"knowledge": {"lore:runic_script": 1}}, "look_around", 4.0)).radius = 2.4
 	interactables["shrine_glyphs_read"].book_id = "shrine_glyph_stones"   # a real text: read page by page (data/books.json)
+	if gstand != null:
+		interactables["shrine_glyphs_read"].stand_point = to_local(gstand)
+		interactables["shrine_glyphs_read"].face_point = to_local(gface)
 	var offer := Interactable.make("shrine_offering", "Leave a glowcap as an offering at the shrine altar", "pray", "forgotten_forest_shrine",
 		Vector3(SHRINE.x, top, SHRINE.y - 1.8), {"skills": {"arcane_orb": 0.2}, "knowledge": {"blessing:forest_shrine": 1}}, "spell_casting", 4.2)
 	offer.requires = {"items": {"glowcap": 1}}

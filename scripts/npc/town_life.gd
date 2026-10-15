@@ -179,3 +179,12 @@ func describe(from: Vector3) -> Array:
 		if is_instance_valid(residents[rid]):
 			out.append((residents[rid] as Resident).describe(from))
 	return out
+
+
+## Someone (other than `me`) already waiting out the rain at this doorstep.
+static func shelter_taken(area: Node, key: String, me: Node) -> bool:
+	for n in area.get_children():
+		if n != me and n is Resident and (n as Resident).activity == "shelter" and (n as Resident).anchor_key == key:
+			return true
+	return false
+

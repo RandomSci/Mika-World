@@ -15,6 +15,7 @@ static var instance: BookReader
 const WORDS_PER_SECOND := 3.2
 
 var main: Node
+static var test_time_scale := 1.0     # tests only (--mktest=audit reads every text in the world faster)
 var current := {}            # {"book": id, "page": n, "pages": total, "anchor": Vector3} while reading
 var _stop := false
 var _book: OpenBook
@@ -112,7 +113,7 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 			overlay.show_page(style, String(b.title), p, i, pages.size())
 		page_shown.emit(book_id, i, p)
 		var words := String(p.get("text", "")).split(" ", false).size() + String(p.get("heading", "")).split(" ", false).size()
-		var t := clampf(words / WORDS_PER_SECOND + 1.5, 4.5, 18.0) * float(opts.get("time_scale", 1.0))
+		var t := clampf(words / WORDS_PER_SECOND + 1.5, 4.5, 18.0) * float(opts.get("time_scale", 1.0)) * test_time_scale
 		var t_end := Time.get_ticks_msec() / 1000.0 + t
 		# read the Latin aloud partway through the page (her own discovery, so it is spoken)
 		for l in p.get("latin", []):

@@ -76,6 +76,9 @@ func _requirements_met(who := "mika") -> bool:
 	for k in requires.get("items", {}):
 		if int(WorldState.mind(who).inventory.get(k, 0)) < int(requires.items[k]):
 			return false
+	for k in requires.get("knowledge", {}):
+		if not WorldState.mind(who).knowledge.has(k):
+			return false
 	return true
 
 
@@ -93,6 +96,7 @@ func perform(c: WorldCharacter) -> Dictionary:
 	WorldState.interaction_started.emit(self, c)
 	if seat_body:
 		c.add_collision_exception_with(seat_body)
+		c.set_meta("on_seat", true)            # until she has stepped off it again (InvariantAuditor)
 	if stand_point != null:
 		# settle exactly onto the spot (seats, casting marks); the nav agent stops up to ~0.7 m short.
 		# Never slide through geometry: if the short move would collide, she stays where she is.
@@ -158,6 +162,7 @@ func perform(c: WorldCharacter) -> Dictionary:
 		tw2.tween_property(c, "global_position", c.global_position + fwd.normalized() * (0.75 if sitting else 0.4), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		await tw2.finished
 		c.remove_collision_exception_with(seat_body)
+		c.remove_meta("on_seat")
 	busy = false
 	times_done += 1
 	var inv := WorldState.mind(c.character_id).inventory      # whoever did it pays and learns

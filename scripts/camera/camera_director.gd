@@ -34,6 +34,10 @@ var enabled := false:
 			rig.clear_shot()
 			mode = "off"
 var mode := "off"
+var _chase_hidden_t := 0.0
+var _chase_tight_t := 0.0
+var _chase_override := false
+var _override_pos := Vector3.ZERO
 var current_sub := ""
 var _since_change := 99.0
 var _pos := Vector3.ZERO
@@ -305,6 +309,8 @@ func _choose() -> String:
 func _switch(m: String) -> void:
 	mode = m
 	_since_change = 0.0
+	_chase_override = false
+	_chase_tight_t = 0.0
 	if m in ["spell", "activity", "conversation", "combat", "signature", "stargaze", "scene"]:
 		# keep the side of the screen the viewer already sees Mika on (180° rule)
 		var f := -mika.global_transform.basis.z
@@ -402,9 +408,44 @@ func _frame(delta: float) -> void:
 			var moving := Vector2(mika.velocity.x, mika.velocity.z).length() > 0.3
 			var k := 1.0 - exp(-(2.2 if moving else 0.6) * delta)
 			rig.yaw = lerp_angle(rig.yaw, mika.rotation.y, k)
-			# spring arm squeezed by a wall: rise above it instead of ending up inside her hair
-			var squeezed := rig.arm.get_hit_length() < 1.6
-			rig.pitch = lerpf(rig.pitch, -0.62 if squeezed else -0.2, 1.0 - exp(-3.0 * delta) if squeezed else k)
+			# spring arm squeezed by a wall, or a wall / house between the lens and her: rise quickly, and swing
+			# round to the most open side (a doorway, a narrow lane) instead of ending up inside her hair or
+			# staring at a wall with her behind it
+			var hit_len := rig.arm.get_hit_length()
+			var squeezed := hit_len < 1.6
+			var head := mika.global_position + Vector3(0, 1.45, 0)
+			var oq := PhysicsRayQueryParameters3D.create(rig.camera.global_position, head, 1)
+			oq.exclude = [mika.get_rid()]
+			var ohit := mika.get_world_3d().direct_space_state.intersect_ray(oq)
+			_chase_hidden_t = (_chase_hidden_t + delta) if (not ohit.is_empty() and (ohit.position as Vector3).distance_to(head) > 0.5) else 0.0
+			if squeezed or _chase_hidden_t > 0.5:
+				var best_yaw := rig.yaw
+				var best_len := hit_len if not squeezed else _arm_room(rig.yaw, rig.pitch)
+				for off: float in [0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.4, -2.4]:
+					var room := _arm_room(rig.yaw + off, rig.pitch)
+					if room > best_len + 0.35:
+						best_len = room
+						best_yaw = rig.yaw + off
+				rig.yaw = lerp_angle(rig.yaw, best_yaw, 1.0 - exp(-5.0 * delta))
+			var tight := hit_len < 1.0
+			rig.pitch = lerpf(rig.pitch, -0.85 if tight else (-0.62 if squeezed else -0.2), 1.0 - exp(-(9.0 if tight else 6.0) * delta) if squeezed else k)
+			# last resort: the arm stays crushed against something whichever way it turns - take a validated shot
+			# (lens above her waist, 1.3 m+ away, a clear line to her head) and hold it until there is room again
+			_chase_tight_t = (_chase_tight_t + delta) if tight else 0.0
+			if _chase_tight_t > 0.3 and not _chase_override:
+				var f2 := -mika.global_transform.basis.z
+				var alt := _solve_shot(p, p + Vector3(0, 1.3, 0) + Vector3(f2.x, 0, f2.z).normalized() * 1.5, 55.0, Vector3(f2.x, 0, f2.z).normalized())
+				if alt != Vector3.INF:
+					_chase_override = true
+					_override_pos = alt
+			if _chase_override:
+				if _arm_room(rig.yaw, rig.pitch) > 2.2 or p.distance_to(_override_pos) > 7.0:
+					_chase_override = false
+					rig.clear_shot()
+				else:
+					rig.set_shot(_override_pos, p + Vector3(0, 1.3, 0), 55.0)
+					_pos = _override_pos
+					return
 			rig.distance = lerpf(rig.distance, 3.6, k)
 			_pos = rig.camera.global_position
 			return
@@ -510,6 +551,13 @@ func _frame(delta: float) -> void:
 				_:
 					pos = p - fwd * 2.2 + right * 0.6 + Vector3(0, 1.7, 0)
 					look = obj
+			pos = _clear_line(p + Vector3(0, 1.5, 0), pos)
+			if not _frame_ok(pos, look, fov, p + Vector3(0, 1.5, 0), p.y):
+				var alt := _solve_shot(p, look, fov, fwd)
+				if alt != Vector3.INF:
+					pos = alt
+			_apply(pos, look, fov, delta)
+			return
 	pos = _clear_line(look, pos)
 	_apply(pos, look, fov, delta)
 
@@ -557,13 +605,67 @@ func _two_clear(cam: Vector3, a: Vector3, b: Vector3) -> bool:
 ## camera to just in front of the obstruction.
 func _clear_line(subject: Vector3, cam: Vector3) -> Vector3:
 	var space := mika.get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(subject, cam)
+	# start a little out from the subject: a look point ON an object (a plaque, a notice board) sits inside that
+	# object's collider, and a ray from there "hits" at once - which used to put the lens 0.35 m from the object,
+	# low and looking up
+	var dir := cam - subject
+	if dir.length() < 0.7:
+		return cam
+	var start := subject + dir.normalized() * 0.6
+	var q := PhysicsRayQueryParameters3D.create(start, cam, 1 | 4)
 	q.exclude = [mika.get_rid()]
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
 		return cam
 	var hp: Vector3 = hit.position
 	return hp + (subject - hp).normalized() * 0.35
+
+
+## A shot a viewer can watch: the lens above her waist (never looking up at her), not inside her, her head in
+## frame and not hidden behind a wall. (InvariantAuditor checks the same on whatever the camera shows.)
+## How far the chase arm could reach at this yaw / pitch before something solid (world and vegetation).
+func _arm_room(yaw: float, pitch: float) -> float:
+	var from := mika.global_position + Vector3(0, rig.height, 0)
+	var dir := Basis.from_euler(Vector3(pitch, yaw, 0)) * Vector3(0, 0, 1)
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * rig.distance, 1 | 4)
+	q.exclude = [mika.get_rid()]
+	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
+	return rig.distance if hit.is_empty() else from.distance_to(hit.position)
+
+
+func _frame_ok(pos: Vector3, look: Vector3, fov: float, head: Vector3, feet_y: float) -> bool:
+	if pos.y < feet_y + 1.15 or pos.distance_to(head) < 1.3:
+		return false
+	var ang := rad_to_deg((look - pos).angle_to(head - pos))
+	if ang > fov * 0.5 * 0.8:
+		return false
+	var q := PhysicsRayQueryParameters3D.create(pos, head, 1 | 4)
+	q.exclude = [mika.get_rid()]
+	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.is_empty() or (hit.position as Vector3).distance_to(head) < 0.4
+
+
+## Search round her for a watchable shot of her and what she is doing (behind a shoulder first, then the sides).
+func _solve_shot(p: Vector3, look: Vector3, fov: float, fwd: Vector3) -> Vector3:
+	var head := p + Vector3(0, 1.5, 0)
+	var best := Vector3.INF
+	var best_s := -INF
+	for dist: float in [2.4, 3.1, 3.9]:
+		for deg: float in [150.0, -150.0, 125.0, -125.0, 100.0, -100.0, 180.0, 70.0, -70.0]:
+			var d := fwd.rotated(Vector3.UP, deg_to_rad(deg))
+			var c := p + d * dist + Vector3(0, 1.75 + dist * 0.12, 0)
+			if not _frame_ok(c, look, fov, head, p.y):
+				continue
+			# what she works on should be visible from there too
+			var q := PhysicsRayQueryParameters3D.create(c, look, 1 | 4)
+			q.exclude = [mika.get_rid()]
+			var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
+			var sees := hit.is_empty() or (hit.position as Vector3).distance_to(look) < 0.6
+			var sc := (2.0 if sees else 0.0) - dist * 0.3 - absf(absf(deg) - 145.0) * 0.008 + (0.3 if signf(deg) == signf(_side) else 0.0)
+			if sc > best_s:
+				best_s = sc
+				best = c
+	return best
 
 
 static func _arr(a: Array) -> Vector3:

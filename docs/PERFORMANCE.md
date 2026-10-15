@@ -44,3 +44,66 @@ Gameplay scenes on top of that:
   the Movie Maker reels (no stills) show 0 frames over 50 ms. The only long frames left are inside the masked
   area-load transition (5-7 s after a travel starts, behind the travel card). The shader prewarm (which runs
   behind that card) now also covers every effect shader in `shaders/{fx,magic,vfx,world,phoenix,nature}`.
+
+## Benchmark: 30 vs 60 vs uncapped, and a parallel NVENC encode (measured 2026-10-15 18:00-18:22)
+
+Machine: RTX 5050 Laptop (8 GB, driver 615.71.09), i5-13420H (12 threads), 16 GB RAM, power profile `performance`.
+Godot fullscreen **1920x1080**, VSync off, Mika and Luna together, profile `live` (LIVE_OPTIMIZED) with the FPS cap
+overridden **only inside the test run** (`--mktest=bench --bench-fps=30|60|0`; production profiles unchanged).
+Each scene: 45 s measured after a warm-up, frame times from the game; hardware sampled every second
+(`~/.cache/mika_qa/bench/`: nvidia-smi, /proc, `sensors`). Scenes: the Sanctuary, the dense Whispering Woods, the
+Village at work (residents), the road-thieves ambush (rivals, wards, spells, impacts).
+
+**The 30 FPS is a deliberate cap** (`render_profile.gd`: LIVE_OPTIMIZED `max_fps: 30`; QUALITY 60; CINEMATIC 0).
+
+| scene | cap 30: avg / 1% low | cap 60: avg / 1% low | uncapped: avg / 1% low | cap 60 + NVENC 1080p60: avg / 1% low |
+|---|---|---|---|---|
+| Sanctuary | 30.0 / 30.0 | 60.0 / 60.0 | 171 / 78 | 60.0 / 60.0 |
+| Dense forest | 30.0 / 29.2 | 60.0 / 60.0 | 108 / 70 | 59.8 / **38.2** (p99 23 ms) |
+| Village + residents | 30.0 / 28.8 | 60.0 / 57.1 | 159 / 80 | 60.0 / 60.0 |
+| Ambush fight + magic | 30.0 / 30.0 | 60.0 / 59.9 | 78 / **42** | 59.7 / 54.5 |
+
+Hardware (scene averages; max for temperatures / memory):
+
+| | cap 30 | cap 60 | uncapped | cap 60 + NVENC |
+|---|---|---|---|---|
+| GPU frame time (ms) | 5.5-12.0 | 4.5-11.3 | 4.7-11.9 | 4.5-12.9 |
+| GPU utilisation | 20-39 % | 30-72 % (85 % peak, fight) | 82-99 % | 33-81 % (100 % peak, fight) |
+| GPU clock / power | 570-875 MHz / 14-21 W | 1000-1760 MHz / 24-36 W | 1920-2030 MHz / 38-44 W | 1830-1985 MHz / 27-38 W |
+| GPU temperature | 57-65 C | 64-74 C | 79-81 C | 72-77 C |
+| NVENC utilisation | 0 | 0 | 0 | 19-21 % (real time: 22 295 frames in 371.6 s = 60.0 fps) |
+| VRAM | 0.93-1.46 GB | 0.93-1.46 GB | 0.93-1.47 GB | 1.14-1.66 GB (of 8 GB) |
+| CPU utilisation (system) | 9-19 % | 9-25 % | 15-30 % | 9-23 % |
+| Godot process CPU | 27-49 % of a core | 39-70 % | 106-211 % | 39-107 % |
+| **CPU package temperature** | 68-94 C | 77-96 C | 93-96 C | 87-95 C |
+| RAM in use (system) / Godot RSS | 6.6-8.7 / 2.0-2.7 GB | 6.9-8.3 / 2.0-2.7 GB | 6.8-9.1 / 2.1-2.3 GB | 7.3-9.4 / 2.0-2.7 GB (of 16 GB) |
+
+The NVENC pass encodes a synthetic 1080p60 picture with the encoder OBS would use (H.264 NVENC, p5, CBR 12 Mbps)
+alongside the game. It is not OBS capturing the game window. Real OBS also copies the window into its compositor
+and renders its own canvas, so expect slightly worse numbers than this column. OBS itself was not driven: its
+flatpak cannot be run on an isolated config (it loads the live profile). The flatpak NVIDIA GL extension
+`nvidia-615-71-09` was installed for the user; without it the OBS flatpak had no NVENC and fell back to x264.
+
+### What it means
+
+* **1080p30 (the current live profile) is the stable choice.** It holds a locked 30 FPS with 1% lows of 28.8-30 in
+  every scene. The GPU idles at low clocks (14-21 W, 57-65 C), which leaves wide headroom for OBS, voice, LLM and
+  browser sources on the same machine.
+* **1080p60 is achievable but not yet comfortable while streaming.** Without encoding it holds 60 FPS (1% lows of
+  57-60). With a 1080p60 NVENC encode running alongside:
+  * calm scenes stay perfect;
+  * the dense forest dips (1% low 38, p99 23 ms: visible stutter);
+  * the fight sits at 81 % GPU (100 % peaks; 1% low 54.5).
+
+  Uncapped, the fight's 1% low is only 42 FPS, so there is little margin left for OBS's capture and compositing.
+* **The CPU is the thermal limit, not the GPU.** The i5-13420H package reaches 94-96 C in every configuration,
+  including at 30 FPS in the forest, village and fight. That is close to its throttle point while it does
+  relatively little work: 10-30 % system load, and Godot itself 0.3-2 cores. It looks like the laptop's
+  cooling/power policy (or other processes) rather than the game. Long 60 FPS streams would sit there continuously.
+* **Recommendation:**
+  * keep **1080p30 for live streams**;
+  * use **1080p60 for offline recordings and reels** (Movie Maker, or the QUALITY profile);
+  * consider 60 FPS live only after the forest and fight frame spikes are reduced (foliage LOD / shadow distance in
+    the dense woods, VFX particle budgets in fights) and the CPU temperature is addressed (cooling pad, fan profile).
+* Movement, physics and animation are unchanged: frame-rate-independent code paths were not touched. Only the
+  test run's `Engine.max_fps` and VSync mode were overridden.

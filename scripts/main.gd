@@ -43,6 +43,7 @@ var overlay_ui: MageOverlay
 var attention: AttentionDirector
 var affect: Affect
 var impacts: ImpactDirector       # area impacts with consequences + the aftermath behaviours (V3 continuation)
+var auditor: InvariantAuditor      # automatic checks for visible defects (at the object, tool in hand, on the ground)
 var town: TownLife                # the people who live in the Village and the Academy (data/residents.json)
 var weather: WeatherSystem        # one sky for the world: clear, overcast, rain, storm (persists)
 var teleport_guard: TeleportGuard  # the no-teleport rule, watched every physics frame
@@ -269,6 +270,10 @@ func _ready() -> void:
 	town.name = "TownLife"
 	add_child(town)
 	town.setup(self)
+	auditor = InvariantAuditor.new()
+	auditor.name = "Auditor"
+	add_child(auditor)
+	auditor.setup(self)
 	streaming.area_activated.connect(func(a, _r): town.area_activated(a))
 	town.area_activated(streaming.current_id)
 	teleport_guard = TeleportGuard.new()
