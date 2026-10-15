@@ -16,7 +16,9 @@ const LIVE_OPTIMIZED := "LIVE_OPTIMIZED"
 const ULTRA := "ULTRA"
 # Adaptive graphics (docs/ADAPTIVE_GRAPHICS.md): the three 60-FPS-era profiles
 const CINEMATIC_MAX := "CINEMATIC_MAX"   # highest validated quality, uncapped: screenshots / non-real-time
-const ADAPTIVE_60 := "ADAPTIVE_60"       # recommended for streaming: CINEMATIC quality, AdaptiveQuality manages it
+const ADAPTIVE_60 := "ADAPTIVE_60"       # CINEMATIC quality held at 60 FPS by AdaptiveQuality
+const ADAPTIVE_30 := "ADAPTIVE_30"       # THE STREAM PROFILE (default): CINEMATIC quality held at a stable 30 FPS (the OBS
+                                         # output rate; less heat), AdaptiveQuality managing a 33.3 ms budget
 const STABLE_60 := "STABLE_60"           # fixed, conservative, 60 cap: the diagnostic baseline
 
 var profile := CINEMATIC
@@ -51,6 +53,13 @@ const SETTINGS := {
 		"foliage_density": 1.0, "magic_shadows": true, "max_fps": 0, "lod_threshold": 1.0,
 		"particle_scale": 1.0, "magic_light_scale": 0.75,
 	},
+	ADAPTIVE_30: {
+		"scale_3d": 1.0, "fsr": false, "fsr2": true, "taa": false, "fxaa": false, "msaa": Viewport.MSAA_DISABLED,
+		"ssao": true, "ssil": true, "ssr": true, "sdfgi": false, "glow": true,
+		"volumetric_fog": true, "fog_density": 0.0035, "shadow_size": 4096, "shadow_distance": 45.0,
+		"foliage_density": 1.0, "magic_shadows": true, "max_fps": 30, "lod_threshold": 1.0,
+		"particle_scale": 1.0, "magic_light_scale": 0.75,
+	},
 	ADAPTIVE_60: {
 		# CINEMATIC as the ceiling; FSR 2 from native scale (it is also the temporal AA, replacing TAA) so the
 		# controller can lower the internal 3D scale at runtime without changing the anti-aliasing look
@@ -81,8 +90,9 @@ func _init() -> void:
 	for arg in OS.get_cmdline_user_args():
 		var kv := arg.trim_prefix("--").split("=", true, 1)
 		options[kv[0]] = kv[1] if kv.size() > 1 else "true"
-	# no profile given: Adaptive 60 (60 FPS held by measured quality steps, docs/ADAPTIVE_GRAPHICS.md)
-	match String(options.get("profile", "adaptive")).to_lower():
+	# no profile given: the stream profile, Adaptive 30 (a stable 30 FPS matching OBS's output, docs/ADAPTIVE_GRAPHICS.md)
+	match String(options.get("profile", "stream")).to_lower():
+		"stream", "adaptive30", "adaptive_30": profile = ADAPTIVE_30
 		"live", "live_optimized", "live-optimized": profile = LIVE_OPTIMIZED
 		"ultra": profile = ULTRA
 		"adaptive", "adaptive60", "adaptive_60": profile = ADAPTIVE_60
@@ -117,13 +127,13 @@ func set_profile(p: String) -> void:
 ## The visual tier a profile renders at (environment quality choices): the 60-FPS profiles map onto the originals.
 func tier() -> String:
 	match profile:
-		CINEMATIC_MAX, ADAPTIVE_60: return CINEMATIC
+		CINEMATIC_MAX, ADAPTIVE_60, ADAPTIVE_30: return CINEMATIC
 		STABLE_60: return LIVE_OPTIMIZED
 	return profile
 
 
 func cycle_profile() -> void:
-	var order := [ADAPTIVE_60, STABLE_60, CINEMATIC_MAX, CINEMATIC, LIVE_OPTIMIZED, ULTRA]
+	var order := [ADAPTIVE_30, ADAPTIVE_60, STABLE_60, CINEMATIC_MAX, CINEMATIC, LIVE_OPTIMIZED, ULTRA]
 	set_profile(order[(order.find(profile) + 1) % order.size()])
 
 

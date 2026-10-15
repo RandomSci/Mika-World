@@ -15,7 +15,7 @@ extends Node
 
 signal changed(entry: Dictionary)
 
-const BUDGET_MS := 1000.0 / 60.0
+var BUDGET_MS := 1000.0 / 60.0           # the frame budget of the profile's cap (60 or 30 FPS), set with the profile
 # the ladder: each step changes ONE knob; ordered least noticeable first (validated by measurement, see doc)
 # the ladder: each step changes ONE knob, least noticeable first; ordered by MEASURED GPU savings at 1080p
 # (--mktest=gfxcal, 2026-10-15; forest / village / ambush, ms saved alone): distant range 52 % -4.9 / -2.8;
@@ -60,8 +60,8 @@ const MIN_GAP_DOWN_SEVERE := 1.0   # ... when frames are > 35 % over budget (sti
 const SETTLED_S := 10.0            # held 60 this long at a level: remembered for this situation
 const FIRST_FIGHT_LEVEL := 13      # the first fight of a session (measured: fights settle at level 13-17 at 1080p + NVENC)
 const MIN_GAP_UP := 8.0            # s of comfortable headroom before one step of quality comes back
-const GPU_HEAVY := BUDGET_MS * 0.82      # 13.7 ms of GPU work: little room left for spikes / an encoder
-const GPU_LIGHT := BUDGET_MS * 0.6       # 10.0 ms: room to restore a step
+var GPU_HEAVY := BUDGET_MS * 0.82        # (60 FPS) 13.7 ms of GPU work: little room left for spikes / an encoder
+var GPU_LIGHT := BUDGET_MS * 0.6         # (60 FPS) 10.0 ms: room to restore a step
 const HOLD_AFTER_LOAD := 3.0
 
 var main: Node
@@ -98,13 +98,25 @@ var _sit := ""
 var _ok_since := 0.0
 
 
+## Adaptive at 60 (16.7 ms) or 30 (33.3 ms, the stream profile).
+static func is_adaptive(p: String) -> bool:
+	return p == RenderProfile.ADAPTIVE_60 or p == RenderProfile.ADAPTIVE_30
+
+
+func _budget_for(p: String) -> void:
+	enabled = is_adaptive(p)
+	BUDGET_MS = 1000.0 / (30.0 if p == RenderProfile.ADAPTIVE_30 else 60.0)
+	GPU_HEAVY = BUDGET_MS * 0.82
+	GPU_LIGHT = BUDGET_MS * 0.6
+
+
 func setup(m: Node) -> void:
 	main = m
 	_vp_rid = get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(_vp_rid, true)
-	enabled = RenderProfile.profile == RenderProfile.ADAPTIVE_60
+	_budget_for(RenderProfile.profile)
 	RenderProfile.profile_changed.connect(func(p: String):
-		enabled = p == RenderProfile.ADAPTIVE_60
+		_budget_for(p)
 		reset_quality())
 	if main.get("streaming"):
 		main.streaming.before_reveal.append(_warm_area)
@@ -417,7 +429,7 @@ func reset_quality() -> void:
 # ------------------------------------------------------------------ applying (cheap, runtime-safe changes only)
 func _apply_all() -> void:
 	var vp := get_viewport()
-	if RenderProfile.profile == RenderProfile.ADAPTIVE_60:
+	if is_adaptive(RenderProfile.profile):
 		# FSR 2 (temporal, best quality per pixel); at the very bottom FSR 1 + FXAA (much cheaper, a little softer)
 		var fsr2 := float(knobs.upscaler) >= 0.5
 		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2 if fsr2 else Viewport.SCALING_3D_MODE_FSR
@@ -451,7 +463,7 @@ func _apply_all() -> void:
 		(sun as DirectionalLight3D).directional_shadow_max_distance = v
 		_written[sk] = v
 	var env = w.get("env")
-	if env is Environment and RenderProfile.profile == RenderProfile.ADAPTIVE_60:
+	if env is Environment and is_adaptive(RenderProfile.profile):
 		var e := env as Environment
 		e.ssil_enabled = bool(RenderProfile.get_setting("ssil")) and knobs.ssil > 0.5
 		e.ssr_enabled = bool(RenderProfile.get_setting("ssr")) and knobs.ssr > 0.5
@@ -459,7 +471,7 @@ func _apply_all() -> void:
 		# from the profile itself, never a captured value (the warm-up behind the travel card runs before the area's
 		# environment receives its profile settings - a captured "off" once hid the fog for good)
 		e.volumetric_fog_enabled = bool(RenderProfile.get_setting("volumetric_fog")) and not RenderProfile.is_compatibility_renderer() and knobs.volfog > 0.5
-	if RenderProfile.profile == RenderProfile.ADAPTIVE_60:
+	if is_adaptive(RenderProfile.profile):
 		vp.mesh_lod_threshold = float(RenderProfile.get_setting("lod_threshold")) * float(knobs.lod)
 		# the sun's shadow map: 4096 -> 2048 (a one-off reallocation; only ever changed outside a fight's first seconds)
 		var want := int(RenderProfile.get_setting("shadow_size")) if float(knobs.shadowmap) >= 0.999 else int(RenderProfile.get_setting("shadow_size")) / 2
