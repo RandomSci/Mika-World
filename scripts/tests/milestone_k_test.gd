@@ -3833,7 +3833,7 @@ func _audit() -> void:
 	report["audit"] = au.summary()
 	report["audit_violations"] = au.violations
 	print("[mktest] audit summary ", JSON.stringify(au.summary()))
-	_check(rows.size() > 10, "the audit used %d interactions across %d areas" % [rows.size(), areas.size()])
+	_check(rows.size() >= mini(10, areas.size() * 2) and rows.all(func(r): return r.ok), "the audit used %d interactions across %d areas, every one completed (%s)" % [rows.size(), areas.size(), str(rows.filter(func(r): return not r.ok).map(func(r): return r.area + "/" + r.id))])
 	_check(au.violations.is_empty(), "no visible defects found by the auditor (%d checks)" % au.checks.values().reduce(func(a, b): return a + b, 0), au.summary())
 
 
@@ -4227,6 +4227,11 @@ func _view() -> void:
 		WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + float(RenderProfile.options.hour) * 60.0
 		WorldState.clock_rate = 0.0
 	await _wait(1.5)
+	# --probe="x,z;x,z": the ground height there (the area's height function), for placing things on walkable ground
+	for pz in String(RenderProfile.options.get("probe", "")).split(";", false):
+		var xz := pz.split_floats(",")
+		if main.world.has_method("height"):
+			print("[mktest] probe %.1f,%.1f -> %.2f roof %.2f" % [xz[0], xz[1], float(main.world.height(xz[0], xz[1])), float(main.world.roof(xz[0], xz[1])) if main.world.has_method("roof") else -1.0])
 	var i := 0
 	for v in String(RenderProfile.options.get("views", "")).split(";", false):
 		var ft := v.split(">")

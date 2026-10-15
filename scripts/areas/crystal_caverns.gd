@@ -37,6 +37,16 @@ func cave_sdf(p: Vector2) -> float:
 	return minf(minf(mouth, hall), east)
 
 
+## The cliff face the cave is cut into: west of it is the open quarry ravine (sky overhead), east of it the rock.
+## The mouth tunnel used to reach ~10 m out past it: its roof floated over the ravine as a thin sheet and curved
+## down to the ground at the far end, sealing the cave from the ravine (the village road could not get in).
+const FACE_X := MOUTH.x + 2.0
+
+
+func ceiling_open(x: float, _z: float) -> bool:
+	return x < FACE_X - 0.01
+
+
 func _ravine_w(z: float, x: float) -> float:
 	return 9.0 + 2.5 * sin(x * 0.07) + 1.5 * sin(x * 0.19 + z)
 
@@ -45,7 +55,7 @@ func floor_h(x: float, z: float) -> float:
 	var p := Vector2(x, z)
 	var bumps := 0.35 * sin(x * 0.31) * cos(z * 0.27) + 0.2 * sin((x + z) * 0.61)
 	var sd := cave_sdf(p)
-	if sd < 0.0:
+	if sd < 0.0 and x >= FACE_X:
 		var f := -0.05 * maxf(x - MOUTH.x, 0.0) + bumps
 		var he := Vector2((p.x - HALL.x) / HALL_R.x, (p.y - HALL.y) / HALL_R.y).length()
 		f -= 2.0 * (1.0 - smoothstep(0.0, 0.9, he))                             # the hall's floor dips to the middle
@@ -65,7 +75,7 @@ func floor_h(x: float, z: float) -> float:
 func ceil_h(x: float, z: float) -> float:
 	var p := Vector2(x, z)
 	var sd := cave_sdf(p)
-	if sd >= 0.0:
+	if sd >= 0.0 or x < FACE_X:
 		return floor_h(x, z)
 	var he := Vector2((p.x - HALL.x) / HALL_R.x, (p.y - HALL.y) / HALL_R.y).length()
 	var room := lerpf(6.0, 18.0, 1.0 - smoothstep(0.6, 1.25, he))
@@ -96,7 +106,37 @@ func env_preset() -> Dictionary:
 
 
 func features() -> Array:
-	return [_hall_crystals, _giant, _pool, _miners_camp, _scree]
+	return [_mouth_face, _hall_crystals, _giant, _pool, _miners_camp, _scree]
+
+
+## The rock above the mouth: from the roof's open edge up to the cliff top, across the opening (the roof is seen
+## only from below, so without this the mouth would be a slot open to the sky).
+func _mouth_face() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var x := FACE_X
+	var prev := []
+	var z := -9.0
+	while z <= 9.0:
+		var bottom := roof(x, z)
+		var top := 28.0 + 2.0 * sin(x * 0.07) * cos(z * 0.05) + 0.5
+		var cur := [Vector3(x, minf(bottom, top), z), Vector3(x, top, z)]
+		if not prev.is_empty() and (top - bottom > 0.05 or (prev[1] as Vector3).y - (prev[0] as Vector3).y > 0.05):
+			# both windings: the face is seen from the ravine (and its back from inside the rock never shows)
+			for v in [prev[0], cur[0], prev[1], prev[1], cur[0], cur[1], prev[0], prev[1], cur[0], prev[1], cur[1], cur[0]]:
+				st.set_normal(Vector3(-1, 0, 0))
+				st.set_uv(Vector2((v as Vector3).z, (v as Vector3).y) * 0.25)
+				st.set_color(Color(0, 0, 0, 0.1))
+				st.add_vertex(v)
+		prev = cur
+		z += 0.5
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.name = "MouthFace"
+	mi.mesh = st.commit()
+	mi.material_override = _rock()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
+	add_child(mi)
 
 
 func _v(p: Vector2, lift := 0.0) -> Vector3:
@@ -179,6 +219,8 @@ func _scree() -> void:
 		var w := _ravine_w(p.y, p.x)
 		if absf(p.y) < w - 1.0 or trail_at(p.x, p.y) > 0.1:
 			continue
+		if p.distance_to(MOUTH + Vector2(-10, 4)) < 5.0 or p.distance_to(MOUTH + Vector2(-4, 5.5)) < 2.5:
+			continue        # the miners' camp (its crates, the survey spot) and the lantern post stay clear of boulders
 		var id: String = ["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"][rng.randi() % 3]
 		(by_id.get_or_add(id, []) as Array).append(Transform3D(Basis.from_euler(Vector3(rng.randf_range(-0.4, 0.4), rng.randf() * TAU, 0)).scaled(Vector3.ONE * rng.randf_range(0.5, 2.0)), _v(p, -0.3)))
 	for id in by_id:

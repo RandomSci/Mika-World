@@ -57,6 +57,7 @@ static func cluster(parent: Node3D, at: Vector3, up: Vector3, size: float, tint:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var base := Basis(Quaternion(Vector3.UP, up.normalized())) if up.normalized().dot(Vector3.UP) > -0.999 else Basis(Vector3.RIGHT, PI)
+	var solids := []       # [Transform3D, radius, height]: the crystals big enough to bump into (or to put a lens in)
 	for i in count:
 		var big := i < 2
 		var h := size * (rng.randf_range(0.8, 1.2) if big else rng.randf_range(0.18, 0.6))
@@ -65,11 +66,27 @@ static func cluster(parent: Node3D, at: Vector3, up: Vector3, size: float, tint:
 		var yaw := rng.randf() * TAU
 		var off := Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized() * (0.0 if i == 0 else rng.randf_range(0.2, 0.75) * size * 0.4)
 		var b := base * Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, tilt)
-		_crystal(st, Transform3D(b, base * off - base * Vector3(0, r * 0.6, 0)), r, h, r * rng.randf_range(1.4, 2.4), rng)
+		var o := base * off - base * Vector3(0, r * 0.6, 0)
+		_crystal(st, Transform3D(b, o), r, h, r * rng.randf_range(1.4, 2.4), rng)
+		if r >= 0.1:
+			solids.append([Transform3D(b, o + b.y * h * 0.5), r, h])
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	mi.material_override = mat(tint, core, glow)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.position = at
 	parent.add_child(mi)
+	# crystals are solid: nobody walks through one, and no camera can end up inside one
+	if not solids.is_empty():
+		var body := StaticBody3D.new()
+		body.name = "CrystalBody"
+		for s in solids:
+			var cs := CollisionShape3D.new()
+			var cyl := CylinderShape3D.new()
+			cyl.radius = float(s[1]) * 1.05
+			cyl.height = float(s[2])
+			cs.shape = cyl
+			cs.transform = s[0]
+			body.add_child(cs)
+		mi.add_child(body)
 	return mi

@@ -29,6 +29,12 @@ func ceil_h(x: float, z: float) -> float:
 	return floor_h(x, z)
 
 
+## Where the roof must END with an open edge (a mouth in a cliff face) instead of curving down to the floor: no
+## roof vertex is made there, so the roof surface stops instead of closing the way out. Subclasses override.
+func ceiling_open(_x: float, _z: float) -> bool:
+	return false
+
+
 ## 0 = open sky .. 1 = deep under rock (how much of the sky's ambient light is blocked).
 func occlusion(x: float, z: float) -> float:
 	var gap := ceil_h(x, z) - floor_h(x, z)
@@ -160,6 +166,8 @@ func _ceiling() -> void:
 				continue
 			var x := -HALF + ix * STEP
 			var z := -HALF + iz * STEP
+			if ceiling_open(x, z):
+				continue
 			var hl := _c[iz * _n + maxi(ix - 1, 0)]
 			var hr := _c[iz * _n + mini(ix + 1, _n - 1)]
 			var hd := _c[maxi(iz - 1, 0) * _n + ix]
