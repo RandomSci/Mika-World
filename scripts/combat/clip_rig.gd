@@ -123,7 +123,7 @@ func _attach_weapons() -> void:
 ## The blade follows the fight, not the generic clip's wrist: on guard / alert / closing in it points at the one
 ## it faces (no one: forward and a little down) - rotated about the fist, at most 90 degrees from the hand's own
 ## angle, eased; in the wind-up and the strike the animation keeps most of it (the swing reads); in defeat none.
-var _aim := {}                     # weapon holder id -> the eased correction (Quaternion)
+var _aim := {}                     # weapon holder id -> the eased world direction of the blade (Vector3)
 
 func _aim_weapons(delta: float) -> void:
 	if weapons.is_empty():
@@ -177,20 +177,28 @@ func _aim_weapons(delta: float) -> void:
 			var ln2 := g.distance_to(tip)
 			for lift in 4:
 				var tp: Vector3 = g + want * ln2
-				if tp.y > float(w_area.ground_at(tp.x, tp.z)) + 0.08:
+				if tp.y > _ground_y(tp, w_area) + 0.08:
 					break
 				want = (want + Vector3(0, 0.25, 0)).normalized()
+		# how far toward the aim this state turns the blade (a strike may turn it fully: the generic clips' wrists were
+		# not animated for a sword; a guard 90 degrees at most)
 		var ang := cur.angle_to(want)
+		var desired := cur
 		var axis := cur.cross(want)
-		var q := Quaternion.IDENTITY
 		if axis.length() > 1e-4 and ang > 0.01:
-			# a strike may turn the blade fully (the generic clips' wrists were not animated for a sword); guards 90 max
-			q = Quaternion(axis.normalized(), minf(ang, deg_to_rad(180.0 if locked else 90.0)) * wgt)
+			desired = cur.rotated(axis.normalized(), minf(ang, deg_to_rad(180.0 if locked else 90.0)) * wgt)
+		elif ang > 3.0:
+			desired = want                                     # exactly opposite: any axis will do
+		# smooth the blade's WORLD direction, not a rotation relative to the clip: the clip swings fast, and a stale
+		# relative rotation re-applied to a new pose throws the blade off (the strike trailed behind by 60-140 deg)
 		var key := w.get_instance_id()
-		var prev: Quaternion = _aim.get(key, Quaternion.IDENTITY)
-		q = prev.slerp(q, 1.0 - exp(-10.0 * delta))
-		_aim[key] = q
-		var r := Basis(q)
+		var prev: Vector3 = _aim.get(key, desired)
+		var sd := prev.slerp(desired, 1.0 - exp(-(26.0 if locked else 12.0) * delta)).normalized() if prev.angle_to(desired) > 0.001 else desired
+		_aim[key] = sd
+		var r := Basis.IDENTITY
+		var ax2 := cur.cross(sd)
+		if ax2.length() > 1e-4:
+			r = Basis(ax2.normalized(), cur.angle_to(sd))
 		w.global_transform = Transform3D(r * gt.basis, g + r * (gt.origin - g))
 		_constrain_blade(w, mon, g)
 
@@ -204,7 +212,7 @@ func _constrain_blade(w: Node3D, mon: Node3D, g: Vector3) -> void:
 		var tip: Vector3 = gt * (w.get_meta("tip_local") as Vector3)
 		var dir := tip - g
 		var fix := Vector3.ZERO
-		if w_area and w_area.has_method("ground_at") and tip.y < float(w_area.ground_at(tip.x, tip.z)) + 0.1:
+		if tip.y < _ground_y(tip, w_area) + 0.1:
 			fix += Vector3.UP
 		if mon:
 			var ap := mon.global_position
@@ -223,6 +231,19 @@ func _constrain_blade(w: Node3D, mon: Node3D, g: Vector3) -> void:
 			return
 		var rb := Basis(ax.normalized(), dir.normalized().angle_to(want))
 		w.global_transform = Transform3D(rb * gt.basis, g + rb * (gt.origin - g))
+
+
+## The ground under a point: the terrain's real collider (what the blade would actually stick into), or the area's
+## height formula where there is no collider.
+func _ground_y(p: Vector3, w_area) -> float:
+	var gy := -INF
+	if w_area and w_area.has_method("ground_at"):
+		gy = float(w_area.ground_at(p.x, p.z))
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 1.0, 0), p + Vector3(0, -0.5, 0), 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and String((hit.collider as Node).name).contains("Terrain"):
+		gy = maxf(gy, (hit.position as Vector3).y)
+	return gy
 
 
 ## A rival who yields lets the weapons fall: each becomes a prop lying on the ground where it dropped.
