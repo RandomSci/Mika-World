@@ -414,6 +414,79 @@
     "hair_refined": "tools/models/refine_hair.py (envelope normals, relaxed clump edges) from the lab's export_ready.blend; the original release is archived as 'v1'"
    },
    {
+    "id": "oracle_l1outfit",
+    "order": 2,
+    "name": "Celestial Oracle (Level 1 outfit, 3D pieces)",
+    "levels": [
+     1,
+     10
+    ],
+    "requires": {
+     "level": 1
+    },
+    "status": "ready",
+    "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle_L1Outfit.vrm",
+    "source": "~/Downloads/Mika-Transformation-Lab/luna_l1_outfit (tools/luna_o10_place.py + tools/luna_o12_rig.py) from LUNA_L1_Outfit_3D.zip (sha256 80da67b5...); vrm sha256 24f8afb5337d8f0c... (integrated build, transformation-outfits 33a1603)",
+    "profile": {
+     "face": {
+      "brows_through_fringe": false
+     },
+     "motion": "luna",
+     "springs": {
+      "stiffness": 1.0,
+      "drag": 1.0,
+      "chains": {
+       "HairBack": {
+        "stiffness": 8.5,
+        "drag": 1.35,
+        "gravity": 2.2,
+        "hit_radius": 2.2
+       },
+       "HairSide": {
+        "stiffness": 7.5,
+        "drag": 1.35,
+        "gravity": 2.0,
+        "hit_radius": 2.2
+       },
+       "Sleeve": {
+        "stiffness": 6.5,
+        "drag": 1.35,
+        "gravity": 1.3
+       },
+       "Earring": {
+        "stiffness": 2.0,
+        "drag": 1.2
+       },
+       "HeadTassel": {
+        "stiffness": 2.0,
+        "drag": 1.2
+       },
+       "HipMedallion": {
+        "stiffness": 2.5,
+        "drag": 1.3
+       },
+       "Skirt": {
+        "stiffness": 2.5,
+        "drag": 1.2,
+        "hit_radius": 2.0
+       },
+       "NeckPendant": {
+        "stiffness": 2.0,
+        "drag": 1.2
+       }
+      },
+      "shoulders": {
+       "radius": 0.06,
+       "cap": 0.065,
+       "arm": 0.065,
+       "forearm": 0.06,
+       "hand": 0.07
+      }
+     }
+    },
+    "note": "Same face, body, skeleton and expressions as the oracle stage; outfit and hair replaced by the 10 generated pieces. The oracle stage stays as order 1 (automatic fallback) and is archived as oracle_hair2 for rollback."
+   },
+   {
     "id": "eclipse",
     "order": 10,
     "name": "Gilded Eclipse Form",
@@ -569,6 +642,11 @@
     "id": "v1",
     "name": "Level 1-10 look, original hair (lab release)",
     "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle.vrm"
+   },
+   {
+    "id": "oracle_hair2",
+    "name": "Level 1-10 look before the 3D-piece outfit (rollback)",
+    "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle_hair2.vrm"
    }
   ]
  }
