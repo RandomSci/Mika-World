@@ -296,14 +296,18 @@ func _viewpoint(root: Node3D) -> void:
 	sb.finish(root, vmat, "Viewpoint")
 	stats.viewpoint_blocks = sb.blocks
 	# the Keepers' fire bowls on the two columns, cold for three hundred years (V3 Part X: the Phoenix lights them)
-	_fire_bowl(root, Vector3(a.VIEWPOINT.x - 1.5, level + 2.2, a.VIEWPOINT.y - 6.0), "viewpoint_bowl_n", "the north fire bowl at the viewpoint")
-	_fire_bowl(root, Vector3(a.VIEWPOINT.x - 1.5, level + 3.1, a.VIEWPOINT.y + 6.0), "viewpoint_bowl_s", "the south fire bowl at the viewpoint")
+	# on top of their columns: a column stands on the real ground (StoneBuilder.column: ground - 0.15 + height, plus
+	# its capital and abacus when 3 m or taller), which on this slope is well below the terrace level
+	var cn := Vector2(a.VIEWPOINT.x - 1.5, a.VIEWPOINT.y - 6.0)
+	var cs := Vector2(a.VIEWPOINT.x - 1.5, a.VIEWPOINT.y + 6.0)
+	_fire_bowl(root, Vector3(cn.x, _g(cn.x, cn.y) - 0.15 + 2.2, cn.y), "viewpoint_bowl_n", "the north fire bowl at the viewpoint")
+	_fire_bowl(root, Vector3(cs.x, _g(cs.x, cs.y) - 0.15 + 3.1 + 0.45, cs.y), "viewpoint_bowl_s", "the south fire bowl at the viewpoint")
 
 
 func _fire_bowl(root: Node3D, top: Vector3, id: String, label: String) -> void:
 	var br := Brazier.new()
 	br.name = id
-	br.position = top + Vector3(0, 0.22, 0)
+	br.position = top + Vector3(0, 0.15, 0)        # the bowl's foot rests on the column top
 	root.add_child(br)
 	var bowl := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
@@ -313,9 +317,9 @@ func _fire_bowl(root: Node3D, top: Vector3, id: String, label: String) -> void:
 	cm.radial_segments = 14
 	bowl.mesh = cm
 	var im := StandardMaterial3D.new()
-	im.albedo_color = Color(0.16, 0.13, 0.11)
-	im.metallic = 0.55
-	im.roughness = 0.62
+	im.albedo_color = Color(0.42, 0.33, 0.24)       # old weathered bronze (it read as a black lump)
+	im.metallic = 0.35
+	im.roughness = 0.72
 	bowl.material_override = im
 	bowl.position = Vector3(0, -0.08, 0)
 	br.add_child(bowl)
@@ -325,10 +329,8 @@ func _fire_bowl(root: Node3D, top: Vector3, id: String, label: String) -> void:
 	sm.height = 0.2
 	coals.mesh = sm
 	var cmat := StandardMaterial3D.new()
-	cmat.albedo_color = Color(0.1, 0.06, 0.05)
-	cmat.emission_enabled = true
-	cmat.emission = Color(0.9, 0.25, 0.05)
-	cmat.emission_energy_multiplier = 0.35
+	cmat.albedo_color = Color(0.3, 0.28, 0.26)      # cold grey ash: unlit for three hundred years (no red glow)
+	cmat.roughness = 0.95
 	coals.material_override = cmat
 	coals.position = Vector3(0, 0.0, 0)
 	br.add_child(coals)
