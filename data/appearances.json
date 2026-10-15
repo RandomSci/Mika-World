@@ -77,6 +77,61 @@
     "hair_refined": "tools/models/refine_hair.py (envelope normals, relaxed clump edges) from the lab's export_ready.blend; the original release is archived as 'v1'"
    },
    {
+    "id": "celestial_l1outfit",
+    "order": 2,
+    "name": "Celestial Mage (Level 1 outfit, 3D pieces)",
+    "levels": [
+     1,
+     10
+    ],
+    "requires": {
+     "level": 1
+    },
+    "status": "ready",
+    "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial_L1Outfit.vrm",
+    "source": "~/Downloads/Mika-Transformation-Lab/l1_outfit (tools/o10_place.py + tools/o12_rig.py) from MIKA_L1_Outfit_3D.zip (sha256 888b9ac0...); vrm sha256 bbeea6eb...",
+    "profile": {
+     "face": {
+      "brows_through_fringe": false
+     },
+     "motion": "mika",
+     "springs": {
+      "stiffness": 1.0,
+      "drag": 1.0,
+      "chains": {
+       "HairBack": {
+        "stiffness": 8.0,
+        "drag": 1.3,
+        "gravity": 2.0
+       },
+       "HairSide": {
+        "stiffness": 7.0,
+        "drag": 1.3,
+        "gravity": 1.8
+       },
+       "HairRibbon": {
+        "stiffness": 3.0,
+        "drag": 1.2
+       },
+       "Sleeve": {
+        "stiffness": 6.0,
+        "drag": 1.3,
+        "gravity": 1.2
+       },
+       "Skirt": {
+        "stiffness": 2.5,
+        "drag": 1.2
+       },
+       "Sash": {
+        "stiffness": 2.5,
+        "drag": 1.2
+       }
+      }
+     }
+    },
+    "note": "Same face, body, skeleton and expressions as the celestial stage; outfit and hair replaced by the 12 generated pieces. The celestial stage stays as order 1 (automatic fallback) and is archived as celestial_hair2 for rollback."
+   },
+   {
     "id": "bloom",
     "order": 10,
     "name": "Bloom Form",
@@ -232,6 +287,11 @@
     "id": "v1",
     "name": "Level 1-10 look, original hair (lab release)",
     "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial.vrm"
+   },
+   {
+    "id": "celestial_hair2",
+    "name": "Level 1-10 look before the 3D-piece outfit (rollback)",
+    "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial_hair2.vrm"
    }
   ]
  },
