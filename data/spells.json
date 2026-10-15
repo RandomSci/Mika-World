@@ -305,6 +305,27 @@
     "self"
    ],
    "summary": "A hexagonal pane of dark glass with a gold rim held before her: it stops one bolt from the front (a bolt from behind still lands); once practised (Adept) it throws a light bolt back."
+  },
+  "fold_step": {
+   "name": "Fold Step",
+   "element": "distance",
+   "clip": "magic_attack_1h",
+   "range": 12.0,
+   "range_per_mastery": 10.0,
+   "speed": 0.0,
+   "incantation": "Plica, transi!",
+   "translation": "Fold, and cross over!",
+   "incantation_short": "Transi!",
+   "requires_knowledge": "incantation:fold_step",
+   "requires_all": [
+    "teleport:theory_seam",
+    "teleport:theory_knowing"
+   ],
+   "projectile": "fold",
+   "base_power": 0.0,
+   "power_per_mastery": 0.0,
+   "target_kinds": [],
+   "summary": "The Weaver of Ways' first teaching: bring two folds of the world together and step across the seam. Only to a place she can see (12 m, further with mastery); a fold made to a place half-known tears, so it never reaches what she cannot see. Learned from the glyph stones of the Forgotten Shrine and the Weaver's words under the Cloud Temple - never given."
   }
  }
 }

@@ -11,14 +11,21 @@ static var made := 0
 static func spawn(rig: ClipRig, color: Color, life := 0.32) -> void:
 	if rig == null or not is_instance_valid(rig) or rig.model == null or not rig.is_inside_tree():
 		return
-	var root := rig.get_tree().current_scene
+	spawn_model(rig.model, color, life)
+
+
+## The same for any posed model (a mage's VRM avatar: the Fold Step leaves her shape behind as she steps across).
+static func spawn_model(model: Node3D, color: Color, life := 0.32) -> void:
+	if model == null or not is_instance_valid(model) or not model.is_inside_tree():
+		return
+	var root := model.get_tree().current_scene
 	var holder := Node3D.new()
 	holder.name = "Afterimage"
 	root.add_child(holder)
 	var mat := ShaderMaterial.new()
 	mat.shader = SHADER
 	mat.set_shader_parameter("color", color)
-	for mi in rig.model.find_children("*", "MeshInstance3D", true, false):
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		if m.mesh == null or not m.is_visible_in_tree():
 			continue

@@ -20,6 +20,17 @@ func setup(m: Node) -> void:
 	main = m
 
 
+var folds: Array = []          # learned Fold Steps (the Weaver's spell): legitimate, recorded with their reason
+
+
+## A mage cast the Fold Step she learned (MagicSystem.fold_step): the jump that follows is magic she owns, not a
+## teleport of convenience. Recorded in `folds` (who, from, to, when), never in violations.
+func authorize_fold(c: Node, from: Vector3, to: Vector3) -> void:
+	_allowed[c.get_instance_id()] = Engine.get_physics_frames() + 2
+	folds.append({"who": String(c.get("character_id")), "from": [snappedf(from.x, 0.1), snappedf(from.y, 0.1), snappedf(from.z, 0.1)],
+		"to": [snappedf(to.x, 0.1), snappedf(to.y, 0.1), snappedf(to.z, 0.1)], "metres": snappedf(from.distance_to(to), 0.1), "clock": WorldState.clock_text()})
+
+
 ## A developer utility (test staging / tools) is about to place `c`: not a violation.
 func allow(c: Node) -> void:
 	_allowed[c.get_instance_id()] = Engine.get_physics_frames() + 2

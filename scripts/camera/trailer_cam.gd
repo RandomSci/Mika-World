@@ -54,6 +54,13 @@ static func fov_kick() -> float:
 
 
 func _clear(m: WorldCharacter, pos: Vector3, targets: Array) -> bool:
+	# never inside or brushing a body (a mage, a creature, a rival): the lens keeps 0.9 m from everyone
+	for n in m.get_tree().get_nodes_in_group("avoid"):
+		var b := n as Node3D
+		if b and b.is_visible_in_tree():
+			var bp := b.global_position
+			if Vector2(pos.x - bp.x, pos.z - bp.z).length() < 0.9 and pos.y > bp.y - 0.2 and pos.y < bp.y + 2.4:
+				return false
 	var space := m.get_world_3d().direct_space_state
 	for tp in targets:
 		var q := PhysicsRayQueryParameters3D.create(pos, tp)
@@ -79,7 +86,8 @@ func _candidate(kind: String, m: WorldCharacter, foe: Node3D, foes: Array, mate:
 	var perp := Vector3(-axis.z, 0, axis.x) * _side
 	match kind:
 		"ots":
-			return {"pos": mp - axis * 1.55 + perp * 0.62 + Vector3(0, 1.62, 0), "look": fc.lerp(mc, 0.25), "fov": 52.0, "rate": 5.0}
+			# far enough back and wide enough that her hair and ears frame the shot instead of filling it
+			return {"pos": mp - axis * 2.3 + perp * 0.95 + Vector3(0, 1.72, 0), "look": fc.lerp(mc, 0.25), "fov": 50.0, "rate": 5.0}
 		"foe_ots":
 			var back := clampf(fh * 0.6 + 1.2, 1.4, 3.2)
 			return {"pos": fp + axis * back - perp * 0.9 + Vector3(0, fh * 0.9 + 0.5, 0), "look": mc, "fov": 48.0, "rate": 4.5}

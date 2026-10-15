@@ -520,14 +520,15 @@ func _scene_shot(delta: float) -> Dictionary:
 				# over the listener's shoulder onto the speaker's face: the first candidate (shoulder side, distance)
 				# with a clear view - no wall, rock or third person between the lens and the face
 				if cut or not _shot.has("pick"):
-					_shot["pick"] = [1.0, 1.2]
-					for cand in [[1.0, 1.2], [-1.0, 1.2], [1.0, 1.9], [-1.0, 1.9], [1.0, 0.7], [-1.0, 0.7]]:
-						var cp := lp - axis2 * float(cand[1]) + side2 * 0.6 * float(cand[0]) + Vector3(0, 0.15, 0)
+					# over the listener's shoulder but well clear of her (long hair, ears): never inside or right behind her
+					_shot["pick"] = [1.0, 2.2]
+					for cand in [[1.0, 2.2], [-1.0, 2.2], [1.0, 2.9], [-1.0, 2.9], [1.0, 1.7], [-1.0, 1.7]]:
+						var cp := lp - axis2 * float(cand[1]) + side2 * 0.85 * float(cand[0]) + Vector3(0, 0.15, 0)
 						if _view_clear(cp, hp, [who, lis]):
 							_shot["pick"] = cand
 							break
 				var pk: Array = _shot.pick
-				return _safe({"pos": lp - axis2 * float(pk[1]) + side2 * 0.6 * float(pk[0]) + Vector3(0, 0.15, 0), "look": hp - Vector3(0, 0.05, 0),
+				return _safe({"pos": lp - axis2 * float(pk[1]) + side2 * 0.85 * float(pk[0]) + Vector3(0, 0.15, 0), "look": hp - Vector3(0, 0.05, 0),
 					"fov": 38.0, "rate": 5.0, "cut": cut})
 		"two":
 			var a2 = _shot.get("a")

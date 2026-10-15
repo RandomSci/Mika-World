@@ -100,6 +100,9 @@ func can_cast(id: String, who := "mika") -> Dictionary:
 	if starting_spells(who).has(id) or (m.legacy and s.get("known_from_start", false)) or m.skills.has(id):
 		return {"ok": true}
 	var need: String = s.get("requires_knowledge", "")
+	for pre in s.get("requires_all", []):
+		if not m.knowledge.has(String(pre)):
+			return {"ok": false, "reason": "%s cannot cast %s yet: she does not understand it (%s)" % [display_name(who), s.name, pre]}
 	if need != "" and m.knowledge.has(need):
 		for other in s.get("requires_mastery", {}):
 			if mastery(other, who) < float(s.requires_mastery[other]):
@@ -336,6 +339,99 @@ static func lead_aim(target: ReactiveElement, from: Vector3, speed: float, p_mas
 	var t_flight := from.distance_to(p) / maxf(speed, 1.0)
 	var skill := clampf(0.35 + 0.35 * p_mastery, 0.0, 1.0)
 	return p + vel * t_flight * skill + aim_err
+
+
+## THE FOLD STEP (the Weaver of Ways' spell, docs/WORLD_BIBLE.md): the only teleportation in production, and
+## only once LEARNED (the glyph stones' theory + the Weaver's words). To a place she can see from where she stands,
+## within reach (12 m + 10 m per mastery), with ground and room to stand: the world folds, her shape stays behind a
+## moment as she steps across the seam. TeleportGuard records it as a learned fold, never as a violation.
+func fold_step(caster: WorldCharacter, to: Vector3) -> Dictionary:
+	var id := "fold_step"
+	var s := spell(id)
+	var who := caster.character_id
+	var res := {"spell": id, "ok": false, "caster": who}
+	var cc := can_cast(id, who)
+	if not cc.ok:
+		res["outcome"] = "refused"
+		res["reason"] = cc.reason
+		return _finish(res)
+	if _casting.has(who) or caster.casting or not caster.is_on_floor():
+		res["outcome"] = "refused"
+		res["reason"] = "not now (already casting / not on her feet)"
+		return _finish(res)
+	var reach := float(s.get("range", 12.0)) + float(s.get("range_per_mastery", 0.0)) * mastery(id, who)
+	var from := caster.global_position
+	var map := caster.get_world_3d().navigation_map
+	# the walkable surface itself (a temple floor, a bridge deck - not the terrain under it)
+	var dest := NavigationServer3D.map_get_closest_point(map, to)
+	var down := PhysicsRayQueryParameters3D.create(dest + Vector3(0, 1.5, 0), dest - Vector3(0, 1.5, 0), 1)
+	down.exclude = [caster.get_rid()]
+	var floor_hit := caster.get_world_3d().direct_space_state.intersect_ray(down)
+	if not floor_hit.is_empty():
+		dest.y = (floor_hit.position as Vector3).y
+	var d := Vector2(dest.x - from.x, dest.z - from.z).length()
+	if d > reach:
+		res["outcome"] = "refused"
+		res["reason"] = "too far to fold (%.1f m; she can fold %.1f m)" % [d, reach]
+		return _finish(res)
+	if d < 1.5 or dest.distance_to(Vector3(to.x, dest.y, to.z)) > 1.2:
+		res["outcome"] = "refused"
+		res["reason"] = "no ground to stand on there"
+		return _finish(res)
+	# she must SEE it: a clear line from her eyes to the place
+	var q := PhysicsRayQueryParameters3D.create(from + Vector3(0, 1.55, 0), dest + Vector3(0, 1.2, 0), 1)
+	q.exclude = [caster.get_rid()]
+	if not caster.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+		res["outcome"] = "refused"
+		res["reason"] = "she cannot see the place: a fold to what you cannot see tears"
+		return _finish(res)
+	# room to stand there (a body-sized shape test)
+	var sq := PhysicsShapeQueryParameters3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.3
+	cap.height = 1.3
+	sq.shape = cap
+	sq.transform = Transform3D(Basis.IDENTITY, dest + Vector3(0, 1.1, 0))      # knee to crown: uneven ground is not "no room"
+	sq.collision_mask = 1
+	sq.exclude = [caster.get_rid()]
+	var blockers := caster.get_world_3d().direct_space_state.intersect_shape(sq, 4)
+	if not blockers.is_empty():
+		res["outcome"] = "refused"
+		res["reason"] = "no room to stand there (%s)" % ", ".join(blockers.map(func(b): return String((b.collider as Node).name) if b.collider else "?"))
+		return _finish(res)
+	_casting[who] = true
+	last_spell = id
+	caster.look_at_point(dest)
+	await get_tree().create_timer(0.35).timeout
+	var vo := voicing(id, who)
+	if vo.text != "" and main.voice and not caster.combat_stance:
+		main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), vo.text, {"latin": true, "priority": 1, "subtitle": true})
+	caster.play_gesture(String(s.get("clip", "magic_attack_1h")), 0.15, 0.4)
+	await get_tree().create_timer(0.45).timeout
+	# the seam: a ring of light at both places, her shape left behind as she crosses
+	var col := Color(0.75, 0.7, 1.0)
+	for at in [from, dest]:
+		var l := OmniLight3D.new()
+		l.light_color = col
+		l.light_energy = 3.0
+		l.omni_range = 4.0
+		main.world.add_child(l)
+		l.global_position = at + Vector3(0, 1.0, 0)
+		var tw := l.create_tween()
+		tw.tween_property(l, "light_energy", 0.0, 0.9)
+		tw.tween_callback(l.queue_free)
+	Afterimage.spawn_model(caster.avatar, col, 0.6)
+	if main.get("teleport_guard"):
+		main.teleport_guard.authorize_fold(caster, from, dest)
+	caster.global_position = dest + Vector3(0, 0.05, 0)
+	caster.velocity = Vector3.ZERO
+	await get_tree().create_timer(0.3).timeout
+	_casting.erase(who)
+	res["ok"] = true
+	res["outcome"] = "folded"
+	res["metres"] = snappedf(from.distance_to(dest), 0.1)
+	res["changes"] = _award(id, 0.08, "place", "folded", not WorldState.mind(who).knowledge.has("practical:" + id), "", who)
+	return _finish(res)
 
 
 ## Mastery grows with diminishing returns; the first success of an untested spell is "practical understanding".

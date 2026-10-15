@@ -147,7 +147,8 @@ func _temple_base() -> void:
 			sb.block(Transform3D(Basis.IDENTITY, Vector3(TEMPLE.x + x + bw * 0.5, yy + 0.25, TEMPLE.z - tier * 0.4 + d * 0.5 - 0.45)), Vector3(bw, 0.5, 0.9), 0.2, 0.04)
 			sb.block(Transform3D(Basis.IDENTITY, Vector3(TEMPLE.x + x + bw * 0.5, yy + 0.25, TEMPLE.z - tier * 0.4 - d * 0.5 + 0.45)), Vector3(bw, 0.5, 0.9), 0.2, 0.04)
 			x += bw
-		Kit.block(self, Vector3(w - 0.4, 0.5, d - 1.6), Kit.xf(Vector3(TEMPLE.x, yy + 0.25, TEMPLE.z - tier * 0.4)), _stone(), false, 0.03)
+		# the podium's fill and the temple floor: worn flagstones (the stone material grows moss on every top face)
+		Kit.block(self, Vector3(w - 0.4, 0.5, d - 1.6), Kit.xf(Vector3(TEMPLE.x, yy + 0.25, TEMPLE.z - tier * 0.4)), Kit.tri("monastery_stone_floor", "2k", 0.35, 0.0, Color(0.86, 0.84, 0.8)), false, 0.03)
 		for sx: float in [-1.0, 1.0]:
 			sb.block(Transform3D(Basis.IDENTITY, Vector3(TEMPLE.x + sx * (w * 0.5 - 0.45), yy + 0.25, TEMPLE.z - tier * 0.4)), Vector3(0.9, 0.5, d), 0.2, 0.04)
 	sb.steps(Vector3(TEMPLE.x, height(TEMPLE.x, TEMPLE.z + 12.0), TEMPLE.z + 12.0), Vector3(TEMPLE.x, y0 + 0.9, TEMPLE.z + 5.0), 5.0, 0.45, 0.16, 0.5)
@@ -167,7 +168,7 @@ func _temple_hall() -> void:
 	var sb := StoneBuilder.new(height, 133)
 	sb.base_y = y - 1.0
 	sb.top_y = y + 5.0
-	sb.wall(Vector3(TEMPLE.x - 5.9, y, TEMPLE.z - 4.0), Vector3(TEMPLE.x + 5.9, y, TEMPLE.z - 4.0), 4.5, 0.5, 0.0)
+	sb.wall(Vector3(TEMPLE.x - 5.9, y, TEMPLE.z - 4.0), Vector3(TEMPLE.x + 5.9, y, TEMPLE.z - 4.0), 4.5, 0.5, 0.0, 0.32)
 	sb.finish(self, _stone(), "SanctumWall")
 	Kit.block(self, Vector3(12.6, 0.5, 8.6), Kit.xf(Vector3(TEMPLE.x, y + 4.7, TEMPLE.z - 0.4)), wood, false, 0.04)
 	Kit.block(self, Vector3(2.2, 1.0, 1.0), Kit.xf(Vector3(TEMPLE.x, y + 0.5, TEMPLE.z - 2.8)), _stone(), true, 0.04)
@@ -209,6 +210,9 @@ func links() -> void:
 	add_interactable(Interactable.make("temple_frieze_read", "Read the frieze carved round the temple wall", "read", "cloud_temple",
 		Vector3(TEMPLE.x - 1.8, y, TEMPLE.z - 0.4), {"knowledge": {"lore:cloud_temple_frieze": 1}}, "", 4.0)).radius = 2.4
 	interactables["temple_frieze_read"].book_id = "summit_frieze"
+	add_interactable(Interactable.make("weaver_stone_read", "Read the stone set in the floor beneath the altar", "read", "cloud_temple",
+		Vector3(TEMPLE.x + 1.2, y, TEMPLE.z - 0.8), {"knowledge": {"lore:weaver_stone": 1}}, "", 4.0)).radius = 2.2
+	interactables["weaver_stone_read"].book_id = "weaver_words"
 	add_interactable(Interactable.make("armillary_align", "Align the armillary sphere to the stars", "study", "celestial_observatory",
 		_v(Vector2(OBS.x, OBS.z + 1.3)), {"knowledge": {"astronomy:armillary": 1}}, "look_around", 4.0)).radius = 2.2
 	add_interactable(Interactable.make("star_dial_read", "Read the time on the star dial", "read", "celestial_observatory",

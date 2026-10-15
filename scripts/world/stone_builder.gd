@@ -62,6 +62,21 @@ func block(xf: Transform3D, size: Vector3, moss := 0.0, bevel := 0.06) -> void:
 	blocks += 1
 
 
+## A plain box (no chamfer, no jitter): fill that is meant to be seen only in the joints.
+func _box(xf: Transform3D, size: Vector3, tone: float) -> void:
+	var h := size * 0.5
+	for a in 3:
+		for s: float in [-1.0, 1.0]:
+			var pts := []
+			for c: Array in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
+				var v := Vector3.ZERO
+				v[a] = s * h[a]
+				v[(a + 1) % 3] = c[0] * h[(a + 1) % 3]
+				v[(a + 2) % 3] = c[1] * h[(a + 2) % 3]
+				pts.append(v)
+			_emit(pts, xf, tone, 0.0)
+
+
 func _emit(pts: Array, xf: Transform3D, tone: float, moss: float) -> void:
 	var cen := Vector3.ZERO
 	for p in pts:
@@ -131,6 +146,16 @@ func wall(a: Vector3, b: Vector3, height: float, thick: float, ruin := 0.0, cour
 			var centre := Vector3(p.x, gy - 0.18 + y0 + ch * 0.5, p.z) + basis * Vector3(0, 0, rng.randf_range(-0.04, 0.04))
 			block(Transform3D(basis * _jit(1.2), centre), size, 0.75 if top else rng.randf() * 0.25)
 			max_h = maxf(max_h, y0 + ch)
+	# the wall's core: a recessed fill behind the stones, so a joint is a deep dark joint and never a hole to the
+	# sky (an intact wall is solid; a ruin keeps its gaps)
+	if ruin < 0.15 and max_h > y_from + 0.2:
+		var g0: float = minf(float(ground.call(a.x, a.z)), float(ground.call(b.x, b.z))) if base_y_abs == INF else base_y_abs + 0.18
+		var y_lo := g0 - 0.18 + y_from + 0.02
+		var y_hi := g0 - 0.18 + max_h - 0.06
+		if base_y_abs == INF:
+			y_hi = minf(float(ground.call(a.x, a.z)), float(ground.call(b.x, b.z))) - 0.18 + max_h - 0.06
+		var mid3 := (a + b) * 0.5
+		_box(Transform3D(basis, Vector3(mid3.x, (y_lo + y_hi) * 0.5, mid3.z)), Vector3(L - 0.06, maxf(y_hi - y_lo, 0.1), thick * 0.62), -1.0)
 	# collider: the standing part of the wall (average height)
 	if max_h > 0.6 and y_from < 0.01:
 		var gm: float = ground.call((a.x + b.x) * 0.5, (a.z + b.z) * 0.5) if base_y_abs == INF else base_y_abs + 0.18

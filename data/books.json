@@ -530,6 +530,35 @@
      ]
     }
    ]
+  },
+  "weaver_words": {
+   "title": "The Weaver's Words",
+   "subtitle": "a stone set in the floor beneath the Cloud Temple's altar",
+   "style": "inscription",
+   "location": "Celestial Summit, beneath the temple altar",
+   "pages": [
+    {
+     "heading": "Two Folds of One Cloth",
+     "text": "'Stand where you are and see where you would be. Hold both as one: the ground under each foot, the light on each stone. When they are one in you, they are one in the world. Then do not walk - cross.'",
+     "knowledge": [
+      "teleport:weaver_words"
+     ]
+    },
+    {
+     "heading": "The Word",
+     "text": "'Say it once, and only to a place your eyes hold. What you cannot see you do not know, and what you do not know will not fold.'",
+     "latin": [
+      {
+       "text": "Plica, transi!",
+       "translation": "Fold, and cross over!",
+       "spell": "fold_step"
+      }
+     ],
+     "knowledge": [
+      "incantation:fold_step"
+     ]
+    }
+   ]
   }
  }
 }

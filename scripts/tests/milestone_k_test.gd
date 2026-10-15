@@ -110,6 +110,7 @@ func _run() -> void:
 		"town": await _town()
 		"rematch": await _rematch()
 		"lore": await _lore()
+		"fold": await _fold()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3121,3 +3122,62 @@ func _lore() -> void:
 		BookReader.instance.page_shown.disconnect(on_page)
 		report[String(step[1])] = res.get("detail", "")
 		_check(res.get("ok", false) and mk.has(String(step[2])), "Mika read %s and knows %s now" % [step[1], step[2]], res.get("detail", ""))
+
+
+# ------------------------------------------------------------------ the Fold Step: teleportation only once learned
+func _fold() -> void:
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var mk := WorldState.mind("mika").knowledge
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 11.0 * 60.0
+	WorldState.clock_rate = 0.0
+	var tg0: int = main.teleport_guard.violations.size()
+	_check(not main.magic.can_cast("fold_step", "mika").ok, "at first she cannot fold space at all", main.magic.can_cast("fold_step", "mika"))
+	# 1) the glyph stones of the Forgotten Shrine (the theory)
+	var r: Dictionary = await main.streaming.travel("ancient_grove", mika)
+	await _wait(2.5)
+	var g: Dictionary = await mb._use("shrine_glyphs_read")
+	_check(mk.has("teleport:theory_seam") and mk.has("teleport:theory_knowing"), "she read the Weaver's theory on the shrine stones", g.get("detail", ""))
+	_check(not main.magic.can_cast("fold_step", "mika").ok, "theory alone is not the spell", main.magic.can_cast("fold_step", "mika"))
+	# 2) the Weaver's words beneath the Cloud Temple (the incantation)
+	r = await main.streaming.travel("celestial_summit", mika)
+	await _wait(2.5)
+	var w: Dictionary = await mb._use("weaver_stone_read")
+	_check(mk.has("incantation:fold_step"), "she read the Weaver's words beneath the temple", w.get("detail", ""))
+	_check(main.magic.can_cast("fold_step", "mika").ok, "now the Fold Step is hers", main.magic.can_cast("fold_step", "mika"))
+	# 3) the rules of the fold: not beyond her reach, only where she can see and stand
+	var fwd := -mika.global_transform.basis.z
+	fwd.y = 0
+	fwd = fwd.normalized()
+	var far: Dictionary = await main.magic.fold_step(mika, mika.global_position + fwd * 40.0)
+	_check(not far.get("ok", false), "too far: refused (%s)" % far.get("reason", ""), far)
+	# a visible spot 7-10 m away on open ground
+	var map: RID = mika.get_world_3d().navigation_map
+	var target := Vector3.INF
+	for k in 16:
+		var dir := fwd.rotated(Vector3.UP, k * TAU / 16.0)
+		var cand := NavigationServer3D.map_get_closest_point(map, mika.global_position + dir * 8.5)
+		var q := PhysicsRayQueryParameters3D.create(mika.global_position + Vector3(0, 1.55, 0), cand + Vector3(0, 1.2, 0), 1)
+		q.exclude = [mika.get_rid()]
+		if Vector2(cand.x - mika.global_position.x, cand.z - mika.global_position.z).length() > 6.0 and mika.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			target = cand
+			break
+	_check(target != Vector3.INF, "a place she can see, 6+ m away")
+	if target != Vector3.INF:
+		var before := mika.global_position
+		var shoot := func():
+			await _wait(0.75)
+			_shot("fold_step_crossing")
+		shoot.call()
+		var fr: Dictionary = await main.magic.fold_step(mika, target)
+		await _wait(0.5)
+		_shot("fold_step_arrived")
+		report["fold"] = fr
+		_check(fr.get("ok", false) and Vector2(mika.global_position.x - target.x, mika.global_position.z - target.z).length() < 1.0,
+			"she folded %.1f m to the place she saw" % before.distance_to(mika.global_position), fr)
+	var folds: Array = main.teleport_guard.folds
+	var viol: Array = main.teleport_guard.violations.slice(tg0)
+	_check(folds.size() == 1 and viol.is_empty(), "the guard recorded it as a learned fold, not a teleport violation", {"folds": folds, "violations": viol})

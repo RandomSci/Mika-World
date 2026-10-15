@@ -143,7 +143,8 @@ static func stump_mesh_for(radius: float) -> ArrayMesh:
 	var key := "%.2f" % radius
 	if not _stumps.has(key):
 		var m := FoliageBuilder.stump_mesh(radius, 0.5, int(radius * 100.0))
-		m.surface_set_material(0, FoliageBuilder.bark_mat(true))
+		# photographic bark, triplanar (the stylized bark shader rendered these black after the realism pass)
+		m.surface_set_material(0, Kit.tri("bark_brown_02", "1k", 0.9, 0.25, Color(0.82, 0.74, 0.66)))
 		_stumps[key] = m
 	return _stumps[key]
 
