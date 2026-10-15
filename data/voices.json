@@ -348,6 +348,30 @@
    "rate": "-2%",
    "gain": 0.85,
    "caption": "Marta"
+  },
+  "res_pedlar": {
+   "provider": "edge",
+   "voice": "en-US-RogerNeural",
+   "pitch": "-2Hz",
+   "rate": "+6%",
+   "gain": 0.85,
+   "caption": "Pedlar"
+  },
+  "res_pilgrim": {
+   "provider": "edge",
+   "voice": "en-CA-ClaraNeural",
+   "pitch": "+0Hz",
+   "rate": "-6%",
+   "gain": 0.85,
+   "caption": "Pilgrim"
+  },
+  "res_lost": {
+   "provider": "edge",
+   "voice": "en-US-EricNeural",
+   "pitch": "+4Hz",
+   "rate": "+4%",
+   "gain": 0.85,
+   "caption": "Traveller"
   }
  },
  "reactions": {

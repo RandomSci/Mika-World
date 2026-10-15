@@ -60,3 +60,23 @@ tower and Woods; caverns ↔ deep caverns; village ↔ observatory) stay walkabl
 
 **Teleportation as a future discipline**: clues in manuscripts, spatial anomalies, professors and ruins; separate study
 records per mage; trials, failures and partial techniques. Not unlocked in this pass.
+
+## Living roads (2026-10-15)
+
+* **Waypoints are places.** When a stretch of road passes a waypoint (`data/overland.json`), the Wayside builds it
+  at the roadside where its km falls: hamlets and villages with houses, a woodpile, a garden and their people
+  (Garth and Nell at Fernhollow, Ada and Tamsin at Thornwick), inns with a hanging sign, a bench and a keeper (Hob
+  at the Millbrook inn, Marta at the Lantern inn), stone shelters, landmarks (the Old Ash; carved stones and
+  cairns). Their people live through TownLife (`data/residents.json` "wayside:<id>").
+* **Someone on the road** (`data/encounters.json`, `JourneyDirector._road_encounter`): about one stretch in six, in
+  daylight, a pedlar, a pilgrim or a lost traveller comes the other way; they meet halfway, talk (their own voice),
+  trade (food) and pass on a rumour that becomes the mages' own knowledge - which the expedition planner can turn
+  into the next journey. `--mktest=road`: pedlar met, food 6 -> 9, rumour "news:academy_open_lessons" -> an
+  expedition option "set out for the academy".
+* **Every road is walkable.** `--mktest=navcheck` walks every gate of every area: it found the Highland Path's and
+  the Summit's gates cut off from their trails (the region rim and a too-narrow ridge left 40-80 degree steps), the
+  Observatory Hill's gate outside its navmesh bake band, and boulder colliders that routes ran into. Fixes: the rim
+  opens along every road; trails are graded (no metre steeper than ~23 degrees, cut and fill with gentle sides,
+  never filling a stream); the summit stairway follows its ridge's crest on a wider ridge; navmesh bakes span each
+  area's real height range; boulders near paths stay scenery; a long walk's deadline follows its length; a party
+  that reaches a gate's mouth may cross.

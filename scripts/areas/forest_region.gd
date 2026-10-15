@@ -78,14 +78,24 @@ func _raw_height(x: float, z: float) -> float:
 	if float(si[1]) > 0.0:
 		h -= (1.0 - smoothstep(float(si[1]) * 1.05, float(si[1]) + 4.0, float(si[0]))) * float(si[2])
 	# a rim of higher wooded ground round the edges, opened where gates are
-	h += smoothstep(108.0, 136.0, maxf(absf(x), absf(z))) * 9.0 * (1.0 - _gate_gap(p))
+	var rim := smoothstep(108.0, 136.0, maxf(absf(x), absf(z)))
+	if rim > 0.0:
+		h += rim * 9.0 * (1.0 - _gate_gap(p))
 	return h
 
 
+## Where the rim stays open: round each gate, and along every road that leads to one (a road that meets its gate
+## at an angle must not climb the side of the notch - that cut the navmesh off the gates on the mountain).
 func _gate_gap(p: Vector2) -> float:
 	var g := 0.0
 	for gp in gate_spots():
-		g = maxf(g, 1.0 - smoothstep(8.0, 18.0, p.distance_to(gp)))
+		g = maxf(g, 1.0 - smoothstep(10.0, 26.0, p.distance_to(gp)))
+	for t in trails:
+		if String(t[2]) == "hidden":
+			continue
+		var pts: Array = t[0]
+		for i in pts.size() - 1:
+			g = maxf(g, 1.0 - smoothstep(5.0, 16.0, WhisperingWoods._seg_dist(p, pts[i], pts[i + 1])))
 	return g
 
 
@@ -229,12 +239,30 @@ func _steep_rocks() -> void:
 		for t in sets[id]:
 			var xf := t as Transform3D
 			var sc := xf.basis.get_scale()
+			var rad := maxf(aabb.size.x * sc.x, aabb.size.z * sc.z) * 0.42
+			var cen := xf * aabb.get_center()
+			# near a path a rock stays scenery (the path must stay open); elsewhere it is solid AND carved out of the
+			# navmesh, so a route never runs into it
+			var near_path := false
+			for tr in trails:
+				if String(tr[2]) == "hidden":
+					continue
+				var tp: Array = tr[0]
+				for si in tp.size() - 1:
+					if WhisperingWoods._seg_dist(Vector2(cen.x, cen.z), tp[si], tp[si + 1]) < rad + 3.5:
+						near_path = true
+						break
+				if near_path:
+					break
+			if near_path:
+				continue
 			var cs := CollisionShape3D.new()
 			var sp := SphereShape3D.new()
-			sp.radius = maxf(aabb.size.x * sc.x, aabb.size.z * sc.z) * 0.42
+			sp.radius = rad
 			cs.shape = sp
-			cs.position = xf * aabb.get_center()
+			cs.position = cen
 			rock_body.add_child(cs)
+			NatureKit.nav_obstacle(rock_body, Vector3(cen.x, xf.origin.y, cen.z), rad * 1.1 + 0.15, rad * 2.0)   # wider than the collider: routes keep clear of it
 	dress.stats["steep_rocks"] = n
 
 

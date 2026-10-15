@@ -92,7 +92,29 @@
       -90
      ]
     }
-   }
+   },
+   "talk": [
+    {
+     "id": "hammer",
+     "line": "Lost my good hammer. Twenty years that hammer and me.",
+     "reply": "I'm sorry, Bram. I'll tell you if I see it.",
+     "effects": {
+      "knowledge": {
+       "village:bram_lost_hammer": 1
+      }
+     }
+    },
+    {
+     "id": "iron",
+     "line": "Magic's like iron, girl. Too hot and it won't hold a shape. Too cold and it cracks.",
+     "reply": "Not too hot, not too cold. I'll remember.",
+     "effects": {
+      "knowledge": {
+       "fact:iron_like_magic": 1
+      }
+     }
+    }
+   ]
   },
   "hilde": {
    "name": "Hilde",
@@ -159,7 +181,29 @@
      "Off to bed with you. Early start tomorrow."
     ]
    },
-   "likes": "early mornings, gossip"
+   "likes": "early mornings, gossip",
+   "talk": [
+    {
+     "id": "bread",
+     "line": "Here - take a loaf, still warm. Don't argue, you're too thin for all that spellwork.",
+     "reply": "Thank you, Hilde! It smells wonderful.",
+     "effects": {
+      "items": {
+       "bread": 1
+      }
+     }
+    },
+    {
+     "id": "gossip",
+     "line": "Bram's been cross all week. Lost his good hammer, he says. Probably left it at the well.",
+     "reply": "I'll keep an eye out for it.",
+     "effects": {
+      "knowledge": {
+       "village:bram_lost_hammer": 1
+      }
+     }
+    }
+   ]
   },
   "wenna": {
    "name": "Wenna",
@@ -244,7 +288,29 @@
      ],
      "scale": 0.7
     }
-   }
+   },
+   "talk": [
+    {
+     "id": "moonpetal",
+     "line": "See this? Moonpetal. It only opens at night, and it soothes a burn better than anything I sell.",
+     "reply": "Only at night... I'll look for it in the grove.",
+     "effects": {
+      "knowledge": {
+       "botany:moonpetal": 1
+      }
+     }
+    },
+    {
+     "id": "glowcap",
+     "line": "Glowcaps grow where old trees fall. If you find some, I'll trade you fairly.",
+     "reply": "I've seen those near the eldest tree!",
+     "effects": {
+      "knowledge": {
+       "botany:glowcap_trade": 1
+      }
+     }
+    }
+   ]
   },
   "odo": {
    "name": "Odo",
@@ -328,7 +394,19 @@
       -90
      ]
     }
-   }
+   },
+   "talk": [
+    {
+     "id": "wolves",
+     "line": "Wolves past the river road. Three nights running.",
+     "reply": "We'll be careful on the river road.",
+     "effects": {
+      "knowledge": {
+       "news:wolves_river_road": 1
+      }
+     }
+    }
+   ]
   },
   "rook": {
    "name": "Captain Rook",
@@ -395,7 +473,19 @@
       0
      ]
     }
-   }
+   },
+   "talk": [
+    {
+     "id": "watch",
+     "line": "Night watch sees more than you'd think. Lights on the observatory hill, some nights. Nobody up there.",
+     "reply": "Lights? That's strange...",
+     "effects": {
+      "knowledge": {
+       "clue:observatory_lights": 1
+      }
+     }
+    }
+   ]
   }
  },
  "academy": {
@@ -526,6 +616,18 @@
       "warding": 0.2
      }
     }
+   ],
+   "talk": [
+    {
+     "id": "advice",
+     "line": "You learned on your own, out there. That is rare. Do not lose what it taught you - but let us teach you the rest.",
+     "reply": "I'd like that, Master Aldric.",
+     "effects": {
+      "knowledge": {
+       "mentor:aldric_advice": 1
+      }
+     }
+    }
    ]
   },
   "maren": {
@@ -578,7 +680,19 @@
      "The library is closed. Tomorrow."
     ]
    },
-   "likes": "order, old bindings"
+   "likes": "order, old bindings",
+   "talk": [
+    {
+     "id": "wardens",
+     "line": "If it's the Wardens you're curious about, the grimoire on the central lectern is the one. Gently with the pages.",
+     "reply": "I'll be careful with it, I promise.",
+     "effects": {
+      "knowledge": {
+       "lore:folding_distance_rumour": 1
+      }
+     }
+    }
+   ]
   },
   "lysa": {
    "name": "Lysa",
@@ -647,7 +761,19 @@
      "Want to practise with us later?"
     ]
    },
-   "likes": "wind magic, sweets"
+   "likes": "wind magic, sweets",
+   "talk": [
+    {
+     "id": "practice",
+     "line": "Want to practise with us at the arena? Corin keeps missing the targets, it's very funny.",
+     "reply": "I'd love to! Maybe after the lesson.",
+     "effects": {
+      "knowledge": {
+       "friend:lysa": 1
+      }
+     }
+    }
+   ]
   },
   "corin": {
    "name": "Corin",
@@ -711,7 +837,19 @@
      "Did you really fight a gloomwisp?"
     ]
    },
-   "likes": "stories about the outside"
+   "likes": "stories about the outside",
+   "talk": [
+    {
+     "id": "gust",
+     "line": "How do you make the gust spell turn? Mine just goes straight.",
+     "reply": "Breathe out first, slowly - then shape it while it's still leaving your hands.",
+     "effects": {
+      "knowledge": {
+       "friend:corin": 1
+      }
+     }
+    }
+   ]
   }
  },
  "wayside:fernhollow": {

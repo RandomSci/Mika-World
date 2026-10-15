@@ -123,6 +123,8 @@ func _run() -> void:
 		"fold": await _fold()
 		"hamlet": await _hamlet()
 		"hitch": await _hitch()
+		"road": await _road()
+		"navcheck": await _navcheck()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -2920,6 +2922,16 @@ func _town() -> void:
 	main.camera_rig.set_shot(Vector3(14, 3.2, 2), Vector3(18, 1.2, -18), 58.0)
 	await _wait(0.8)
 	_shot("village_market_10h")
+	# Mika goes to talk with someone who lives here (her own planner's option): Hilde, at her stall
+	var mbt: SanctuaryBrain = main.mage_brains["mika"]
+	var chats: Array = mbt.options().filter(func(o): return String(o.kind) == "chat" and String(o.resident) == "hilde")
+	_check(not chats.is_empty(), "her planner offers to talk with Hilde", mbt.options().filter(func(o): return String(o.kind) == "chat").map(func(o): return o.label))
+	if not chats.is_empty():
+		var bread0 := int(WorldState.mind("mika").inventory.get("bread", 0))
+		var cr: Dictionary = await mbt.run_activity(chats[0])
+		report["chat_hilde"] = cr
+		_check(cr.get("ok", false) and int(WorldState.mind("mika").inventory.get("bread", 0)) == bread0 + 1, "Hilde gave her a loaf (%s)" % cr.get("detail", ""), cr)
+		await _res_shot(t.residents.hilde, "village_hilde_chat")
 	# 2) the day goes on: noon to evening, they walk to their next places (no jumps)
 	var track := {}
 	var jumps := []
@@ -3287,3 +3299,131 @@ func _hitch() -> void:
 		if n2 == 0:
 			print("[hitch]   without world/%s: %d stalls in 13 s" % [nd.name, n2])
 	report["without"] = res
+
+
+# ------------------------------------------------------------------ someone on the road (a rumour that leads somewhere)
+func _road() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters.get("luna")
+	main.spawner.enabled = false
+	main.director.enabled = true
+	var r: Dictionary = await main.streaming.travel("highland_path", mika)
+	_check(r.get("ok", false), "they start on the Highland Path")
+	var map: RID = mika.get_world_3d().navigation_map
+	await get_tree().physics_frame
+	if luna:
+		_dev_stage(luna, NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(1.2, 0, 1.0)))
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 9.5 * 60.0
+	var jd: JourneyDirector = main.journeys
+	var plan := jd.start("celestial_summit", "to see the Cloud Temple", ["mika", "luna"] if luna else ["mika"], "mika")
+	_check(plan.get("ok", false), "a short journey up to the summit (%.0f km)" % float(plan.get("km", 0)), plan)
+	var food0 := int(WorldState.journey.supplies.get("food", 0))
+	jd.force_encounter = "pedlar"
+	var shots := {"n": 0}
+	var on_line := func(sp: String, _tx: String):
+		if sp.begins_with("res_pedlar") and shots.n < 2:
+			shots.n += 1
+			await _wait(0.5)
+			_shot("road_pedlar_%d" % shots.n)
+	main.voice.line_started.connect(on_line)
+	await jd.run_live(6)
+	main.voice.line_started.disconnect(on_line)
+	report["encounters"] = jd.encounters
+	report["journey_log"] = (WorldState.journey.get("log", []) as Array).map(func(e): return "%s %s" % [e.get("clock", ""), e.get("text", "")])
+	print("[road] ", JSON.stringify(jd.encounters))
+	_check(not jd.encounters.is_empty() and String(jd.encounters[0].kind) == "pedlar", "a pedlar came the other way and stopped for a word", jd.encounters)
+	_check(int(WorldState.journey.supplies.get("food", 0)) > food0 - 1, "they bought food from him (food %d -> %d, eaten on the way counted)" % [food0, int(WorldState.journey.supplies.get("food", 0))])
+	var clue := String(jd.encounters[0].get("clue", "")) if not jd.encounters.is_empty() else ""
+	_check(clue != "" and WorldState.mind("mika").knowledge.has(clue), "she heard a rumour on the road and remembers it (%s)" % clue)
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	WorldState.mind("mika").vigor = 1.0
+	var ex: Array = mb.options().filter(func(o): return String(o.kind) == "expedition")
+	report["expeditions_after_rumour"] = ex.map(func(o): return o.label)
+	_check(clue == "" or ex.any(func(o): return true), "the rumour is now a reason she could set out for", report["expeditions_after_rumour"])
+
+
+# ------------------------------------------------------------------ can she walk to every gate of an area? (diagnosis)
+func _navcheck() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	for area in String(RenderProfile.options.get("areas", "highland_path")).split(","):
+		var r: Dictionary = await main.streaming.travel(area, mika)
+		await _wait(2.0)
+		var map: RID = mika.get_world_3d().navigation_map
+		for g in main.world.gates:
+			var gp: Vector3 = main.world.gates[g].position
+			var goal := NavigationServer3D.map_get_closest_point(map, gp)
+			var path := NavigationServer3D.map_get_path(map, mika.global_position, goal, true)
+			var end_d: float = (path[path.size() - 1] as Vector3).distance_to(goal) if path.size() > 0 else 999.0
+			var off := goal.distance_to(gp)
+			print("[nav] %s -> gate %s: path %d pts, ends %.1f m from goal, goal %.1f m from the gate" % [area, g, path.size(), end_d, off])
+			if end_d > 2.0:
+				var arv = main.world.gates[g].arrive
+				var arr: Vector3 = (arv as Transform3D).origin if arv is Transform3D else arv
+				var pa := NavigationServer3D.map_get_path(map, mika.global_position, NavigationServer3D.map_get_closest_point(map, arr), true)
+				var ea: float = (pa[pa.size() - 1] as Vector3).distance_to(NavigationServer3D.map_get_closest_point(map, arr)) if pa.size() > 0 else 999.0
+				print("[nav]     path end %s, goal %s (gate %s); arrival %s reachable: %s (%.1f m short)" % [path[path.size() - 1], goal, gp, arr, ea < 2.0, ea])
+			_check(path.size() > 1 and end_d < 2.0 and off < 4.0, "%s: a walkable way to the %s gate" % [area, g], {"end": end_d, "goal_off_gate": off})
+		# the grade along every trail (navmesh agent_max_slope is 30 degrees)
+		if "trails" in main.world:
+			for tr in main.world.trails:
+				var pts: Array = tr[0]
+				var worst := 0.0
+				var at := Vector2.ZERO
+				for i in pts.size() - 1:
+					var a2: Vector2 = pts[i]
+					var b2: Vector2 = pts[i + 1]
+					var n := int(a2.distance_to(b2))
+					for k in n:
+						var q := a2.lerp(b2, float(k) / maxf(n, 1))
+						var q2 := a2.lerp(b2, float(k + 1) / maxf(n, 1))
+						var dh := absf(float(main.world.height(q2.x, q2.y)) - float(main.world.height(q.x, q.y)))
+						var ang := rad_to_deg(atan2(dh, q.distance_to(q2)))
+						if ang > worst:
+							worst = ang
+							at = q
+				print("[nav]   trail %s..%s: steepest %.0f deg at %s" % [pts[0], pts[pts.size() - 1], worst, at])
+		if area == "celestial_summit":
+			var prof := []
+			for zi in range(0, 62, 2):
+				var zz := float(zi)
+				var xx := 3.0 * sin(zz * 0.05)
+				prof.append("%d:%.1f" % [zi, float(main.world.height(xx, zz))])
+			print("[nav]   crest heights z:h ", " ".join(prof))
+			var a3 := Vector2(0, 38)
+			var b3 := Vector2(-2, 6)
+			var prof2 := []
+			for zi2 in range(26, 35):
+				var q3 := a3.lerp(b3, (38.0 - zi2) / 32.0)
+				prof2.append("%d:(%.1f) h%.2f raw%.2f" % [zi2, q3.x, float(main.world.height(q3.x, q3.y)), float(main.world._raw_height(q3.x, q3.y))])
+			print("[nav]   on the trail: ", " ".join(prof2))
+			print("[nav]   trail0 pts: ", main.world.trails[0][0])
+		if RenderProfile.options.has("walk"):
+			var g2 := String(RenderProfile.options.get("walk"))
+			if main.world.gates.has(g2):
+				var goal2 := NavigationServer3D.map_get_closest_point(map, main.world.gates[g2].position)
+				var res := {"d": ""}
+				var cb := func(act, ok, det): if act == "navigate_to": res.d = "%s %s" % [ok, det]
+				mika.action_finished.connect(cb)
+				mika.navigate_to(goal2, false)
+				var t0 := _gms()
+				while mika.current_action == "navigate_to" and _gms() - t0 < 200000:
+					await get_tree().process_frame
+				mika.action_finished.disconnect(cb)
+				print("[nav] walked toward %s: %s; now %.1f m from it at %s" % [g2, res.d, mika.global_position.distance_to(goal2), mika.global_position])
+				# what is she pressed against?
+				var sq := PhysicsShapeQueryParameters3D.new()
+				var sph := SphereShape3D.new()
+				sph.radius = 0.9
+				sq.shape = sph
+				sq.transform = Transform3D(Basis.IDENTITY, mika.global_position + Vector3(0, 0.9, 0))
+				sq.collision_mask = 0xFFFF
+				sq.exclude = [mika.get_rid()]
+				for hit in mika.get_world_3d().direct_space_state.intersect_shape(sq, 8):
+					var co = hit.collider
+					print("[nav]   touching: %s (%s) layer %d" % [co.name if co else "?", co.get_parent().name if co and co.get_parent() else "", co.collision_layer if co else -1])
+				var pth := NavigationServer3D.map_get_path(map, mika.global_position, goal2, true)
+				print("[nav]   path from here: %d pts, last %s, goal %s" % [pth.size(), pth[pth.size() - 1] if pth.size() > 0 else Vector3.ZERO, goal2])
+				print("[nav]   floor normal %s on_floor %s ground_at %.2f" % [mika.get_floor_normal(), mika.is_on_floor(), float(main.world.ground_at(mika.global_position.x, mika.global_position.z))])

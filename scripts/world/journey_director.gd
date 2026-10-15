@@ -18,6 +18,8 @@ var camp_scene: Node = null        # CampScene while they camp
 var stage := ""                    # what the party is doing now (overlay / tests)
 var _follow: FollowCompanion
 var _bg_t := 0.0
+var force_encounter := ""           # tests: the next stretch has this road encounter (kind id)
+var encounters: Array = []          # what happened on the road this session (tests, overlay)
 const MAX_STRETCH_H := 4.0
 
 
@@ -256,7 +258,14 @@ func _walk_to_gate(next_area: String) -> bool:
 	var p := _party()
 	var lead := p[0]
 	var map := lead.get_world_3d().navigation_map
+	# walk to the gate's arrival spot (always on the walkable side, a few metres in) and on toward the gate itself;
+	# the crossing is the masked transition, so standing at the gate's mouth is enough
+	var arr = gate.get("arrive", gate.position)
+	var arrive: Vector3 = (arr as Transform3D).origin if arr is Transform3D else arr
 	var goal := NavigationServer3D.map_get_closest_point(map, gate.position)
+	var path := NavigationServer3D.map_get_path(map, lead.global_position, goal, true)
+	if path.size() < 2 or (path[path.size() - 1] as Vector3).distance_to(goal) > 2.0:
+		goal = NavigationServer3D.map_get_closest_point(map, arrive)
 	_start_follow()
 	var ok := false
 	if _follow:
@@ -268,7 +277,7 @@ func _walk_to_gate(next_area: String) -> bool:
 			await get_tree().physics_frame
 		ok = lead.global_position.distance_to(goal) < 3.0
 	_stop_follow()
-	return ok or lead.global_position.distance_to(gate.position) < float(gate.radius) + 4.0
+	return ok or lead.global_position.distance_to(gate.position) < float(gate.radius) + 4.0 or lead.global_position.distance_to(arrive) < 3.5
 
 
 ## Cross into `to_area` through the gate they are standing at - the companion walked here too and comes along
@@ -368,9 +377,13 @@ func _walk_stretch() -> bool:
 	var ok := true
 	# walk the road in a few legs along its points (a long navigate is re-planned at each)
 	var steps := 6
+	var met := false
 	for i in range(1, steps + 1):
 		var t := lerpf(t_start, t_end, float(i) / steps)
 		var goal := w.road_point(t)
+		if i == 3 and not met and _roll_encounter():
+			met = true
+			await _road_encounter(w, lead, t, t_end)
 		if _follow:
 			ok = await main.companionship.walk_together(lead, _follow, goal, 120.0)
 		else:
@@ -404,6 +417,104 @@ func _walk_stretch() -> bool:
 	if leg_km_left() > 0.01:
 		note("walked on along %s (%.0f km to go)" % [lg.name, leg_km_left()], "road")
 	return leg_km_left() <= 0.01
+
+
+# ------------------------------------------------------------------ someone on the road (data/encounters.json)
+func _roll_encounter() -> bool:
+	var h := WorldState.hour_f()
+	if h < 8.0 or h > 17.5:
+		return false
+	if force_encounter != "":
+		return true
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/encounters.json"))
+	return randf() < float(d.get("chance_per_stretch", 0.15))
+
+
+## A traveller comes the other way along the road, stops for a word with them, and walks on. What they say can be a
+## real clue (her knowledge), which the expedition planner can later turn into a journey of its own.
+func _road_encounter(w: Wayside, lead: WorldCharacter, t_now: float, t_end: float) -> void:
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/encounters.json"))
+	var kinds: Dictionary = d.get("kinds", {})
+	var j: Dictionary = WorldState.journey
+	var met_before: Array = j.get_or_add("met_on_road", [])
+	var kind := force_encounter
+	force_encounter = ""
+	if kind == "":
+		var pool := []
+		for k in kinds:
+			if not met_before.has(k):
+				for n in int(kinds[k].get("weight", 1)):
+					pool.append(k)
+		if pool.is_empty():
+			return
+		kind = String(pool[randi() % pool.size()])
+	var e: Dictionary = kinds.get(kind, {})
+	if e.is_empty():
+		return
+	met_before.append(kind)
+	var who := Resident.new()
+	w.add_child(who)
+	who.setup("road_" + kind, {"name": e.name, "role": e.name, "model": e.model, "voice": e.voice, "height_m": e.get("height_m", 1.72),
+		"recolor": e.get("recolor", {}), "schedule": []}, main.town, w)
+	# they appear a little way up the road (about 22 m, round the next bend) and come toward the party
+	var ts := t_now
+	while ts < t_end - 0.02 and w.road_point(ts).distance_to(lead.global_position) < 22.0:
+		ts += 0.005
+	who.global_position = w.road_point(ts)
+	who.visible = true
+	stage = "meeting %s on the road" % e.name
+	_stop_follow()
+	lead.look_head_at(who.global_position + Vector3(0, 1.6, 0))
+	if main.director and main.director.enabled:
+		main.director.focus_conversation(who, 30.0)
+	# they meet halfway: each walks toward the other, and stop a couple of metres apart
+	var mid := (lead.global_position + who.global_position) * 0.5
+	who._walk_to(mid)
+	lead.navigate_to(NavigationServer3D.map_get_closest_point(lead.get_world_3d().navigation_map, mid), false)
+	var tw := 0.0
+	while who.global_position.distance_to(lead.global_position) > 2.6 and tw < 45.0:
+		await get_tree().physics_frame
+		tw += get_physics_process_delta_time()
+		if who.state != "walking" and who.global_position.distance_to(lead.global_position) > 2.6:
+			who._walk_to(lead.global_position)
+	if lead.current_action == "navigate_to":
+		lead.stop_action()
+	who._path = PackedVector3Array()
+	who.state = "talking"
+	who._face_yaw = atan2(lead.global_position.x - who.global_position.x, lead.global_position.z - who.global_position.z)
+	lead.look_at_point(who.global_position)
+	who.play("talk", 0.3)
+	var rec := {"kind": kind, "who": String(e.name), "clock": WorldState.clock_text(), "said": []}
+	var lines: Array = e.get("lines", [])
+	var answers: Array = e.get("mika", [])
+	for i in maxi(lines.size(), answers.size()):
+		if i < lines.size():
+			await main.voice.say(String(e.voice), String(lines[i]), {"max_wait": 2.5})
+			(rec.said as Array).append([e.name, lines[i]])
+		if i < answers.size():
+			await main.voice.say("mika", String(answers[i]), {"max_wait": 2.5, "mood": "happy"})
+			(rec.said as Array).append(["Mika", answers[i]])
+	# a rumour: a clue none of them knew (it is told, so it goes into her knowledge as something heard on the road)
+	var rumours: Array = (e.get("rumours", []) as Array).filter(func(r): return not WorldState.mind("mika").knowledge.has(String(r.clue)))
+	if not rumours.is_empty():
+		var r: Dictionary = rumours[randi() % rumours.size()]
+		await main.voice.say(String(e.voice), String(r.text), {"max_wait": 2.5})
+		(rec.said as Array).append([e.name, r.text])
+		for p in j.get("party", ["mika"]):
+			WorldState.record_activity({"id": "road_rumour:" + kind, "verb": "listen", "label": "Heard on the road from %s" % e.name}, {"knowledge": {String(r.clue): 1}}, String(p))
+		rec["clue"] = String(r.clue)
+	var eff: Dictionary = e.get("effect", {})
+	if eff.has("food"):
+		(j.supplies as Dictionary)["food"] = int(j.supplies.get("food", 0)) + int(eff.food)
+	note("met %s on the road%s" % [e.name, (" - heard: " + String(rec.get("clue", ""))) if rec.has("clue") else ""], "encounter", {"kind": kind})
+	encounters.append(rec)
+	lead.look_head_at(null)
+	# and walks on, the way the party came
+	who.play("yes", 0.3)
+	await get_tree().create_timer(1.2).timeout
+	who._walk_to(w.road_point(0.02))
+	get_tree().create_timer(40.0).timeout.connect(func(): if is_instance_valid(who): who.queue_free())
+	_start_follow()
 
 
 static func _road_length(w: Wayside, a: float, b: float) -> float:

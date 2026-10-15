@@ -1043,7 +1043,12 @@ func navigate_to(target: Vector3, run := false) -> void:
 	_run = run
 	_nav_stuck_time = 0.0
 	_nav_last_pos = global_position
-	_action_deadline = _gclock + 90.0
+	# as long as the walk really takes (a long road up a mountain), never a flat 90 s; being stuck is caught apart
+	var plen := 0.0
+	var pth := NavigationServer3D.map_get_path(map, global_position, reachable, true)
+	for i in range(1, pth.size()):
+		plen += pth[i - 1].distance_to(pth[i])
+	_action_deadline = _gclock + maxf(90.0, plen / maxf(run_speed if run else walk_speed, 0.5) * 1.8 + 20.0)
 	_begin_action("navigate_to", {"target": [target.x, target.y, target.z], "run": run})
 
 

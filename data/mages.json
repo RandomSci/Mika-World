@@ -41,7 +41,8 @@
     "roam",
     "lesson",
     "drill",
-    "expedition"
+    "expedition",
+    "chat"
    ],
    "temperament": {
     "research": 1.1,
@@ -321,7 +322,8 @@
     "roam",
     "lesson",
     "drill",
-    "expedition"
+    "expedition",
+    "chat"
    ],
    "temperament": {
     "hunt": 1.35,

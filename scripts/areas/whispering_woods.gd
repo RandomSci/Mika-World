@@ -259,7 +259,75 @@ func _precompute() -> void:
 				var avg := (_hgrid[k - 1] + _hgrid[k + 1] + _hgrid[k - _n] + _hgrid[k + _n] + _hgrid[k] * 4.0) / 8.0
 				sm[k] = lerpf(_hgrid[k], avg, s)
 	_hgrid = sm
+	_grade_trails()
 
+
+## Every road and path is WALKABLE: along its centreline no metre climbs more than TRAIL_GRADE (~23 degrees; the
+## navmesh allows 30). Hollows are filled and humps cut evenly (a forward and a backward pass), blended into the
+## ground either side. A trail that crosses a steep spot - the rim round a region, a ridge meeting a plateau - no
+## longer cuts the navmesh in two (it had left whole gates unreachable).
+const TRAIL_GRADE := 0.42
+
+
+func _grade_trails() -> void:
+	# per cell: the correction of the NEAREST graded sample of any trail (a mean of neighbouring samples' cut and fill
+	# cancelled out exactly at a step), faded out to the side
+	var bestd := PackedFloat32Array()
+	bestd.resize(_n * _n)
+	bestd.fill(INF)
+	var bestv := PackedFloat32Array()
+	bestv.resize(_n * _n)
+	bestv.fill(0.0)
+	for t in trails:
+		if String(t[2]) == "hidden":
+			continue
+		var pts: Array = t[0]
+		var w: float = t[1]
+		var samples: Array = []
+		for i in pts.size() - 1:
+			var a: Vector2 = pts[i]
+			var b: Vector2 = pts[i + 1]
+			var n := maxi(1, int(a.distance_to(b) * 2.0))
+			for k in n:
+				samples.append(a.lerp(b, float(k) / n))
+		samples.append(pts[pts.size() - 1])
+		var hs := PackedFloat32Array()
+		hs.resize(samples.size())
+		for i in samples.size():
+			hs[i] = height((samples[i] as Vector2).x, (samples[i] as Vector2).y)
+		var orig := hs.duplicate()
+		for i in range(1, hs.size()):
+			var dd: float = maxf((samples[i] as Vector2).distance_to(samples[i - 1]), 0.05) * TRAIL_GRADE
+			hs[i] = clampf(hs[i], hs[i - 1] - dd, hs[i - 1] + dd)
+		for i in range(hs.size() - 2, -1, -1):
+			var dd2: float = maxf((samples[i] as Vector2).distance_to(samples[i + 1]), 0.05) * TRAIL_GRADE
+			hs[i] = clampf(hs[i], hs[i + 1] - dd2, hs[i + 1] + dd2)
+		var changed := 0
+		for i in samples.size():
+			var dh := hs[i] - orig[i]
+			if absf(dh) >= 0.03:
+				changed += 1
+			# the side slopes of a cut or a fill stay gentle (no trench, no dyke that other routes cannot cross)
+			var r := w * 0.5 + 1.5 + absf(dh) * 2.4
+			var sp: Vector2 = samples[i]
+			for iz in range(maxi(0, int((sp.y - r + HALF) / STEP)), mini(_n, int((sp.y + r + HALF) / STEP) + 2)):
+				for ix in range(maxi(0, int((sp.x - r + HALF) / STEP)), mini(_n, int((sp.x + r + HALF) / STEP) + 2)):
+					var cell := Vector2(-HALF + ix * STEP, -HALF + iz * STEP)
+					var d := cell.distance_to(sp)
+					if d > r:
+						continue
+					var k2 := iz * _n + ix
+					if d >= bestd[k2]:
+						continue
+					# never fill a stream or river bed where a path crosses it (a ford, a bridge)
+					if dh > 0.0 and has_method("site_water_dist") and float(call("site_water_dist", cell)) < 2.0:
+						continue
+					bestd[k2] = d
+					bestv[k2] = dh * (1.0 - smoothstep(w * 0.5 + 0.5, r, d))
+		if changed > 0:
+			print("[grade] %s trail from %s: %d of %d samples regraded" % [name, pts[0], changed, samples.size()])
+	for k3 in bestv.size():
+		_hgrid[k3] += bestv[k3]
 
 func build_steps() -> Array:
 	dress = WoodsDressing.new(self)
@@ -318,7 +386,15 @@ func set_night(v: bool) -> void:
 
 
 func _terrain() -> void:
-	nav_aabb = AABB(Vector3(-HALF + 2, -8, -HALF + 2), Vector3(SIZE - 4, 50, SIZE - 4))
+	# the navmesh bake spans the ground's real height range (a hill falling 16 m to its edges, a valley floor ...):
+	# a fixed band cut whole areas - gates included - out of the navmesh
+	var lo := -8.0
+	var hi := 42.0
+	if not _hgrid.is_empty():
+		for v in _hgrid:
+			lo = minf(lo, v)
+			hi = maxf(hi, v)
+	nav_aabb = AABB(Vector3(-HALF + 2, lo - 4.0, -HALF + 2), Vector3(SIZE - 4, hi - lo + 16.0, SIZE - 4))
 	var m := ShaderMaterial.new()
 	m.shader = load("res://shaders/nature/terrain_stylized.gdshader")
 	m.set_shader_parameter("grass_detail", load(Kit.tex_set("leafy_grass", "2k")[0]))

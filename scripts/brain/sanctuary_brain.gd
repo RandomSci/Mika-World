@@ -227,6 +227,19 @@ func options() -> Array:
 		var npc = main.npcs.present[nid]
 		if is_instance_valid(npc) and npc.state == "idle" and not _talked_this_visit.has(nid + str(main.dialogue.state_of(nid).visits)):
 			out.append({"kind": "converse", "key": "converse:" + nid, "npc": nid, "label": "talk with %s" % main.dialogue.travellers[nid].name})
+	# the people who live here: someone she can see, at their place, with something she has not heard from them yet
+	if _allowed("chat") and main.get("town"):
+		for rid in main.town.residents:
+			var rr = main.town.residents[rid]
+			if not is_instance_valid(rr) or not rr.visible or rr.state == "walking" or rr.state == "inside":
+				continue
+			if me.global_position.distance_to(rr.global_position) > 35.0:
+				continue
+			var fresh: Array = (rr.data.get("talk", []) as Array).filter(func(tp): return not mind.knowledge.has("talked:%s:%s" % [rid, tp.id]))
+			if fresh.is_empty():
+				continue
+			out.append({"kind": "chat", "key": "chat:" + String(rid), "resident": String(rid), "topic": fresh[0],
+				"first": not mind.knowledge.has("met_resident:" + String(rid)), "label": "talk with %s (%s)" % [String(rr.data.get("name", rid)), String(rr.data.get("role", ""))]})
 	# expeditions: a clue she has really read becomes a reason to set out (data/expeditions.json)
 	if _allowed("expedition") and is_lead() and main.get("journeys") and not main.journeys.active() and mind.vigor > 0.6:
 		var ex: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/expeditions.json")).get("expeditions", {})
@@ -399,6 +412,9 @@ func score(o: Dictionary) -> Dictionary:
 		"converse":
 			u = 0.55 + needs.social * 0.5
 			why.append("visitor present")
+		"chat":
+			u = 0.28 + needs.social * 0.5 + (0.12 if o.first else 0.0) - (1.0 - needs.energy) * 0.15
+			why.append("someone she %s" % ("has not met yet" if o.first else "likes talking to"))
 		"expedition":
 			# a journey of days: wanted when the clue pulls, never when tired or hurt, less at nightfall
 			u = 0.3 + needs.curiosity * 0.4 + float(o.get("curiosity", 0.25)) - (1.0 - needs.energy) * 0.5 - (1.0 - mind.vigor) * 0.6
@@ -634,6 +650,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"lesson": return await _use(String(o.interactable))
 		"drill": return await _drill(o)
 		"expedition": return await _expedition(o)
+		"chat": return await _chat(o)
 		"converse": return await _converse(o)
 		"journal": return await _journal()
 		"attune": return await _attune(o)
@@ -1099,6 +1116,36 @@ func _remember_overcome(kind: String) -> void:
 	mind.knowledge.erase(k)
 	mind.knowledge["overcame:" + kind] = {"kind": kind, "name": String(u.get("name", kind)), "at": WorldState.clock_text(), "after": int(u.get("times", 1)), "first_at": String(u.get("at", ""))}
 	_private_thought("I beat the %s this time. I was ready." % String(u.get("name", kind)).to_lower())
+
+
+## Walk up to a resident and talk: they turn to her and say what is on their mind (their own voice), she answers;
+## what they tell or give her is hers (data/residents.json "talk").
+func _chat(o: Dictionary) -> Dictionary:
+	var rr = main.town.residents.get(String(o.resident)) if main.get("town") else null
+	if rr == null or not is_instance_valid(rr) or not rr.visible:
+		return {"ok": false, "detail": "they are not here any more"}
+	var to: Vector3 = rr.global_position + (me.global_position - rr.global_position).normalized() * 1.7
+	if not await _walk(to):
+		return {"ok": false, "detail": "could not get to %s" % String(rr.data.get("name", ""))}
+	me.look_at_point(rr.global_position)
+	rr.notice(me, false)
+	rr.state = "talking"
+	rr._face_yaw = atan2(me.global_position.x - rr.global_position.x, me.global_position.z - rr.global_position.z)
+	rr.play("talk", 0.3)
+	me.look_head_at(rr.global_position + Vector3(0, 1.6, 0))
+	var tp: Dictionary = o.topic
+	await main.voice.say(String(rr.data.get("voice", rr.id)), String(tp.line), {"max_wait": 2.5})
+	await get_tree().create_timer(0.3).timeout
+	await main.voice.say(_voice(), String(tp.reply), {"max_wait": 2.5, "mood": "happy"})
+	me.look_head_at(null)
+	var eff: Dictionary = (tp.get("effects", {}) as Dictionary).duplicate(true)
+	var know: Dictionary = eff.get_or_add("knowledge", {})
+	know["talked:%s:%s" % [rr.id, String(tp.id)]] = 1
+	know["met_resident:" + rr.id] = 1
+	var changes := WorldState.record_activity({"id": "chat:" + rr.id, "verb": "talk", "label": "Talked with %s" % String(rr.data.get("name", ""))}, eff, agent_id)
+	rr.state = "at:" + String(rr.activity)
+	rr._begin_activity()
+	return {"ok": true, "detail": "talked with %s: %s" % [String(rr.data.get("name", "")), String(tp.id)], "changes": changes}
 
 
 ## Set out on foot (JourneyDirector: real legs, waypoints, camps, nights) with Luna, for the reason the clue gave.

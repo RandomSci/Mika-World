@@ -11,7 +11,7 @@ extends MountainRegion
 const OBS := Vector3(-34, 0, -6)
 const TEMPLE := Vector3(26, 0, -40)
 const TOP := Vector2(-2, -14)               # the plateau's centre
-const GATE_PATH := Vector2(0, 134)
+const GATE_PATH := Vector2(3.0 * sin(134.0 * 0.05), 134)   # on the ridge's crest
 
 var stone: ShaderMaterial
 var roof: Material
@@ -23,8 +23,17 @@ func _init() -> void:
 	cloud_y = -80.0
 	treeline = 14.0
 	snowline = 34.0
+	# the stairway keeps to the crest of the ridge (x = 3 sin(z * 0.05), shape() below): a few metres off it the
+	# ground falls away to the clouds
+	var crest: Array = [GATE_PATH]
+	var zc := 124.0
+	while zc > 38.0:
+		crest.append(Vector2(3.0 * sin(zc * 0.05), zc))
+		zc -= 8.0
+	crest.append(Vector2(0, 38))
+	crest.append(TOP + Vector2(0, 20))
 	trails = [
-		[[GATE_PATH, Vector2(-4, 116), Vector2(4, 96), Vector2(-3, 76), Vector2(2, 56), Vector2(0, 38), TOP + Vector2(0, 20)], 2.6, "main"],
+		[crest, 2.6, "main"],
 		[[TOP + Vector2(0, 20), Vector2(-14, 8), Vector2(OBS.x + 6, OBS.z + 6)], 2.0, "main"],
 		[[TOP + Vector2(0, 20), Vector2(10, -6), Vector2(TEMPLE.x - 4, TEMPLE.z + 14)], 2.4, "main"],
 	]
@@ -47,14 +56,16 @@ func shape(x: float, z: float, h: float) -> float:
 	var top := 34.0 + h * 1.4 - 3.0 * smoothstep(0.3, 0.95, _plateau(x, z))
 	# the ridge the stairway climbs: from the summit's south rim down to the mountain path
 	var ridge_t := clampf((z - 40.0) / 94.0, 0.0, 1.0)
-	var ridge_w := lerpf(16.0, 9.0, ridge_t)
+	var ridge_w := lerpf(18.0, 13.0, ridge_t)          # a crest wide enough to walk two abreast all the way down
 	var on_ridge := 1.0 - smoothstep(ridge_w * 0.5, ridge_w, absf(x - 3.0 * sin(z * 0.05)))
-	var ridge_h := lerpf(30.0, 2.0, ridge_t) + h * 0.6
+	var ridge_h := lerpf(30.0, 2.0, ridge_t) + h * 0.3
 	var fall := smoothstep(0.95, 1.25, _plateau(x, z))
 	var cliff := -170.0
 	var v := lerpf(top, cliff, fall)
-	if z > 30.0:
-		v = maxf(v, lerpf(cliff, ridge_h, on_ridge))
+	# the ridge runs on onto the plateau's rim (it used to stop at z = 30, just where the rim begins to fall
+	# away, which left a 68-degree notch between stairway and summit)
+	if z > 10.0:
+		v = maxf(v, lerpf(cliff, ridge_h, on_ridge * smoothstep(10.0, 22.0, z)))
 	return v
 
 
