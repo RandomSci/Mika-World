@@ -202,6 +202,29 @@ func _stair_cairns() -> void:
 	add_poi("pilgrim_stair", _v(Vector2(0, 76)), "The pilgrims' stairway up the ridge", "cloud_temple", 2.4)
 
 
+## The ninth gate: the frieze's two sisters who would not climb alone. Honest conditions, checked in the world.
+func _ninth_gate(c: WorldCharacter, it: Interactable) -> Dictionary:
+	it.effects = {}
+	var partner: WorldCharacter = null
+	for n in get_tree().get_nodes_in_group("avoid"):
+		if n is WorldCharacter and n != c and (n as WorldCharacter).visible and (n as WorldCharacter).global_position.distance_to(c.global_position) < 4.0:
+			partner = n
+	var h := WorldState.hour_f()
+	var why := []
+	if partner == null:
+		why.append("the gate does not answer one alone")
+	if not (WorldState.night and (h >= 24.0 or h < 1.5)):
+		why.append("the Twin Lights are not over the temple (they stand there just after midnight)")
+	for who in [c] + ([partner] if partner else []):
+		if WorldState.mind(who.character_id).level() < 89:
+			why.append("%s is not ready to climb so high (level %d)" % [MagicSystem.display_name(who.character_id), WorldState.mind(who.character_id).level()])
+	if not why.is_empty():
+		return {"ok": false, "detail": "the ninth gate stays shut: " + "; ".join(why)}
+	for who in [c, partner]:
+		WorldState.record_activity({"id": "ninth_gate", "verb": "attune", "label": "Opened the ninth gate together"}, {"knowledge": {"ninth_gate:opened": 1}}, who.character_id)
+	return {"ok": true, "detail": "the ninth gate opened for the two of them together"}
+
+
 func links() -> void:
 	edge_gate("highland_path", GATE_PATH)
 	var y := _temple_y() + 0.9
@@ -213,6 +236,13 @@ func links() -> void:
 	add_interactable(Interactable.make("weaver_stone_read", "Read the stone set in the floor beneath the altar", "read", "cloud_temple",
 		Vector3(TEMPLE.x + 1.2, y, TEMPLE.z - 0.8), {"knowledge": {"lore:weaver_stone": 1}}, "", 4.0)).radius = 2.2
 	interactables["weaver_stone_read"].book_id = "weaver_words"
+	# the ninth gate (docs/WORLD_BIBLE.md): the Level 90 Orbit Gate - it answers only two mages together, at night
+	# when the Twin Lights stand over the temple (00:00-01:30), both ready to climb (level 89+)
+	var gate := Interactable.make("ninth_gate_open", "Stand under the Twin Lights and ask the ninth gate to open", "attune", "cloud_temple",
+		Vector3(TEMPLE.x, y, TEMPLE.z + 0.6), {}, "spell_casting", 5.0)
+	gate.radius = 2.6
+	gate.custom_activity = _ninth_gate.bind(gate)
+	add_interactable(gate)
 	add_interactable(Interactable.make("armillary_align", "Align the armillary sphere to the stars", "study", "celestial_observatory",
 		_v(Vector2(OBS.x, OBS.z + 1.3)), {"knowledge": {"astronomy:armillary": 1}}, "look_around", 4.0)).radius = 2.2
 	add_interactable(Interactable.make("star_dial_read", "Read the time on the star dial", "read", "celestial_observatory",

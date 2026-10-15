@@ -90,6 +90,10 @@ static func _req_met(who: String, r: Dictionary) -> bool:
 			return float(m.skills.get(r.value, 0.0)) >= float(r.min)
 		"reactions_seen":
 			return m.knowledge.keys().filter(func(k): return String(k).begins_with("reaction:")).size() >= int(r.value)
+		"knowledge":
+			return m.knowledge.has(String(r.value))
+		"knowledge_count":
+			return m.knowledge.keys().filter(func(k): return String(k).begins_with(String(r.value))).size() >= int(r.min)
 	return false
 
 

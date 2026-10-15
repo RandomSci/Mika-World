@@ -140,7 +140,7 @@ static func _clear_score(mage: WorldCharacter, cam: Vector3, pts: Array) -> floa
 		var base: Vector3 = (e.p as Vector3) - Vector3(0, 1.0, 0)
 		for h in [0.3, 1.0, 1.5]:
 			var q := PhysicsRayQueryParameters3D.create(cam, base + Vector3(0, h, 0))
-			q.collision_mask = 1
+			q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3): the lens is never inside them
 			q.exclude = [mage.get_rid()]
 			var hit := space.intersect_ray(q)
 			if hit.is_empty() or (hit.position as Vector3).distance_to(base + Vector3(0, h, 0)) < 0.5:
@@ -157,7 +157,7 @@ static func clear(mage: WorldCharacter, pos: Vector3, s: Dictionary) -> bool:
 	for t in targets:
 		var q := PhysicsRayQueryParameters3D.create(pos, t)
 		q.exclude = [mage.get_rid()]
-		q.collision_mask = 1
+		q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3): the lens is never inside them
 		var hit := space.intersect_ray(q)
 		if not hit.is_empty() and (hit.position as Vector3).distance_to(t) > 0.8:
 			return false

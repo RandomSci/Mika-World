@@ -455,7 +455,7 @@ func _ring_spread(centre: Vector3) -> float:
 ## Nothing solid between the lens and the subject, and no other person standing in the way.
 func _view_clear(cam: Vector3, at: Vector3, ignore: Array) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(at, cam)
-	q.collision_mask = 1
+	q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3): the lens is never inside them
 	if not get_viewport().world_3d.direct_space_state.intersect_ray(q).is_empty():
 		return false
 	var people: Array = rivals.values() + _party()
@@ -474,7 +474,7 @@ func _safe(sh: Dictionary) -> Dictionary:
 	var pos: Vector3 = sh.pos
 	var look: Vector3 = sh.look
 	var q := PhysicsRayQueryParameters3D.create(look, pos)
-	q.collision_mask = 1
+	q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3): the lens is never inside them
 	var hit := get_viewport().world_3d.direct_space_state.intersect_ray(q)
 	if not hit.is_empty():
 		pos = (hit.position as Vector3) + (look - (hit.position as Vector3)).normalized() * 0.35

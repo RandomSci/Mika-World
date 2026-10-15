@@ -3181,3 +3181,9 @@ func _fold() -> void:
 	var folds: Array = main.teleport_guard.folds
 	var viol: Array = main.teleport_guard.violations.slice(tg0)
 	_check(folds.size() == 1 and viol.is_empty(), "the guard recorded it as a learned fold, not a teleport violation", {"folds": folds, "violations": viol})
+	# the ninth gate (Level 90): defined, and it does not answer one young mage alone at noon
+	var g90 := Progression.gate_status("mika", 90)
+	_check(bool(g90.defined) and not bool(g90.met), "the Level 90 gate is defined (the ninth gate, together)", g90)
+	var ng: Dictionary = await mb._use("ninth_gate_open")
+	var det := String(ng.get("activity", {}).get("detail", ng.get("detail", "")))
+	_check(not ng.get("ok", false) and det.contains("one alone") and det.contains("Twin Lights"), "alone, at noon, at her level: the ninth gate stays shut (%s)" % det, ng)

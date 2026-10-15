@@ -534,7 +534,7 @@ var _conv_lines := 0
 func _background_clutter(cam: Vector3, at: Vector3) -> float:
 	var dir := (at - cam).normalized()
 	var q := PhysicsRayQueryParameters3D.create(at + dir * 0.6, at + dir * 3.6)
-	q.collision_mask = 1
+	q.collision_mask = 1 | 4
 	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
 	return 0.0 if hit.is_empty() else 1.0 - clampf((at.distance_to(hit.position) - 0.6) / 3.0, 0.0, 1.0)
 
@@ -543,7 +543,7 @@ func _two_clear(cam: Vector3, a: Vector3, b: Vector3) -> bool:
 	var space := mika.get_world_3d().direct_space_state
 	for t in [a, b]:
 		var q := PhysicsRayQueryParameters3D.create(cam, t + Vector3(0, 1.4, 0))
-		q.collision_mask = 1
+		q.collision_mask = 1 | 4
 		q.exclude = [mika.get_rid()] + ([_conversation.get_rid()] if _conversation is CollisionObject3D else [])
 		if not space.intersect_ray(q).is_empty():
 			return false

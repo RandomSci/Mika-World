@@ -31,6 +31,17 @@ Companion documents: `docs/V3_AUDIT.md` (the audit), `docs/V3_VISUAL_REPORT.md` 
 | Magic Academy | Academy, Mentor's Tower, Arcane Library | Academy + Tower rebuilt; the Arcane Library is the developer's protected WIP |
 | Sanctuary | Sanctuary (+ expansion) | the developer's protected WIP - not modified |
 
+### Experiences that lead somewhere, a mythology to read, teleportation that must be learned (2026-10-15)
+
+* **Unfinished business** (`--mktest=rematch` PASS): a creature she withdrew from is remembered; her planner keeps
+  her away until she is readier, offers ward drills and lessons, then favours a rematch; winning closes it, and both
+  become things she tells her companion.
+* **World bible** (`docs/WORLD_BIBLE.md`) and seven readable texts placed in the world (`--mktest=lore` PASS).
+* **The Fold Step** (`--mktest=fold` PASS): the only teleportation, learned from the Weaver's glyphs and words,
+  line-of-sight and short; TeleportGuard logs learned folds separately from violations.
+* **Footage**: `screenshots/ambush_reel/` (Movie Maker reels of the ambush, local).
+* **Performance**: `docs/PERFORMANCE.md` (all 15 areas at the 30 fps target, GPU <= 14.2 ms).
+
 ### Living towns and learning from mentors (verified `--mktest=town` PASS, 2026-10-15)
 
 Nine residents with their own looks, voices, homes, trades and hour-by-hour days (`docs/TOWN_LIFE.md`): the

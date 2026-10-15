@@ -66,9 +66,10 @@ text (`data/books.json`) and world content, or is marked *planned*. It extends t
 
 ## Threads waiting to be played (planned)
 
-* **The Weaver's words under the summit** — the glyph stones point there; reading them (with teleport theory 1+2
-  and having *known both places*) is the learned path to the first fold-step spell. Teleportation stays
-  unavailable in production until it is learned this way (TeleportGuard).
+* **The Weaver's words under the summit** — *implemented*: the stone beneath the Cloud Temple's altar teaches
+  the incantation of **the Fold Step** (`MagicSystem.fold_step`); with the glyph stones' theory it becomes castable:
+  only to a place she can see, with room to stand, within 12 m (+10 m per mastery). TeleportGuard records each as a
+  learned fold. Long-distance folding ("knowing both places") is the next step of the thread.
 * **The ninth gate** — a Level 90 milestone that only Mika and Luna *together* can open, at the summit temple
   under the Twin Lights; neither can climb past it alone.
 * **The Crown** — Level 100: having heard all nine rings.

@@ -64,7 +64,7 @@ func _clear(m: WorldCharacter, pos: Vector3, targets: Array) -> bool:
 	var space := m.get_world_3d().direct_space_state
 	for tp in targets:
 		var q := PhysicsRayQueryParameters3D.create(pos, tp)
-		q.collision_mask = 1
+		q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3): the lens is never inside them
 		q.exclude = [m.get_rid()]
 		var hit := space.intersect_ray(q)
 		if not hit.is_empty() and (hit.position as Vector3).distance_to(tp) > 0.6:

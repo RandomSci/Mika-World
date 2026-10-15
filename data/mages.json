@@ -70,6 +70,26 @@
       "tier": 0.05,
       "label": "cast two different spells successfully"
      }
+    ],
+    "90": [
+     {
+      "kind": "knowledge",
+      "value": "ninth_gate:opened",
+      "label": "open the ninth gate at the Cloud Temple together with Luna, under the Twin Lights"
+     },
+     {
+      "kind": "knowledge_count",
+      "value": "lore:warden_",
+      "min": 6,
+      "label": "know the stories of the Wardens"
+     }
+    ],
+    "100": [
+     {
+      "kind": "knowledge",
+      "value": "crown:heard_all_nine",
+      "label": "hear all nine rings (the Crown)"
+     }
     ]
    },
    "orbits": {
@@ -330,6 +350,26 @@
       "kind": "reactions_seen",
       "value": 3,
       "label": "observe three different magical reactions"
+     }
+    ],
+    "90": [
+     {
+      "kind": "knowledge",
+      "value": "ninth_gate:opened",
+      "label": "open the ninth gate at the Cloud Temple together with Mika, under the Twin Lights"
+     },
+     {
+      "kind": "knowledge_count",
+      "value": "lore:warden_",
+      "min": 6,
+      "label": "know the stories of the Wardens"
+     }
+    ],
+    "100": [
+     {
+      "kind": "knowledge",
+      "value": "crown:heard_all_nine",
+      "label": "hear all nine rings (the Crown)"
      }
     ]
    },
