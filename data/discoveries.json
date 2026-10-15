@@ -1,0 +1,366 @@
+{
+ "_note": "Places to find (scripts/world/discoveries.gd): a solid prop + an interactable at an area location; many hand out the clue for the next expedition (data/expeditions.json), so the storylines below run across the regions on foot. Task 3 (2026-10-16): enough fresh first-time content for the three-week Level 1-9 period.",
+ "discoveries": [
+  {
+   "id": "disc_warden_notice",
+   "area": "village",
+   "location": "lantern_market",
+   "offset": [
+    2.5,
+    -1.5
+   ],
+   "prop": "lantern",
+   "yaw": 0.6,
+   "label": "Read the faded warden's notice under the market lanterns",
+   "verb": "read",
+   "gesture": "look_around",
+   "duration": 6,
+   "kind": "study",
+   "effects": {
+    "knowledge": {
+     "lore:lantern_wardens": 1,
+     "clue:wardens_first_post": 1
+    }
+   }
+  },
+  {
+   "id": "disc_warden_cairn",
+   "area": "highland_path",
+   "location": "mountain_path",
+   "offset": [
+    2.0,
+    1.5
+   ],
+   "prop": "cairn",
+   "label": "Examine the iron lantern bracket set into the cairn",
+   "verb": "inspect",
+   "gesture": "look_around",
+   "duration": 6,
+   "requires": {
+    "knowledge": {
+     "clue:wardens_first_post": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "survey:warden_cairn": 1,
+     "clue:wardens_bridge_mark": 1
+    }
+   }
+  },
+  {
+   "id": "disc_warden_bridge",
+   "area": "river_valley",
+   "location": "waterfall_crossing",
+   "offset": [
+    -3.0,
+    2.0
+   ],
+   "prop": "stele",
+   "yaw": 1.2,
+   "label": "Read the warden's mark cut into the old stone by the bridge",
+   "verb": "read",
+   "gesture": "",
+   "duration": 6,
+   "kind": "study",
+   "requires": {
+    "knowledge": {
+     "clue:wardens_bridge_mark": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "clue:wardens_last_post": 1,
+     "fact:wardens_walked_the_dark": 1
+    }
+   }
+  },
+  {
+   "id": "disc_warden_niche",
+   "area": "deep_caverns",
+   "location": "underground_lake",
+   "offset": [
+    3.0,
+    -2.0
+   ],
+   "prop": "shrine",
+   "label": "Read the last warden's log in the lamp niche by the lake",
+   "verb": "read",
+   "duration": 8,
+   "kind": "study",
+   "book": "warden_log",
+   "requires": {
+    "knowledge": {
+     "clue:wardens_last_post": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "story:the_last_warden": 1
+    }
+   }
+  },
+  {
+   "id": "disc_bell_lip",
+   "area": "river_valley",
+   "location": "luminous_river",
+   "offset": [
+    2.0,
+    2.5
+   ],
+   "prop": "cairn",
+   "label": "Look at the bronze bell-lip caught in the shallows",
+   "verb": "inspect",
+   "gesture": "pick_floor",
+   "duration": 6,
+   "effects": {
+    "knowledge": {
+     "lore:drowned_bell": 1,
+     "clue:bell_founder": 1
+    }
+   }
+  },
+  {
+   "id": "disc_bell_mould",
+   "area": "village",
+   "location": "craft_workshop",
+   "offset": [
+    -2.5,
+    1.5
+   ],
+   "prop": "crates",
+   "label": "Examine the founder's cracked bell mould",
+   "verb": "inspect",
+   "gesture": "look_around",
+   "duration": 6,
+   "requires": {
+    "knowledge": {
+     "clue:bell_founder": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "fact:bronze_rings_true": 1,
+     "clue:bell_frame_summit": 1
+    }
+   }
+  },
+  {
+   "id": "disc_bell_frame",
+   "area": "celestial_summit",
+   "location": "cloud_temple",
+   "offset": [
+    -4.0,
+    2.0
+   ],
+   "prop": "stele",
+   "yaw": 2.4,
+   "label": "Read the verse on the empty bell frame at the temple's edge",
+   "verb": "read",
+   "duration": 7,
+   "kind": "study",
+   "requires": {
+    "knowledge": {
+     "clue:bell_frame_summit": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "story:bell_song": 1,
+     "lore:temple_bell": 1
+    }
+   }
+  },
+  {
+   "id": "disc_moth_cocoons",
+   "area": "ancient_grove",
+   "location": "ancient_grove",
+   "offset": [
+    3.5,
+    3.0
+   ],
+   "prop": "shrine",
+   "label": "Study the moonmoth cocoons on the mossy stone",
+   "verb": "study",
+   "gesture": "look_around",
+   "duration": 7,
+   "kind": "study",
+   "effects": {
+    "knowledge": {
+     "lore:moonmoths": 1,
+     "clue:moonmoth_flight": 1
+    }
+   }
+  },
+  {
+   "id": "disc_moth_chart",
+   "area": "observatory_hill",
+   "location": "village_observatory",
+   "offset": [
+    -3.0,
+    3.0
+   ],
+   "prop": "stele",
+   "yaw": 0.3,
+   "label": "Read the stargazer's note on the moonmoths' star",
+   "verb": "read",
+   "duration": 6,
+   "kind": "study",
+   "requires": {
+    "knowledge": {
+     "clue:moonmoth_flight": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "survey:moonmoth_star": 1,
+     "fact:moths_follow_the_lantern_star": 1
+    }
+   }
+  },
+  {
+   "id": "disc_carto_stake",
+   "area": "academy",
+   "location": "academy_gardens",
+   "offset": [
+    3.0,
+    -2.0
+   ],
+   "prop": "cairn",
+   "label": "Examine the surveyor's cairn with a brass tag",
+   "verb": "inspect",
+   "gesture": "look_around",
+   "duration": 6,
+   "effects": {
+    "knowledge": {
+     "lore:cartographer_vell": 1,
+     "clue:carto_tube": 1
+    }
+   }
+  },
+  {
+   "id": "disc_carto_tube",
+   "area": "crystal_caverns",
+   "location": "luminous_crystal_hall",
+   "offset": [
+    5.0,
+    -4.0
+   ],
+   "prop": "crates",
+   "label": "Open the sealed map tube among the old crates",
+   "verb": "inspect",
+   "gesture": "pick_chest",
+   "duration": 6,
+   "requires": {
+    "knowledge": {
+     "clue:carto_tube": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "geography:caverns_survey": 1,
+     "clue:carto_sighting": 1
+    }
+   }
+  },
+  {
+   "id": "disc_carto_sighting",
+   "area": "highland_path",
+   "location": "cliff_overlook",
+   "offset": [
+    -2.5,
+    2.0
+   ],
+   "prop": "stele",
+   "yaw": -0.8,
+   "label": "Read the bearings on Vell's sighting stone",
+   "verb": "read",
+   "duration": 6,
+   "kind": "study",
+   "requires": {
+    "knowledge": {
+     "clue:carto_sighting": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "geography:highland_bearings": 1,
+     "clue:carto_box": 1
+    }
+   }
+  },
+  {
+   "id": "disc_carto_box",
+   "area": "whispering_woods",
+   "location": "whispering_woods",
+   "offset": [
+    4.0,
+    -3.0
+   ],
+   "prop": "crates",
+   "label": "Read Vell's survey from the buried box",
+   "verb": "read",
+   "duration": 8,
+   "kind": "study",
+   "book": "vell_survey",
+   "requires": {
+    "knowledge": {
+     "clue:carto_box": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "story:vells_map": 1
+    }
+   }
+  },
+  {
+   "id": "disc_ysolde_notes",
+   "area": "great_library",
+   "location": "great_library",
+   "offset": [
+    2.0,
+    2.0
+   ],
+   "prop": "shrine",
+   "label": "Read a travelling mage's notebook left on a reading pedestal",
+   "verb": "read",
+   "duration": 6,
+   "kind": "study",
+   "effects": {
+    "knowledge": {
+     "lore:ysolde_notes": 1,
+     "fact:wards_bend_not_break": 1,
+     "clue:arena_scorch": 1
+    }
+   }
+  },
+  {
+   "id": "disc_arena_scorch",
+   "area": "academy",
+   "location": "advanced_magic_arena",
+   "offset": [
+    3.0,
+    3.0
+   ],
+   "prop": "stele",
+   "yaw": 3.1,
+   "label": "Study the duel-scorched marker stone",
+   "verb": "study",
+   "gesture": "look_around",
+   "duration": 6,
+   "kind": "study",
+   "requires": {
+    "knowledge": {
+     "clue:arena_scorch": 1
+    }
+   },
+   "effects": {
+    "knowledge": {
+     "practical:reading_old_scorches": 1,
+     "fact:a_ward_held_here": 1
+    }
+   }
+  }
+ ]
+}

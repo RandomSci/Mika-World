@@ -1,13 +1,124 @@
 {
  "_note": "Expeditions (SanctuaryBrain 'expedition' option): a clue she has actually read or heard becomes a reason to set out on foot - a real multi-day journey (JourneyDirector) with Luna. Offered only to the lead mage, when both are fit, from an area with a road there, until what it sought is known (done_if). Nothing is scheduled: the planner weighs it against everything else she could do.",
  "expeditions": {
-  "weaver_words": {"clue": "clue:weaver_words_summit", "area": "celestial_summit", "done_if": "teleport:weaver_words",
-   "purpose": "the Weaver's words are said to sleep beneath the Cloud Temple on the summit", "curiosity": 0.35},
-  "glyph_stones": {"clue": "lore:folding_distance_rumour", "area": "ancient_grove", "done_if": "teleport:theory_seam",
-   "purpose": "the Weaver's glyphs are carved on the old shrine stones in the Ancient Grove", "curiosity": 0.3},
-  "open_lessons": {"clue": "news:academy_open_lessons", "area": "academy", "done_if": "mentor:aldric",
-   "purpose": "the Academy holds open lessons on the east lawn in the mornings", "curiosity": 0.25},
-  "twin_lights": {"clue": "clue:twin_lights_summit", "area": "celestial_summit", "done_if": "sight:twin_lights",
-   "purpose": "the observatory keeper wrote that the Twin Lights stand over the summit temple after midnight", "curiosity": 0.2}
+  "weaver_words": {
+   "clue": "clue:weaver_words_summit",
+   "area": "celestial_summit",
+   "done_if": "teleport:weaver_words",
+   "purpose": "the Weaver's words are said to sleep beneath the Cloud Temple on the summit",
+   "curiosity": 0.35
+  },
+  "glyph_stones": {
+   "clue": "lore:folding_distance_rumour",
+   "area": "ancient_grove",
+   "done_if": "teleport:theory_seam",
+   "purpose": "the Weaver's glyphs are carved on the old shrine stones in the Ancient Grove",
+   "curiosity": 0.3
+  },
+  "open_lessons": {
+   "clue": "news:academy_open_lessons",
+   "area": "academy",
+   "done_if": "mentor:aldric",
+   "purpose": "the Academy holds open lessons on the east lawn in the mornings",
+   "curiosity": 0.25
+  },
+  "twin_lights": {
+   "clue": "clue:twin_lights_summit",
+   "area": "celestial_summit",
+   "done_if": "sight:twin_lights",
+   "purpose": "the observatory keeper wrote that the Twin Lights stand over the summit temple after midnight",
+   "curiosity": 0.2
+  },
+  "wardens_highlands": {
+   "clue": "clue:wardens_first_post",
+   "area": "highland_path",
+   "done_if": "survey:warden_cairn",
+   "purpose": "the Lantern Wardens' first post was a cairn on the mountain path",
+   "curiosity": 0.3
+  },
+  "wardens_bridge": {
+   "clue": "clue:wardens_bridge_mark",
+   "area": "river_valley",
+   "done_if": "clue:wardens_last_post",
+   "purpose": "a warden's mark is cut by the waterfall bridge",
+   "curiosity": 0.3
+  },
+  "wardens_lake": {
+   "clue": "clue:wardens_last_post",
+   "area": "deep_caverns",
+   "done_if": "story:the_last_warden",
+   "purpose": "the last warden kept a lamp by the underground lake",
+   "curiosity": 0.35
+  },
+  "bell_river": {
+   "clue": "clue:drowned_bell_rumour",
+   "area": "river_valley",
+   "done_if": "clue:bell_founder",
+   "purpose": "fishermen say a bell lies drowned in the luminous river",
+   "curiosity": 0.25
+  },
+  "bell_founder": {
+   "clue": "clue:bell_founder",
+   "area": "village",
+   "done_if": "fact:bronze_rings_true",
+   "purpose": "the bell's founder worked in the village workshop",
+   "curiosity": 0.25
+  },
+  "bell_frame": {
+   "clue": "clue:bell_frame_summit",
+   "area": "celestial_summit",
+   "done_if": "story:bell_song",
+   "purpose": "the bell once hung in a frame at the Cloud Temple",
+   "curiosity": 0.3
+  },
+  "moonmoth_grove": {
+   "clue": "clue:moonmoth_rumour",
+   "area": "ancient_grove",
+   "done_if": "clue:moonmoth_flight",
+   "purpose": "moonmoths are said to nest in the Ancient Grove",
+   "curiosity": 0.25
+  },
+  "moonmoth_star": {
+   "clue": "clue:moonmoth_flight",
+   "area": "observatory_hill",
+   "done_if": "survey:moonmoth_star",
+   "purpose": "the moths fly toward a star the observatory keeps charts of",
+   "curiosity": 0.25
+  },
+  "carto_academy": {
+   "clue": "clue:carto_rumour",
+   "area": "academy",
+   "done_if": "clue:carto_tube",
+   "purpose": "a cartographer's survey began in the Academy gardens",
+   "curiosity": 0.25
+  },
+  "carto_caverns": {
+   "clue": "clue:carto_tube",
+   "area": "crystal_caverns",
+   "done_if": "geography:caverns_survey",
+   "purpose": "Vell's map tube was left in the crystal hall",
+   "curiosity": 0.3
+  },
+  "carto_overlook": {
+   "clue": "clue:carto_sighting",
+   "area": "highland_path",
+   "done_if": "geography:highland_bearings",
+   "purpose": "Vell took bearings from a stone on the cliff overlook",
+   "curiosity": 0.3
+  },
+  "carto_box": {
+   "clue": "clue:carto_box",
+   "area": "whispering_woods",
+   "done_if": "story:vells_map",
+   "purpose": "Vell buried the finished survey in the Whispering Woods",
+   "curiosity": 0.35
+  },
+  "arena_scorch": {
+   "clue": "clue:arena_scorch",
+   "area": "academy",
+   "done_if": "fact:a_ward_held_here",
+   "purpose": "a notebook mentions a scorched stone in the Academy arena",
+   "curiosity": 0.2
+  }
  }
 }

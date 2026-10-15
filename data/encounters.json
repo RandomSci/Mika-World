@@ -2,25 +2,221 @@
  "_note": "Road encounters (JourneyDirector._road_encounter): now and then, in daylight, someone comes the other way along the road and stops for a word. Rare by design (chance per stretch), never the same person twice in a journey. What they say can be a real clue (knowledge) - which the expedition planner (data/expeditions.json) can turn into the next journey.",
  "chance_per_stretch": 0.17,
  "kinds": {
-  "pedlar": {"weight": 3, "name": "a pedlar", "model": "res://assets/npc/residents/innkeeper_m.glb", "recolor": {"MI_Peasant": [0.55, 0.75, 0.55]}, "voice": "res_pedlar", "height_m": 1.72,
-   "lines": ["Afternoon, travellers! Bread, cheese, dried apples - road prices, fair prices.", "Heading far? Then you'll want more than you think."],
-   "mika": ["We'll take some bread, please. And the apples.", "Yes, please. It's a long way still."],
-   "effect": {"food": 3},
+  "pedlar": {
+   "weight": 3,
+   "name": "a pedlar",
+   "model": "res://assets/npc/residents/innkeeper_m.glb",
+   "recolor": {
+    "MI_Peasant": [
+     0.55,
+     0.75,
+     0.55
+    ]
+   },
+   "voice": "res_pedlar",
+   "height_m": 1.72,
+   "lines": [
+    "Afternoon, travellers! Bread, cheese, dried apples - road prices, fair prices.",
+    "Heading far? Then you'll want more than you think."
+   ],
+   "mika": [
+    "We'll take some bread, please. And the apples.",
+    "Yes, please. It's a long way still."
+   ],
+   "effect": {
+    "food": 3
+   },
    "rumours": [
-    {"text": "They say the old library at the Academy keeps a book about the Wardens, the ones who walked the rings.", "clue": "lore:folding_distance_rumour"},
-    {"text": "The Academy holds open lessons on the east lawn, mornings. Anyone may sit at the back.", "clue": "news:academy_open_lessons"},
-    {"text": "Summit-folk swear the Twin Lights stand right over their temple after midnight, in autumn.", "clue": "clue:twin_lights_summit"}]},
-  "pilgrim": {"weight": 2, "name": "a pilgrim", "model": "res://assets/npc/residents/woodfolk_f.glb", "recolor": {"MI_Peasant": [0.9, 0.9, 1.2]}, "voice": "res_pilgrim", "height_m": 1.66,
-   "lines": ["Peace on your road. I'm bound for the Cloud Temple.", "I'll sit under the Twin Lights, if the weather holds."],
-   "mika": ["The Cloud Temple? On the summit?", "Good luck with the weather!"],
+    {
+     "text": "They say the old library at the Academy keeps a book about the Wardens, the ones who walked the rings.",
+     "clue": "lore:folding_distance_rumour"
+    },
+    {
+     "text": "The Academy holds open lessons on the east lawn, mornings. Anyone may sit at the back.",
+     "clue": "news:academy_open_lessons"
+    },
+    {
+     "text": "Summit-folk swear the Twin Lights stand right over their temple after midnight, in autumn.",
+     "clue": "clue:twin_lights_summit"
+    }
+   ]
+  },
+  "pilgrim": {
+   "weight": 2,
+   "name": "a pilgrim",
+   "model": "res://assets/npc/residents/woodfolk_f.glb",
+   "recolor": {
+    "MI_Peasant": [
+     0.9,
+     0.9,
+     1.2
+    ]
+   },
+   "voice": "res_pilgrim",
+   "height_m": 1.66,
+   "lines": [
+    "Peace on your road. I'm bound for the Cloud Temple.",
+    "I'll sit under the Twin Lights, if the weather holds."
+   ],
+   "mika": [
+    "The Cloud Temple? On the summit?",
+    "Good luck with the weather!"
+   ],
    "effect": {},
    "rumours": [
-    {"text": "There are words carved under the temple's altar, they say. Older than the temple.", "clue": "clue:weaver_words_summit"},
-    {"text": "The Twin Lights stand over the summit temple just after midnight. Go and see, if you can.", "clue": "clue:twin_lights_summit"}]},
-  "lost": {"weight": 2, "name": "a lost traveller", "model": "res://assets/npc/residents/woodfolk_m.glb", "recolor": {"MI_Peasant": [1.1, 0.75, 0.6]}, "voice": "res_lost", "height_m": 1.75,
-   "lines": ["Excuse me - is this the road to the village? I took a wrong turn at the ford.", "Oh, thank you. Thank you!"],
-   "mika": ["You're going the right way - keep the stream on your left.", "Safe travels!"],
-   "effect": {"kindness": 1},
-   "rumours": []}
+    {
+     "text": "There are words carved under the temple's altar, they say. Older than the temple.",
+     "clue": "clue:weaver_words_summit"
+    },
+    {
+     "text": "The Twin Lights stand over the summit temple just after midnight. Go and see, if you can.",
+     "clue": "clue:twin_lights_summit"
+    }
+   ]
+  },
+  "lost": {
+   "weight": 2,
+   "name": "a lost traveller",
+   "model": "res://assets/npc/residents/woodfolk_m.glb",
+   "recolor": {
+    "MI_Peasant": [
+     1.1,
+     0.75,
+     0.6
+    ]
+   },
+   "voice": "res_lost",
+   "height_m": 1.75,
+   "lines": [
+    "Excuse me - is this the road to the village? I took a wrong turn at the ford.",
+    "Oh, thank you. Thank you!"
+   ],
+   "mika": [
+    "You're going the right way - keep the stream on your left.",
+    "Safe travels!"
+   ],
+   "effect": {
+    "kindness": 1
+   },
+   "rumours": []
+  },
+  "lamplighter": {
+   "weight": 2,
+   "name": "an old lamplighter",
+   "model": "res://assets/npc/residents/villager_m.glb",
+   "recolor": {
+    "MI_Peasant": [
+     0.85,
+     0.7,
+     0.5
+    ]
+   },
+   "voice": "res_pedlar",
+   "height_m": 1.7,
+   "lines": [
+    "Evening comes early in these hills. Mind the lanterns, they're older than me.",
+    "My grandmother lit the wardens' lamps on this very road."
+   ],
+   "mika": [
+    "Wardens? Who were they?",
+    "That's a lovely thing to keep doing."
+   ],
+   "effect": {},
+   "rumours": [
+    {
+     "text": "There's still a wardens' notice under the market lanterns in the village, if you can read the old hand.",
+     "clue": "clue:wardens_first_post"
+    }
+   ]
+  },
+  "fisher": {
+   "weight": 2,
+   "name": "a river fisher",
+   "model": "res://assets/npc/residents/woodfolk_m.glb",
+   "recolor": {
+    "MI_Peasant": [
+     0.5,
+     0.6,
+     0.75
+    ]
+   },
+   "voice": "res_pilgrim",
+   "height_m": 1.74,
+   "lines": [
+    "Nothing biting today. River's too bright.",
+    "My net came up with green bronze once. Threw it back - bad luck, they say."
+   ],
+   "mika": [
+    "Too bright?",
+    "Green bronze? From what?"
+   ],
+   "effect": {
+    "food": 1
+   },
+   "rumours": [
+    {
+     "text": "There's a drowned bell in the luminous river. You can see its lip in the shallows when the water's low.",
+     "clue": "clue:drowned_bell_rumour"
+    }
+   ]
+  },
+  "moth_catcher": {
+   "weight": 1,
+   "name": "a moth-catcher",
+   "model": "res://assets/npc/residents/student_f.glb",
+   "recolor": {
+    "MI_Peasant": [
+     0.75,
+     0.6,
+     0.85
+    ]
+   },
+   "voice": "res_lost",
+   "height_m": 1.6,
+   "lines": [
+    "Shh - don't startle them. Oh, it's only people.",
+    "I'm counting moonmoths for the Academy. They're late this year."
+   ],
+   "mika": [
+    "Moonmoths? I've never seen one.",
+    "Late for what?"
+   ],
+   "effect": {},
+   "rumours": [
+    {
+     "text": "The moonmoths nest in the Ancient Grove, on the old mossy stones. Go quietly.",
+     "clue": "clue:moonmoth_rumour"
+    }
+   ]
+  },
+  "surveyor": {
+   "weight": 1,
+   "name": "a surveyor's apprentice",
+   "model": "res://assets/npc/residents/student_m.glb",
+   "recolor": {
+    "MI_Peasant": [
+     0.6,
+     0.7,
+     0.6
+    ]
+   },
+   "voice": "res_pedlar",
+   "height_m": 1.68,
+   "lines": [
+    "Have you seen a brass-tagged stake? No? Never mind.",
+    "Old Vell mapped every road between here and the summit. Then he vanished."
+   ],
+   "mika": [
+    "Who was Vell?",
+    "Vanished? Where?"
+   ],
+   "effect": {},
+   "rumours": [
+    {
+     "text": "Vell's last survey started in the Academy gardens. His stake might still be there.",
+     "clue": "clue:carto_rumour"
+    }
+   ]
+  }
  }
 }

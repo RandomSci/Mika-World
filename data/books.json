@@ -604,6 +604,64 @@
      ]
     }
    ]
+  },
+  "warden_log": {
+   "title": "The Last Warden's Log",
+   "subtitle": "oilcloth pages in a lamp niche by the underground lake",
+   "style": "journal",
+   "location": "Deep Caverns, the underground lake",
+   "pages": [
+    {
+     "heading": "The Last Lamp",
+     "text": "Forty posts we kept, from the market lanterns to this lake. One by one the roads grew safe, and one by one the lamps went dark, because no one needed them. I am the last warden. I lit this lamp anyway.",
+     "knowledge": [
+      "lore:last_warden"
+     ]
+    },
+    {
+     "heading": "What We Guarded",
+     "text": "Not the roads. The walkers. A lamp says: someone was here before you, and came back. If you are reading this, you walked the whole way. Then you are a warden now.",
+     "knowledge": [
+      "fact:a_lamp_says_someone_returned"
+     ]
+    },
+    {
+     "heading": "For Whoever Comes",
+     "text": "Light one lamp each journey. That is all the oath there is.",
+     "knowledge": [
+      "story:wardens_oath"
+     ]
+    }
+   ]
+  },
+  "vell_survey": {
+   "title": "Vell's Survey of the Six Regions",
+   "subtitle": "a waxed folio from a buried box",
+   "style": "book",
+   "location": "Whispering Woods, a buried box",
+   "pages": [
+    {
+     "heading": "Distances",
+     "text": "From the Sanctuary to the summit is not a day but many; the roads bend round what the land refuses. Count in sleeps, not miles.",
+     "knowledge": [
+      "geography:count_in_sleeps"
+     ]
+    },
+    {
+     "heading": "The Hidden Shortcuts",
+     "text": "There are none. Every map that promises one was drawn by someone who never walked it.",
+     "knowledge": [
+      "fact:no_true_shortcuts"
+     ]
+    },
+    {
+     "heading": "To the Next Surveyor",
+     "text": "Walk it again and correct me. A map is a letter to whoever comes after.",
+     "knowledge": [
+      "story:a_map_is_a_letter"
+     ]
+    }
+   ]
   }
  }
 }

@@ -138,6 +138,8 @@ func _run() -> void:
 		"view": await _view()
 		"dance": await _dance()
 		"pacing": await _pacing()
+		"discoveries": await _discoveries()
+		"braziers": await _braziers()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -4256,6 +4258,41 @@ func _view() -> void:
 	_check(i > 0, "%d views taken" % i)
 
 
+# ------------------------------------------------------------------ braziers (Part 5: none floating, none a black lump)
+## --mktest=braziers [--areas=a,b]: every brazier / fire bowl in those areas is measured (the gap between its base and
+## whatever solid is under it) and photographed from 3 m at noon.
+func _braziers() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 12.0 * 60.0
+	WorldState.clock_rate = 0.0
+	var areas := String(RenderProfile.options.get("areas", "sanctuary,whispering_woods,deep_caverns")).split(",", false)
+	for area in areas:
+		if area != main.streaming.current_id:
+			await main.streaming.travel(area, mika)
+		await _wait(1.5)
+		var found: Array = main.world.find_children("*", "Brazier", true, false) + main.world.find_children("*Brazier*", "Node3D", true, false)
+		var seen := {}
+		var i := 0
+		for b in found:
+			if seen.has(b) or not (b as Node3D).is_visible_in_tree():
+				continue
+			seen[b] = true
+			var p: Vector3 = (b as Node3D).global_position
+			var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, -0.05, 0), p + Vector3(0, -6.0, 0), 1)
+			var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
+			var gap := 99.0 if hit.is_empty() else p.y - (hit.position as Vector3).y
+			var lit = b.get("lit")
+			print("[mktest] brazier %s %s at %s gap_below=%.2f lit=%s" % [area, b.name, str(p.snapped(Vector3.ONE * 0.1)), gap, str(lit)])
+			var dir := Vector3(1, 0, 1).normalized()
+			main.camera_rig.set_shot(p + dir * 3.0 + Vector3(0, 1.0, 0), p, 55.0)
+			await _wait(0.8)
+			_shot("brazier_%s_%d_%s" % [area, i, b.name])
+			i += 1
+		main.camera_rig.clear_shot()
+		_check(i > 0, "%s: %d braziers photographed" % [area, i])
+
+
 # ------------------------------------------------------------------ dancing (ported from the Three.js dance wing)
 ## --mktest=dance [--no-voice]: a viewer asks both mages to dance the Macarena; they dance it together, on the song's
 ## beat, and stop cleanly. The chat parser knows a request from talk about dancing. Poses of both mages during the
@@ -4442,4 +4479,54 @@ func _pacing() -> void:
 	pr._pace_t = 99.0
 	pr._process(0.0)
 	_check(m.level() == 9, "Level 10 still needs its Orbit Gate (level %d)" % m.level())
+
+
+# ------------------------------------------------------------------ places to find (Task 3)
+## --mktest=discoveries: every data/discoveries.json entry is placed (a solid prop on walkable ground), reachable,
+## completes once its requirements are known, and teaches what it says (the next clue); the auditor watches.
+func _discoveries() -> void:
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var mk := WorldState.mind("mika").knowledge
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 11.0 * 60.0
+	WorldState.clock_rate = 0.0
+	var by_area := {}
+	for d in Discoveries.load_data().get("discoveries", []):
+		(by_area.get_or_add(String(d.area), []) as Array).append(d)
+	var au: InvariantAuditor = main.auditor
+	for area in by_area:
+		if area != main.streaming.current_id:
+			await main.streaming.travel(area, mika)
+			await _wait(2.0)
+		for d in by_area[area]:
+			var it: Interactable = main.world.interactables.get(String(d.id))
+			_check(it != null, "%s: placed in %s" % [d.id, area])
+			if it == null:
+				continue
+			for k in d.get("requires", {}).get("knowledge", {}):
+				mk[k] = 1                                   # the clue that leads here (as if the journey was made)
+			it.duration_override = 3.0
+			var v0 := au.violations.size()
+			# the screenshot is taken WHILE she does it (what viewers see), not after
+			var job := {"done": false, "r": {}}
+			var run := func(): job.r = await mb._use(String(d.id)); job.done = true
+			run.call()
+			var t0 := Time.get_ticks_msec()
+			while not job.done and not it.in_reach(mika.global_position) and Time.get_ticks_msec() - t0 < 90000:
+				await get_tree().process_frame
+			if not job.done:
+				await _wait(1.2)
+				_shot("disc_%s" % d.id)
+			while not job.done:
+				await get_tree().process_frame
+			var r: Dictionary = job.r
+			var got := true
+			for k in d.get("effects", {}).get("knowledge", {}):
+				got = got and mk.has(k)
+			_check(bool(r.get("ok", false)) and got, "%s: she reaches it, does it and learns what it says (%s)" % [d.id, String(r.get("detail", "")).left(60)], r)
+			_check(au.violations.size() == v0, "%s: no visible defect while doing it" % d.id, au.violations.slice(v0))
+			await _wait(0.3)
 
