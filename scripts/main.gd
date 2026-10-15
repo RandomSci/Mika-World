@@ -395,6 +395,11 @@ func _ready() -> void:
 		var mt := MagicTest.new()
 		mt.main = self
 		add_child(mt)
+	elif RenderProfile.options.has("outfittest"):
+		travel._cooldown_until = 1e12
+		var ot = load("res://scripts/tests/outfit_test.gd").new()
+		ot.main = self
+		add_child(ot)
 	elif RenderProfile.options.has("posetest"):
 		travel._cooldown_until = 1e12
 		var pz := PoseTest.new()
