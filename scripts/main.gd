@@ -44,6 +44,7 @@ var attention: AttentionDirector
 var affect: Affect
 var impacts: ImpactDirector       # area impacts with consequences + the aftermath behaviours (V3 continuation)
 var town: TownLife                # the people who live in the Village and the Academy (data/residents.json)
+var weather: WeatherSystem        # one sky for the world: clear, overcast, rain, storm (persists)
 var teleport_guard: TeleportGuard  # the no-teleport rule, watched every physics frame
 var journeys: JourneyDirector      # multi-day journeys across the overland world (persistent)
 var ambush: AmbushDirector         # road ambushes by human rivals (data/ambush.json)
@@ -260,6 +261,10 @@ func _ready() -> void:
 	impacts.name = "Impacts"
 	add_child(impacts)
 	impacts.setup(self)
+	weather = WeatherSystem.new()
+	weather.name = "Weather"
+	add_child(weather)
+	weather.setup(self)
 	town = TownLife.new()
 	town.name = "TownLife"
 	add_child(town)

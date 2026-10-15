@@ -125,6 +125,8 @@ func _run() -> void:
 		"hitch": await _hitch()
 		"road": await _road()
 		"navcheck": await _navcheck()
+		"soak": await _soak()
+		"weather": await _weather()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3427,3 +3429,89 @@ func _navcheck() -> void:
 				var pth := NavigationServer3D.map_get_path(map, mika.global_position, goal2, true)
 				print("[nav]   path from here: %d pts, last %s, goal %s" % [pth.size(), pth[pth.size() - 1] if pth.size() > 0 else Vector3.ZERO, goal2])
 				print("[nav]   floor normal %s on_floor %s ground_at %.2f" % [mika.get_floor_normal(), mika.is_on_floor(), float(main.world.ground_at(mika.global_position.x, mika.global_position.z))])
+
+
+# ------------------------------------------------------------------ a long unattended session (livestream soak)
+func _soak() -> void:
+	var minutes := int(RenderProfile.options.get("minutes", 40))
+	main.director.enabled = true
+	main.spawner.enabled = true
+	for who in main.mage_brains:
+		main.mage_brains[who].hold = false
+	var samples := []
+	var acts := {}
+	var seen_logs := {}
+	var t0 := _gms()
+	var hz_n0 := hitch_log.size()
+	for m in minutes:
+		await _wait(60.0)
+		for who in main.mage_brains:
+			var b = main.mage_brains[who]
+			var mind := WorldState.mind(who)
+			for e in mind.activity_log.slice(maxi(0, mind.activity_log.size() - 20)):
+				var key := "%s|%s|%s" % [who, e.get("seq", -1), e.get("t", 0)]
+				if seen_logs.has(key):
+					continue
+				seen_logs[key] = true
+				var aid := String(e.get("activity", {}).get("id", "?")).get_slice(":", 0)
+				acts[who + ":" + aid] = int(acts.get(who + ":" + aid, 0)) + 1
+		var smp := {"min": m + 1, "static_mb": snappedf(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, 0.1),
+			"video_mb": snappedf(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0, 0.1),
+			"nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), "orphans": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
+			"objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)), "resources": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
+			"voice_cache": main.voice._cache.size(), "kit_meshes": Kit._meshes.size(), "kit_mats": Kit._mats.size(),
+			"logs": WorldState.mind("mika").activity_log.size() + WorldState.mind("luna").activity_log.size() + WorldState.activity_log.size(),
+			"area": main.streaming.current_id, "clock": WorldState.clock_text(),
+			"mika": String(main.mage_brains.mika.current.get("label", "")) if main.mage_brains.has("mika") else "",
+			"luna": String(main.mage_brains.luna.current.get("label", "")) if main.mage_brains.has("luna") else ""}
+		samples.append(smp)
+		print("[soak] ", JSON.stringify(smp))
+		if m % 5 == 4:
+			_shot("soak_%02d" % (m + 1))
+	report["soak"] = {"samples": samples, "activities": acts}
+	print("[soak] activities: ", JSON.stringify(acts))
+	var first: Dictionary = samples[mini(2, samples.size() - 1)]
+	var last: Dictionary = samples[samples.size() - 1]
+	var growth := float(last.static_mb) - float(first.static_mb)
+	_check(growth < 150.0, "memory stays bounded over %d minutes (static %.0f -> %.0f MB from minute 3)" % [minutes, float(first.static_mb), float(last.static_mb)], samples.map(func(x): return x.static_mb))
+	_check(int(last.orphans) < 200, "no pile-up of orphan nodes (%d)" % int(last.orphans))
+	var kinds := acts.keys().size()
+	_check(kinds >= 6, "they keep doing different things (%d kinds of activity)" % kinds, acts)
+
+
+# ------------------------------------------------------------------ weather
+func _weather() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	main.spawner.enabled = false
+	main.director.enabled = true
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 13.0 * 60.0
+	WorldState.clock_rate = 0.0
+	await main.streaming.travel("whispering_woods", mika)
+	await _wait(3.0)
+	var wx: WeatherSystem = main.weather
+	wx.set_weather("clear", 3.0)
+	var tc := _gms()
+	while (wx.cloud > 0.005 or wx.rain > 0.005) and _gms() - tc < 40000:   # a saved sky may still be clearing
+		await get_tree().process_frame
+	await _wait(1.0)
+	var sun0: float = main.world.sun.light_energy
+	main.camera_rig.set_shot(mika.global_position + Vector3(4, 2.2, 6), mika.global_position + Vector3(0, 1.4, 0), 55.0)
+	await _wait(0.6)
+	_shot("weather_clear")
+	wx.set_weather("storm", 3.0)
+	await _wait(28.0)
+	report["storm"] = wx.describe()
+	_check(wx.rain > 0.9 and wx._rain_fx.emitting, "a storm: the rain falls round her (rain %.2f)" % wx.rain, wx.describe())
+	_check(main.world.sun.light_energy < sun0 * 0.5, "the sun is dimmed under the storm clouds (%.2f -> %.2f)" % [sun0, main.world.sun.light_energy])
+	_check(wx._rain_player.playing or wx._roof_player.playing, "the rain is heard")
+	main.camera_rig.set_shot(mika.global_position + Vector3(4, 2.2, 6), mika.global_position + Vector3(0, 1.4, 0), 55.0)
+	await _wait(0.6)
+	_shot("weather_storm")
+	var t0 := _gms()
+	while not wx.log.any(func(e): return e.has("lightning")) and _gms() - t0 < 30000:
+		await get_tree().process_frame
+	_check(wx.log.any(func(e): return e.has("lightning")), "lightning, and the thunder after it", wx.log.filter(func(e): return e.has("lightning")))
+	wx.set_weather("clear", 3.0)
+	await _wait(30.0)
+	_check(wx.rain < 0.05 and absf(main.world.sun.light_energy - sun0) < sun0 * 0.15, "it clears again (sun %.2f)" % main.world.sun.light_energy, wx.describe())

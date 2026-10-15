@@ -462,6 +462,9 @@ func _frame(delta: float) -> void:
 			fov = 42.0
 		"activity":
 			var it := _interaction
+			if it == null or not is_instance_valid(it):     # the interaction just ended: back to following her
+				_switch("chase")
+				return
 			var obj: Vector3 = it.get_parent().to_global(it.face_point) if it.face_point != null else it.global_position
 			if it.book_id != "" and BookReader.instance and BookReader.instance.reading() and it.book_xf != null:
 				# book close-up: over her right shoulder, looking down onto the open pages

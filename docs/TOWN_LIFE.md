@@ -53,6 +53,15 @@ else in town has spoken in the last 20 s, they say something from their own line
 teacher's `teach`) in their own voice. She glances back. Each meeting is remembered in
 `WorldState.npc_state["res:<id>"]` (`noticed_<mage>` = the day, `met_<mage>` = how often).
 
+## Talking with them
+
+Each resident has a few things to say to the mages (`talk` in `data/residents.json`): Hilde presses a warm loaf on
+her, Wenna explains moonpetal, Bram has lost his hammer, Rook has seen lights on the observatory hill, Master Aldric
+gives advice, Sister Maren points to the Wardens' grimoire, Lysa and Corin want to practise together. A "chat"
+option appears in the mages' own planners for a resident she can see, at their place, with something new to say
+(weighed by her social need); she walks up, they turn to her and speak in their own voice, she answers, and what
+they told or gave her is hers (`talked:<id>:<topic>`, items, clues that can start expeditions).
+
 ## Tests
 
 `--mktest=town` (disposable save): the Village at 10:00 (each at their place, the watch asleep), Odo chopping
