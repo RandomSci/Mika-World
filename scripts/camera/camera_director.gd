@@ -157,6 +157,12 @@ func performance_cut() -> void:
 	shot_changed.emit("performance:" + String(_perf.shot.name))
 
 
+## A duet: frame both dancers (the midpoint between them, pulled back so both fit; no single-face close-ups).
+func set_performance_pair(other: WorldCharacter) -> void:
+	if not _perf.is_empty():
+		_perf["pair"] = other
+
+
 func performance_finale() -> void:
 	if _perf.is_empty():
 		return
@@ -396,7 +402,16 @@ func _frame(delta: float) -> void:
 			var yaw: float = float(_perf.yaw0) + deg_to_rad(lerpf(float(sh.yaw), float(sh.get("yaw_to", sh.yaw)), clampf(age / 12.0, 0.0, 1.0)))
 			var r: float = float(sh.radius) + float(sh.get("pull", 0.0)) * clampf(age / 5.0, 0.0, 1.0)
 			look = _perf_look(String(sh.look))
-			pos = p + Vector3(-sin(yaw), 0, -cos(yaw)) * r + Vector3(0, float(sh.height), 0)
+			var pc := p
+			var pair = _perf.get("pair")
+			if pair != null and is_instance_valid(pair) and (pair as Node3D).visible:
+				# two dancers: centred between them, far enough back for both, chest height
+				var other := pair as WorldCharacter
+				pc = (p + other.global_position) * 0.5
+				var gap := Vector2(other.global_position.x - p.x, other.global_position.z - p.z).length()
+				r = maxf(r, 2.4 + gap * 1.1)
+				look = (mika.chest.global_position + other.chest.global_position) * 0.5
+			pos = pc + Vector3(-sin(yaw), 0, -cos(yaw)) * r + Vector3(0, float(sh.height), 0)
 			if main.world and main.world.has_method("ground_at"):
 				pos.y = maxf(pos.y, float(main.world.ground_at(pos.x, pos.z)) + 0.25)
 			fov = float(sh.fov)

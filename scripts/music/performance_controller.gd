@@ -30,6 +30,7 @@ var rng := RandomNumberGenerator.new()
 var _clip_period := {}           # dance clip -> seconds per bob (measured from the hips)
 var _abort := ""
 var _fx := {}                    # persistent beat emitters for the running performance (reused, not re-created)
+var requests: Array = []         # dances asked for (viewers, celebrations), started when both mages can: [{who, with, dance, why}]
 
 
 static func load_cfg() -> Dictionary:
@@ -46,6 +47,59 @@ func setup(m: Node) -> void:
 	player.name = "PerformanceMusic"
 	player.bus = "Music"
 	add_child(player)
+	# a level gained is worth a dance (with the other mage when she is close)
+	if main.get("progression") and main.progression.has_signal("leveled"):
+		main.progression.leveled.connect(func(who: String, _lv: int): request(who, {"partner_if_near": true, "why": "celebrating"}))
+
+
+## Ask for a dance (a viewer's request, a celebration): it starts as soon as the dancer (and her partner) are free,
+## never cutting into combat, a cast, reading or a conversation. opts: {with, partner_if_near, dance, why}.
+func request(who: String, opts := {}) -> void:
+	if requests.size() >= 3:
+		requests.pop_front()
+	var r := opts.duplicate()
+	r["who"] = who
+	r["asked"] = Time.get_ticks_msec()
+	requests.append(r)
+
+
+func _process(_d: float) -> void:
+	if requests.is_empty() or busy():
+		return
+	var r: Dictionary = requests[0]
+	if Time.get_ticks_msec() - int(r.asked) > 180000:
+		requests.pop_front()                        # asked too long ago: let it go
+		return
+	var who := String(r.who)
+	# a celebration right after she has danced is dropped (she just did): only asked-for dances repeat soon
+	if String(r.get("why", "")) == "celebrating" and Time.get_unix_time_from_system() - float(WorldState.mind(who).music.get("last_unix", 0)) < float(cfg.cooldown_s.casual):
+		requests.pop_front()
+		return
+	if not available(who).ok:
+		return
+	requests.pop_front()
+	var opts := {"dance": String(r.get("dance", "")), "why": String(r.get("why", ""))}
+	var partner := String(r.get("with", ""))
+	if partner == "" and bool(r.get("partner_if_near", false)):
+		for other in main.characters:
+			if other != who and (main.characters[other] as Node3D).visible and (main.characters[other] as Node3D).global_position.distance_to((main.characters[who] as Node3D).global_position) < 14.0:
+				partner = other
+	if partner != "":
+		opts["with"] = partner
+	perform(who, "casual", opts)
+
+
+## Can `partner` join a dance now (not fighting, casting, holding, seated, reading, transforming)?
+func _partner_free(partner: String) -> bool:
+	var c2: WorldCharacter = main.characters.get(partner)
+	if c2 == null or not c2.visible or c2.casting or c2.seated or (c2.handler and c2.handler.held != null):
+		return false
+	var b2 = main.mage_brains.get(partner)
+	if b2 and b2.threat != null:
+		return false
+	if main.book_reader and main.book_reader.reading() and main.book_reader.current.get("reader", "") == partner:
+		return false
+	return true
 
 
 func busy() -> bool:
@@ -135,9 +189,37 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 			await get_tree().process_frame
 		if main.camera_rig and main.characters.get(main.get("focus")) == c:
 			pass
-	started.emit(active)
+	# the dance is on: she turns to the camera FIRST, then the performance shot is set from her front (a shot set
+	# before she turned filmed her back while her partner walked over)
 	if films:
+		var cam0 := get_viewport().get_camera_3d()
+		if cam0:
+			c.look_at_point(Vector3(cam0.global_position.x, c.global_position.y, cam0.global_position.z))
+			var tt := Time.get_ticks_msec()
+			while c.current_action == "look_at" and Time.get_ticks_msec() - tt < 1500:
+				await get_tree().process_frame
 		main.director.start_performance(c, mode)
+	# a partner: she comes to stand beside the dancer (on foot), her own mind paused while they dance together
+	var c2: WorldCharacter = null
+	var b2 = null
+	var partner := String(opts.get("with", ""))
+	if partner != "" and partner != who and _partner_free(partner):
+		c2 = main.characters[partner]
+		b2 = main.mage_brains.get(partner)
+		if b2:
+			b2.hold = true
+		var map2 := c.get_world_3d().navigation_map
+		var side := NavigationServer3D.map_get_closest_point(map2, c.global_position + c.global_transform.basis.x * -1.7)
+		if c2.global_position.distance_to(side) > 0.8:
+			c2.navigate_to(side, false)
+			var tw0 := Time.get_ticks_msec()
+			while c2.current_action == "navigate_to" and Time.get_ticks_msec() - tw0 < 15000:
+				await get_tree().process_frame
+		c2.look_at_point(c2.global_position - c.global_transform.basis.z * 4.0)
+		active["partner"] = partner
+		if films:
+			main.director.set_performance_pair(c2)
+	started.emit(active)
 	# intro remark (her own voice), counted inside the total
 	var intro := _line(who, "perform_intro_" + mode, music)
 	active.stage = "intro"
@@ -160,10 +242,23 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	# music
 	player.stream = stream
 	player.volume_db = float(cfg.mix.music_db)
+	# the song carries the dance: the Music bus comes up and the forest's ambience steps back while they dance
+	# (at the everyday levels the ambience covered the song), both restored afterwards
+	_bus_levels(true)
 	player.play(float(seg.start))
 	active.stage = "dancing"
 	c.set_expression("happy", float(cfg.performers.get(who, {}).get("smile", 0.5)))
+	# dancing: hair hangs from her upper body, not trailing in the world (no flinging over her head)
+	c.set_hair_frame("UpperChest")
+	if c2:
+		c2.set_hair_frame("UpperChest")
 	var clips := _dance_order(who, mode)
+	var want_dance := String(opts.get("dance", ""))
+	if want_dance != "" and cfg.dances.has(want_dance):
+		clips.erase(want_dance)
+		clips.push_front(want_dance)                     # what was asked for opens the dance
+	if c2:
+		c2.set_expression("happy", float(cfg.performers.get(partner, {}).get("smile", 0.5)))
 	var phrase_bars := int(mc.phrase_bars)
 	var next_bar_i := bars.find(bars.filter(func(b): return float(b) >= float(seg.start)).front()) if not bars.is_empty() else -1
 	var bars_in_phrase := 0
@@ -174,6 +269,8 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 			next_beat_i = i
 			break
 	_start_clip(c, clips[0], beat_len)
+	if c2:
+		_start_clip(c2, clips[0], beat_len)                # together: the same steps, on the same beat
 	active.clips.append(clips[0])
 	_make_fx(c, mode)
 	var sing: bool = bool(MusicLibrary.song(song).get("has_vocals", false)) and rng.randf() < float(cfg.performers.get(who, {}).get("sing_chance", 0.6))
@@ -207,6 +304,8 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 					bars_in_phrase = 0
 					clip_i = (clip_i + 1) % clips.size()
 					_start_clip(c, clips[clip_i], beat_len)
+					if c2:
+						_start_clip(c2, clips[clip_i], beat_len)
 					if not active.clips.has(clips[clip_i]):
 						active.clips.append(clips[clip_i])
 					if main.director:
@@ -241,10 +340,17 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 		tw2.tween_property(player, "volume_db", -40.0, 0.8 if interrupted else 0.25)
 		await tw2.finished
 		player.stop()
+	_bus_levels(false)
 	c.set_expression("aa", 0.0)
 	_free_fx()
 	c.end_gesture()
 	c.set_gesture_speed(1.0)
+	c.set_hair_frame("")
+	if c2:
+		c2.set_hair_frame("")
+		c2.end_gesture()
+		c2.set_gesture_speed(1.0)
+		c2.set_expression("happy", 0.0)
 	var music_played := (Time.get_ticks_msec() - t_music0) / 1000.0
 	if mode == "special" and not interrupted:
 		c.play_gesture("waving" if rng.randf() < 0.5 else "spell_casting", 0.3, 0.5)
@@ -260,17 +366,42 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	var res := {"ok": not interrupted, "who": who, "mode": mode, "song": song, "planned_total": snappedf(total, 0.1),
 		"actual_total": snappedf((Time.get_ticks_msec() - t_start) / 1000.0, 0.1), "intro_s": snappedf(intro_s, 0.1),
 		"music_s": snappedf(music_played, 0.1), "segment": seg, "ending": "interrupted: " + _abort if interrupted else String(seg.ending),
-		"clips": active.clips, "singing": sing, "preview": preview, "detail": ("performed %s" % active.title) if not interrupted else ("stopped: " + _abort)}
-	return _finish(c, brain, dir_was, res, t_start)
+		"clips": active.clips, "singing": sing, "preview": preview, "partner": partner if c2 else "", "detail": ("performed %s" % active.title) if not interrupted else ("stopped: " + _abort)}
+	var out := _finish(c, brain, dir_was, res, t_start)
+	if b2:
+		b2.hold = false               # only now: the duet is already in her memory, so she does not dance again at once
+	return out
+
+
+var _saved_bus := {}
+
+
+func _bus_levels(on: bool) -> void:
+	var want := {"Music": float(cfg.mix.get("music_bus_db", -3.0)), "Ambience": float(cfg.mix.get("ambience_bus_db", -24.0))}
+	for b in want:
+		var i := AudioServer.get_bus_index(b)
+		if i < 0:
+			continue
+		if on:
+			if not _saved_bus.has(b):
+				_saved_bus[b] = AudioServer.get_bus_volume_db(i)
+			AudioServer.set_bus_volume_db(i, want[b])
+		elif _saved_bus.has(b):
+			AudioServer.set_bus_volume_db(i, float(_saved_bus[b]))
+	if not on:
+		_saved_bus.clear()
 
 
 func _finish(c: WorldCharacter, brain, dir_was: bool, res: Dictionary, _t0: int) -> Dictionary:
+	_bus_levels(false)
 	if main.director and bool(active.get("filmed", true)):
 		main.director.end_performance()
 		main.director.enabled = dir_was
 	var who := String(res.get("who", active.get("who", "")))
 	if not bool(res.get("preview", true)) and who != "":
 		_remember(who, res)
+		if String(res.get("partner", "")) != "":
+			_remember(String(res.partner), res)
 	active = {}
 	log.append(res)
 	if log.size() > 30:

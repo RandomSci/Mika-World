@@ -77,7 +77,49 @@ func receive(msg: Dictionary) -> Dictionary:
 	var entry := {"message_id": id, "author_id": String(msg.get("author_id", "viewer")), "author": String(msg.get("author", "viewer")),
 		"text": text, "score": snappedf(score(text), 0.01), "received": snappedf(_now(), 0.1), "to": addressee(text)}
 	queue.append(entry)
-	return {"accepted": true, "score": entry.score}
+	var dance := dance_intent(text)
+	if not dance.is_empty() and main.get("performance"):
+		entry["dance"] = dance
+		if bool(dance.get("stop", false)):
+			main.performance.interrupt("a viewer asked her to stop")
+		else:
+			main.performance.request(String(dance.who), {"with": String(dance.get("with", "")), "dance": String(dance.get("dance", "")),
+				"partner_if_near": bool(dance.get("together", false)), "why": "asked by " + String(entry.author)})
+	return {"accepted": true, "score": entry.score, "dance": dance}
+
+
+## A request to dance, in the words viewers used on the Three.js stream ("go dancing", "can you dance", "let's
+## dance", "Mika, do the macarena", "you two dance!", "stop dancing"). Returns {} when it is not one, else
+## {who, with?, together?, dance?} or {stop: true}. Talking ABOUT dancing ("I don't dance", "what dance was
+## that?") is not a request.
+const DANCES := [["macarena", "dance_macarena"], ["ymca", "dance_ymca"], ["chicken", "dance_chicken"], ["belly", "dance_belly"],
+	["snake", "dance_snake"], ["booty", "dance_booty"], ["bounce", "dance_booty"], ["step", "dance_step"], ["hip hop", "dance_step"]]
+
+
+func dance_intent(text: String) -> Dictionary:
+	var t := text.to_lower().replace("-", " ")
+	if RegEx.create_from_string("\\b(stop|quit|cancel|enough)\\b.*\\b(danc\\w*|routine)\\b").search(t):
+		return {"stop": true}
+	if RegEx.create_from_string("\\b(don't|dont|do not|never|can't|cannot)\\s+(go\\s+)?danc").search(t):
+		return {}
+	if RegEx.create_from_string("\\b(what|which|how did|who taught)\\b.*\\bdanc").search(t):
+		return {}
+	var routine := ""
+	for d in DANCES:
+		if t.contains(String(d[0])):
+			routine = String(d[1])
+			break
+	var asks := RegEx.create_from_string("(^|\\b)(please\\s+)?(dance|danc(e|ing) (for|with) us)\\b|\\b(can|could|would|will) (you|u)\\s+(please\\s+)?(go\\s+)?(dance|do|try|perform|show)\\b|\\b(let's|lets|let us|time to|wanna|want to|go)\\s+(go\\s+)?(dance|dancing|party)\\b|\\b(do|try|show|perform)\\s+(the|a|your|us)\\b").search(t) != null
+	if not asks or (routine == "" and not t.contains("danc") and not t.contains("party")):
+		return {}
+	var both := RegEx.create_from_string("\\b(both|you two|together|everyone dance|mika and luna|luna and mika)\\b").search(t) != null
+	var to := addressee(text)
+	var who := to if to != "general" else String(main.get("focus") if main.get("focus") else "mika")
+	var out := {"who": who, "dance": routine}
+	if both:
+		out["with"] = "luna" if who == "mika" else "mika"
+		out["together"] = true
+	return out
 
 
 ## Who a comment is for: a mage it names, else "general" (answered by whoever the camera follows).

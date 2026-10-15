@@ -40,6 +40,10 @@ const CLIPS := {
 	"dance_snake": ["snake_hip_hop_dance.fbx", true, true],
 	"dance_booty": ["booty_hip_hop_dance.fbx", true, true],
 	"dance_belly": ["belly_dance.fbx", true, true],
+	# the dance wing's party routines from the Three.js world (the owner's Mixamo FBX, Mika-Live mixamo-source/dance)
+	"dance_macarena": ["macarena_dance.fbx", true, true],
+	"dance_chicken": ["chicken_dance.fbx", true, true],
+	"dance_ymca": ["ymca_dance.fbx", true, true],
 	# Milestone J combat set: Quaternius Universal Animation Library (CC0), retargeted via ual_bonemap
 	"combat_idle": ["ual:Spell_Simple_Idle", true, true],
 	"cast_quick_enter": ["ual:Spell_Simple_Enter", false, true],
@@ -111,6 +115,7 @@ var world: Node  # the active area (magic bounce / rune floor), set by the strea
 var sword: SwordLayer  # optional magical-sword layer
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
 var cloth_clearance: ClothClearance   # hands kept out of her clothes (profile.clearance)
+var foot_guard: FootGuard              # feet kept on top of the floor (a dance carrying her hips over a raised floor)
 var head_look: LookAtModifier3D  # eases her head toward what she reads / inspects
 var eye_looks: Array[LookAtModifier3D] = []
 var handler: ObjectHandler       # right-arm IK + holding objects
@@ -211,6 +216,10 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	cloth_clearance = ClothClearance.attach(skeleton, clr) if not clr.is_empty() else null
 	if cloth_clearance and RenderProfile.options.has("no-clearance"):
 		cloth_clearance.enabled = false
+	foot_guard = FootGuard.new()
+	foot_guard.name = "FootGuard"
+	skeleton.add_child(foot_guard)
+	foot_guard.enabled = not RenderProfile.options.has("no-foot-guard")
 	if _head_target == null:
 		_head_target = Node3D.new()
 		_head_target.name = "HeadLookTarget"
@@ -606,6 +615,22 @@ func _tune_springs() -> void:
 	sec.spring_bones = out
 
 
+## The frame her hair is simulated in: "" = the world (it trails behind a run, swings on a turn), or a bone (e.g.
+## "UpperChest"): the hair hangs under real gravity but no longer lags behind her own body's motion - for dances,
+## where every bounce and hip turn otherwise flung the long back hair up over her head. Re-seeds the strands once.
+func set_hair_frame(bone: String) -> void:
+	var sec = avatar.find_child("secondary", true, false) if avatar else null
+	if sec == null or sec.get("spring_bones") == null or skeleton == null:
+		return
+	var b := bone
+	if b != "" and skeleton.find_bone(b) < 0:
+		b = "Chest" if skeleton.find_bone("Chest") >= 0 else ""
+	for sb in sec.spring_bones:
+		if String(sb.comment).begins_with("Hair") and String(sb.get("center_bone")) != b:
+			sb.set("center_bone", b)
+			sb.set("center_node", NodePath())
+
+
 ## Body colliders exported in the wrong space (profile.springs.repair_colliders): a collider whose offset lies
 ## metres from its own bone (Luna's oracle model: the head sphere at her feet, the chest / spine / hip / arm capsules
 ## as rods from ~1.3 m away to the bone) is rebuilt where it belongs, in the bone's own frame: the head sphere on the
@@ -643,7 +668,10 @@ func _repair_colliders() -> void:
 				if ci < 0 and nxt != "":
 					ci = sk.find_bone(bn.replace(bn.get_slice("_", bn.get_slice_count("_") - 1), String(child_of.get(bn.get_slice("_", bn.get_slice_count("_") - 1), ""))))
 				if bn.ends_with("Head"):
-					col.offset = Vector3(0, 0.075, 0.015)
+					# the FRONT of the head (face and forehead): hair cannot swing through her face to the front when
+					# she bends, while the hair's roots (on top of and behind the skull) lie outside it
+					col.offset = Vector3(0, 0.05, 0.045)
+					col.radius = minf(col.radius, 0.05)
 				elif bn.ends_with("UpperChest"):
 					if col.is_capsule:
 						col.offset = Vector3(-0.055, 0.02, -0.005)
@@ -1471,7 +1499,8 @@ func _physics_process(delta: float) -> void:
 		cloth_clearance.seated = pose_adjust.influence > 0.5 and pose_adjust.mode == ""
 		cloth_clearance.allow = not casting and not (handler and handler.held != null) and not (sword and sword.drawn) \
 			and (pose_adjust.influence < 0.05 or cloth_clearance.seated) and spd < walk_speed * 1.35 \
-			and not (reaction and reaction.active) and not lifted
+			and not (reaction and reaction.active) and not lifted \
+			and not bool(anim_tree.get("parameters/cast/active") if anim_tree else false)   # a gesture / dance owns her arms
 	if reaction:
 		reaction.physics(delta)
 		if reaction.active:

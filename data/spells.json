@@ -317,6 +317,8 @@
    "translation": "Fold, and cross over!",
    "incantation_short": "Transi!",
    "requires_knowledge": "incantation:fold_step",
+   "requires_level": 10,
+   "level_reason": "The fold will not hold yet: to cross she must hold two places as one, and a spark holds only one. The Weaver's own words say it - the seam answers a mage who has gathered her First Orbit (Level 10).",
    "requires_all": [
     "teleport:theory_seam",
     "teleport:theory_knowing"

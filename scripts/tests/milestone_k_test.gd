@@ -136,6 +136,7 @@ func _run() -> void:
 		"weapons": await _weapons()
 		"stones": await _stones()
 		"view": await _view()
+		"dance": await _dance()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3189,7 +3190,14 @@ func _fold() -> void:
 	await _wait(2.5)
 	var w: Dictionary = await mb._use("weaver_stone_read")
 	_check(mk.has("incantation:fold_step"), "she read the Weaver's words beneath the temple", w.get("detail", ""))
-	_check(main.magic.can_cast("fold_step", "mika").ok, "now the Fold Step is hers", main.magic.can_cast("fold_step", "mika"))
+	# knowing is not yet holding: before her First Orbit (Level 10) the fold will not hold
+	var pg: Dictionary = WorldState.mind("mika").progress
+	var lv0 := int(pg.get("level", 1))
+	pg["level"] = 9
+	var early: Dictionary = main.magic.can_cast("fold_step", "mika")
+	_check(not early.ok and int(early.get("needs_level", 0)) == 10, "at Level 9 the fold will not hold yet (%s)" % early.get("reason", ""), early)
+	pg["level"] = maxi(lv0, 10)
+	_check(main.magic.can_cast("fold_step", "mika").ok, "at her First Orbit (Level 10) the Fold Step is hers", main.magic.can_cast("fold_step", "mika"))
 	# 3) the rules of the fold: not beyond her reach, only where she can see and stand
 	var fwd := -mika.global_transform.basis.z
 	fwd.y = 0
@@ -4245,4 +4253,160 @@ func _view() -> void:
 		i += 1
 	main.camera_rig.clear_shot()
 	_check(i > 0, "%d views taken" % i)
+
+
+# ------------------------------------------------------------------ dancing (ported from the Three.js dance wing)
+## --mktest=dance [--no-voice]: a viewer asks both mages to dance the Macarena; they dance it together, on the song's
+## beat, and stop cleanly. The chat parser knows a request from talk about dancing. Poses of both mages during the
+## dance are written (<dir>/<who>_dance_poses.json) for the outfit clip check.
+func _dance() -> void:
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	var pair := await _stage_pair()
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 15.0 * 60.0
+	WorldState.clock_rate = 0.0
+	main.focus = "mika"
+	var ch: ViewerChat = main.chat
+	_check(ch.dance_intent("I don't dance").is_empty() and ch.dance_intent("what dance was that?").is_empty(), "talk about dancing is not a request")
+	_check(bool(ch.dance_intent("stop dancing please").get("stop", false)), "\"stop dancing\" stops")
+	_check(String(ch.dance_intent("go dancing!").get("who", "")) == "mika", "\"go dancing!\" asks the mage on camera")
+	_check(String(ch.dance_intent("Luna, can you do the YMCA?").get("dance", "")) == "dance_ymca" and String(ch.dance_intent("Luna, can you do the YMCA?").get("who", "")) == "luna", "a named mage, a named routine")
+	# each strand's resting angle while she stands (2 s, the widest seen): the reference "flung" is judged against
+	var base := {"mika": {}, "luna": {}}
+	var tb := _gms()
+	while _gms() - tb < 2000:
+		for who in ["mika", "luna"]:
+			await (main.characters[who] as WorldCharacter).skeleton.skeleton_updated
+			var a0: Dictionary = _dance_body_check(main.characters[who]).angles
+			for k in a0:
+				base[who][k] = maxf(float(base[who].get(k, 0.0)), float(a0[k]))
+	report["hair_rest_deg"] = base
+	# a celebration queued at start-up (a level gained while staging) would dance first: this test is about the request
+	main.performance.requests.clear()
+	var tq := _gms()
+	while main.performance.busy() and _gms() - tq < 120000:
+		await get_tree().process_frame
+	var r: Dictionary = ch.receive({"message_id": "dance-1", "author_id": "v1", "author": "Viewer", "text": String(RenderProfile.options.get("dance-text", "Mika and Luna, can you dance the macarena together?"))})
+	var di: Dictionary = r.get("dance", {})
+	_check(String(di.get("who", "")) == "mika" and String(di.get("with", "")) == "luna" and String(di.get("dance", "")).begins_with("dance_"), "the request is understood: both, %s" % String(di.get("dance", "")), di)
+	var first_done := {}
+	main.performance.ended.connect(func(res): if first_done.is_empty(): first_done.merge(res), CONNECT_ONE_SHOT)
+	var t0 := _gms()
+	while not main.performance.busy() and _gms() - t0 < 30000:
+		await get_tree().process_frame
+	_check(main.performance.busy(), "the dance starts (within 30 s)")
+	var poses := {"mika": {}, "luna": {}}
+	var n := 0
+	var t1 := _gms()
+	var stats := {"mika": {"frames": 0, "flung": 0, "max_deg": 0.0, "feet_below": 0, "max_below_cm": 0.0}, "luna": {"frames": 0, "flung": 0, "max_deg": 0.0, "feet_below": 0, "max_below_cm": 0.0}}
+	while first_done.is_empty() and _gms() - t1 < 120000:
+		var t2 := _gms()
+		while _gms() - t2 < 5000 and first_done.is_empty():
+			await get_tree().process_frame
+			if String(main.performance.active.get("stage", "")) != "dancing":
+				continue
+			var cl := String(main.performance.active.get("clips", [""])[-1])
+			if cl != String(stats.get("_clip", "")):
+				stats["_clip"] = cl
+				print("[mktest] dance clip %s at frame %d (t=%.1f s)" % [cl, Engine.get_frames_drawn(), Time.get_ticks_msec() / 1000.0])
+			for who in ["mika", "luna"]:
+				# the FINAL pose (springs, FootGuard and the rest applied): only inside skeleton_updated
+				await (main.characters[who] as WorldCharacter).skeleton.skeleton_updated
+				var mm := _dance_body_check(main.characters[who], base[who])
+				var s: Dictionary = stats[who]
+				s.frames += 1
+				if float(mm.hair_deg) > 60.0:
+					s.flung += 1
+					var key := "%s@%s" % [mm.strand, String(main.performance.active.get("clips", [""])[-1])]
+					var wh: Dictionary = s.get_or_add("where", {})
+					wh[key] = int(wh.get(key, 0)) + 1
+					if int(s.get("shots", 0)) < 3 and int(wh[key]) == 8:
+						s["shots"] = int(s.get("shots", 0)) + 1
+						# a close look at her from behind-side while the strand is out
+						var cw: WorldCharacter = main.characters[who]
+						var keep_on: bool = main.camera_rig.shot_active
+						main.camera_rig.set_shot(cw.global_position + cw.global_transform.basis.z * 2.2 + cw.global_transform.basis.x * 1.2 + Vector3(0, 1.5, 0), cw.global_position + Vector3(0, 1.2, 0), 45.0)
+						await get_tree().process_frame
+						await get_tree().process_frame
+						_shot("flung_%s_%s" % [who, key])
+						if not keep_on:
+							main.camera_rig.clear_shot()
+				s.max_deg = maxf(float(s.max_deg), float(mm.hair_deg))
+				if float(mm.below) > 0.015:
+					s.feet_below += 1
+				s.max_below_cm = maxf(float(s.max_below_cm), float(mm.below) * 100.0)
+		if String(main.performance.active.get("stage", "")) == "dancing" and n < 8:
+			for who in ["mika", "luna"]:
+				var sk: Skeleton3D = main.characters[who].skeleton
+				await sk.skeleton_updated
+				var d := {}
+				for i in sk.get_bone_count():
+					var D: Transform3D = sk.get_bone_global_pose(i) * sk.get_bone_global_rest(i).affine_inverse()
+					var b := D.basis
+					d[sk.get_bone_name(i)] = [b.x.x, b.y.x, b.z.x, D.origin.x, b.x.y, b.y.y, b.z.y, D.origin.y, b.x.z, b.y.z, b.z.z, D.origin.z]
+				poses[who]["dance_%d_%s" % [n, String(main.performance.active.get("clips", [""])[-1])]] = d
+			if n == 2:
+				_shot("dance_both")
+			n += 1
+	_check(not first_done.is_empty(), "the dance ends by itself")
+	var res: Dictionary = first_done
+	report["dance"] = res
+	_check(bool(res.get("ok", false)) and [String(res.get("who", "")), String(res.get("partner", ""))].has("luna") and [String(res.get("who", "")), String(res.get("partner", ""))].has("mika") and (res.get("clips", []) as Array).size() > 0,
+		"they danced it together (%s led; %s, %.0f s of music)" % [String(res.get("who", "")), str(res.get("clips", [])), float(res.get("music_s", 0.0))], res)
+	for who in poses:
+		var f := FileAccess.open("%s/%s_dance_poses.json" % [dir, who], FileAccess.WRITE)
+		f.store_string(JSON.stringify(poses[who]))
+	_check(n >= 3, "poses captured during the dance (%d moments)" % n)
+	stats.erase("_clip")
+	report["dance_body"] = stats
+	print("[mktest] dance body ", JSON.stringify(stats))
+	for who in stats:
+		var s: Dictionary = stats[who]
+		var fr := maxf(float(s.frames), 1.0)
+		_check(float(s.flung) / fr < 0.02, "%s's hair hangs while dancing (flung >60 deg in %d of %d frames, worst %.0f deg)" % [who, int(s.flung), int(s.frames), float(s.max_deg)])
+		_check(float(s.feet_below) / fr < 0.01, "%s's feet stay on the floor while dancing (below it in %d of %d frames, worst %.1f cm)" % [who, int(s.feet_below), int(s.frames), float(s.max_below_cm)])
+
+
+## While dancing: how far her hair is flung from hanging (the worst strand: root -> tip against straight down, in
+## degrees; long hair shaken out sideways or flying up reads as a glitch), and how deep a foot is below the real
+## floor under it (metres, after FootGuard).
+func _dance_body_check(c: WorldCharacter, base := {}) -> Dictionary:
+	var sk := c.skeleton
+	var angles := {}
+	var worst := 0.0
+	var strand := ""
+	for i in sk.get_bone_count():
+		var nm := sk.get_bone_name(i)
+		if not nm.begins_with("J_Sec_Hair") or nm.contains("Ribbon") or not sk.get_bone_children(i).is_empty():
+			continue
+		var root := i
+		while sk.get_bone_parent(root) >= 0 and sk.get_bone_name(sk.get_bone_parent(root)).begins_with("J_Sec_Hair"):
+			root = sk.get_bone_parent(root)
+		if root == i:
+			continue
+		var v := (sk.get_bone_global_pose(i).origin - sk.get_bone_global_pose(root).origin)
+		if v.length() < 0.15:
+			continue                                        # short strands (fringe) are not judged
+		var ang := rad_to_deg(v.normalized().angle_to(Vector3.DOWN))
+		var sname := sk.get_bone_name(root).trim_prefix("J_Sec_").trim_suffix("_0")
+		angles[sname] = ang
+		# judged against the strand's own resting angle (a strand styled out to the side is not "flung")
+		var over := ang - maxf(60.0, float(base.get(sname, 0.0)) + 40.0) + 60.0
+		if over > worst:
+			worst = over
+			strand = sname
+	var below := 0.0
+	var space := sk.get_world_3d().direct_space_state
+	for b in ["LeftFoot", "RightFoot"]:
+		var bi := sk.find_bone(b)
+		if bi < 0:
+			continue
+		var p := sk.global_transform * sk.get_bone_global_pose(bi).origin
+		var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.6, 0), p - Vector3(0, 0.6, 0), 1)
+		q.exclude = [c.get_rid()]
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty():
+			below = maxf(below, ((hit.position as Vector3).y + maxf(sk.get_bone_global_rest(bi).origin.y, 0.02) * 0.6) - p.y)
+	return {"hair_deg": worst, "below": below, "strand": strand, "angles": angles}
 

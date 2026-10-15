@@ -97,6 +97,9 @@ func can_cast(id: String, who := "mika") -> Dictionary:
 	var m := WorldState.mind(who)
 	if s.is_empty():
 		return {"ok": false, "reason": "unknown spell '%s' (catalogue: %s)" % [id, ", ".join(load_catalog().spells.keys())]}
+	# some magic needs the strength of a level, whatever she knows (the Fold Step: her First Orbit, Level 10)
+	if m.level() < int(s.get("requires_level", 0)):
+		return {"ok": false, "reason": String(s.get("level_reason", "%s needs Level %d" % [s.name, int(s.requires_level)])), "needs_level": int(s.requires_level)}
 	if starting_spells(who).has(id) or (m.legacy and s.get("known_from_start", false)) or m.skills.has(id):
 		return {"ok": true}
 	var need: String = s.get("requires_knowledge", "")

@@ -16,4 +16,10 @@ for f in "Standing Idle" "Walking" "Run Forward" "Jog Forward" "Prepare and cast
   n=$(echo "$f" | tr 'A-Z ' 'a-z_')
   cp -n "$SRC/$f.fbx" "assets/animations/mixamo/$n.fbx"
 done
+# the dance wing's party routines (the owner's Mixamo FBX, kept with the Three.js world)
+DANCE_SRC="${DANCE_SRC:-$HOME/Documents/Mika-Live/assets/animations/mixamo-source/dance}"
+for f in "Macarena Dance" "Chicken Dance" "Ymca Dance"; do
+  n=$(echo "$f" | tr 'A-Z ' 'a-z_')
+  cp -n "$DANCE_SRC/$f.fbx" "assets/animations/mixamo/$n.fbx"
+done
 echo "Mixamo clips copied. Import settings (.fbx.import, retarget BoneMap) are tracked in git."
