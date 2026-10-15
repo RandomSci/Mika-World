@@ -253,6 +253,7 @@ func links() -> void:
 	var top := height(SHRINE.x, SHRINE.y) + 0.9
 	add_interactable(Interactable.make("shrine_glyphs_read", "Read the runic glyphs on the shrine stones", "study", "forgotten_forest_shrine",
 		Vector3(SHRINE.x, top, SHRINE.y - 1.8), {"knowledge": {"lore:runic_script": 1}}, "look_around", 4.0)).radius = 2.4
+	interactables["shrine_glyphs_read"].book_id = "shrine_glyph_stones"   # a real text: read page by page (data/books.json)
 	var offer := Interactable.make("shrine_offering", "Leave a glowcap as an offering at the shrine altar", "pray", "forgotten_forest_shrine",
 		Vector3(SHRINE.x, top, SHRINE.y - 1.8), {"skills": {"arcane_orb": 0.2}, "knowledge": {"blessing:forest_shrine": 1}}, "spell_casting", 4.2)
 	offer.requires = {"items": {"glowcap": 1}}

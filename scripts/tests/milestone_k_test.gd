@@ -109,6 +109,7 @@ func _run() -> void:
 		"pack": await _pack_hunt()
 		"town": await _town()
 		"rematch": await _rematch()
+		"lore": await _lore()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3093,3 +3094,30 @@ func _rematch() -> void:
 	_check(lm.knowledge.has("overcame:hollow_sentinel") and not lm.knowledge.has("unfinished:hollow_sentinel"), "the rematch closed it: she overcame the hollow sentinel (%s)" % report.get("fight2", ""), lm.knowledge.get("overcame:hollow_sentinel"))
 	var tps2: Array = Companionship.topics("luna", "mika")
 	_check(tps2.any(func(t): return String(t.kind) == "triumph"), "and now that is what she would tell Mika", tps2.slice(0, 4))
+
+
+# ------------------------------------------------------------------ the world's own texts (docs/WORLD_BIBLE.md)
+func _lore() -> void:
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var mk := WorldState.mind("mika").knowledge
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 10.0 * 60.0
+	WorldState.clock_rate = 0.0
+	for step in [["village", "notice_board", "lore:village_people"], ["observatory_hill", "star_chart_study", "lore:ten_orbits"], ["academy", "statue_plaque", "lore:ilvane"]]:
+		var r: Dictionary = await main.streaming.travel(String(step[0]), mika)
+		_check(r.get("ok", false), "%s loads" % step[0])
+		await _wait(2.5)
+		var shots := {"n": 0}
+		var on_page := func(_b, i, _p):
+			if shots.n < 2:
+				shots.n += 1
+				await _wait(1.2)
+				_shot("lore_%s_page%d" % [step[1], i])
+		BookReader.instance.page_shown.connect(on_page)
+		var res: Dictionary = await mb._use(String(step[1]))
+		BookReader.instance.page_shown.disconnect(on_page)
+		report[String(step[1])] = res.get("detail", "")
+		_check(res.get("ok", false) and mk.has(String(step[2])), "Mika read %s and knows %s now" % [step[1], step[2]], res.get("detail", ""))

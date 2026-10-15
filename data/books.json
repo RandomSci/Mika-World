@@ -342,6 +342,194 @@
      ]
     }
    ]
+  },
+  "atlas_of_the_ten_rings": {
+   "title": "Atlas of the Ten Rings",
+   "subtitle": "star chart of the Village Observatory, with the keeper's notes",
+   "style": "scroll",
+   "location": "Village Observatory, the star-chart table",
+   "pages": [
+    {
+     "heading": "The Lumen and the Hush",
+     "text": "Before anything, the old charts say, there was the Lumen - a sea of light with no shores - and the Hush, the stillness that light falls into. Where they touched they made a ring of ground, the Orbis, our world. Every spell is a little of the Lumen asked to touch the world again.",
+     "knowledge": [
+      "lore:lumen_and_hush"
+     ]
+    },
+    {
+     "heading": "Ten Rings of Heaven",
+     "text": "Round the Orbis lie ten rings of light, the Orbits, one inside the next. A mage climbs them as she grows: the first ring is learned with the breath, the tenth with the whole of oneself. Each ring was first walked by a mortal, and each of those ten became a Warden - the bright knots you can see on clear nights, set along this chart in gold.",
+     "diagram": {
+      "kind": "rings",
+      "count": 10,
+      "color": [
+       0.95,
+       0.85,
+       0.55
+      ]
+     },
+     "knowledge": [
+      "lore:ten_orbits",
+      "lore:wardens"
+     ]
+    },
+    {
+     "heading": "Keeper's Note",
+     "text": "Pencilled in the margin: 'On autumn nights the Twin Lights stand straight above the summit temple for an hour after midnight. The summit-folk say that is when the ninth ring can be heard. I have climbed four times and heard only wind. - E.'",
+     "knowledge": [
+      "clue:twin_lights_summit"
+     ]
+    }
+   ]
+  },
+  "wardens_of_the_orbits": {
+   "title": "On the Wardens of the Orbits",
+   "subtitle": "the rare grimoire of the Great Library",
+   "style": "book",
+   "location": "Great Library, the central lectern",
+   "pages": [
+    {
+     "heading": "Aelis, Warden of the First Ring",
+     "text": "Aelis was a shepherd who whistled the wind to her flock. She learned that breath given out before a word carries the word further - the first lesson every apprentice still learns. Her ring is the ring of breath; its gate opens to those who can hold the light steady for nine heartbeats.",
+     "knowledge": [
+      "lore:warden_aelis"
+     ]
+    },
+    {
+     "heading": "Verdance and Umbra",
+     "text": "The third Warden, Verdance, grew a forest in a single night to hide a village from a fire; the Sylvan arts descend from her. The fourth, Umbra, was a lamplighter who learned the shapes of shadow and kept the dark from swallowing a city; the Umbral arts descend from him. The old masters held that Sylvan and Umbral mages are drawn to each other the way root is drawn to shade.",
+     "knowledge": [
+      "lore:warden_verdance",
+      "lore:warden_umbra",
+      "lore:sylvan_umbral_bond"
+     ]
+    },
+    {
+     "heading": "Emberhart and the Stonefather",
+     "text": "Emberhart, fifth, went into a burning mountain and came out as a bird of flame; the phoenixes, it is said, are his sparks. The Stonefather, sixth, sang to the deep rock until it grew crystal, and built the hollow sentinels to keep what he buried. Do not wake his sentinels without need.",
+     "knowledge": [
+      "lore:warden_emberhart",
+      "lore:warden_stonefather",
+      "lore:hollow_sentinels_origin"
+     ]
+    },
+    {
+     "heading": "The Weaver, the Mirror Queen, the Twins and the Crown",
+     "text": "The seventh Warden, the Weaver of Ways, learned to fold the distance between two places like cloth; her glyphs are carved on old shrine stones in the deep forests, and no one has read them whole. The eighth, the Mirror Queen, saw the same moment from both sides. The ninth ring belongs to two at once - the Skyborn Twins, sisters who would not climb without each other. The tenth is the Crown: no Warden holds it; it is held by whoever has heard all nine.",
+     "knowledge": [
+      "lore:warden_weaver",
+      "lore:folding_distance_rumour",
+      "lore:skyborn_twins",
+      "lore:the_crown"
+     ]
+    }
+   ]
+  },
+  "founders_plaque": {
+   "title": "The Founder's Plaque",
+   "subtitle": "bronze, on the fountain statue of the Academy courtyard",
+   "style": "inscription",
+   "location": "Academy courtyard, the fountain statue",
+   "pages": [
+    {
+     "heading": "Ilvane of the Circle",
+     "text": "THIS ACADEMY WAS RAISED BY ILVANE, LAST APPRENTICE OF THE FIRST CIRCLE, WHO WOULD NOT LET WHAT THE CIRCLE KNEW SLEEP WITH THE HEARTSTONE. LEARN IN THE OPEN. TEACH WHAT YOU ARE TAUGHT. AND WHEN YOU CLIMB, LOOK DOWN NOW AND THEN AT WHO IS CLIMBING BEHIND YOU.",
+     "knowledge": [
+      "lore:academy_founding",
+      "lore:ilvane",
+      "clue:circle_apprentice_founded_academy"
+     ]
+    }
+   ]
+  },
+  "shrine_glyph_stones": {
+   "title": "Glyph Stones of the Forgotten Shrine",
+   "subtitle": "runic script, worn by rain",
+   "style": "inscription",
+   "location": "Forgotten Forest Shrine, the standing stones",
+   "pages": [
+    {
+     "heading": "The First Stone",
+     "text": "(The runes are the old script; with care they read:) 'Two places are two folds of one cloth. The Weaver does not travel. She brings the folds together and steps across the seam.'",
+     "knowledge": [
+      "lore:runic_script",
+      "lore:folding_distance",
+      "teleport:theory_seam"
+     ]
+    },
+    {
+     "heading": "The Second Stone",
+     "text": "'Know both places as you know your own hands: the ground, the light, the sound of each. A fold made to a place half-known tears.' Below, smaller and newer: 'The Weaver's own words were never carved here. They are said to sleep under the summit, where the ninth ring is heard.'",
+     "knowledge": [
+      "teleport:theory_knowing",
+      "clue:weaver_words_summit"
+     ]
+    }
+   ]
+  },
+  "vault_inscription": {
+   "title": "The Vault Inscription",
+   "subtitle": "carved beside the door of the Ancient Vault",
+   "style": "inscription",
+   "location": "Deep Caverns, beside the vault door",
+   "pages": [
+    {
+     "heading": "Sealed by the Stonefather's Makers",
+     "text": "'Here the makers of the sentinels laid down what they could not unmake. The seal answers crystal, not force. Whoever opens it: the sentinels were made to keep this place, not to hate you. Speak to them as keepers.'",
+     "knowledge": [
+      "lore:vault_inscription",
+      "lore:vault_seal_crystal",
+      "lore:sentinels_are_keepers"
+     ]
+    }
+   ]
+  },
+  "summit_frieze": {
+   "title": "Frieze of the Cloud Temple",
+   "subtitle": "carved round the inner wall of the summit temple",
+   "style": "inscription",
+   "location": "Celestial Summit, inside the Cloud Temple",
+   "pages": [
+    {
+     "heading": "The Twins Who Would Not Climb Alone",
+     "text": "Two sisters climb a stair of clouds, one carrying a branch in leaf, the other a lamp. At the ninth step the stair splits; each may go on alone, faster. They sit down where the stair splits and wait for each other, and the stair joins again under them. Over their heads the carvers cut two stars.",
+     "knowledge": [
+      "lore:skyborn_twins_frieze",
+      "lore:ninth_orbit_together"
+     ]
+    },
+    {
+     "heading": "Under the Stars",
+     "text": "An inscription below the stars, in the old script: 'The ninth gate is not opened by one. Come when the Twin Lights stand over this roof.'",
+     "knowledge": [
+      "clue:ninth_gate_two_mages"
+     ]
+    }
+   ]
+  },
+  "village_notices": {
+   "title": "Village Notice Board",
+   "subtitle": "pinned papers, some new, some rained on",
+   "style": "scroll",
+   "location": "Village square, the notice board",
+   "pages": [
+    {
+     "heading": "Notices",
+     "text": "FRESH BREAD before the eighth bell at Hilde's stall - and honey cakes on market days.  /  Lost: one good iron hammer. Bram.  /  Wolves seen past the river road - travel in daylight. Captain Rook, the Watch.  /  Wenna buys moonpetal and glowcap, fair prices.",
+     "knowledge": [
+      "news:village",
+      "lore:village_people"
+     ]
+    },
+    {
+     "heading": "Older Papers",
+     "text": "A faded one: 'The Academy's open lessons are held on the east lawn in the mornings. Visitors may sit at the back if they are quiet. - M. Aldric.' Another, nearly washed away: '...the observatory keeper asks that anyone who hears music on the summit at night write it down for her...'",
+     "knowledge": [
+      "news:academy_open_lessons",
+      "clue:observatory_keeper_summit"
+     ]
+    }
+   ]
   }
  }
 }

@@ -252,6 +252,7 @@ func links() -> void:
 	add_interactable(it)
 	add_interactable(Interactable.make("vault_inscription", "Read the inscription carved beside the vault door", "study", "ancient_vault",
 		c + Vector3(-3.0, 0.3, 2.2), {"knowledge": {"lore:vault_inscription": 1}}, "look_around", 3.5)).radius = 2.4
+	interactables["vault_inscription"].book_id = "vault_inscription"   # a real text: read page by page (data/books.json)
 	add_interactable(Interactable.make("lake_meditate", "Meditate at the still lake's edge", "meditate", "underground_lake",
 		_v(LAKE + Vector2(-6, 19)), {"skills": {"arcane_orb": 0.12}, "knowledge": {"calm:underground_lake": 1}}, "", 4.0)).radius = 2.6
 

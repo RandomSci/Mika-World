@@ -351,6 +351,7 @@ func links() -> void:
 	var nb := SQUARE + Vector2(-5, 6)
 	add_interactable(Interactable.make("notice_board", "Read the village notice board", "read", "village_square",
 		_v(nb), {"knowledge": {"news:village": 1}, "discover": ["village_observatory", "mountain_path", "crystal_entrance"]}, "look_around", 3.0)).radius = 2.4
+	interactables["notice_board"].book_id = "village_notices"   # a real text: read page by page (data/books.json)
 	Kit.block(self, Vector3(1.6, 1.1, 0.12), Kit.xf(_v(nb + Vector2(0, 0.6), 1.4), PI * 0.2), Kit.tri("wood_table_001", "1k", 1.0, 0.0, Color(0.6, 0.5, 0.4)), true, 0.02)
 	Kit.mesh_node(self, Kit.box_mesh(Vector3(0.12, 1.9, 0.12), 0.01), m.timber, Kit.xf(_v(nb + Vector2(-0.6, 0.65), 0.95)))
 	Kit.mesh_node(self, Kit.box_mesh(Vector3(0.12, 1.9, 0.12), 0.01), m.timber, Kit.xf(_v(nb + Vector2(0.6, 0.55), 0.95)))

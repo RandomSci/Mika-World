@@ -206,6 +206,9 @@ func links() -> void:
 	var y := _temple_y() + 0.9
 	add_interactable(Interactable.make("temple_pray", "Offer a quiet prayer in the Cloud Temple", "pray", "cloud_temple",
 		Vector3(TEMPLE.x, y, TEMPLE.z - 1.4), {"skills": {"arcane_orb": 0.15}, "knowledge": {"blessing:cloud_temple": 1}}, "spell_casting", 4.2)).radius = 2.6
+	add_interactable(Interactable.make("temple_frieze_read", "Read the frieze carved round the temple wall", "read", "cloud_temple",
+		Vector3(TEMPLE.x - 1.8, y, TEMPLE.z - 0.4), {"knowledge": {"lore:cloud_temple_frieze": 1}}, "", 4.0)).radius = 2.4
+	interactables["temple_frieze_read"].book_id = "summit_frieze"
 	add_interactable(Interactable.make("armillary_align", "Align the armillary sphere to the stars", "study", "celestial_observatory",
 		_v(Vector2(OBS.x, OBS.z + 1.3)), {"knowledge": {"astronomy:armillary": 1}}, "look_around", 4.0)).radius = 2.2
 	add_interactable(Interactable.make("star_dial_read", "Read the time on the star dial", "read", "celestial_observatory",

@@ -175,6 +175,7 @@ func _links() -> void:
 	add_gate("academy", Vector3(0, 0.5, L * 0.5 + 0.9), Vector3(0, 0.05, L * 0.5 - 3.5), 0.0, 1.4)
 	add_interactable(Interactable.make("rare_book_read", "Read the rare grimoire on the central lectern", "study", "great_library",
 		Vector3(0, 0, -1.2), {"knowledge": {"spell:elemental_binding_theory": 1}, "skills": {"arcane_orb": 0.1}}, "look_around", 5.0)).radius = 2.0
+	interactables["rare_book_read"].book_id = "wardens_of_the_orbits"   # a real text: read page by page (data/books.json)
 	add_interactable(Interactable.make("library_research", "Research at a study table", "study", "great_library",
 		Vector3(-4.5, 0, 7.4), {"knowledge": {"lore:academy_archives": 1}}, "", 5.0)).radius = 2.2
 	add_interactable(Interactable.make("catalogue_search", "Search the catalogue cabinets", "inspect", "great_library",

@@ -354,6 +354,7 @@ func links() -> void:
 		add_interactable(it)
 	add_interactable(Interactable.make("statue_plaque", "Read the founder's plaque on the fountain statue", "read", "academy_courtyard",
 		Vector3(0, 0, 11.0), {"knowledge": {"lore:academy_founding": 1}}, "look_around", 3.0)).radius = 2.4
+	interactables["statue_plaque"].book_id = "founders_plaque"   # a real text: read page by page (data/books.json)
 	add_interactable(Interactable.make("arena_drill", "Run a casting drill in the arena", "practice", "advanced_magic_arena",
 		Vector3(ARENA.x - 3.0, 0.15, ARENA.z), {"skills": {"arcane_orb": 0.35}}, "magic_attack_2h", 2.8)).radius = 3.0
 	add_interactable(Interactable.make("garden_herbs", "Gather medicinal herbs in the gardens", "collect", "academy_gardens",

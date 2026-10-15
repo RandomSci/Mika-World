@@ -184,6 +184,7 @@ func links() -> void:
 		Vector3(-2, 0.15, -2), {"knowledge": {"astronomy:constellations": 1}, "discover": ["celestial_observatory"]}, "look_around", 5.0)).radius = 2.0
 	add_interactable(Interactable.make("star_chart_study", "Study the star chart", "study", "village_observatory",
 		Vector3(3.2, 0.15, -3.2), {"knowledge": {"astronomy:star_chart": 1}}, "", 4.0)).radius = 2.0
+	interactables["star_chart_study"].book_id = "atlas_of_the_ten_rings"   # a real text: read page by page (data/books.json)
 
 
 func showcase_shots(_loc: String) -> Array:
