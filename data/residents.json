@@ -713,5 +713,405 @@
    },
    "likes": "stories about the outside"
   }
+ },
+ "wayside:fernhollow": {
+  "garth": {
+   "name": "Garth",
+   "role": "a Fernhollow woodcutter",
+   "model": "res://assets/npc/residents/woodfolk_m.glb",
+   "voice": "res_garth",
+   "height_m": 1.8,
+   "home": "home:0",
+   "work": "woodpile",
+   "work_clips": [
+    "chop",
+    "chop",
+    "pickup"
+   ],
+   "tools": {
+    "chop": {
+     "model": "wooden_axe",
+     "bone": "hand_r",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "rot": [
+      0,
+      0,
+      -90
+     ]
+    }
+   },
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     6.0,
+     "work",
+     "work"
+    ],
+    [
+     12.0,
+     "eat",
+     "square:0"
+    ],
+    [
+     13.0,
+     "work",
+     "work"
+    ],
+    [
+     18.5,
+     "socialize",
+     "square:1"
+    ],
+    [
+     21.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Travellers! Mind the road west, it gets muddy past the glade.",
+     "Bread's at Nell's door, if you need it.",
+     "Long way to the grove from here."
+    ]
+   }
+  },
+  "nell": {
+   "name": "Nell",
+   "role": "keeps the hamlet's bread oven",
+   "model": "res://assets/npc/residents/woodfolk_f.glb",
+   "voice": "res_nell",
+   "height_m": 1.64,
+   "home": "home:1",
+   "work": "garden:0",
+   "work_clips": [
+    "harvest",
+    "plant",
+    "water",
+    "interact"
+   ],
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     5.5,
+     "work",
+     "home"
+    ],
+    [
+     8.0,
+     "work",
+     "work"
+    ],
+    [
+     12.0,
+     "eat",
+     "square:0"
+    ],
+    [
+     13.0,
+     "work",
+     "work"
+    ],
+    [
+     18.0,
+     "socialize",
+     "square:1"
+    ],
+    [
+     21.5,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Fresh loaves this morning. Take two, it's a long road.",
+     "You're not from the hamlet. From the old circle, aren't you?",
+     "Safe travels, girls."
+    ]
+   }
+  }
+ },
+ "wayside:thornwick": {
+  "ada": {
+   "name": "Ada",
+   "role": "a Thornwick beekeeper",
+   "model": "res://assets/npc/residents/woodfolk_f.glb",
+   "voice": "res_ada",
+   "height_m": 1.7,
+   "recolor": {
+    "MI_Peasant": [
+     1.25,
+     1.05,
+     0.7
+    ],
+    "MI_Hair": [
+     2.4,
+     2.0,
+     1.5
+    ]
+   },
+   "home": "home:0",
+   "work": "garden:0",
+   "work_clips": [
+    "harvest",
+    "interact",
+    "water"
+   ],
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     6.0,
+     "work",
+     "work"
+    ],
+    [
+     12.0,
+     "eat",
+     "square:0"
+    ],
+    [
+     13.0,
+     "work",
+     "work"
+    ],
+    [
+     18.5,
+     "socialize",
+     "square:1"
+    ],
+    [
+     21.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Mind the hives, they don't know you yet.",
+     "Thornwick honey! Best on the academy road.",
+     "Off to the Academy? Two more days, if the bridge is dry."
+    ]
+   }
+  },
+  "tamsin": {
+   "name": "Tamsin",
+   "role": "a Thornwick farmer",
+   "model": "res://assets/npc/residents/woodfolk_m.glb",
+   "voice": "res_tamsin",
+   "height_m": 1.76,
+   "recolor": {
+    "MI_Peasant": [
+     0.8,
+     0.95,
+     1.15
+    ],
+    "MI_Hair": [
+     0.35,
+     0.3,
+     0.3
+    ]
+   },
+   "home": "home:1",
+   "work": "woodpile",
+   "work_clips": [
+    "chop",
+    "pickup",
+    "interact"
+   ],
+   "tools": {
+    "chop": {
+     "model": "hatchet",
+     "bone": "hand_r",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "rot": [
+      0,
+      0,
+      -90
+     ]
+    }
+   },
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     6.0,
+     "work",
+     "work"
+    ],
+    [
+     12.0,
+     "eat",
+     "square:0"
+    ],
+    [
+     13.0,
+     "work",
+     "work"
+    ],
+    [
+     18.5,
+     "socialize",
+     "square:1"
+    ],
+    [
+     21.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Afternoon.",
+     "Fields need rain. Can either of you do anything about that?",
+     "Road's clear to Greywater, last I heard."
+    ]
+   }
+  }
+ },
+ "wayside:millbrook_inn": {
+  "hob": {
+   "name": "Hob",
+   "role": "keeps the Millbrook inn",
+   "model": "res://assets/npc/residents/innkeeper_m.glb",
+   "voice": "res_hob",
+   "height_m": 1.78,
+   "home": "home:0",
+   "work": "square:0",
+   "work_clips": [
+    "idle_arms",
+    "interact",
+    "talk"
+   ],
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     6.5,
+     "work",
+     "square:0"
+    ],
+    [
+     11.0,
+     "socialize",
+     "bench_seat:0"
+    ],
+    [
+     13.0,
+     "work",
+     "square:0"
+    ],
+    [
+     19.0,
+     "socialize",
+     "bench_seat:1"
+    ],
+    [
+     23.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Room and supper, if you want them. Wheel's loud, but you sleep well by it.",
+     "Come in, come in. Kettle's on.",
+     "Travelling far?"
+    ]
+   }
+  }
+ },
+ "wayside:lantern_inn": {
+  "marta": {
+   "name": "Marta",
+   "role": "keeps the Lantern inn",
+   "model": "res://assets/npc/residents/innkeeper_m.glb",
+   "voice": "res_marta",
+   "height_m": 1.7,
+   "recolor": {
+    "MI_Peasant": [
+     0.7,
+     0.9,
+     1.3
+    ],
+    "MI_Hair": [
+     0.3,
+     0.25,
+     0.25
+    ]
+   },
+   "home": "home:0",
+   "work": "square:0",
+   "work_clips": [
+    "idle_arms",
+    "interact",
+    "talk"
+   ],
+   "schedule": [
+    [
+     0,
+     "sleep",
+     "home"
+    ],
+    [
+     6.5,
+     "work",
+     "square:0"
+    ],
+    [
+     11.0,
+     "socialize",
+     "bench_seat:0"
+    ],
+    [
+     13.0,
+     "work",
+     "square:0"
+    ],
+    [
+     19.0,
+     "socialize",
+     "bench_seat:1"
+    ],
+    [
+     23.0,
+     "sleep",
+     "home"
+    ]
+   ],
+   "lines": {
+    "greet": [
+     "Lanterns are lit all night here. Rest easy.",
+     "Academy folk stop here on their way. You'll fit right in.",
+     "Stew's hot."
+    ]
+   }
+  }
  }
 }

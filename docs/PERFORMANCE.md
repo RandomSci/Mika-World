@@ -37,6 +37,10 @@ Gameplay scenes on top of that:
   the camera's cinematic effects, combat VFX and OBS encoding on the same GPU.
 * Render CPU time is ~1.5 ms at most; draw calls peak at ~1260 (forests: per-species multimeshes).
 * Video memory peaks at ~1.5 GB of the card's 8 GB.
-* The remaining hitches are first-use costs (a shader or effect seen for the first time); they show as single
-  frames of 100-150 ms at fight start. Pre-warming the combat effects at area load would remove most of them
-  (*planned*).
+* **Hitches: none from the game itself.** The 30-65 "hitches over 50 ms" the ambush test reported were the test's
+  own stills: it saves a screenshot every 6 s (a GPU readback and PNG encode, ~130 ms each). Found with
+  `--mktest=hitch` (sits in an area and disables each subsystem in turn): with screenshots off, the Whispering Woods
+  with both mages, their brains and the camera director shows **0 stalls** over 18 s and over every 13 s window;
+  the Movie Maker reels (no stills) show 0 frames over 50 ms. The only long frames left are inside the masked
+  area-load transition (5-7 s after a travel starts, behind the travel card). The shader prewarm (which runs
+  behind that card) now also covers every effect shader in `shaders/{fx,magic,vfx,world,phoenix,nature}`.

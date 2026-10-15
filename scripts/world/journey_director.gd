@@ -316,6 +316,15 @@ func _enter_stretch() -> void:
 	var k := float(j.km)
 	Wayside.params = {"route": String(lg.key), "km": k, "seed": abs(hash(String(lg.key))) % 100000 + int(j.stretch) * 7919,
 		"from": String(lg.from), "to": String(lg.to), "title": String(lg.name), "biome": String(lg.biome)}
+	# a waypoint this stretch of road will pass (a hamlet, an inn, a shelter, a landmark) stands at the roadside,
+	# where its km falls along the stretch
+	var cover := minf(leg_km_left(), kmh(String(lg.terrain)) * MAX_STRETCH_H)
+	for w in lg.get("waypoints", []):
+		var wk := float(w.km)
+		if wk > k and wk <= k + cover and String(w.get("kind", "")) in ["hamlet", "village", "inn", "shelter", "landmark"]:
+			Wayside.params["waypoint"] = w
+			Wayside.params["waypoint_t"] = 0.12 + 0.76 * (wk - k) / maxf(cover, 0.1)
+			break
 	j.stretch = int(j.stretch) + 1
 	stage = "on %s, km %.0f of %.0f" % [lg.name, k, float(lg.km)]
 	await _cross("wayside")

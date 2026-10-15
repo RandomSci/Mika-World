@@ -37,7 +37,11 @@ func area_activated(id: String) -> void:
 	area_id = id
 	if not enabled:
 		return
-	var people := for_area(id)
+	# a stretch of road can hold a hamlet or an inn: its people are "wayside:<waypoint id>"
+	var key := id
+	if main.world and "town_key" in main.world and String(main.world.town_key) != "":
+		key = String(main.world.town_key)
+	var people := for_area(key)
 	if people.is_empty() or main.world == null or not ("anchors" in main.world) or (main.world.anchors as Dictionary).is_empty():
 		return
 	for rid in people:

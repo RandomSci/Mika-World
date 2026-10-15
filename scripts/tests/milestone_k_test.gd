@@ -39,7 +39,10 @@ func _process(delta: float) -> void:
 	if delta > 0.05 and main and is_instance_valid(main):
 		hitch_log.append({"ms": int(delta * 1000.0), "t": snappedf(_game_t, 0.01), "gpu": snappedf(RenderingServer.viewport_get_measured_render_time_gpu(_vp_rid), 0.1),
 			"ghosts": Afterimage.made, "voice_lines": main.voice.log.size() if main.get("voice") else -1, "casts": main.magic.history.size() if main.get("magic") else -1,
-			"cuts": TrailerCam.log.size(), "monsters": get_tree().get_nodes_in_group("monsters").size(), "area": main.streaming.current_id if main.get("streaming") else ""})
+			"cuts": TrailerCam.log.size(), "monsters": get_tree().get_nodes_in_group("monsters").size(), "area": main.streaming.current_id if main.get("streaming") else "",
+			"proc_ms": snappedf(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, 0.1), "phys_ms": snappedf(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, 0.1),
+			"nav_ms": snappedf(Performance.get_monitor(Performance.TIME_NAVIGATION_PROCESS) * 1000.0, 0.1), "nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+			"orphans": Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT), "nav_maps": Performance.get_monitor(Performance.NAVIGATION_ACTIVE_MAPS)})
 	_gpu_ms.append(RenderingServer.viewport_get_measured_render_time_gpu(_vp_rid))
 	_cpu_ms.append(RenderingServer.viewport_get_measured_render_time_cpu(_vp_rid) + RenderingServer.get_frame_setup_time_cpu())
 	_game_t += delta
@@ -118,6 +121,8 @@ func _run() -> void:
 		"rematch": await _rematch()
 		"lore": await _lore()
 		"fold": await _fold()
+		"hamlet": await _hamlet()
+		"hitch": await _hitch()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3201,3 +3206,84 @@ func _fold() -> void:
 	var ng: Dictionary = await mb._use("ninth_gate_open")
 	var det := String(ng.get("activity", {}).get("detail", ng.get("detail", "")))
 	_check(not ng.get("ok", false) and det.contains("one alone") and det.contains("Twin Lights"), "alone, at noon, at her level: the ninth gate stays shut (%s)" % det, ng)
+
+
+# ------------------------------------------------------------------ waypoints as real places (hamlet, village, inn)
+func _hamlet() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 10.0 * 60.0
+	WorldState.clock_rate = 0.0
+	var routes: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/overland.json")).routes
+	for case in [["whispering_woods|ancient_grove", "fernhollow", 2], ["village|academy", "thornwick", 2], ["river_valley|village", "millbrook_inn", 1]]:
+		var rk := String(case[0])
+		var r0: Dictionary = routes[rk]
+		var wp := {}
+		for w in r0.waypoints:
+			if String(w.id) == String(case[1]):
+				wp = w
+		var parts := rk.split("|")
+		Wayside.params = {"route": rk, "km": float(wp.km) - 3.0, "seed": 4000 + String(case[1]).length() * 37, "from": parts[0], "to": parts[1],
+			"title": String(r0.name), "waypoint": wp, "waypoint_t": 0.35}
+		var r: Dictionary = await main.streaming.travel("wayside", mika)
+		_check(r.get("ok", false), "a stretch of %s with %s loads" % [r0.name, wp.name])
+		await _wait(3.0)
+		var w2: Wayside = main.world
+		var t: TownLife = main.town
+		report[String(case[1])] = t.describe(mika.global_position)
+		_check(w2.site != Vector2.INF and t.residents.size() == int(case[2]), "%s stands at the roadside with its %d people (%s)" % [wp.name, int(case[2]), ", ".join(t.residents.keys())], report[String(case[1])])
+		var sc := Vector3(w2.site.x, w2.height(w2.site.x, w2.site.y), w2.site.y)
+		var rd := Vector3(w2.site_road.x, w2.height(w2.site_road.x, w2.site_road.y), w2.site_road.y)
+		main.camera_rig.set_shot(rd + (rd - sc).normalized() * 6.0 + Vector3(0, 3.0, 0), sc + Vector3(0, 1.5, 0), 58.0)
+		await _wait(0.8)
+		_shot("hamlet_%s_wide" % case[1])
+		for rid in t.residents:
+			await _res_shot(t.residents[rid], "hamlet_%s_%s" % [case[1], rid])
+
+
+# ------------------------------------------------------------------ what stalls a frame every few seconds (diagnosis)
+func _hitch() -> void:
+	await _hold_all()
+	main.director.enabled = RenderProfile.options.has("director")
+	main.spawner.enabled = false
+	if RenderProfile.options.has("free"):
+		for who in main.mage_brains:
+			main.mage_brains[who].hold = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var area := String(RenderProfile.options.get("areas", "whispering_woods"))
+	if main.streaming.current_id != area:
+		await main.streaming.travel(area, mika)
+	await _wait(8.0)
+	var count := func(secs: float) -> int:
+		var n0 := hitch_log.size()
+		await _wait(secs)
+		return hitch_log.size() - n0
+	var base: int = await count.call(18.0)
+	report["baseline_18s"] = base
+	print("[hitch] %s baseline: %d stalls in 18 s" % [area, base])
+	var res := {}
+	for ch in main.get_children():
+		var nd := ch as Node
+		if nd == null or nd == main.world or nd is Camera3D or String(nd.name) in ["TrailerCam"]:
+			continue
+		var pm := nd.process_mode
+		nd.process_mode = Node.PROCESS_MODE_DISABLED
+		var n: int = await count.call(13.0)
+		nd.process_mode = pm
+		res[String(nd.name)] = n
+		print("[hitch]   without %s: %d stalls in 13 s" % [nd.name, n])
+	# the world's own top-level children
+	for ch in main.world.get_children():
+		var nd := ch as Node
+		if nd == null or nd.get_child_count() == 0 and not nd.has_method("_process"):
+			continue
+		var pm := nd.process_mode
+		nd.process_mode = Node.PROCESS_MODE_DISABLED
+		var n2: int = await count.call(13.0)
+		nd.process_mode = pm
+		res["world/" + String(nd.name)] = n2
+		if n2 == 0:
+			print("[hitch]   without world/%s: %d stalls in 13 s" % [nd.name, n2])
+	report["without"] = res

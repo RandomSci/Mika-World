@@ -54,8 +54,24 @@ func setup(p_id: String, p_data: Dictionary, p_town: Node, p_area: Node3D) -> vo
 			top = maxf(top, (sk.global_transform * sk.get_bone_global_rest(bi)).origin.y - model.global_position.y)
 	if top > 0.05:
 		model.scale = Vector3.ONE * (float(data.get("height_m", 1.72)) * 0.93 / top)
+	# their own colours (data "recolor": {material name prefix: [r, g, b]} multiplied over the outfit / hair):
+	# the same tailor's pattern, a different person
+	var rc: Dictionary = data.get("recolor", {})
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		var m := mi as MeshInstance3D
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		if rc.is_empty() or m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var src := m.mesh.surface_get_material(si)
+			if not (src is BaseMaterial3D):
+				continue
+			for pre in rc:
+				if String(src.resource_name).begins_with(String(pre)):
+					var mat := (src as BaseMaterial3D).duplicate() as BaseMaterial3D
+					var cc: Array = rc[pre]
+					mat.albedo_color = mat.albedo_color * Color(cc[0], cc[1], cc[2])
+					m.set_surface_override_material(si, mat)
 	anim = model.find_child("AnimationPlayer", true, false)
 	if anim:
 		for a in anim.get_animation_list():

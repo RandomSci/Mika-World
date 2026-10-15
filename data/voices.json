@@ -300,6 +300,54 @@
    "rate": "+2%",
    "gain": 0.85,
    "caption": "Corin"
+  },
+  "res_garth": {
+   "provider": "edge",
+   "voice": "en-NZ-MitchellNeural",
+   "pitch": "-4Hz",
+   "rate": "-6%",
+   "gain": 0.85,
+   "caption": "Garth"
+  },
+  "res_nell": {
+   "provider": "edge",
+   "voice": "en-NZ-MollyNeural",
+   "pitch": "+4Hz",
+   "rate": "+2%",
+   "gain": 0.85,
+   "caption": "Nell"
+  },
+  "res_ada": {
+   "provider": "edge",
+   "voice": "en-GB-SoniaNeural",
+   "pitch": "+2Hz",
+   "rate": "+0%",
+   "gain": 0.85,
+   "caption": "Ada"
+  },
+  "res_tamsin": {
+   "provider": "edge",
+   "voice": "en-CA-LiamNeural",
+   "pitch": "+6Hz",
+   "rate": "-4%",
+   "gain": 0.85,
+   "caption": "Tamsin"
+  },
+  "res_hob": {
+   "provider": "edge",
+   "voice": "en-ZA-LukeNeural",
+   "pitch": "-6Hz",
+   "rate": "-6%",
+   "gain": 0.85,
+   "caption": "Hob"
+  },
+  "res_marta": {
+   "provider": "edge",
+   "voice": "en-GB-LibbyNeural",
+   "pitch": "-2Hz",
+   "rate": "-2%",
+   "gain": 0.85,
+   "caption": "Marta"
   }
  },
  "reactions": {

@@ -20,6 +20,11 @@ const CAMP_R := 9.5
 const FORD := Vector2(-46, 2)
 
 var camp := {}                   # what the camp scene uses: fire, seats, beds, wood, water, lookout (world positions)
+var waypoint := {}               # the overland waypoint this stretch passes (data/overland.json), or {}
+var site := Vector2.INF          # where it stands (north of the road)
+var site_road := Vector2.INF     # where its path leaves the road
+const SITE_R := 15.0
+var town_key := ""               # TownLife: "wayside:<waypoint id>" when people live here
 var _seed := 0
 var _stream_pts: Array[Vector2] = []
 
@@ -40,6 +45,21 @@ func _init() -> void:
 	pts.append(ROAD_W)
 	var side := [Vector2(pts[3].x, pts[3].y), CAMP + Vector2(6, -6), CAMP + Vector2(2, -2)]
 	trails = [[pts, 3.0, "main"], [side, 1.6, "narrow"], [[CAMP + Vector2(-6, 2), Vector2(-20, 22), Vector2(FORD.x + 8, FORD.y + 18)], 1.0, "hidden"]]
+	# a waypoint on this stretch (a hamlet, an inn, a shelter, a landmark): a real place at the roadside, north of
+	# the road (the camp lies south), where the journey's km puts it
+	waypoint = params.get("waypoint", {})
+	if not waypoint.is_empty():
+		var wt := clampf(float(params.get("waypoint_t", 0.3)), 0.12, 0.88)
+		var at := ROAD_E.lerp(ROAD_W, wt)
+		var best := pts[0]
+		for q in pts:
+			if absf(q.x - at.x) < absf(best.x - at.x):
+				best = q
+		site_road = Vector2(at.x, best.y)
+		if absf(site_road.x - FORD.x) < 18.0:
+			site_road.x += 22.0 * signf(site_road.x - FORD.x + 0.01)
+		site = site_road + Vector2(0, -20)
+		trails.append([[site_road, site_road + Vector2(1.5, -7), site], 2.4, "main"])
 	# the stream: north to south across the road at the ford
 	_stream_pts.clear()
 	for k in 15:
@@ -105,6 +125,8 @@ func _forest_density(p: Vector2) -> float:
 	var s := float(_seed % 113)
 	var f := 0.62 + 0.25 * sin(p.x * 0.033 + s) * cos(p.y * 0.029 + s * 0.3)
 	f -= 0.55 * (1.0 - smoothstep(CAMP_R, CAMP_R + 9.0, p.distance_to(CAMP)))
+	if site != Vector2.INF:
+		f -= 0.75 * (1.0 - smoothstep(SITE_R, SITE_R + 10.0, p.distance_to(site)))
 	return clampf(f, 0.0, 1.0)
 
 
@@ -124,7 +146,7 @@ func _precompute() -> void:
 
 ## Hooks the Woods dressing asks a generated stretch for (its own zones, water and open ground).
 func site_zone(p: Vector2) -> String:
-	if p.distance_to(CAMP) < CAMP_R + 8.0:
+	if p.distance_to(CAMP) < CAMP_R + 8.0 or (site != Vector2.INF and p.distance_to(site) < SITE_R + 6.0):
 		return "clearing"
 	if absf(p.x - stream_x(p.y)) < 10.0:
 		return "streamside"
@@ -138,6 +160,8 @@ func site_water_dist(p: Vector2) -> float:
 func site_clearing(p: Vector2, margin := 0.0) -> bool:
 	if p.distance_to(CAMP) < CAMP_R + margin:
 		return true
+	if site != Vector2.INF and p.distance_to(site) < SITE_R + margin:
+		return true
 	if p.distance_to(ROAD_E) < 10.0 + margin or p.distance_to(ROAD_W) < 10.0 + margin:
 		return true
 	return p.distance_to(FORD) < 7.0 + margin
@@ -150,7 +174,7 @@ func build_steps() -> Array:
 	feats.rng.seed = 9191 ^ _seed
 	marks = null
 	return [_precompute, _painted_sky, _terrain, _stream, dress.compute_trail_distance, dress.trees, dress.understory,
-		dress.undergrowth, dress.grass, dress.rocks, dress.atmosphere, feats.leaf_fall, _campsite, _links]
+		dress.undergrowth, dress.grass, dress.rocks, dress.atmosphere, feats.leaf_fall, _campsite, _waypoint_site, _links]
 
 
 func _stream() -> void:
@@ -246,6 +270,89 @@ func _campsite() -> void:
 		br.name = "Firewood_%d" % placed
 		(camp.wood as Array).append({"pos": at, "node": br})
 		placed += 1
+
+
+## The waypoint, built: a hamlet or village (houses round a yard, a woodpile, its people at work), an inn (a big house
+## with a hanging sign, a bench, the keeper), a shelter (a small stone hut), a landmark (the Old Ash; a carved
+## standing stone and a cairn). People who live there are data/residents.json "wayside:<id>" (TownLife).
+func _waypoint_site() -> void:
+	if waypoint.is_empty() or site == Vector2.INF:
+		return
+	var kind := String(waypoint.get("kind", ""))
+	var wid := String(waypoint.get("id", "place"))
+	var c := Vector3(site.x, height(site.x, site.y), site.y)
+	var to_road := (site_road - site).normalized()
+	var vm := village_mats()
+	match kind:
+		"hamlet", "village":
+			var hb := HouseBuilder.new(self, height)
+			var n := 4 if kind == "hamlet" else 5
+			for i in n:
+				var a := atan2(to_road.y, to_road.x) + PI * 0.35 + TAU * 0.65 * i / maxf(n - 1, 1)
+				var hp := site + Vector2.from_angle(a) * 10.5
+				var face := (site - hp).normalized()
+				var base := height(hp.x, hp.y)
+				for dx in [-3.0, 3.0]:
+					for dz in [-3.0, 3.0]:
+						base = minf(base, height(hp.x + dx, hp.y + dz))
+				hb.house(Vector3(hp.x, base, hp.y), atan2(face.x, face.y), 6.0 + (i % 2) * 0.8, 5.0, 900 + _seed % 97 + i * 13, 1 if i % 3 != 0 else 2)
+			for i in hb.doors.size():
+				add_anchor("home:%d" % i, hb.doors[i].pos, float(hb.doors[i].yaw), true)
+			var wp := c + Vector3(to_road.x, 0, to_road.y) * -4.0 + Vector3(3.5, 0, 0)
+			wp.y = height(wp.x, wp.z)
+			Kit.place_prop(self, "tree_stump_01", Kit.xf(wp, 0.3, Vector3.ONE * 0.7), "", true)
+			Kit.place_prop(self, "wooden_axe", Kit.xf(wp + Vector3(0, 0.55, 0), 0.4), "", false)
+			add_anchor("woodpile", wp + Vector3(-0.8, 0, 0), PI * 0.5)
+			for j in 2:
+				var sp := c + Vector3(-1.0 + j * 1.6, 0, 1.2)
+				sp.y = height(sp.x, sp.z)
+				add_anchor("square:%d" % j, sp, -PI * 0.5 if j == 0 else PI * 0.5)
+			var g := c + Vector3(to_road.x, 0, to_road.y) * 5.0 + Vector3(-4.0, 0, 0)
+			g.y = height(g.x, g.z)
+			Kit.place_prop_all(self, "planter_box_01", Kit.xf(g, 0.2, Vector3.ONE * 1.4))
+			add_anchor("garden:0", g + Vector3(0, 0, 1.2), PI)
+			lantern_post(c + Vector3(to_road.x, 0, to_road.y) * 7.0, vm, 1.0)
+		"inn":
+			var hb2 := HouseBuilder.new(self, height)
+			var base2 := height(site.x, site.y)
+			for dx in [-5.0, 5.0]:
+				for dz in [-4.0, 4.0]:
+					base2 = minf(base2, height(site.x + dx, site.y + dz))
+			hb2.house(Vector3(site.x, base2, site.y), atan2(to_road.x, to_road.y), 10.0, 7.0, 4400 + _seed % 53, 2)
+			add_anchor("home:0", hb2.doors[0].pos, float(hb2.doors[0].yaw), true)
+			var front := c + Vector3(to_road.x, 0, to_road.y) * 6.5
+			front.y = height(front.x, front.z)
+			# the hanging sign on its post
+			var post := front + Vector3(to_road.y, 0, -to_road.x) * 3.0
+			post.y = height(post.x, post.z)
+			Kit.block(self, Vector3(0.16, 3.0, 0.16), Kit.xf(post + Vector3(0, 1.5, 0)), vm.timber, true, 0.02)
+			Kit.block(self, Vector3(1.0, 0.1, 0.1), Kit.xf(post + Vector3(0.45, 2.9, 0)), vm.timber, false, 0.01)
+			Kit.block(self, Vector3(0.8, 0.55, 0.05), Kit.xf(post + Vector3(0.6, 2.5, 0)), Kit.tri("wood_table_001", "1k", 1.0, 0.0, Color(0.5, 0.36, 0.24)), false, 0.01)
+			night_only(Kit.omni(self, post + Vector3(0.6, 2.2, 0.4), Color(1.0, 0.7, 0.4), 1.4, 8.0))
+			seat_bench(front + Vector3(to_road.y, 0, -to_road.x) * -2.5, atan2(to_road.x, to_road.y), 2, "bench_seat", 0, Kit.tri("wood_table_001", "1k", 0.9, 0.0, Color(0.62, 0.5, 0.4)))
+			add_anchor("square:0", front, atan2(to_road.x, to_road.y))
+		"shelter":
+			var hb3 := HouseBuilder.new(self, height)
+			hb3.house(Vector3(site.x, height(site.x, site.y) - 0.1, site.y), atan2(to_road.x, to_road.y), 4.6, 4.0, 7100 + _seed % 31, 1)
+		"landmark":
+			if wid == "the_old_ash":
+				var tr := Kit.place_prop(self, "dead_tree_trunk", Kit.xf(c + Vector3(0, -0.2, 0), 0.4, Vector3.ONE * 2.2), "", true)
+				tr.name = "OldAsh"
+			else:
+				var sb := StoneBuilder.new(height, 3300 + _seed % 71)
+				sb.pier(c, 1.1, 3.2, atan2(to_road.x, to_road.y), 0.8)
+				for k in 5:
+					sb.block(Transform3D(Basis(Vector3.UP, k * 1.3), c + Vector3(2.2, 0.18 + k * 0.3, 1.4)), Vector3(0.9 - k * 0.12, 0.32, 0.8 - k * 0.1), 0.4, 0.07)
+				sb.finish(self, RealKit.stone_mat("mossy_stone_wall") if RealKit.enabled() else Kit.tri("castle_wall_slates", "1k", 0.45, 0.3), "Landmark")
+	if not for_area_people(wid).is_empty():
+		town_key = "wayside:" + wid
+	add_poi("waypoint_" + wid, c + Vector3(to_road.x, 0, to_road.y) * 5.0, String(waypoint.get("describe", waypoint.get("name", wid))), "the_road", 4.0)
+	print("[wayside] waypoint %s (%s) at %s" % [wid, kind, site])
+
+
+static func for_area_people(wid: String) -> Dictionary:
+	var d = JSON.parse_string(FileAccess.get_file_as_string("res://data/residents.json"))
+	return d.get("wayside:" + wid, {}) if d is Dictionary else {}
 
 
 func _links() -> void:
