@@ -131,6 +131,9 @@ func _run() -> void:
 		"grove": await _grove()
 		"audit": await _audit()
 		"bench": await _bench()
+		"gfxcal": await _gfxcal()
+		"adaptive": await _adaptive()
+		"weapons": await _weapons()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3860,6 +3863,16 @@ func _bench() -> void:
 				WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 10.0 * 60.0
 				WorldState.clock_rate = 2.0
 				await main.streaming.travel("village", mika)
+			"summit":
+				await main.streaming.travel("celestial_summit", mika)
+			"caverns":
+				await main.streaming.travel("deep_caverns", mika)
+			"transform":
+				await main.streaming.travel("sanctuary", mika)
+				await _wait(2.0)
+				var tr := func():
+					fight["res"] = await main.transformer.play("mika", "full", true)    # preview: no progress, reverts
+				tr.call()
 			"combat":
 				WorldState.clock_rate = 0.0
 				await _hold_all()
@@ -3878,7 +3891,17 @@ func _bench() -> void:
 		_gpu_ms.clear()
 		_cpu_ms.clear()
 		print("[bench] start %s %.3f" % [sc, Time.get_unix_time_from_system()])
-		await _wait(45.0)
+		var levels := []
+		var ch0: int = main.gfx.history.size() if main.get("gfx") else 0
+		var measure := 25.0 if sc == "transform" else 45.0
+		var tm := 0.0
+		while tm < measure:
+			await _wait(1.0)
+			tm += 1.0
+			if main.get("gfx"):
+				levels.append(int(main.gfx.level))
+			if int(tm) == int(measure / 2.0):
+				_shot("bench_%s_%s" % [RenderProfile.profile.to_lower(), sc])
 		print("[bench] end %s %.3f" % [sc, Time.get_unix_time_from_system()])
 		var st := _fps_stats()
 		var s2: Array = _frame_ms.duplicate()
@@ -3891,14 +3914,275 @@ func _bench() -> void:
 		st["low1_fps"] = snappedf(1000.0 / (worst / n1), 0.1)
 		st["p99_ms"] = snappedf(float(s2[int(s2.size() * 0.01)]), 0.1)
 		st["cap"] = cap
+		st["profile"] = RenderProfile.profile
+		if not levels.is_empty():
+			var lsum := 0
+			for l in levels:
+				lsum += int(l)
+			st["quality_level_avg"] = snappedf(float(lsum) / levels.size(), 0.01)
+			st["quality_level_min"] = levels.min()
+			st["quality_level_max"] = levels.max()
+			st["quality_changes"] = main.gfx.history.size() - ch0
+			st["quality_last"] = String(main.gfx.reason)
+			st["scale_3d_end"] = snappedf(get_viewport().scaling_3d_scale, 0.01)
 		st["window"] = [DisplayServer.window_get_size().x, DisplayServer.window_get_size().y]
 		st["vsync"] = DisplayServer.window_get_vsync_mode()
 		results[sc] = st
 		print("[bench] result %s %s" % [sc, JSON.stringify(st)])
-		if sc == "combat":
+		if sc in ["combat", "transform"]:
 			var t0 := _gms()
 			while not fight.has("res") and _gms() - t0 < 90000:
 				await get_tree().process_frame
 	report["bench"] = results
+	if main.get("gfx"):
+		print("[gfx] history ", JSON.stringify(main.gfx.history))
+		print("[gfx] memory ", JSON.stringify(main.gfx.memory), " hitchy ", JSON.stringify(main.gfx.hitchy))
 	_check(results.size() == scenes.size(), "benchmarked %d scenes at cap %s" % [results.size(), str(cap) if cap > 0 else "none"], results)
+
+
+# ------------------------------------------------------------------ adaptive graphics calibration
+## --profile=adaptive --mktest=gfxcal: in heavy scenes, each quality knob is tried ALONE at its lowest setting and
+## its real GPU saving measured (4 s windows), so the Adaptive 60 ladder can be ordered by measured gain.
+func _gfxcal() -> void:
+	var mika: WorldCharacter = main.characters["mika"]
+	var g: AdaptiveQuality = main.gfx
+	g.enabled = false
+	Engine.max_fps = 0                         # uncapped: GPU time is measured, not hidden by the cap
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	main.spawner.enabled = false
+	main.director.enabled = true
+	var cands := [["scale", 0.83], ["scale", 0.67], ["distant", 0.52], ["foliage", 0.55], ["shadow", 0.6], ["particles", 0.6],
+		["volfog", 0.0], ["ssil", 0.0], ["ssr", 0.0], ["ssao", 0.0], ["lod", 2.5], ["shadowmap", 0.5], ["ssaoq", 0.0], ["upscaler", 0.0],
+		["x_veg", 1.0], ["x_trees", 1.0], ["x_fx", 1.0], ["x_shadow", 1.0]]
+	var base_k: Dictionary = g.floor_knobs() if String(RenderProfile.options.get("cal-base", "")) == "floor" else {}
+	if RenderProfile.options.has("cal-knobs"):
+		cands = cands.filter(func(c2): return String(RenderProfile.options["cal-knobs"]).split(",").has(String(c2[0])))
+	var table := {}
+	for sc in String(RenderProfile.options.get("bench-scenes", "forest,combat,town")).split(",", false):
+		var fight := {}
+		match sc:
+			"forest":
+				await main.streaming.travel("whispering_woods", mika)
+			"town":
+				WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 10.0 * 60.0
+				await main.streaming.travel("village", mika)
+			"sanctuary":
+				await main.streaming.travel("sanctuary", mika)
+			"combat":
+				await _hold_all()
+				await main.streaming.travel("whispering_woods", mika)
+				await _wait(2.0)
+				var runner := func():
+					fight["res"] = await main.ambush.run("road_thieves", {"fight_s": 140.0})
+				runner.call()
+		Engine.max_fps = 0
+		await _wait(6.0)
+		g.apply_knobs(base_k)
+		await _wait(2.0)
+		var base: Dictionary = g.window(4.0)
+		await _wait(4.0)
+		base = g.window(4.0)
+		var rows := {"base_gpu_ms": snappedf(float(base.get("gpu_ms", 0.0)), 0.01), "base_fps": snappedf(1000.0 / maxf(float(base.get("avg_ms", 1.0)), 0.1), 0.1)}
+		for cnd in cands:
+			var kk: Dictionary = base_k.duplicate()
+			kk[String(cnd[0])] = float(cnd[1])
+			g.apply_knobs(kk)
+			await _wait(1.5)
+			await _wait(4.0)
+			var w: Dictionary = g.window(4.0)
+			g.apply_knobs(base_k)
+			await _wait(1.0)
+			var b2: Dictionary = g.window(1.0)
+			rows["%s=%s" % [cnd[0], cnd[1]]] = {"gpu_ms": snappedf(float(w.get("gpu_ms", 0.0)), 0.01), "saved_ms": snappedf(float(base.get("gpu_ms", 0.0)) - float(w.get("gpu_ms", 0.0)), 0.01),
+				"fps": snappedf(1000.0 / maxf(float(w.get("avg_ms", 1.0)), 0.1), 0.1)}
+		table[sc] = rows
+		print("[gfxcal] %s %s" % [sc, JSON.stringify(rows)])
+		if sc == "combat":
+			var t0 := _gms()
+			while not fight.has("res") and _gms() - t0 < 150000:
+				await get_tree().process_frame
+	report["gfxcal"] = table
+	_check(not table.is_empty(), "calibrated %d scenes" % table.size(), table)
+
+
+# ------------------------------------------------------------------ Adaptive 60: the decision rules (GPU-independent)
+## --profile=adaptive --mktest=adaptive: synthetic frame windows drive AdaptiveQuality's decisions, so its rules are
+## checked exactly, whatever this machine's GPU does: sustained GPU overload -> one step down at a time (with the
+## minimum gap); loads and compile stalls ignored; CPU-bound frames never lower graphics; quality restored only after
+## sustained headroom, one step at a time; a step that bounces back is restored more patiently; a remembered
+## situation goes straight to its level.
+func _adaptive() -> void:
+	var g: AdaptiveQuality = main.gfx
+	_check(RenderProfile.profile == RenderProfile.ADAPTIVE_60 and g.enabled, "Adaptive 60 is on", RenderProfile.profile)
+	await _hold_all()
+	g.set_process(false)                    # we feed it ourselves
+	var feed := func(frame_ms: float, gpu_ms: float, cpu_ms: float, n: int, flagged := false):
+		for i in n:
+			g._frames.append([frame_ms, gpu_ms, cpu_ms, flagged])
+			if g._frames.size() > 640:
+				g._frames.pop_front()
+	g.reset_quality()
+	g._hold_until = 0.0
+	g._last_change = -100.0
+	g.memory.clear()
+	g._sit = g._situation()
+	# 1) heavy GPU frames: one step down, then nothing until the gap has passed
+	feed.call(20.0, 19.0, 3.0, 240)
+	g._evaluate()
+	_check(g.level == 1, "a sustained GPU overload takes ONE step down (level %d: %s)" % [g.level, g.reason])
+	g._evaluate()
+	_check(g.level == 1, "...and waits before the next (minimum gap)")
+	g._last_change -= 3.0
+	feed.call(20.0, 19.0, 3.0, 240)
+	g._evaluate()
+	_check(g.level == 2, "after the gap, the next step (level %d)" % g.level)
+	# 2) a load / compile stall is not a reason
+	var l0 := g.level
+	g._last_change -= 3.0
+	g._frames.clear()
+	feed.call(16.6, 9.0, 3.0, 200)
+	feed.call(120.0, 9.0, 3.0, 12, true)
+	g._evaluate()
+	_check(g.level == l0, "loading / shader-compile stalls never lower quality (level %d)" % g.level)
+	# 3) CPU-bound: reported, graphics untouched
+	g._frames.clear()
+	feed.call(21.0, 8.0, 18.0, 240)
+	g._evaluate()
+	_check(g.level == l0 and g.bottleneck == "cpu", "CPU-bound frames do not lower graphics (%s)" % g.reason)
+	# 4) headroom: restored only after it lasts, one step at a time
+	g._frames.clear()
+	feed.call(16.67, 6.0, 3.0, 600)
+	g._last_change = g._now() - 2.0
+	g._evaluate()
+	_check(g.level == l0, "headroom for a moment is not enough to restore")
+	g._last_change = g._now() - 9.0
+	g._evaluate()
+	_check(g.level == l0 - 1, "sustained headroom restores ONE step (level %d: %s)" % [g.level, g.reason])
+	# 5) a step that comes straight back is restored more patiently next time
+	var restored := g.level
+	g._frames.clear()
+	feed.call(20.0, 19.0, 3.0, 240)
+	g._last_change -= 3.0
+	g._evaluate()
+	_check(g.level == restored + 1 and int(g.oscillation.get(restored, 0)) >= 1, "re-needed soon after a restore: counted as an oscillation (%s)" % str(g.oscillation))
+	g._frames.clear()
+	feed.call(16.67, 6.0, 3.0, 600)
+	g._last_change = g._now() - 9.0
+	g._evaluate()
+	_check(g.level == restored + 1, "...so it waits longer before restoring that step again")
+	# 6) a remembered situation: straight to its level in one change
+	g.reset_quality()
+	g.memory["test_place"] = 5
+	g._sit = "elsewhere"
+	var real_sit := g._situation()
+	g.memory[real_sit] = 5
+	g._frames.clear()
+	feed.call(16.67, 12.0, 3.0, 240)
+	g._evaluate()
+	_check(g.level == 5, "a situation met before goes straight to the level that held 60 there (level %d: %s)" % [g.level, g.reason])
+	# 7) the knobs really reach the renderer; the characters are protected
+	g.apply_knobs({"scale": 0.75})
+	_check(absf(get_viewport().scaling_3d_scale - 0.75) < 0.01 and get_viewport().scaling_3d_mode == Viewport.SCALING_3D_MODE_FSR2, "the 3D scale reaches the viewport (FSR 2)")
+	var prot := true
+	for who in main.characters:
+		for gi in (main.characters[who] as Node).find_children("*", "GeometryInstance3D", true, false):
+			if (gi as GeometryInstance3D).lod_bias < 3.9:
+				prot = false
+	_check(prot, "Mika's and Luna's meshes keep full detail (LOD bias)")
+	g.reset_quality()
+	_check(absf(get_viewport().scaling_3d_scale - 1.0) < 0.01, "back to full quality")
+	# down to the floor and back up: the area's own look is restored exactly (fog, SSR / SSIL, the sun's reach)
+	var env: Environment = main.world.get("env")
+	var sun: DirectionalLight3D = main.world.get("sun")
+	if env and sun:
+		var d0 := sun.directional_shadow_max_distance
+		g.apply_knobs(g.floor_knobs())
+		await get_tree().process_frame
+		var low_ok := not env.volumetric_fog_enabled and sun.directional_shadow_max_distance < d0
+		g.reset_quality()
+		await get_tree().process_frame
+		_check(low_ok and env.volumetric_fog_enabled == bool(RenderProfile.get_setting("volumetric_fog")) and env.ssr_enabled == bool(RenderProfile.get_setting("ssr"))
+			and env.ssil_enabled == bool(RenderProfile.get_setting("ssil")) and absf(sun.directional_shadow_max_distance - d0) < 0.01,
+			"floor and back: fog / SSR / SSIL as the profile has them, the sun's shadow reach exactly restored (%.1f m)" % sun.directional_shadow_max_distance)
+	g.set_process(true)
+
+
+# ------------------------------------------------------------------ weapons in hand (visual + auditor)
+## Every armed rival: standing (weapon at rest) and in a real strike at Mika - close-ups of the weapon hand from
+## two sides (screenshots/mktest/weapons_<kind>_*.png) while the auditor checks the blade never passes through the
+## wielder, never sinks into the ground and points at what it strikes.
+func _weapons() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var au: InvariantAuditor = main.auditor
+	await main.streaming.travel("whispering_woods", mika)
+	await _wait(2.0)
+	var v0 := au.violations.size()
+	var fwd := -mika.global_transform.basis.z
+	fwd = Vector3(fwd.x, 0, fwd.z).normalized()
+	for kind in ["rival_ronin", "rival_cutthroat", "rival_shade"]:
+		var at := NavigationServer3D.map_get_closest_point(mika.get_world_3d().navigation_map, mika.global_position + fwd * 6.0)
+		var m: Monster = main.spawner.spawn(kind, at)
+		_check(m != null, "%s spawned" % kind)
+		if m == null:
+			continue
+		m.set_physics_process(false)            # standing still: the weapon at rest
+		await _wait(2.5)
+		var rig = m.get("creature")
+		var ws: Array = rig.weapons if rig and rig.get("weapons") != null else []
+		_check(not ws.is_empty() and (ws[0] as Node3D).has_meta("tip_local"), "%s holds a measured weapon (%d)" % [kind, ws.size()])
+		for w in ws:
+			# held by the HANDLE: the fist (grip point) far from the tip - most of the weapon beyond the hand
+			var gl: Vector3 = (w as Node3D).get_meta("grip_local", Vector3.ZERO)
+			var tl: Vector3 = (w as Node3D).get_meta("tip_local", Vector3.ZERO)
+			var wl := float((w as Node3D).get_meta("weapon_length", 1.0))
+			_check(gl.distance_to(tl) > wl * 0.6, "%s holds its weapon by the handle (fist to tip %.2f of %.2f m, found by %s)" % [kind, gl.distance_to(tl), wl, String((w as Node3D).get_meta("grip_by", "?"))])
+			var hand: Vector3 = (w as Node3D).global_position
+			var tip: Vector3 = (w as Node3D).global_transform * ((w as Node3D).get_meta("tip_local", Vector3.ZERO) as Vector3)
+			report["weapon_%s" % kind] = {"grip_y": snappedf(hand.y - m.global_position.y, 0.01), "tip_y": snappedf(tip.y - m.global_position.y, 0.01),
+				"length": snappedf(hand.distance_to(tip), 0.01)}
+		if not ws.is_empty():
+			var hp: Vector3 = (ws[0] as Node3D).global_position
+			var mr := m.global_transform.basis.x
+			main.camera_rig.set_shot(hp + mr * 1.3 + Vector3(0, 0.25, 0), hp, 45.0)
+			await _wait(0.5)
+			_shot("weapons_%s_rest_side" % kind)
+			var mf := m.global_transform.basis.z
+			main.camera_rig.set_shot(hp + mf * 1.6 + Vector3(0, 0.4, 0), hp + Vector3(0, -0.1, 0), 50.0)
+			await _wait(0.5)
+			_shot("weapons_%s_rest_front" % kind)
+		# a real strike at Mika
+		m.global_position = NavigationServer3D.map_get_closest_point(mika.get_world_3d().navigation_map, mika.global_position + fwd * 2.4)
+		m.set_physics_process(true)
+		m.target_mage = mika
+		var t0 := _gms()
+		var shot_taken := false
+		var alert_shot := false
+		while _gms() - t0 < 15000 and not shot_taken:
+			await get_tree().process_frame
+			if not alert_shot and String(m.mstate) == "alert" and _gms() - t0 > 300 and not ws.is_empty():
+				alert_shot = true
+				var hp3: Vector3 = (ws[0] as Node3D).global_position
+				main.camera_rig.set_shot(m.global_position + m.global_transform.basis.x * 2.2 + Vector3(0, 1.6, 0), m.global_position + Vector3(0, 1.3, 0), 50.0)
+				await _wait(0.1)
+				_shot("weapons_%s_alert_side" % kind)
+				main.camera_rig.set_shot(m.global_position + m.global_transform.basis.z * 2.6 + Vector3(0, 1.6, 0), m.global_position + Vector3(0, 1.3, 0), 50.0)
+				await _wait(0.1)
+				_shot("weapons_%s_alert_front" % kind)
+			if String(m.mstate) in ["strike", "windup", "attack"] and _gms() - t0 > 600 and not ws.is_empty():
+				var hp2: Vector3 = (ws[0] as Node3D).global_position
+				main.camera_rig.set_shot(hp2 + m.global_transform.basis.x * 2.0 + Vector3(0, 0.6, 0), hp2, 50.0)
+				await _wait(0.12)
+				_shot("weapons_%s_strike" % kind)
+				shot_taken = true
+		_check(shot_taken, "%s struck at her (a strike pose captured)" % kind)
+		m.queue_free()
+		await _wait(1.0)
+	var wv := au.violations.slice(v0).filter(func(v): return String(v.rule).begins_with("weapon") or String(v.rule).begins_with("facing"))
+	report["weapon_violations"] = wv
+	_check(wv.is_empty(), "no blade through its wielder, into the ground or pointing away in a strike", wv)
+	main.director.enabled = true
+	main.camera_rig.clear_shot()
 

@@ -23,6 +23,7 @@ var _own_emission := {}           # material name -> [enabled, colour, energy] a
 
 
 func build(p_spec: Dictionary, eye: Color) -> void:
+	process_priority = 100          # after the model's AnimationPlayer: weapon aim / limits fit THIS frame's pose
 	spec = p_spec
 	glow_color = eye
 	_pivot = Node3D.new()
@@ -105,6 +106,10 @@ func _attach_weapons() -> void:
 			holder.transform = hand_grip * (bf.xf as Transform3D).affine_inverse()
 			if bf.has("tip"):
 				holder.set_meta("tip_local", bf.tip)       # the weapon's tip in the holder's space (InvariantAuditor)
+				holder.set_meta("grip_local", (bf.xf as Transform3D).origin)
+				holder.set_meta("grip_by", String(bf.get("by", "?")))
+				holder.set_meta("weapon_length", float(bf.get("length", 0.0)))
+				holder.set_meta("base_xf", holder.transform)
 		else:
 			var pp: Array = wspec.get("pos", [0, 0, 0])
 			var rr: Array = wspec.get("rot", [0, 0, 0])
@@ -113,6 +118,111 @@ func _attach_weapons() -> void:
 		for mi in holder.find_children("*", "MeshInstance3D", true, false):
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		weapons.append(holder)
+
+
+## The blade follows the fight, not the generic clip's wrist: on guard / alert / closing in it points at the one
+## it faces (no one: forward and a little down) - rotated about the fist, at most 90 degrees from the hand's own
+## angle, eased; in the wind-up and the strike the animation keeps most of it (the swing reads); in defeat none.
+var _aim := {}                     # weapon holder id -> the eased correction (Quaternion)
+
+func _aim_weapons(delta: float) -> void:
+	if weapons.is_empty():
+		return
+	var mon := get_parent() as Node3D
+	var tgt: Node3D = null
+	if mon and mon.get("target_mage") != null and is_instance_valid(mon.get("target_mage")):
+		tgt = mon.get("target_mage")
+	# the strike keeps a little of the clip's swing, but the blade MEETS what it strikes (these clips were not
+	# animated for a sword: left alone, a blade can trail behind the strike)
+	var ms := String(mon.get("mstate")) if mon and mon.get("mstate") != null else state
+	var wgt := 0.0 if (state in ["defeat", "dying"] or ms == "dying") else (0.85 if ms == "strike" else (0.5 if ms == "windup" else 1.0))
+	var locked := ms in ["windup", "strike"]       # the attack's aim is locked at the wind-up: follow it through
+	for w in weapons:
+		if not is_instance_valid(w) or not w.has_meta("base_xf") or not w.is_inside_tree():
+			continue
+		w.transform = w.get_meta("base_xf")                     # the hand's own grip this frame
+		var gt: Transform3D = w.global_transform
+		var g: Vector3 = gt * (w.get_meta("grip_local") as Vector3)
+		var tip: Vector3 = gt * (w.get_meta("tip_local") as Vector3)
+		var cur := (tip - g).normalized()
+		var want: Vector3
+		if locked:
+			var lf := mon.global_transform.basis.z if mon else global_transform.basis.z
+			want = (Vector3(lf.x, 0, lf.z).normalized() + Vector3(0, -0.1, 0)).normalized()
+		elif tgt:
+			want = ((tgt.global_position + Vector3(0, 1.15, 0)) - g).normalized()
+		else:
+			var f := global_transform.basis.z
+			want = (Vector3(f.x, 0, f.z).normalized() * 0.94 + Vector3(0, -0.34, 0)).normalized()
+		# never aim a blade across its own wielder (an off hand beside the hip pointing at someone in front would
+		# run the dagger through the chest): bend it outward, away from the body, until its path is clear
+		if mon:
+			var axis_p := mon.global_position
+			var out := Vector3(g.x - axis_p.x, 0, g.z - axis_p.z)
+			out = out.normalized() if out.length() > 0.01 else global_transform.basis.x
+			var ln := g.distance_to(tip)
+			for attempt in 4:
+				var crosses := false
+				for k in range(2, 9):
+					var bp: Vector3 = g + want * ln * (k / 8.0)
+					if Vector2(bp.x - axis_p.x, bp.z - axis_p.z).length() < 0.2 and bp.y > axis_p.y + 0.8 and bp.y < axis_p.y + 1.9:
+						crosses = true
+						break
+				if not crosses:
+					break
+				want = (want + out * 0.6).normalized()
+		# and never into the ground: lift the aim until the tip clears the terrain under it
+		var w_area = get_tree().current_scene.get("world") if get_tree().current_scene else null
+		if w_area and w_area.has_method("ground_at"):
+			var ln2 := g.distance_to(tip)
+			for lift in 4:
+				var tp: Vector3 = g + want * ln2
+				if tp.y > float(w_area.ground_at(tp.x, tp.z)) + 0.08:
+					break
+				want = (want + Vector3(0, 0.25, 0)).normalized()
+		var ang := cur.angle_to(want)
+		var axis := cur.cross(want)
+		var q := Quaternion.IDENTITY
+		if axis.length() > 1e-4 and ang > 0.01:
+			# a strike may turn the blade fully (the generic clips' wrists were not animated for a sword); guards 90 max
+			q = Quaternion(axis.normalized(), minf(ang, deg_to_rad(180.0 if locked else 90.0)) * wgt)
+		var key := w.get_instance_id()
+		var prev: Quaternion = _aim.get(key, Quaternion.IDENTITY)
+		q = prev.slerp(q, 1.0 - exp(-10.0 * delta))
+		_aim[key] = q
+		var r := Basis(q)
+		w.global_transform = Transform3D(r * gt.basis, g + r * (gt.origin - g))
+		_constrain_blade(w, mon, g)
+
+
+## Hard limits on the FINAL blade (after the clip and the aim, whatever they did): its tip never below the ground
+## and its length never through the wielder's head or torso - rotated up / outward about the fist just enough.
+func _constrain_blade(w: Node3D, mon: Node3D, g: Vector3) -> void:
+	var w_area = get_tree().current_scene.get("world") if get_tree().current_scene else null
+	for it in 10:
+		var gt: Transform3D = w.global_transform
+		var tip: Vector3 = gt * (w.get_meta("tip_local") as Vector3)
+		var dir := tip - g
+		var fix := Vector3.ZERO
+		if w_area and w_area.has_method("ground_at") and tip.y < float(w_area.ground_at(tip.x, tip.z)) + 0.1:
+			fix += Vector3.UP
+		if mon:
+			var ap := mon.global_position
+			for k in range(2, 9):
+				var bp := g.lerp(tip, k / 8.0)
+				var off := Vector2(bp.x - ap.x, bp.z - ap.z)
+				if off.length() < 0.24 and bp.y > ap.y + 0.8 and bp.y < ap.y + 1.95:
+					var out := Vector3(g.x - ap.x, 0, g.z - ap.z)
+					fix += (out.normalized() if out.length() > 0.02 else global_transform.basis.z)
+					break
+		if fix == Vector3.ZERO:
+			return
+		var want := (dir.normalized() + fix.normalized() * 0.6).normalized()
+		var ax := dir.normalized().cross(want)
+		if ax.length() < 1e-4:
+			return
+		var rb := Basis(ax.normalized(), dir.normalized().angle_to(want))
+		w.global_transform = Transform3D(rb * gt.basis, g + rb * (gt.origin - g))
 
 
 ## A rival who yields lets the weapons fall: each becomes a prop lying on the ground where it dropped.
@@ -142,6 +252,8 @@ func weapon_tip() -> Vector3:
 	if weapons.is_empty():
 		return aim_point()
 	var w := weapons[0]
+	if w.has_meta("tip_local"):
+		return w.global_transform * (w.get_meta("tip_local") as Vector3)      # the measured tip (Grip)
 	var ln := float(spec.get("weapons", [{}])[0].get("length", 0.9))
 	return w.global_transform * Vector3(0, ln, 0)
 
@@ -181,6 +293,7 @@ func _process(delta: float) -> void:
 	delta = minf(delta, 0.05)
 	_t += delta
 	state_t += delta
+	_aim_weapons(delta)
 	# banking: roll into the turn (yaw rate), like a flyer, never more than ~35 degrees
 	var yaw := global_rotation.y
 	var rate := angle_difference(_prev_yaw, yaw) / maxf(delta, 1e-4)

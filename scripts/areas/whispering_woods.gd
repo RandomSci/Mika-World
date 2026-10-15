@@ -378,7 +378,7 @@ func set_night(v: bool) -> void:
 		return
 	env.ambient_light_sky_contribution = 0.35 if v else 0.5
 	env.ambient_light_color = Color(0.22, 0.30, 0.46) if v else Color(0.6, 0.66, 0.52)
-	if RenderProfile.profile == RenderProfile.LIVE_OPTIMIZED:
+	if RenderProfile.tier() == RenderProfile.LIVE_OPTIMIZED:
 		env.ssao_enabled = false   # measured 7 ms on the stream machine's iGPU under the canopy; the painted crowns carry their own AO
 	NatureKit.set_night_glow(v)
 	if marks:

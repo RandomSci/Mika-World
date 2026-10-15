@@ -104,6 +104,7 @@ func _build_rain() -> void:
 	q.material = _rain_mat
 	_rain_fx.draw_pass_1 = q
 	_rain_fx.emitting = false
+	_rain_fx.set_meta("managed_ratio", true)        # the weather sets its own density (AdaptiveQuality leaves it)
 	# drops stop on whatever is above the ground (roofs, canopies, her hood) and burst into a tiny splash
 	pm.collision_mode = ParticleProcessMaterial.COLLISION_HIDE_ON_CONTACT
 	pm.collision_use_scale = false

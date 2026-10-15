@@ -14,6 +14,10 @@ signal profile_changed(profile: String)
 const CINEMATIC := "CINEMATIC"
 const LIVE_OPTIMIZED := "LIVE_OPTIMIZED"
 const ULTRA := "ULTRA"
+# Adaptive graphics (docs/ADAPTIVE_GRAPHICS.md): the three 60-FPS-era profiles
+const CINEMATIC_MAX := "CINEMATIC_MAX"   # highest validated quality, uncapped: screenshots / non-real-time
+const ADAPTIVE_60 := "ADAPTIVE_60"       # recommended for streaming: CINEMATIC quality, AdaptiveQuality manages it
+const STABLE_60 := "STABLE_60"           # fixed, conservative, 60 cap: the diagnostic baseline
 
 var profile := CINEMATIC
 var night := false
@@ -40,6 +44,29 @@ const SETTINGS := {
 		"foliage_density": 0.55, "magic_shadows": false, "max_fps": 30, "lod_threshold": 2.0,
 		"particle_scale": 0.6, "magic_light_scale": 1.0,
 	},
+	CINEMATIC_MAX: {
+		"scale_3d": 1.0, "fsr": false, "taa": true, "fxaa": false, "msaa": Viewport.MSAA_DISABLED,
+		"ssao": true, "ssil": true, "ssr": true, "sdfgi": false, "glow": true,
+		"volumetric_fog": true, "fog_density": 0.0035, "shadow_size": 4096, "shadow_distance": 45.0,
+		"foliage_density": 1.0, "magic_shadows": true, "max_fps": 0, "lod_threshold": 1.0,
+		"particle_scale": 1.0, "magic_light_scale": 0.75,
+	},
+	ADAPTIVE_60: {
+		# CINEMATIC as the ceiling; FSR 2 from native scale (it is also the temporal AA, replacing TAA) so the
+		# controller can lower the internal 3D scale at runtime without changing the anti-aliasing look
+		"scale_3d": 1.0, "fsr": false, "fsr2": true, "taa": false, "fxaa": false, "msaa": Viewport.MSAA_DISABLED,
+		"ssao": true, "ssil": true, "ssr": true, "sdfgi": false, "glow": true,
+		"volumetric_fog": true, "fog_density": 0.0035, "shadow_size": 4096, "shadow_distance": 45.0,
+		"foliage_density": 1.0, "magic_shadows": true, "max_fps": 60, "lod_threshold": 1.0,
+		"particle_scale": 1.0, "magic_light_scale": 0.75,
+	},
+	STABLE_60: {
+		"scale_3d": 0.75, "fsr": true, "taa": false, "fxaa": true, "msaa": Viewport.MSAA_DISABLED,
+		"ssao": true, "ssil": false, "ssr": false, "sdfgi": false, "glow": true,
+		"volumetric_fog": false, "fog_density": 0.0, "shadow_size": 2048, "shadow_distance": 30.0,
+		"foliage_density": 0.55, "magic_shadows": false, "max_fps": 60, "lod_threshold": 2.0,
+		"particle_scale": 0.6, "magic_light_scale": 1.0,
+	},
 	ULTRA: {
 		"scale_3d": 1.0, "fsr": false, "taa": true, "fxaa": false, "msaa": Viewport.MSAA_2X,
 		"ssao": true, "ssil": true, "ssr": true, "sdfgi": true, "glow": true,
@@ -57,6 +84,9 @@ func _init() -> void:
 	match String(options.get("profile", "cinematic")).to_lower():
 		"live", "live_optimized", "live-optimized": profile = LIVE_OPTIMIZED
 		"ultra": profile = ULTRA
+		"adaptive", "adaptive60", "adaptive_60": profile = ADAPTIVE_60
+		"stable", "stable60", "stable_60": profile = STABLE_60
+		"cinematic_max", "max": profile = CINEMATIC_MAX
 		_: profile = CINEMATIC
 	night = options.has("night")
 	tour = options.has("tour")
@@ -83,15 +113,23 @@ func set_profile(p: String) -> void:
 	profile_changed.emit(profile)
 
 
+## The visual tier a profile renders at (environment quality choices): the 60-FPS profiles map onto the originals.
+func tier() -> String:
+	match profile:
+		CINEMATIC_MAX, ADAPTIVE_60: return CINEMATIC
+		STABLE_60: return LIVE_OPTIMIZED
+	return profile
+
+
 func cycle_profile() -> void:
-	var order := [CINEMATIC, LIVE_OPTIMIZED, ULTRA]
+	var order := [ADAPTIVE_60, STABLE_60, CINEMATIC_MAX, CINEMATIC, LIVE_OPTIMIZED, ULTRA]
 	set_profile(order[(order.find(profile) + 1) % order.size()])
 
 
 func apply_to_viewport(vp: Viewport) -> void:
 	var s: Dictionary = SETTINGS[profile]
 	vp.scaling_3d_scale = get_setting("scale_3d")
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if s.fsr else Viewport.SCALING_3D_MODE_BILINEAR
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2 if s.get("fsr2", false) else (Viewport.SCALING_3D_MODE_FSR if s.fsr else Viewport.SCALING_3D_MODE_BILINEAR)
 	vp.use_taa = s.taa and not is_compatibility_renderer()
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if s.fxaa else Viewport.SCREEN_SPACE_AA_DISABLED
 	vp.msaa_3d = s.msaa
@@ -123,7 +161,7 @@ func apply_to_environment(env: Environment) -> void:
 	if env.volumetric_fog_enabled:
 		env.volumetric_fog_density = s.fog_density
 	RenderingServer.environment_set_ssao_quality(
-		RenderingServer.ENV_SSAO_QUALITY_HIGH if profile == ULTRA else (RenderingServer.ENV_SSAO_QUALITY_MEDIUM if profile == CINEMATIC else RenderingServer.ENV_SSAO_QUALITY_LOW),
-		profile != ULTRA, 0.5, 2, 50, 300)
-	RenderingServer.environment_set_ssil_quality(RenderingServer.ENV_SSIL_QUALITY_LOW if profile != ULTRA else RenderingServer.ENV_SSIL_QUALITY_MEDIUM, true, 0.5, 2, 50, 300)
-	RenderingServer.environment_set_volumetric_fog_volume_size(64 if profile == CINEMATIC else 128, 64 if profile == CINEMATIC else 128)
+		RenderingServer.ENV_SSAO_QUALITY_HIGH if tier() == ULTRA else (RenderingServer.ENV_SSAO_QUALITY_MEDIUM if tier() == CINEMATIC else RenderingServer.ENV_SSAO_QUALITY_LOW),
+		tier() != ULTRA, 0.5, 2, 50, 300)
+	RenderingServer.environment_set_ssil_quality(RenderingServer.ENV_SSIL_QUALITY_LOW if tier() != ULTRA else RenderingServer.ENV_SSIL_QUALITY_MEDIUM, true, 0.5, 2, 50, 300)
+	RenderingServer.environment_set_volumetric_fog_volume_size(64 if tier() == CINEMATIC else 128, 64 if tier() == CINEMATIC else 128)

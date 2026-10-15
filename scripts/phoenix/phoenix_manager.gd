@@ -71,7 +71,9 @@ func _process(delta: float) -> void:
 			main.npcs.present.erase("phoenix")
 		return
 	if present == null:
-		if Engine.get_process_frames() % 30 == 0 and (_due() or RenderProfile.options.has("phoenix")):
+		# never into the middle of someone else's fight: she comes once it is over
+		var fighting: bool = main.get("gfx") != null and main.gfx.in_fight()
+		if Engine.get_process_frames() % 30 == 0 and not fighting and (_due() or RenderProfile.options.has("phoenix")):
 			summon()
 		return
 	if _driving:

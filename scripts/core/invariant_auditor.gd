@@ -32,6 +32,8 @@ var _t := 0.0
 var _hidden_t := 0.0
 var _cast_off_t := {}
 var _arrived_t := 0.0
+var _mstate_prev := {}
+var _persist := {}
 var _last_pos := {}
 
 
@@ -160,7 +162,7 @@ func _process(delta: float) -> void:
 ## The camera on the followed mage (the director's subject), whatever shot it is in.
 func _check_camera() -> void:
 	var d = main.get("director")
-	if d == null or not d.enabled or d.mode in ["off", "establishing", "explore", "performance", "scene"]:
+	if d == null or not d.enabled or d.mode in ["off", "establishing", "explore", "performance"]:
 		return
 	if main.get("streaming") and main.streaming.state != "idle":
 		_arrived_t = 0.0
@@ -178,6 +180,17 @@ func _check_camera() -> void:
 	var cp := cam.global_position
 	var head := c.global_position + Vector3(0, 1.5, 0)
 	var subject := "camera:%s:%s" % [d.mode, c.character_id]
+	if CombatFraming.inside_solid(c.get_world_3d().direct_space_state, cp, 0.12):
+		_flag(subject, "camera:inside_geometry", {"pos": [snappedf(cp.x, 0.1), snappedf(cp.y, 0.1), snappedf(cp.z, 0.1)]})
+		return
+	if d.mode == "scene":
+		# a staged scene frames whoever speaks (a rival, Luna): never inside geometry, and its view not blocked
+		var lk: Vector3 = cam.global_position - cam.global_transform.basis.z * 3.0
+		var sq2 := PhysicsRayQueryParameters3D.create(cp, lk, 1 | 4)
+		var bh := c.get_world_3d().direct_space_state.intersect_ray(sq2)
+		if not bh.is_empty() and cp.distance_to(bh.position) < 0.8:
+			_flag(subject, "camera:view_blocked", {"by": String((bh.collider as Node).name) if bh.collider else "", "at_m": snappedf(cp.distance_to(bh.position), 0.01)})
+		return
 	var flat := Vector2(cp.x - head.x, cp.z - head.z).length()
 	if cp.y < c.global_position.y + 0.9 and flat < 5.0 and not c.lifted:
 		_flag(subject, "camera:looking_up_from_below", {"lens_above_feet": snappedf(cp.y - c.global_position.y, 0.01), "dist": snappedf(flat, 0.01)})
@@ -205,7 +218,10 @@ func _check_fights() -> void:
 			continue
 		var tgt: Node3D = m.target_mage if m.target_mage and is_instance_valid(m.target_mage) else null
 		var subj := "%s(%s)" % [String(m.get("kind")), String(m.get("id"))]
-		if tgt and m.mstate in ["windup", "strike"]:
+		var entering_windup: bool = String(m.mstate) == "windup" and String(_mstate_prev.get(m.get_instance_id(), "")) != "windup"
+		_mstate_prev[m.get_instance_id()] = String(m.mstate)
+		# facing is judged as the attack BEGINS (the aim then locks on purpose, so a mage who dodges is missed)
+		if tgt and entering_windup:
 			_count("facing")
 			var to := Vector3(tgt.global_position.x - m.global_position.x, 0, tgt.global_position.z - m.global_position.z)
 			var fwd: Vector3 = (m as Node3D).global_transform.basis.z
@@ -220,17 +236,41 @@ func _check_fights() -> void:
 				continue
 			_count("weapon")
 			var tip: Vector3 = (w as Node3D).global_transform * (w.get_meta("tip_local") as Vector3)
-			var grip: Vector3 = (w as Node3D).global_position
+			# the fist (the measured grip point) - the holder's origin is the prop's own origin, not the hand
+			var grip: Vector3 = (w as Node3D).global_transform * (w.get_meta("grip_local", Vector3.ZERO) as Vector3)
 			var axis := Vector2(tip.x - m.global_position.x, tip.z - m.global_position.z).length()
-			if axis < 0.18 and tip.y > m.global_position.y + 0.3 and tip.y < m.global_position.y + 1.6:
+			if axis < 0.14 and tip.y > m.global_position.y + 0.3 and tip.y < m.global_position.y + 1.6:
 				_flag(subj, "weapon:through_own_body", {"tip_from_axis": snappedf(axis, 0.01)})
 			var q := PhysicsRayQueryParameters3D.create(tip + Vector3(0, 1.0, 0), tip + Vector3(0, -0.02, 0), 1)
 			var hit: Dictionary = (m as Node3D).get_world_3d().direct_space_state.intersect_ray(q)
 			if not hit.is_empty() and (hit.position as Vector3).y > tip.y + 0.08 and String((hit.collider as Node).name).contains("Terrain"):
 				_flag(subj, "weapon:in_the_ground", {"depth": snappedf((hit.position as Vector3).y - tip.y, 0.01)})
-			if tgt and m.mstate == "strike":
+			# the blade never passes through its wielder (torso, neck, head): sampled along it, past the fist
+			var mp: Vector3 = (m as Node3D).global_position
+			for k in range(2, 9):
+				var bp := grip.lerp(tip, k / 8.0)
+				var ax := Vector2(bp.x - mp.x, bp.z - mp.z).length()
+				if ax < 0.17 and bp.y > mp.y + 0.95 and bp.y < mp.y + 1.85:
+					_flag(subj, "weapon:through_own_body", {"at": snappedf(k / 8.0, 0.01), "from_axis": snappedf(ax, 0.01), "height": snappedf(bp.y - mp.y, 0.01), "state": String(m.mstate)})
+					break
+			# the LEAD blade points at the opponent on guard (a dual-wielder's off-hand dagger is held back by design)
+			if tgt and w == rig.weapons[0] and String(m.mstate) in ["alert", "chase", "attack"]:
+				var gd := (tip - grip).normalized()
+				var td := ((tgt.global_position + Vector3(0, 1.1, 0)) - grip).normalized()
+				var gk := "%s:guard" % subj
+				if rad_to_deg(gd.angle_to(td)) > 75.0:
+					_persist[gk] = int(_persist.get(gk, 0)) + 1
+					if int(_persist[gk]) >= 2:      # still off a second later (not just settling into the guard)
+						_flag(subj, "weapon:guard_not_at_opponent", {"deg": snappedf(rad_to_deg(gd.angle_to(td)), 0.1), "state": String(m.mstate)})
+				else:
+					_persist[gk] = 0
+			# judged at the moment of the hit (a slash's follow-through legitimately sweeps past the body)
+			if tgt and w == rig.weapons[0] and m.mstate == "strike" and float(m.get("_state_t")) > 0.12 and float(m.get("_state_t")) < 0.28:
+				# against the attack's own direction (where it faces - the aim locks at the wind-up, so a dodged
+				# mage is no longer in front of it, and that is right)
 				var bd := (tip - grip).normalized()
-				var tdir := ((tgt.global_position + Vector3(0, 1.0, 0)) - grip).normalized()
+				var mf: Vector3 = (m as Node3D).global_transform.basis.z
+				var tdir := (Vector3(mf.x, 0, mf.z).normalized() + Vector3(0, -0.1, 0)).normalized()
 				if rad_to_deg(bd.angle_to(tdir)) > 110.0:
 					_flag(subj, "weapon:strikes_pointing_away", {"deg": snappedf(rad_to_deg(bd.angle_to(tdir)), 0.1)})
 	for who in main.characters:
@@ -238,12 +278,19 @@ func _check_fights() -> void:
 		var b = main.mage_brains.get(who) if main.get("mage_brains") else null
 		if not is_instance_valid(c) or not c.casting or b == null or b.threat == null or not is_instance_valid(b.threat):
 			continue
+		var sid := String(c.get_meta("casting_spell", ""))
+		var sdef: Dictionary = MagicSystem.spell(sid) if sid != "" else {}
+		if String(sdef.get("projectile", "")) in ["self"] or (String(sdef.get("projectile", "")) == "ward" and who != "luna"):
+			continue        # a self-spell / an all-round leaf ward: no direction to face
 		_count("facing")
-		var to2 := Vector3(b.threat.global_position.x - c.global_position.x, 0, b.threat.global_position.z - c.global_position.z)
+		# what she casts AT (her chosen target), else the threat
+		var aim_at: Node3D = c.get_meta("cast_target") if c.has_meta("cast_target") and is_instance_valid(c.get_meta("cast_target")) else b.threat
+		var to2 := Vector3(aim_at.global_position.x - c.global_position.x, 0, aim_at.global_position.z - c.global_position.z)
 		if to2.length() > 0.8 and rad_to_deg(mage_forward(c).angle_to(to2.normalized())) > 45.0:
 			_cast_off_t[who] = float(_cast_off_t.get(who, 0.0)) + 0.5
 			if float(_cast_off_t[who]) >= 1.0:          # she may still be turning for half a second
-				_flag(who, "facing:casts_without_facing", {"deg": snappedf(rad_to_deg(mage_forward(c).angle_to(to2.normalized())), 0.1)})
+				_flag(who, "facing:casts_without_facing", {"deg": snappedf(rad_to_deg(mage_forward(c).angle_to(to2.normalized())), 0.1), "spell": sid,
+					"cast_target": String((c.get_meta("cast_target") as Node).name) if c.has_meta("cast_target") and is_instance_valid(c.get_meta("cast_target")) else "", "threat": String(b.threat.name)})
 		else:
 			_cast_off_t[who] = 0.0
 

@@ -454,6 +454,8 @@ func _ring_spread(centre: Vector3) -> float:
 # ------------------------------------------------------------------ the staged camera
 ## Nothing solid between the lens and the subject, and no other person standing in the way.
 func _view_clear(cam: Vector3, at: Vector3, ignore: Array) -> bool:
+	if CombatFraming.inside_solid(get_viewport().world_3d.direct_space_state, cam):
+		return false                      # a lens buried in a rock / trunk: black screen
 	var q := PhysicsRayQueryParameters3D.create(at, cam)
 	q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3): the lens is never inside them
 	if not get_viewport().world_3d.direct_space_state.intersect_ray(q).is_empty():
@@ -480,6 +482,13 @@ func _safe(sh: Dictionary) -> Dictionary:
 		pos = (hit.position as Vector3) + (look - (hit.position as Vector3)).normalized() * 0.35
 	if main.world and main.world.has_method("ground_at"):
 		pos.y = maxf(pos.y, float(main.world.ground_at(pos.x, pos.z)) + 0.4)
+	# still inside something solid (a ray from inside a collider reports nothing): pull toward the subject and up
+	# until the lens is in open air
+	var space := get_viewport().world_3d.direct_space_state
+	var tries := 0
+	while CombatFraming.inside_solid(space, pos) and tries < 12:
+		pos = pos.lerp(look, 0.15) + Vector3(0, 0.25, 0)
+		tries += 1
 	sh["pos"] = pos
 	return sh
 
@@ -503,8 +512,8 @@ func _scene_shot(delta: float) -> Dictionary:
 			if is_instance_valid(from):
 				var axis := Vector3(at.x - (from as Node3D).global_position.x, 0, at.z - (from as Node3D).global_position.z).normalized()
 				var side := Vector3(-axis.z, 0, axis.x)
-				return {"pos": (from as Node3D).global_position - axis * 1.4 + side * 0.55 + Vector3(0, 1.55, 0), "look": at + Vector3(0, 1.0, 0),
-					"fov": 30.0, "rate": 4.0, "cut": cut}
+				return _safe({"pos": (from as Node3D).global_position - axis * 1.4 + side * 0.55 + Vector3(0, 1.55, 0), "look": at + Vector3(0, 1.0, 0),
+					"fov": 30.0, "rate": 4.0, "cut": cut})
 		"orbit":
 			var c: Vector3 = _shot.get("at")
 			var a := _shot_t * 0.18

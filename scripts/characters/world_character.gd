@@ -1291,6 +1291,13 @@ func _physics_process(delta: float) -> void:
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	if hv.length() > 0.2:
 		face_dir = hv.normalized()
+	elif casting and has_meta("cast_target") and is_instance_valid(get_meta("cast_target")):
+		# a target that moves while she casts: she keeps turning to it (a cast is never thrown sideways)
+		var ct: Node3D = get_meta("cast_target")
+		face_dir = ct.global_position - global_position
+		face_dir.y = 0
+		if face_dir.length() > 0.01:
+			face_dir = face_dir.normalized()
 	elif _look_target != null:
 		face_dir = (_look_target as Vector3 - global_position)
 		face_dir.y = 0

@@ -40,8 +40,11 @@ static func hand_frame(sk: Skeleton3D, side: String) -> Transform3D:
 	if t.dot(n) < 0.0:
 		n = -n                                         # the palm faces the side the thumb is on
 	var gp := h + (m - h) * 0.9 + n * 0.03
-	var x := a
-	var y := f
+	# a real grip runs DIAGONALLY across the palm (base of the index finger to the heel of the hand), so the head /
+	# blade leans ~45 degrees toward the knuckles: raised to guard, a blade points AT the opponent (not up past
+	# its own face), and raised to the shoulder it stands clear of the head
+	var x := (a + f * 1.0).normalized()
+	var y := (f - x * f.dot(x)).normalized()
 	var g := Transform3D(Basis(x, y, x.cross(y)).orthonormalized(), gp)
 	return th.affine_inverse() * g
 
@@ -212,7 +215,37 @@ static func blade_frame(root: Node3D) -> Dictionary:
 		if cnt[i] > 0:
 			wmax[i] = maxf(wp[i][1] - wp[i][0], wq[i][1] - wq[i][0])
 			cen[i] /= cnt[i]
-	# from each end: the widest slice within the first 40 % (the guard / where the blade starts), and how much
+	# FIRST by shape: a handle is ROUND (thick both ways), a blade is FLAT (wide but millimetres thin). The end whose
+	# slices are least flat is the handle, and it runs until the cross-section turns flat (the blade begins). This
+	# holds for a machete or a cleaver whose blade widens toward the tip (the width rule below would pick the tip).
+	var flat := func(i: int) -> float:
+		if cnt[i] == 0:
+			return 0.0
+		var a: float = wp[i][1] - wp[i][0]
+		var b: float = wq[i][1] - wq[i][0]
+		return maxf(a, b) / maxf(minf(a, b), 0.002)
+	var end_flat := [0.0, 0.0]
+	for e in 2:
+		var tot := 0.0
+		var nn := 0
+		for j in range(1, int(N * 0.18)):
+			var i0 := (N - 1 - j) if e == 1 else j
+			if cnt[i0] > 0:
+				tot += float(flat.call(i0))
+				nn += 1
+		end_flat[e] = tot / maxf(nn, 1)
+	if absf(float(end_flat[0]) - float(end_flat[1])) > 1.0 and minf(end_flat[0], end_flat[1]) < 2.6:
+		var fh0: bool = float(end_flat[1]) < float(end_flat[0])
+		var hl := 2
+		for j in range(2, int(N * 0.5)):
+			var i1 := (N - 1 - j) if fh0 else j
+			if cnt[i1] > 0 and float(flat.call(i1)) > 2.6:
+				hl = j
+				break
+			hl = j
+		var best0 := {"ratio": 9.0, "from_hi": fh0, "g": hl, "by": "shape"}
+		return _blade_from(best0, lo, hi, k, p, q, length, N, wp, wq, cen, cnt)
+	# otherwise by width: the widest slice within the first 40 % (the guard / where the blade starts), and how much
 	# wider it is than what lies between it and the end (a handle is narrow)
 	var best := {"ratio": 0.0}
 	for from_hi in [false, true]:
@@ -239,6 +272,10 @@ static func blade_frame(root: Node3D) -> Dictionary:
 			best = {"ratio": ratio, "from_hi": from_hi, "g": g}
 	if best.ratio < 1.2:
 		return {}
+	return _blade_from(best, lo, hi, k, p, q, length, N, wp, wq, cen, cnt)
+
+
+static func _blade_from(best: Dictionary, lo: Vector3, hi: Vector3, k: int, p: int, q: int, length: float, N: int, wp: Array, wq: Array, cen: Array, cnt: Array) -> Dictionary:
 	var fh: bool = best.from_hi
 	var gj: int = best.g
 	var grip_j := maxi(1, int(gj * 0.5))
@@ -265,4 +302,4 @@ static func blade_frame(root: Node3D) -> Dictionary:
 	o[q] = (cen[gi] as Vector2).y
 	var tip := o
 	tip[k] = lo[k] if fh else hi[k]
-	return {"xf": Transform3D(Basis(x, y, x.cross(y)).orthonormalized(), o), "length": length, "tip": tip, "ratio": snappedf(float(best.ratio), 0.01)}
+	return {"xf": Transform3D(Basis(x, y, x.cross(y)).orthonormalized(), o), "length": length, "tip": tip, "ratio": snappedf(float(best.ratio), 0.01), "by": String(best.get("by", "width"))}

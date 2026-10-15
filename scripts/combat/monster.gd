@@ -635,6 +635,8 @@ func _think_j(delta: float) -> void:
 				return
 			if not bool(_attack.get("lock_aim", true)):
 				_face(target_mage.global_position, delta, float(def.get("turn", 4.0)))
+			elif _state_t < 0.2:
+				_face(target_mage.global_position, delta, 16.0)        # square up to it first, THEN the aim locks
 			if creature:
 				creature.glow_level = 1.0 + 2.0 * clampf(_state_t / float(_attack.windup), 0.0, 1.0)
 			if _state_t >= float(_attack.windup):

@@ -400,7 +400,8 @@ static func prop(id: String, part := "") -> Mesh:
 	var root: Node = ps.instantiate()
 	var found: MeshInstance3D = null
 	for n in root.find_children("*", "MeshInstance3D", true, false):
-		if part == "" or String(n.name).begins_with(part):
+		# "name$" = exactly that node (a model shipping e.g. a dagger AND its scabbard); otherwise a prefix match
+		if part == "" or (String(n.name) == part.trim_suffix("$") if part.ends_with("$") else String(n.name).begins_with(part)):
 			found = n
 			break
 	var mesh: Mesh = found.mesh if found else null

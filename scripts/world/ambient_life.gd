@@ -23,7 +23,7 @@ func _init(owner: AreaBase) -> void:
 
 
 func _ready() -> void:
-	var live := RenderProfile.profile == RenderProfile.LIVE_OPTIMIZED
+	var live := RenderProfile.tier() == RenderProfile.LIVE_OPTIMIZED
 	var r := RandomNumberGenerator.new()
 	r.seed = 515
 	# Birds: a body + two wing triangles, dark silhouette against the sky

@@ -196,3 +196,17 @@ static func signature_shot(c: WorldCharacter, target: Node3D, beat: String, t_in
 			axis = axis.normalized() if dist > 0.1 else fwd
 			var perp := Vector3(-axis.z, 0, axis.x) * side
 			return {"pos": p.lerp(at, 0.55) + perp * clampf(dist * 0.6 + 2.5, 4.0, 10.0) + Vector3(0, 2.0, 0), "look": p.lerp(at, 0.65) + Vector3(0, 0.9, 0), "fov": 50.0, "cut": false}
+
+
+## Is this lens position INSIDE something solid (a boulder, a trunk, a wall, the ground)? A ray that starts inside a
+## collider does not report it, so line-of-sight checks alone let a camera sit buried in a rock (a black screen) -
+## this overlap test catches it. Shared by every shot chooser (ambush, director, trailer cam) and the auditor.
+static func inside_solid(space: PhysicsDirectSpaceState3D, p: Vector3, radius := 0.18) -> bool:
+	var sq := PhysicsShapeQueryParameters3D.new()
+	var sp := SphereShape3D.new()
+	sp.radius = radius
+	sq.shape = sp
+	sq.transform = Transform3D(Basis.IDENTITY, p)
+	sq.collision_mask = 1 | 4
+	return not space.intersect_shape(sq, 1).is_empty()
+

@@ -563,6 +563,35 @@ func _frame(delta: float) -> void:
 
 
 func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) -> void:
+	# never inside something solid, whatever shot asked for it (a ray from inside a rock reports nothing: the overlap
+	# test does) - pulled toward what it looks at, and up, until it is in open air
+	if mika:
+		var space := mika.get_world_3d().direct_space_state
+		var tries := 0
+		while CombatFraming.inside_solid(space, pos) and tries < 14:
+			pos = pos.lerp(look, 0.12) + Vector3(0, 0.22, 0)
+			tries += 1
+	# she is IN the shot: in a director-made frame (a fight, a conversation, an activity) her head must be inside
+	# the view and not behind something solid - otherwise the shot is re-solved round her instead of trusted
+	if mika and mode in ["combat", "conversation", "activity", "spell"]:
+		var head := mika.global_position + Vector3(0, 1.45, 0)
+		var seen := rad_to_deg((look - pos).angle_to(head - pos)) < fov * 0.5 * 0.85
+		if seen:
+			var vq := PhysicsRayQueryParameters3D.create(pos, head, 1 | 4)
+			vq.exclude = [mika.get_rid()]
+			var vh := mika.get_world_3d().direct_space_state.intersect_ray(vq)
+			seen = vh.is_empty() or (vh.position as Vector3).distance_to(head) < 0.5
+		if not seen:
+			var f3 := -mika.global_transform.basis.z
+			var alt := _solve_shot(mika.global_position, look.lerp(head, 0.6), maxf(fov, 50.0), Vector3(f3.x, 0, f3.z).normalized())
+			if alt != Vector3.INF:
+				pos = alt
+				look = look.lerp(head, 0.6)
+	# never looking up at her from below her waist when the lens is near her (any shot the director makes)
+	if mika and mode != "scene":
+		var fp := mika.global_position
+		if Vector2(pos.x - fp.x, pos.z - fp.z).length() < 5.0 and pos.y < fp.y + 1.1:
+			pos.y = fp.y + 1.1
 	var cut := _since_change < 0.05 and (_pos.distance_to(pos) > 4.0 or not rig.shot_active)
 	if cut or not rig.shot_active:
 		_pos = pos
@@ -573,7 +602,56 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		_pos = _pos.lerp(pos, k2)
 		_look = _look.lerp(look, k2)
 		_fov = lerpf(_fov, fov, k2)
+	# the eased path between two safe shots can cross a rock too: the lens actually used is checked as well
+	if mika and CombatFraming.inside_solid(mika.get_world_3d().direct_space_state, _pos):
+		_pos = pos
+	# and whatever shot this is (a staged scene included): open air round the lens and a clear view of what it looks
+	# at - a lens pressed against a boulder fills the screen with rock (QA: a black screen while Luna spoke)
+	if mika and not _view_ok(_pos, _look):
+		var rs := _rescue_shot(_pos, _look)
+		if rs != Vector3.INF:
+			_pos = rs
+	# the eased lens itself (not only its target): above her waist when near her, and never closer than 0.9 m to her head
+	if mika and mode != "scene":
+		var fp2 := mika.global_position
+		if Vector2(_pos.x - fp2.x, _pos.z - fp2.z).length() < 5.0 and _pos.y < fp2.y + 1.1:
+			_pos.y = fp2.y + 1.1
+		var hd := fp2 + Vector3(0, 1.45, 0)
+		if _pos.distance_to(hd) < 0.95:
+			var away := (_pos - hd)
+			away = away.normalized() if away.length() > 0.01 else (_look - hd).normalized() * -1.0
+			_pos = hd + away * 0.95
 	rig.set_shot(_pos, _look, _fov)
+
+
+func _view_ok(pos: Vector3, look: Vector3) -> bool:
+	var space := mika.get_world_3d().direct_space_state
+	if CombatFraming.inside_solid(space, pos, 0.35):
+		return false
+	var q := PhysicsRayQueryParameters3D.create(pos, look, 1 | 4)
+	q.exclude = [mika.get_rid()]
+	var hit := space.intersect_ray(q)
+	return hit.is_empty() or (hit.position as Vector3).distance_to(look) < 0.6
+
+
+## A valid lens near the intended one: round what it looks at (2.5-4 m, a little above it), open air, a clear view;
+## the one closest in direction to the shot that was asked for.
+func _rescue_shot(pos: Vector3, look: Vector3) -> Vector3:
+	var want := Vector3(pos.x - look.x, 0, pos.z - look.z)
+	want = want.normalized() if want.length() > 0.05 else Vector3.BACK
+	var best := Vector3.INF
+	var best_s := -INF
+	for dist: float in [2.6, 3.4, 4.2]:
+		for deg: float in [0.0, 25.0, -25.0, 50.0, -50.0, 80.0, -80.0, 120.0, -120.0, 180.0]:
+			for up: float in [0.3, 0.8]:
+				var c := look + want.rotated(Vector3.UP, deg_to_rad(deg)) * dist + Vector3(0, up, 0)
+				if not _view_ok(c, look):
+					continue
+				var sc := -absf(deg) * 0.02 - dist * 0.2 - up * 0.3
+				if sc > best_s:
+					best_s = sc
+					best = c
+	return best
 
 
 var _conv_pick := {}
@@ -635,6 +713,8 @@ func _arm_room(yaw: float, pitch: float) -> float:
 
 func _frame_ok(pos: Vector3, look: Vector3, fov: float, head: Vector3, feet_y: float) -> bool:
 	if pos.y < feet_y + 1.15 or pos.distance_to(head) < 1.3:
+		return false
+	if CombatFraming.inside_solid(mika.get_world_3d().direct_space_state, pos):
 		return false
 	var ang := rad_to_deg((look - pos).angle_to(head - pos))
 	if ang > fov * 0.5 * 0.8:

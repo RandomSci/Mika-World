@@ -199,6 +199,17 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 		return _finish(res)
 	_casting[who] = true
 	last_spell = id
+	caster.set_meta("casting_spell", id)
+	# a ward that covers only her front (the Gilded Mirror) is raised TOWARD the threat
+	if String(s.get("projectile", "")) == "ward" and String(s.get("ward_kind", "mirror" if who == "luna" else "leaf")) == "mirror":
+		var br = main.get("mage_brains").get(who) if main.get("mage_brains") else null
+		if br and br.threat and is_instance_valid(br.threat):
+			caster.look_at_point((br.threat as Node3D).global_position)
+			var tw0 := Time.get_ticks_msec()
+			while caster.current_action == "look_at" and Time.get_ticks_msec() - tw0 < 1200:
+				await get_tree().process_frame
+	if target:
+		caster.set_meta("cast_target", target)          # she keeps turning to it while the cast plays (WorldCharacter)
 	# face the target first (a cast is never thrown sideways)
 	if target:
 		caster.look_at_point(target.aim_point())
@@ -596,6 +607,11 @@ func _award(id: String, base: float, kind: String, effect: String, first: bool, 
 
 
 func _finish(res: Dictionary) -> Dictionary:
+	var who_c = main.characters.get(String(res.get("caster", ""))) if main and main.get("characters") else null
+	if who_c and is_instance_valid(who_c) and who_c.has_meta("casting_spell"):
+		who_c.remove_meta("casting_spell")
+	if who_c and is_instance_valid(who_c) and who_c.has_meta("cast_target"):
+		who_c.remove_meta("cast_target")
 	history.append(res)
 	if history.size() > 40:
 		history.pop_front()

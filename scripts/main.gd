@@ -43,6 +43,8 @@ var overlay_ui: MageOverlay
 var attention: AttentionDirector
 var affect: Affect
 var impacts: ImpactDirector       # area impacts with consequences + the aftermath behaviours (V3 continuation)
+var perf_overlay: PerfOverlay      # F6: the developer's performance / adaptive-quality panel
+var gfx: AdaptiveQuality          # Adaptive 60: quality follows the measured frame budget (docs/ADAPTIVE_GRAPHICS.md)
 var auditor: InvariantAuditor      # automatic checks for visible defects (at the object, tool in hand, on the ground)
 var town: TownLife                # the people who live in the Village and the Academy (data/residents.json)
 var weather: WeatherSystem        # one sky for the world: clear, overcast, rain, storm (persists)
@@ -274,6 +276,14 @@ func _ready() -> void:
 	auditor.name = "Auditor"
 	add_child(auditor)
 	auditor.setup(self)
+	gfx = AdaptiveQuality.new()
+	gfx.name = "AdaptiveQuality"
+	add_child(gfx)
+	gfx.setup(self)
+	perf_overlay = PerfOverlay.new()
+	perf_overlay.name = "PerfOverlay"
+	add_child(perf_overlay)
+	perf_overlay.setup(self)
 	streaming.area_activated.connect(func(a, _r): town.area_activated(a))
 	town.area_activated(streaming.current_id)
 	teleport_guard = TeleportGuard.new()
@@ -744,6 +754,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		set_viewer_mode(not viewer_mode)
 	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F2:
 		overlay_ui.toggle_dev()
+	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F6:
+		perf_overlay.toggle()
 	elif event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_F9:
 		# DEV only: inject a fake viewer comment (cycles through a few addressed to Mika / Luna / anyone)
 		var samples := [["Mika, what are you doing?", "dev_alex", "Alex"], ["Luna, what level are you?", "dev_rin", "Rin"], ["hi everyone!", "dev_sam", "Sam"],

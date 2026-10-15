@@ -62,6 +62,8 @@ func _clear(m: WorldCharacter, pos: Vector3, targets: Array) -> bool:
 			if Vector2(pos.x - bp.x, pos.z - bp.z).length() < 0.9 and pos.y > bp.y - 0.2 and pos.y < bp.y + 2.4:
 				return false
 	var space := m.get_world_3d().direct_space_state
+	if CombatFraming.inside_solid(space, pos):
+		return false
 	for tp in targets:
 		var q := PhysicsRayQueryParameters3D.create(pos, tp)
 		q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3): the lens is never inside them

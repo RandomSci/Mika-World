@@ -27,6 +27,7 @@ var cache := {}                 # area_id -> {"scene": PackedScene, "resources":
 var loading := {}               # area_id -> {"phase": 1|2, "paths": PackedStringArray, "t0": msec, "error": ""}
 var last_report := {}
 var prewarm_once: Callable  # run once behind the first travel mask (shader pipeline compilation)
+var before_reveal: Array = []   # Callables awaited on EVERY travel behind the mask, after the area is built (AdaptiveQuality)
 var history: Array[Dictionary] = []
 
 
@@ -244,6 +245,9 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		var pw := prewarm_once
 		prewarm_once = Callable()
 		await pw.call()
+	for cb in before_reveal:
+		if (cb as Callable).is_valid():
+			await (cb as Callable).call()
 	state = "transition_in"
 	if masked and overlay:
 		await overlay.fade_in()
