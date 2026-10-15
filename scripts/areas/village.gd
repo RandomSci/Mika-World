@@ -15,6 +15,7 @@ const STAIR := Vector2(-26, -30)
 const GATE_RIVER := Vector2(-134, 4)
 const GATE_HIGHLAND := Vector2(4, -134)
 const GATE_CAVES := Vector2(134, 14)
+const GATE_ACADEMY := Vector2(10, 134)
 
 var m: Dictionary
 var houses: HouseBuilder
@@ -29,13 +30,14 @@ func _init() -> void:
 		[[SQUARE, MARKET_A, MARKET_B], 5.0, "main"],
 		[[SQUARE, Vector2(8, 10), WORKSHOP + Vector2(-3, -4)], 2.6, "main"],
 		[[SQUARE, Vector2(-12, -14), STAIR + Vector2(3, 3)], 2.6, "main"],
+		[[SQUARE, Vector2(-2, 20), Vector2(2, 50), Vector2(6, 90), GATE_ACADEMY], 4.0, "main"],
 	]
 	clearings = [[SQUARE, 15.0, "clearing"], [Vector2(6, -6), 46.0, "glade"]]
 	streams = []
 
 
 func gate_spots() -> Array:
-	return [GATE_RIVER, GATE_HIGHLAND, GATE_CAVES]
+	return [GATE_RIVER, GATE_HIGHLAND, GATE_CAVES, GATE_ACADEMY]
 
 
 func shape(x: float, z: float, h: float) -> float:
@@ -338,6 +340,7 @@ func links() -> void:
 	edge_gate("river_valley", GATE_RIVER)
 	edge_gate("highland_path", GATE_HIGHLAND)
 	edge_gate("crystal_caverns", GATE_CAVES)
+	edge_gate("academy", GATE_ACADEMY)
 	# the stair up the observatory hill (north-west)
 	var base := _v(STAIR)
 	var top := stairs(base, atan2(1.0, 1.0) + PI, 3.0, 9, 0.2, 0.45, stone)

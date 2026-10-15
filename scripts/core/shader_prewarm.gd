@@ -20,10 +20,31 @@ static func run(camera: Camera3D, host: Node) -> void:
 			"res://shaders/magic/wind_arcs.gdshader", "res://shaders/magic/water_rings.gdshader", "res://shaders/magic/flame_billboard.gdshader",
 			"res://shaders/magic/beam.gdshader", "res://shaders/magic/smoke_puff.gdshader", "res://shaders/light_shaft.gdshader",
 			"res://shaders/magic/shockwave.gdshader", "res://shaders/magic/umbral_core.gdshader", "res://shaders/magic/aura_column.gdshader",
-			"res://shaders/magic/orbit_ring.gdshader"]:
+			"res://shaders/magic/orbit_ring.gdshader", "res://shaders/telegraph.gdshader", "res://shaders/ribbon_light.gdshader",
+			"res://shaders/creature_stone.gdshader", "res://shaders/ambient_creature.gdshader", "res://shaders/cocoon.gdshader"]:
 		var m := ShaderMaterial.new()
 		m.shader = load(path)
 		mats.append(m)
+	# every other spatial effect shader in the effect folders (new effects are covered without editing this list:
+	# crescent waves, afterimages, fire flipbooks, heat haze, crystals, wards, the phoenix ...)
+	var listed := {}
+	for m in mats:
+		listed[(m as ShaderMaterial).shader.resource_path] = true
+	for dir in ["res://shaders/fx", "res://shaders/magic", "res://shaders/vfx", "res://shaders/world", "res://shaders/phoenix", "res://shaders/nature"]:
+		var da := DirAccess.open(dir)
+		if da == null:
+			continue
+		for fname in da.get_files():
+			var path: String = String(dir) + "/" + String(fname).trim_suffix(".remap")
+			if not path.ends_with(".gdshader") or listed.has(path):
+				continue
+			var sh := load(path) as Shader
+			if sh == null or sh.get_mode() != Shader.MODE_SPATIAL:
+				continue
+			var sm := ShaderMaterial.new()
+			sm.shader = sh
+			mats.append(sm)
+			listed[path] = true
 	var i := 0
 	for m in mats:
 		var mi := MeshInstance3D.new()
@@ -32,7 +53,7 @@ static func run(camera: Camera3D, host: Node) -> void:
 		s.height = 0.04
 		mi.mesh = s
 		mi.material_override = m
-		mi.global_transform = Transform3D(Basis.IDENTITY, cam_xf.origin - cam_xf.basis.z * 1.0 + cam_xf.basis.x * (i * 0.03 - 0.15))
+		mi.global_transform = Transform3D(Basis.IDENTITY, cam_xf.origin - cam_xf.basis.z * 1.0 + cam_xf.basis.x * ((i % 12) * 0.03 - 0.15) + cam_xf.basis.y * (int(i / 12.0) * 0.03 - 0.1))
 		root.add_child(mi)
 		i += 1
 	# a real particle system with the mote material (particle shaders compile separately)

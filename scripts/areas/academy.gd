@@ -9,6 +9,7 @@ extends ForestRegion
 const COURT := Vector3(0, 0, 0)
 const ARENA := Vector3(44, 0, 6)
 const GARDEN := Vector3(-42, 0, 6)
+const GATE_VILLAGE := Vector2(-12, 132)
 
 var stone: ShaderMaterial
 var marble: ShaderMaterial
@@ -20,9 +21,14 @@ var glass_night: Material
 func _init() -> void:
 	trails = [
 		[[Vector2(-18, 26), Vector2(18, 26)], 1.0, "hidden"],
+		[[Vector2(8, 27), Vector2(4, 60), Vector2(-6, 100), GATE_VILLAGE], 4.0, "main"],     # the old academy road (beside the sealed portal, not through it)
 	]
 	clearings = [[Vector2(0, 4), 74.0, "glade"]]
 	streams = []
+
+
+func gate_spots() -> Array:
+	return [GATE_VILLAGE]
 
 
 func shape(x: float, z: float, h: float) -> float:
@@ -336,6 +342,7 @@ func links() -> void:
 	Kit.omni(self, Vector3(0, 1.8, pz - 0.8), Color(0.6, 0.5, 1.0), 1.0, 5.0)
 	add_gate("sanctuary", Vector3(0, 0, pz), Vector3(0, 0.05, pz - 4.0), 0.0, 1.2)
 	add_gate("great_library", Vector3(0, 0, -15.6), Vector3(0, 0.05, -11.0), PI, 1.8)
+	edge_gate("village", GATE_VILLAGE)
 	# the free places at the open-air lesson (the back bench): a visitor sits in when a lesson is being taught
 	for i in [3, 4, 5]:
 		var a: Dictionary = anchors.get("seat:%d" % i, {})

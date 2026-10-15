@@ -43,7 +43,7 @@ along them). Walking pace is ~4 km/h for ~7 h a day on roads, less on climbs and
 | Village → Highland Path ("mountain road") | 38 | climbing road | 2 | Shepherd's Hut (shelter), switchbacks |
 | Highland Path → Celestial Summit ("summit stairway") | 9 (+1,400 m) | stairs, thin air | 1 | the Cloud Gate |
 | Whispering Woods → Highland Path ("the frontier road over the north-west ridge") | 64 | ridge, pass | 3 | the Cairn shelter, the Ridge Pass (dangerous in weather) |
-| Village → Grand Academy (new: "the old academy road east") | 72 | lowland farms | 3 | Thornwick (farming village), Greywater Bridge, the Lantern inn |
+| Village → Grand Academy ("the old academy road east"; connected 2026-10-15: gates on the Village's south road and the Academy's south lawn - before that the Academy could only be reached through the sealed portal) | 72 | lowland farms | 3 | Thornwick (farming village), Greywater Bridge, the Lantern inn |
 
 So Sanctuary → Grand Academy, overland, is about 7–8 days. The local links inside a region (Sanctuary ↔ library,
 tower and Woods; caverns ↔ deep caverns; village ↔ observatory) stay walkable pockets.

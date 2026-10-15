@@ -243,6 +243,8 @@ func links() -> void:
 	gate.radius = 2.6
 	gate.custom_activity = _ninth_gate.bind(gate)
 	add_interactable(gate)
+	add_interactable(Interactable.make("twin_lights_watch", "Watch the night sky over the temple for the Twin Lights", "observe", "cloud_temple",
+		Vector3(TEMPLE.x, y, TEMPLE.z + 4.5), {"knowledge": {"sight:twin_lights": 1, "astronomy:twin_lights": 1}}, "look_around", 6.0)).radius = 2.6
 	add_interactable(Interactable.make("armillary_align", "Align the armillary sphere to the stars", "study", "celestial_observatory",
 		_v(Vector2(OBS.x, OBS.z + 1.3)), {"knowledge": {"astronomy:armillary": 1}}, "look_around", 4.0)).radius = 2.2
 	add_interactable(Interactable.make("star_dial_read", "Read the time on the star dial", "read", "celestial_observatory",

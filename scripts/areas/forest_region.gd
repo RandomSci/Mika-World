@@ -220,8 +220,21 @@ func _steep_rocks() -> void:
 			(sets.get_or_add(id, []) as Array).append(dress.xf_at(p, s, 0.45, 0.4))
 			n += 1
 		z += 3.2
+	# solid: characters stop at them and the camera never ends up inside one (layer 3; no navmesh caps - the steep
+	# ground is unwalkable anyway)
+	var rock_body := NatureKit.vegetation_body(self, "SteepRockColliders")
 	for id in sets:
 		NatureKit.scatter(self, NatureKit.mesh(String(id)), sets[id], {"vis_end": 240.0, "shadow": true, "name": "SteepRocks_" + String(id)})
+		var aabb := NatureKit.mesh(String(id)).get_aabb()
+		for t in sets[id]:
+			var xf := t as Transform3D
+			var sc := xf.basis.get_scale()
+			var cs := CollisionShape3D.new()
+			var sp := SphereShape3D.new()
+			sp.radius = maxf(aabb.size.x * sc.x, aabb.size.z * sc.z) * 0.42
+			cs.shape = sp
+			cs.position = xf * aabb.get_center()
+			rock_body.add_child(cs)
 	dress.stats["steep_rocks"] = n
 
 

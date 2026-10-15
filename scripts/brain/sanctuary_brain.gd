@@ -227,6 +227,18 @@ func options() -> Array:
 		var npc = main.npcs.present[nid]
 		if is_instance_valid(npc) and npc.state == "idle" and not _talked_this_visit.has(nid + str(main.dialogue.state_of(nid).visits)):
 			out.append({"kind": "converse", "key": "converse:" + nid, "npc": nid, "label": "talk with %s" % main.dialogue.travellers[nid].name})
+	# expeditions: a clue she has really read becomes a reason to set out (data/expeditions.json)
+	if _allowed("expedition") and is_lead() and main.get("journeys") and not main.journeys.active() and mind.vigor > 0.6:
+		var ex: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/expeditions.json")).get("expeditions", {})
+		var here_id: String = main.streaming.current_id
+		for eid in ex:
+			var e: Dictionary = ex[eid]
+			if not mind.knowledge.has(String(e.clue)) or mind.knowledge.has(String(e.done_if)) or String(e.area) == here_id:
+				continue
+			if WorldState.route(here_id, String(e.area)).size() < 2:
+				continue
+			out.append({"kind": "expedition", "key": "expedition:" + eid, "area": String(e.area), "purpose": String(e.purpose),
+				"curiosity": float(e.get("curiosity", 0.25)), "label": "set out for the %s (%s)" % [String(e.area).replace("_", " "), String(e.purpose)]})
 	# getting ready for an unfinished fight: drill her family's ward (a real cast each time; mastery grows)
 	if not unfinished().is_empty() and mind.vigor > 0.5:
 		for wid in MagicSystem.load_catalog().spells:
@@ -387,6 +399,13 @@ func score(o: Dictionary) -> Dictionary:
 		"converse":
 			u = 0.55 + needs.social * 0.5
 			why.append("visitor present")
+		"expedition":
+			# a journey of days: wanted when the clue pulls, never when tired or hurt, less at nightfall
+			u = 0.3 + needs.curiosity * 0.4 + float(o.get("curiosity", 0.25)) - (1.0 - needs.energy) * 0.5 - (1.0 - mind.vigor) * 0.6
+			if WorldState.hour_f() > 17.0 or WorldState.hour_f() < 6.0:
+				u -= 0.3
+				why.append("too late in the day to set out -0.30")
+			why.append("a clue leads there")
 		"drill":
 			u = 0.3 + needs.mastery * 0.3 + 0.35 - (1.0 - needs.energy) * 0.4 - (1.0 - mind.vigor) * 0.4
 			why.append("unfinished business with the %s +0.35" % String(o.get("for", "")).replace("_", " "))
@@ -614,6 +633,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"alchemy": return await _use("alchemy_table")
 		"lesson": return await _use(String(o.interactable))
 		"drill": return await _drill(o)
+		"expedition": return await _expedition(o)
 		"converse": return await _converse(o)
 		"journal": return await _journal()
 		"attune": return await _attune(o)
@@ -1079,6 +1099,17 @@ func _remember_overcome(kind: String) -> void:
 	mind.knowledge.erase(k)
 	mind.knowledge["overcame:" + kind] = {"kind": kind, "name": String(u.get("name", kind)), "at": WorldState.clock_text(), "after": int(u.get("times", 1)), "first_at": String(u.get("at", ""))}
 	_private_thought("I beat the %s this time. I was ready." % String(u.get("name", kind)).to_lower())
+
+
+## Set out on foot (JourneyDirector: real legs, waypoints, camps, nights) with Luna, for the reason the clue gave.
+func _expedition(o: Dictionary) -> Dictionary:
+	var plan: Dictionary = main.journeys.start(String(o.area), String(o.purpose), ["mika", "luna"] if main.characters.has("luna") else ["mika"], agent_id)
+	if not plan.get("ok", false):
+		return {"ok": false, "detail": "could not set out: %s" % plan.get("error", "")}
+	_maybe_say(["Let's go and see for ourselves.", "It's a long walk. We'd better start now."], 1.0)
+	var j: Dictionary = await main.journeys.run_live()
+	var arrived := String(j.get("phase", "")) == "done"
+	return {"ok": arrived, "detail": "%s the %s (%.0f km)" % ["reached" if arrived else "set out for", String(o.area).replace("_", " "), float(plan.get("km", 0.0))], "journey": j.get("id", "")}
 
 
 func _drill(o: Dictionary) -> Dictionary:

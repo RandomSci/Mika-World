@@ -31,8 +31,15 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
+var hitch_log: Array = []          # every frame over 50 ms with what had just happened (to find the cause)
+
+
 func _process(delta: float) -> void:
 	_frame_ms.append(delta * 1000.0)
+	if delta > 0.05 and main and is_instance_valid(main):
+		hitch_log.append({"ms": int(delta * 1000.0), "t": snappedf(_game_t, 0.01), "gpu": snappedf(RenderingServer.viewport_get_measured_render_time_gpu(_vp_rid), 0.1),
+			"ghosts": Afterimage.made, "voice_lines": main.voice.log.size() if main.get("voice") else -1, "casts": main.magic.history.size() if main.get("magic") else -1,
+			"cuts": TrailerCam.log.size(), "monsters": get_tree().get_nodes_in_group("monsters").size(), "area": main.streaming.current_id if main.get("streaming") else ""})
 	_gpu_ms.append(RenderingServer.viewport_get_measured_render_time_gpu(_vp_rid))
 	_cpu_ms.append(RenderingServer.viewport_get_measured_render_time_cpu(_vp_rid) + RenderingServer.get_frame_setup_time_cpu())
 	_game_t += delta
@@ -2783,6 +2790,7 @@ func _ambush() -> void:
 	report["ambush"]["voice_latency"] = main.voice.latency_report()
 	report["ambush"]["slow_lines"] = main.voice.log.filter(func(e): return int(e.get("tts_ms", 0)) > 1500).map(func(e): return {"speaker": e.speaker, "text": e.text, "tts_ms": e.tts_ms, "cached": e.get("cached", ""), "provider": e.get("provider", ""), "error": e.get("error", "")})
 	print("[ambush] slow lines: ", report["ambush"]["slow_lines"])
+	print("[ambush] hitches: ", JSON.stringify(hitch_log))
 	print("[ambush] callouts: ", co)
 	print("[ambush] voice latency: ", report["ambush"]["voice_latency"])
 
@@ -3122,6 +3130,12 @@ func _lore() -> void:
 		BookReader.instance.page_shown.disconnect(on_page)
 		report[String(step[1])] = res.get("detail", "")
 		_check(res.get("ok", false) and mk.has(String(step[2])), "Mika read %s and knows %s now" % [step[1], step[2]], res.get("detail", ""))
+		if String(step[1]) == "notice_board":
+			# what she read becomes a reason to go somewhere: the Academy's open lessons (an expedition option)
+			WorldState.mind("mika").vigor = 1.0
+			var ex: Array = mb.options().filter(func(o): return String(o.kind) == "expedition")
+			report["expeditions"] = ex.map(func(o): return [o.label, mb.score(o)])
+			_check(ex.any(func(o): return String(o.area) == "academy"), "the notice board gave her a reason to set out (the Academy's open lessons)", report["expeditions"])
 
 
 # ------------------------------------------------------------------ the Fold Step: teleportation only once learned
