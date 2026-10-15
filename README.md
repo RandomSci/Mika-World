@@ -12,13 +12,14 @@ localhost bridge. Fully separate from the production Three.js stream, OBS, YouTu
 
 ```bash
 cd ~/Downloads/Mika-Godot-Dev
-./run.sh live                 # LIVE_OPTIMIZED (recommended default; Forward+/Vulkan, 30 FPS cap)
-./run.sh                      # CINEMATIC
+./run.sh                      # ADAPTIVE 60 (default, recommended for streaming: holds 60 FPS)
+./run.sh live                 # LIVE_OPTIMIZED (Forward+/Vulkan, 30 FPS cap)
+./run.sh cinematic            # CINEMATIC (fixed full quality)
 ./run.sh compat               # OpenGL Compatibility fallback
 ./run.sh live --start=village_square     # start at any of the 24 location ids (see data/world.json)
 ./run.sh live --brain         # Mika decides for herself in the Arcane Sanctuary; the camera director frames her
 ```
-Exact command: `~/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64 --path ~/Downloads/Mika-Godot-Dev -- --profile=live`
+Exact command: `~/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64 --path ~/Downloads/Mika-Godot-Dev -- --profile=adaptive`
 
 Fresh clone: run `tools/setup_local_assets.sh` (re-copies git-ignored Mixamo files), then open the editor once or run
 `--headless --import`.

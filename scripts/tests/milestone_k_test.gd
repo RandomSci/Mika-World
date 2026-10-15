@@ -3471,6 +3471,8 @@ func _soak() -> void:
 			"voice_cache": main.voice._cache.size(), "kit_meshes": Kit._meshes.size(), "kit_mats": Kit._mats.size(),
 			"logs": WorldState.mind("mika").activity_log.size() + WorldState.mind("luna").activity_log.size() + WorldState.activity_log.size(),
 			"area": main.streaming.current_id, "clock": WorldState.clock_text(),
+			"xp": {"mika": snappedf(float(WorldState.mind("mika").progress.xp), 0.1), "luna": snappedf(float(WorldState.mind("luna").progress.xp), 0.1)},
+			"level": {"mika": WorldState.mind("mika").level(), "luna": WorldState.mind("luna").level()},
 			"mika": String(main.mage_brains.mika.current.get("label", "")) if main.mage_brains.has("mika") else "",
 			"luna": String(main.mage_brains.luna.current.get("label", "")) if main.mage_brains.has("luna") else ""}
 		samples.append(smp)

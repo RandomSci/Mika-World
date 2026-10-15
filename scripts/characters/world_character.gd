@@ -186,6 +186,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	avatar = instance if instance else (scene if scene else load(avatar_path)).instantiate()
 	avatar.transform = Transform3D.IDENTITY
 	_extend_skirt_colliders()
+	_repair_colliders()
 	_shoulder_colliders()
 	_tune_springs()
 	avatar.name = "Avatar"
@@ -580,12 +581,91 @@ func _tune_springs() -> void:
 				var groups = c.get("collider_groups").duplicate()
 				groups.append(arms_g)
 				c.set("collider_groups", groups)
+		if bool(k.get("no_colliders", false)):
+			var none = c.get("collider_groups").duplicate()
+			none.clear()
+			c.set("collider_groups", none)
+		if bool(k.get("drop_head", false)):
+			# a chain rooted ON the head (hair) must not collide with the head's own sphere: its roots start inside
+			# it and are shoved out every frame (Luna's hair shook constantly once her head collider sat on her head)
+			var keep = c.get("collider_groups").duplicate()
+			keep.clear()
+			for cg in c.get("collider_groups"):
+				var has_head := false
+				for col in cg.colliders:
+					if String(col.bone).ends_with("Head"):
+						has_head = true
+				if not has_head:
+					keep.append(cg)
+			c.set("collider_groups", keep)
 		if String(k.get("center", "")) == "body":
 			var skel_node: Node = avatar.find_child("GeneralSkeleton", true, false)
 			if skel_node:
 				c.set("center_node", sec.get_path_to(skel_node))
 		out[i] = c
 	sec.spring_bones = out
+
+
+## Body colliders exported in the wrong space (profile.springs.repair_colliders): a collider whose offset lies
+## metres from its own bone (Luna's oracle model: the head sphere at her feet, the chest / spine / hip / arm capsules
+## as rods from ~1.3 m away to the bone) is rebuilt where it belongs, in the bone's own frame: the head sphere on the
+## head, limbs along the bone to the next joint, chest and hips across the body. While the capsule collision was
+## broken (see addons/vrm/vrm_collider.gd) those rods sat harmlessly at their far ends; working, they swept through
+## her hair (the hair fought them every frame) while her real shoulders had none.
+func _repair_colliders() -> void:
+	if not bool(AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("springs", {}).get("repair_colliders", false)):
+		return
+	var sec = avatar.find_child("secondary", true, false)
+	var sk: Skeleton3D = avatar.find_child("GeneralSkeleton", true, false)
+	if sec == null or sec.get("spring_bones") == null or sk == null:
+		return
+	var child_of := {"Neck": "Head", "Spine": "Chest", "UpperArm": "LowerArm", "LowerArm": "Hand", "UpperLeg": "LowerLeg", "LowerLeg": "Foot"}
+	var seen := {}
+	var chest_spheres := 0
+	var fixed := 0
+	for sb in sec.spring_bones:
+		for cg in sb.collider_groups:
+			for col in cg.colliders:
+				if seen.has(col) or col.has_meta("mika_repaired"):
+					continue
+				seen[col] = true
+				if (col.offset as Vector3).length() < 0.4 and (col.tail as Vector3).length() < 0.6:
+					continue                     # a sane collider: left as authored
+				col.set_meta("mika_repaired", true)
+				var bn := String(col.bone)
+				var bi := sk.find_bone(bn)
+				var side := "Left" if bn.begins_with("Left") or bn.contains("_L_") else ("Right" if bn.begins_with("Right") or bn.contains("_R_") else "")
+				var nxt := ""
+				for part in child_of:
+					if bn.ends_with(String(part)):
+						nxt = side + String(child_of[part])
+				var ci := sk.find_bone(nxt) if nxt != "" else -1
+				if ci < 0 and nxt != "":
+					ci = sk.find_bone(bn.replace(bn.get_slice("_", bn.get_slice_count("_") - 1), String(child_of.get(bn.get_slice("_", bn.get_slice_count("_") - 1), ""))))
+				if bn.ends_with("Head"):
+					col.offset = Vector3(0, 0.075, 0.015)
+				elif bn.ends_with("UpperChest"):
+					if col.is_capsule:
+						col.offset = Vector3(-0.055, 0.02, -0.005)
+						col.tail = Vector3(0.055, 0.02, -0.005)
+					else:
+						col.offset = Vector3(0.055 if chest_spheres == 0 else -0.055, -0.01, 0.06)
+						chest_spheres += 1
+				elif bn.ends_with("Hips"):
+					col.offset = Vector3(-0.065, -0.04, 0.0)
+					col.tail = Vector3(0.065, -0.04, 0.0)
+					col.radius = minf(col.radius, 0.095)        # her hips, not the authored 12 cm barrel
+				elif ci >= 0 and bi >= 0:
+					col.offset = Vector3.ZERO
+					col.tail = sk.get_bone_rest(ci).origin
+					if bn.ends_with("Spine"):
+						col.radius = minf(col.radius, 0.095)
+				else:
+					col.offset = Vector3.ZERO
+					col.tail = Vector3.ZERO
+				fixed += 1
+	if fixed > 0:
+		print("[character] %s: rebuilt %d misplaced body colliders" % [character_id, fixed])
 
 
 ## Shoulder colliders for the hair (profile.springs.shoulders {radius, cap}): a model whose torso colliders stop at

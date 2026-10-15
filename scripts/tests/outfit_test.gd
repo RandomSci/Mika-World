@@ -237,19 +237,28 @@ func _perf(seconds: float) -> Dictionary:
 
 
 func _run() -> void:
-	var m: WorldCharacter = main.characters["mika"]
-	var luna: WorldCharacter = main.characters.get("luna")
+	# --outfit-who=luna: the same checks on Luna (the other mage stands beside her)
+	var who := String(RenderProfile.options.get("outfit-who", "mika"))
+	var m: WorldCharacter = main.characters[who]
+	var luna: WorldCharacter = main.characters.get("mika" if who == "luna" else "luna")
 	main.player.enabled = false
+	# both mages' own minds paused (a mage walking off or casting mid-measurement is not her clothes misbehaving)
+	for w in main.mage_brains:
+		main.mage_brains[w].hold = true
+	for w in main.mage_brains:
+		var t0 := Time.get_ticks_msec()
+		while not main.mage_brains[w].current.is_empty() and Time.get_ticks_msec() - t0 < 30000:
+			await get_tree().process_frame
 	main.hud.visible = false
 	main.prompt.visible = false
 	if main.get("overlay_ui"):
 		main.overlay_ui.visible = false
 	var want := String(RenderProfile.options.get("outfit-stage", ""))
 	if want != "":
-		AppearanceRegistry.preview("mika", want)
-		m.swap_avatar(AppearanceRegistry.avatar_for("mika"))
+		AppearanceRegistry.preview(who, want)
+		m.swap_avatar(AppearanceRegistry.avatar_for(who))
 	await _wait(3.0)
-	var st := AppearanceRegistry.stage_for_avatar("mika", m.avatar_path)
+	var st := AppearanceRegistry.stage_for_avatar(who, m.avatar_path)
 	report["stage"] = st.get("id", "")
 	report["avatar"] = m.avatar_path
 	report["face_bound_shapes"] = m.face.bound_count() if m.face else -1
@@ -285,6 +294,10 @@ func _run() -> void:
 	m.set("_glance_t", 1e9)
 	m.look_head_at(null)
 	await _wait(4.0)
+	var tc := Time.get_ticks_msec()
+	while (m.casting or m.get("_action") != null and String(m.get("_action")) != "") and Time.get_ticks_msec() - tc < 15000:
+		await get_tree().process_frame             # a cast (or action) she began before the pause finishes first
+	await _wait(2.5)
 	report["jitter_idle"] = await _jitter(m, 4.0)
 	m.set("_glance_t", 4.0)
 	print("[outfittest] jitter ", JSON.stringify(report["jitter_idle"]))

@@ -81,7 +81,8 @@ func _init() -> void:
 	for arg in OS.get_cmdline_user_args():
 		var kv := arg.trim_prefix("--").split("=", true, 1)
 		options[kv[0]] = kv[1] if kv.size() > 1 else "true"
-	match String(options.get("profile", "cinematic")).to_lower():
+	# no profile given: Adaptive 60 (60 FPS held by measured quality steps, docs/ADAPTIVE_GRAPHICS.md)
+	match String(options.get("profile", "adaptive")).to_lower():
 		"live", "live_optimized", "live-optimized": profile = LIVE_OPTIMIZED
 		"ultra": profile = ULTRA
 		"adaptive", "adaptive60", "adaptive_60": profile = ADAPTIVE_60
