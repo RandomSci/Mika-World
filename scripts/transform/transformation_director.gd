@@ -215,6 +215,8 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 			var ao := awk.update(t, stages, t - prev_t)
 			if ao.get("locked", false) and AudioDirector.instance:
 				log.append({"who": who, "t": snappedf(t, 0.01), "orbit_locked": true})
+				if log.size() > 200:
+					log.pop_front()
 			# stage 1: she senses it - a glance down at her hands, then up as the build-up begins
 			if t > 0.25 and not fired.has("sense"):
 				fired.sense = true
@@ -326,6 +328,8 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 		_add_orbit(c, who, col, acc)
 		res["surge"] = true
 	log.append(res)
+	if log.size() > 200:
+		log.pop_front()
 	finished.emit(who, res)
 	return res
 
@@ -342,6 +346,8 @@ func end_surge(who: String) -> void:
 		_orbits[who].queue_free()
 	_orbits.erase(who)
 	log.append({"who": who, "surge_ended": true})
+	if log.size() > 200:
+		log.pop_front()
 
 
 ## Tiny spheres in front of the transformation camera, one per material of `model` (incl. next passes).

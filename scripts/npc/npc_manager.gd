@@ -57,6 +57,8 @@ func _process(delta: float) -> void:
 			n.leave()
 			_visit_end[id] = 1e12
 			events.append({"t": snappedf(_session_t, 0.1), "npc": id, "event": "leaving"})
+			if events.size() > 300:
+				events.pop_front()
 	if Engine.get_process_frames() % 30 != 0:
 		return
 	for id in main.dialogue.travellers:
@@ -90,6 +92,8 @@ func arrive(id: String) -> TravelerNPC:
 	var cd: Array = t.schedule.cooldown_s
 	st["next_visit_unix"] = Time.get_unix_time_from_system() + _rng.randf_range(cd[0], cd[1]) * time_scale
 	events.append({"t": snappedf(_session_t, 0.1), "npc": id, "event": "arrived", "from": t.arrives_from})
+	if events.size() > 300:
+		events.pop_front()
 	main.voice.register_speaker(String(t.voice), npc)
 	print("[npcs] %s (%s) arrives from %s" % [t.name, t.role, t.arrives_from])
 	if main.curiosity:
@@ -101,6 +105,8 @@ func _end(id: String, why: String) -> void:
 	present.erase(id)
 	_visit_end.erase(id)
 	events.append({"t": snappedf(_session_t, 0.1), "npc": id, "event": "visit ended", "why": why})
+	if events.size() > 300:
+		events.pop_front()
 
 
 func nearby(from: Vector3, radius := 30.0) -> Array:

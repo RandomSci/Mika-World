@@ -183,8 +183,24 @@ clearance, stereo ElevenLabs sound on a Cinematic bus. Verified: `--mktest=phoen
 nova altitude 5.3 m, lowest wingtip 0.14 m above ground), `--mktest=phoenix_reel` PASS. GPU: Godot now runs on the
 RTX 5050 (Vulkan Forward+): the Woods test averages 29 fps (p95 35 ms) vs 13–20 on the iGPU.
 
+### Weather and shelter (verified `--mktest=weather` PASS, 2026-10-15) — see `docs/WEATHER.md`
+
+One persistent sky: clear, overcast, rain and storm, drawn by region. Clouds dim the sun and soften its shadows on
+top of each area's own hour; soft rain stops on roofs and canopies (a heightfield that follows the camera) and
+splashes; rain sounds open or under a roof; lightning with thunder delayed by its distance. In the rain, both mages'
+planners put getting under cover first: under a big tree in the woods, or a doorstep's new slated door hood in the
+Village. Then, dry, they sit (or stand against the trunk) and listen to it for a while.
+
+### Rising Air and the Crown: Level 100 (verified `--mktest=crown` PASS, 2026-10-15) — see `docs/THE_CROWN.md`
+
+A second learned movement spell. **Rising Air** comes from the founders' notes in the Mentor's Tower, whose last page
+only opens after Master Aldric's lesson on footing; it is a slow, visible levitation, never a jump cut. It reaches
+the tower's new **crown**: nine bronze bells, one per Warden. On a night of wind each bell sounds only for a mage who
+has heard that Warden's ring in her travels (a lesson, the rain, the stories, a fold, a ward, the ninth gate). All
+nine together are the Crown, the Level 100 requirement, which until now nothing in the world could satisfy.
+
 ## Still open from the directive (in order)
 
 academy and NPC occupations (Part V, VIII), the world bible (Part IV), mythology (Part XVII),
-advanced magic (Part 62-63: shields beyond wards, counterspell combinations, levitation, teleportation as a learned
-spell), the Sanctuary hub polish, the GPU driver (hardware).
+advanced magic (Part 62-63: shields beyond wards, counterspell combinations; levitation and teleportation are now
+learned spells), the Sanctuary hub polish, the GPU driver (hardware).

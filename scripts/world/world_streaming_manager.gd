@@ -260,6 +260,8 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		"nav_regions_after": mem_after.nav_regions, "instantiated_areas": _instantiated_count(),
 		"arrived_location": WorldState.current_location, "layout_hash": layout_hash}
 	history.append(last_report)
+	if history.size() > 200:
+		history.pop_front()
 	area_activated.emit(to_area, last_report)
 	print("[stream] ", JSON.stringify(last_report))
 	return last_report

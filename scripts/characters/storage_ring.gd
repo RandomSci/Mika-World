@@ -145,6 +145,8 @@ func draw(id: String, node: HoldableObject) -> bool:
 	d.erase(id)
 	_set_contents(d)
 	log.append({"t": WorldState.clock_text(), "drew": id})
+	if log.size() > 200:
+		log.pop_front()
 	return true
 
 
@@ -166,6 +168,8 @@ func store(id: String, label: String, node: Node3D = null) -> bool:
 	d[id] = label
 	_set_contents(d)
 	log.append({"t": WorldState.clock_text(), "stored": id})
+	if log.size() > 200:
+		log.pop_front()
 	return true
 
 
@@ -185,4 +189,6 @@ func store_living(id: String, label: String, creature: Node3D) -> bool:
 	d[id] = label + " (living, resting)"
 	_set_contents(d)
 	log.append({"t": WorldState.clock_text(), "stored_living": id})
+	if log.size() > 200:
+		log.pop_front()
 	return true

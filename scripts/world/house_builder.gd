@@ -16,6 +16,7 @@ var ground: Callable
 var mats := {}
 var rng := RandomNumberGenerator.new()
 var stats := {"houses": 0}
+const ROOF_LAYER := 512              # layer 10: roofs, only for "is something overhead" (rain shelter)
 var doors: Array = []                # [{pos, yaw}] doorsteps in build order (TownLife home:N anchors)
 
 
@@ -104,6 +105,19 @@ func house(pos: Vector3, yaw: float, w: float, d: float, seed: int, storeys := 2
 	Kit.mesh_node(root, Kit.gable_end(d, rise, 0.22), plaster, Kit.xf(Vector3(-w * 0.5 + 0.06, top, 0)))
 	Kit.mesh_node(root, Kit.gable_end(d, rise, 0.22), plaster, Kit.xf(Vector3(w * 0.5 - 0.06, top, 0)))
 	Kit.mesh_node(root, Kit.gable_roof(w + 0.2, d + 0.2, rise, 0.5, 0.16), roof, Kit.xf(Vector3(0, top, 0)))
+	# what the roof covers, eaves included (WeatherSystem: out of the rain under here). Its own layer: no walking on
+	# it, no navmesh on it, only the overhead test sees it.
+	var cover := StaticBody3D.new()
+	cover.name = "RoofCover"
+	cover.collision_layer = ROOF_LAYER
+	cover.collision_mask = 0
+	var ccs := CollisionShape3D.new()
+	var cbox := BoxShape3D.new()
+	cbox.size = Vector3(w + 1.2, 0.2, d + 1.2)
+	ccs.shape = cbox
+	ccs.position = Vector3(0, top + 0.15, 0)
+	cover.add_child(ccs)
+	root.add_child(cover)
 	Kit.mesh_node(root, Kit.box_mesh(Vector3(w + 1.1, 0.2, 0.26), 0.02), mats.timber, Kit.xf(Vector3(0, top + rise + 0.08, 0)))
 	# gable timbers: a king post and two braces
 	for sx: float in [-1.0, 1.0]:
@@ -235,6 +249,28 @@ func _door(root: Node3D, at: Vector3) -> void:
 		Kit.mesh_node(root, Kit.box_mesh(k[1], 0.01), mats.timber, Kit.xf(at + (k[0] as Vector3)), false)
 	# the worn door step
 	Kit.block(root, Vector3(1.5, 0.18, 0.7), Kit.xf(at + Vector3(0, 0.05, 0.3)), mats.stone, false, 0.03)
+	# a slated door hood on two timber brackets: someone at the door stands out of the rain
+	var hood_w := 2.0
+	var proj := 1.3
+	var tilt := 0.2
+	var hb := Basis(Vector3.RIGHT, tilt)
+	Kit.mesh_node(root, Kit.box_mesh(Vector3(hood_w, 0.07, proj + 0.1), 0.01), mats.roof, Transform3D(hb, at + Vector3(0, 2.62 - sin(tilt) * proj * 0.5, proj * 0.5)))
+	Kit.mesh_node(root, Kit.box_mesh(Vector3(hood_w + 0.06, 0.12, 0.12), 0.01), mats.timber, Kit.xf(at + Vector3(0, 2.66, 0.04)))
+	for sx: float in [-1.0, 1.0]:
+		# the bracket: a rail under the hood and a strut back down to the wall
+		Kit.mesh_node(root, Kit.box_mesh(Vector3(0.1, 0.1, proj), 0.01), mats.timber, Transform3D(hb, at + Vector3(sx * (hood_w * 0.5 - 0.15), 2.54 - sin(tilt) * proj * 0.5, proj * 0.5)))
+		Kit.mesh_node(root, Kit.box_mesh(Vector3(0.09, 0.09, 1.25), 0.01), mats.timber, Transform3D(Basis(Vector3.RIGHT, -0.75), at + Vector3(sx * (hood_w * 0.5 - 0.15), 2.15, 0.42)))
+	var hood := StaticBody3D.new()
+	hood.name = "DoorHoodCover"
+	hood.collision_layer = ROOF_LAYER
+	hood.collision_mask = 0
+	var hcs := CollisionShape3D.new()
+	var hbox := BoxShape3D.new()
+	hbox.size = Vector3(hood_w, 0.1, proj)
+	hcs.shape = hbox
+	hcs.position = at + Vector3(0, 2.5, proj * 0.5)
+	hood.add_child(hcs)
+	root.add_child(hood)
 	# iron ring handle (a small torus)
 	var t := TorusMesh.new()
 	t.inner_radius = 0.04

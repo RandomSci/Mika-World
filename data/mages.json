@@ -164,6 +164,15 @@
     "ward": [
      "Not this time.",
      "Leaves!"
+    ],
+    "rain_shelter": [
+     "Over here - it's dry under here!",
+     "Quick, quick - in here!"
+    ],
+    "rain_listen": [
+     "Listen to it on the leaves.",
+     "I could fall asleep to this.",
+     "Everything smells different when it rains."
     ]
    },
    "explore_taste": {
@@ -447,6 +456,15 @@
     "ward": [
      "No.",
      "Mirror."
+    ],
+    "rain_shelter": [
+     "Under here. Move.",
+     "Get in out of it - here."
+    ],
+    "rain_listen": [
+     "It's not so bad, from in here.",
+     "I used to listen to this as a child.",
+     "We'll wait it out."
     ]
    },
    "explore_taste": {

@@ -559,6 +559,51 @@
      ]
     }
    ]
+  },
+  "founders_notes": {
+   "title": "The Founders' Notes",
+   "subtitle": "loose pages in three hands, tied with a ribbon gone grey",
+   "style": "book",
+   "location": "Mentor's Tower, the desk at the tower's foot",
+   "pages": [
+    {
+     "heading": "On Rising Air",
+     "text": "Aelis whistled the wind to her flock; we have only ever learned to whistle it to ourselves. These are our notes on the one working of hers we can still do: to let the air we breathe out gather beneath us and carry us - up a wall, across a gap, down again. Slowly. The air is patient and will not be hurried, and it will not carry you where you cannot see.",
+     "knowledge": [
+      "lore:advanced_casting"
+     ]
+    },
+    {
+     "heading": "The Body First",
+     "text": "Every apprentice who fails at this fails the same way: they think of the air and forget their feet. The air lifts what is ready to be lifted. Stand as if you were already rising - weight in the balls of the feet, knees soft, hands held out to hold the spell that holds you. Magic follows the body. If Master Aldric has not taught you that yet, go and sit on his bench until he does; the last of these pages will mean nothing to you until then.",
+     "knowledge": [
+      "lore:rising_air"
+     ]
+    },
+    {
+     "heading": "The Bells",
+     "text": "When we built the tower we hung nine bells on its crown, where we put no stair: one for each Warden whose ring is heard in this world. On a night of wind they all swing, but each sounds only for one who has heard its ring - in a lesson, in still water, in a story, in a fold, in a ward that held, at the ninth gate with a friend. Whoever stands among them and hears all nine has heard the Crown. None of us ever has.",
+     "knowledge": [
+      "clue:crown_bells",
+      "lore:the_crown"
+     ]
+    },
+    {
+     "heading": "The Word",
+     "requires_knowledge": "fact:magic_follows_body",
+     "text": "Breathe out first. Then, with the breath still leaving you, ask - do not command - and let it take you.",
+     "latin": [
+      {
+       "text": "Aer, tolle me!",
+       "translation": "Air, lift me!",
+       "spell": "rising_air"
+      }
+     ],
+     "knowledge": [
+      "incantation:rising_air"
+     ]
+    }
+   ]
   }
  }
 }

@@ -1,0 +1,34 @@
+{
+ "_note": "The Crown (Level 100): nine bronze bells on the Mentor's Tower crown, where no stair goes. On a night of wind each bell answers only a mage who has heard its Warden's ring somewhere in the world - by a deed or a teaching she really has (any one of the keys in `any`). All nine together: crown:heard_all_nine. See docs/THE_CROWN.md.",
+ "night_only": true,
+ "rings": [
+  {"n": 1, "warden": "Aelis", "ring": "the ring of breath", "any": ["fact:breath_before_word"],
+   "how": "Master Aldric's first lesson: the breath before the word"},
+  {"n": 2, "warden": "Thane of the Deep Waters", "ring": "the ring of still water", "any": ["listened_to_rain", "lore:second_inscription"],
+   "how": "sitting still and listening to the rain"},
+  {"n": 3, "warden": "Verdance", "ring": "the ring of the growing wood", "any": ["lore:warden_verdance"],
+   "how": "the story of the forest grown in one night"},
+  {"n": 4, "warden": "Umbra", "ring": "the ring of shadow", "any": ["lore:warden_umbra"],
+   "how": "the lamplighter who learned the shapes of shadow"},
+  {"n": 5, "warden": "Emberhart", "ring": "the ring of flame", "any": ["lore:warden_emberhart"],
+   "how": "the one who walked into the burning mountain"},
+  {"n": 6, "warden": "the Stonefather", "ring": "the ring of deep stone", "any": ["lore:warden_stonefather"],
+   "how": "the song that turned deep rock to crystal"},
+  {"n": 7, "warden": "the Weaver of Ways", "ring": "the ring of folded distance", "any": ["practical:fold_step"],
+   "how": "a fold made and crossed"},
+  {"n": 8, "warden": "the Mirror Queen", "ring": "the ring of both sides", "any": ["practical:gilded_mirror", "practical:leaf_ward", "fact:ward_timing"],
+   "how": "a ward that held at the right moment"},
+  {"n": 9, "warden": "the Skyborn Twins", "ring": "the ring of two together", "any": ["ninth_gate:opened"],
+   "how": "the ninth gate, opened together under the Twin Lights"}
+ ],
+ "lines": {
+  "mika": {
+   "partial": ["Some of them stayed silent... I haven't heard those yet.", "Not all of them. Not yet."],
+   "all": ["All nine. I can hear all nine.", "Oh... they're all ringing. Every one."]
+  },
+  "luna": {
+   "partial": ["Some of them won't answer me. Yet.", "Not all nine. I'll be back."],
+   "all": ["Nine. Every one of them.", "So that's what the Crown sounds like."]
+  }
+ }
+}

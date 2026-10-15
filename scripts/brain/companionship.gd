@@ -280,6 +280,8 @@ func invite(a: SanctuaryBrain, other: String, kind: String, target: Dictionary) 
 		bc.look_head_at(null)
 		a.mind.knowledge["declined_by:%s:%s" % [other, kind]] = Time.get_unix_time_from_system()
 		log.append(entry)
+		if log.size() > 200:
+			log.pop_front()
 		active = {}
 		return {"ok": false, "detail": "%s declined (%s)" % [MagicSystem.display_name(other), dec.reason], "entry": entry}
 	await _say(other, line(other, "accept"))
@@ -322,6 +324,8 @@ func invite(a: SanctuaryBrain, other: String, kind: String, target: Dictionary) 
 	bc.look_head_at(null)
 	entry["result"] = res.get("detail", "")
 	log.append(entry)
+	if log.size() > 200:
+		log.pop_front()
 	active = {}
 	joint_finished.emit(entry)
 	return {"ok": res.get("ok", false), "detail": "%s with %s: %s" % [label, MagicSystem.display_name(other), res.get("detail", "")], "entry": entry}

@@ -68,5 +68,7 @@ func _detonate(rid: String, r: Dictionary, mages: Array, m: Monster, at: Vector3
 	if main.has_method("show_notice"):
 		main.show_notice("%s! %s and %s" % [r.name, MagicSystem.display_name(mages[0]), MagicSystem.display_name(mages[1])])
 	log.append(out)
+	if log.size() > 200:
+		log.pop_front()
 	fused.emit(out)
 	return out

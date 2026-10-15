@@ -52,6 +52,7 @@ var _recent_targets: Array[String] = []
 var _failures := {}            # option key -> decisions left to avoid
 var _interrupt := ""
 var _cancel := false
+var _listened_this_rain := ""      # the area where she already sat out this shower
 var _speak_cd := 0.0
 var _talked_this_visit := {}
 var curiosity_bonus := {}      # option key -> bonus from the curiosity module (one decision only)
@@ -240,6 +241,29 @@ func options() -> Array:
 				continue
 			out.append({"kind": "chat", "key": "chat:" + String(rid), "resident": String(rid), "topic": fresh[0],
 				"first": not mind.knowledge.has("met_resident:" + String(rid)), "label": "talk with %s (%s)" % [String(rr.data.get("name", rid)), String(rr.data.get("role", ""))]})
+	# rain: get out of it (a doorstep under the eaves, the lee of a big tree), then sit and listen to it a while
+	var wx = main.get("weather")
+	if wx != null and wx.rain > 0.35 and me.visible and threat == null:
+		if wx.sheltered_at(me.global_position):
+			if _listened_this_rain != here:
+				out.append({"kind": "listen_rain", "key": "listen_rain", "label": "sit and listen to the rain"})
+		else:
+			var spots: Array = wx.shelter_spots(me.global_position)
+			if not spots.is_empty():
+				out.append({"kind": "shelter", "key": "shelter", "spot": spots[0],
+					"label": "get out of the rain (%s)" % String(spots[0].label).replace("_", " ")})
+	elif wx != null and wx.rain < 0.1:
+		_listened_this_rain = ""
+	# places only Rising Air reaches (the Mentor's Tower crown and its bells): once she knows why to go up there
+	if main.world and main.world.has_method("rise_spots") and me.visible and threat == null and main.magic.can_cast("rising_air", agent_id).ok:
+		for rs in main.world.rise_spots():
+			if not mind.knowledge.has(String(rs.clue)) or mind.knowledge.has(String(rs.done)):
+				continue
+			if String(rs.purpose) == "crown" and not (WorldState.night or WorldState.daylight() < 0.15):
+				continue          # the bells only move in the night wind (the founders' notes say so)
+			if int(mind.knowledge.get("ascended:" + String(rs.key), -1)) == WorldState.day():
+				continue          # once a night is enough
+			out.append({"kind": "ascend", "key": "ascend:" + String(rs.key), "spot": rs, "label": "rise up to %s" % String(rs.label)})
 	# expeditions: a clue she has really read becomes a reason to set out (data/expeditions.json)
 	if _allowed("expedition") and is_lead() and main.get("journeys") and not main.journeys.active() and mind.vigor > 0.6:
 		var ex: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/expeditions.json")).get("expeditions", {})
@@ -333,7 +357,7 @@ func options() -> Array:
 	# journal
 	if not Journal.compose(mind).is_empty():
 		out.append({"kind": "journal", "key": "journal", "label": "write in my journal"})
-	return out.filter(func(o): return _allowed(o.kind) or o.kind == "recover" or o.kind == "collect")
+	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend"])
 
 
 const MEET_COOLDOWN_S := 420.0
@@ -412,6 +436,16 @@ func score(o: Dictionary) -> Dictionary:
 		"converse":
 			u = 0.55 + needs.social * 0.5
 			why.append("visitor present")
+		"ascend":
+			u = 0.45 + needs.curiosity * 0.35 + 0.25 - (1.0 - needs.energy) * 0.3
+			why.append("the bells on the tower's crown, on a night of wind")
+		"shelter":
+			# nobody stands about in a downpour: this wins over nearly anything that is not urgent
+			u = 0.7 + float(main.weather.rain) * 0.5
+			why.append("it is raining %s" % ("hard" if main.weather.rain > 0.8 else "steadily"))
+		"listen_rain":
+			u = 0.45 + (1.0 - needs.energy) * 0.35 + float(main.weather.rain) * 0.2
+			why.append("dry, and the rain is all round")
 		"chat":
 			u = 0.28 + needs.social * 0.5 + (0.12 if o.first else 0.0) - (1.0 - needs.energy) * 0.15
 			why.append("someone she %s" % ("has not met yet" if o.first else "likes talking to"))
@@ -651,6 +685,9 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"drill": return await _drill(o)
 		"expedition": return await _expedition(o)
 		"chat": return await _chat(o)
+		"shelter": return await _shelter(o)
+		"ascend": return await _ascend(o)
+		"listen_rain": return await _listen_rain()
 		"converse": return await _converse(o)
 		"journal": return await _journal()
 		"attune": return await _attune(o)
@@ -1149,6 +1186,118 @@ func _chat(o: Dictionary) -> Dictionary:
 
 
 ## Set out on foot (JourneyDirector: real legs, waypoints, camps, nights) with Luna, for the reason the clue gave.
+## Rising Air to a place no stair reaches: walk to where the air can take her from, rise, do what she came for
+## (the Crown's bells), drift back down to where she rose from.
+func _ascend(o: Dictionary) -> Dictionary:
+	var rs: Dictionary = o.spot
+	current.stage = "making her way to where she can rise from"
+	if not await _walk(rs.foot):
+		return {"ok": false, "detail": "could not reach the place to rise from"}
+	var t0 := Time.get_ticks_msec()
+	while me.global_position.distance_to(rs.foot) > 0.6 and Time.get_ticks_msec() - t0 < 5000 and not _cancel:
+		me.navigate_to(rs.foot)
+		await get_tree().process_frame
+	me.stop_action()
+	await get_tree().create_timer(0.4).timeout
+	# up stage by stage (each lift is within what the air can carry her), then the same way back down
+	var stages: Array = rs.get("stages", [rs.top])
+	var up := {"ok": true, "height": 0.0, "stages": []}
+	var h0 := me.global_position.y
+	for i in stages.size():
+		current.stage = "rising to %s (%d/%d)" % [String(rs.label), i + 1, stages.size()]
+		var st: Dictionary = await main.magic.rise_to(me, stages[i])
+		(up.stages as Array).append(st)
+		if not st.get("ok", false):
+			up["ok"] = false
+			up["reason"] = st.get("reason", "?")
+			break
+		await get_tree().create_timer(0.8).timeout
+	up["height"] = snappedf(me.global_position.y - h0, 0.1)
+	if not up.ok:
+		var back: Array = [rs.foot] if (up.stages as Array).size() > 1 else []
+		for b in back:
+			await main.magic.rise_to(me, b)
+		return {"ok": false, "detail": "Rising Air refused: %s" % String(up.get("reason", "?")), "rise": up}
+	var what := {}
+	if String(rs.purpose) == "crown" and main.world.get("crown"):
+		current.stage = "listening to the bells"
+		await get_tree().create_timer(1.0).timeout
+		what = await main.world.crown.listen(me, main)
+	await get_tree().create_timer(2.5).timeout
+	current.stage = "drifting back down"
+	var way_down: Array = stages.slice(0, stages.size() - 1)
+	way_down.reverse()
+	way_down.append(rs.foot)
+	var down := {"ok": true}
+	for wd in way_down:
+		var dd: Dictionary = await main.magic.rise_to(me, wd)
+		if not dd.get("ok", false):
+			await get_tree().create_timer(1.5).timeout
+			dd = await main.magic.rise_to(me, wd)
+		if not dd.get("ok", false):
+			down = dd
+			break
+		await get_tree().create_timer(0.6).timeout
+	mind.knowledge["ascended:" + String(rs.key)] = WorldState.day()
+	needs.curiosity = clampf(needs.curiosity - 0.3, 0.0, 1.0)
+	return {"ok": down.get("ok", false) and what.get("ok", true), "rise": up, "down": down, "crown": what,
+		"detail": "rose %.1f m to %s; %s; %s" % [float(up.get("height", 0.0)), String(rs.label), String(what.get("detail", "")),
+			"drifted back down" if down.get("ok", false) else "could not get down: %s" % String(down.get("reason", "?"))]}
+
+
+## Out of the rain: walk to the spot (and right in under the eaves / against the trunk), turn to look out.
+func _shelter(o: Dictionary) -> Dictionary:
+	var spot: Dictionary = o.spot
+	var to: Vector3 = spot.pos
+	current.stage = "hurrying out of the rain"
+	_maybe_say(_lines("rain_shelter", ["Over here - it's dry under here!", "Quick, under the %s!" % ("eaves" if spot.kind == "eaves" else "tree")]), 0.5, "rain_shelter")
+	if not await _walk(to):
+		return {"ok": false, "detail": "could not reach the shelter"}
+	var t0 := Time.get_ticks_msec()
+	while me.global_position.distance_to(to) > 0.45 and Time.get_ticks_msec() - t0 < 5000 and not _cancel:
+		me.navigate_to(to)
+		await get_tree().process_frame
+	me.stop_action()
+	me.look_at_point(spot.face)
+	var dry: bool = main.weather.sheltered_at(me.global_position)
+	return {"ok": dry, "detail": "sheltering %s (%s)" % ["under the eaves of a house" if spot.kind == "eaves" else "under a big tree", "dry" if dry else "still in the rain"],
+		"where": spot.kind}
+
+
+## Dry, with the rain all round: sit (or lean) and just listen for a while. Rests her; a quiet word now and then.
+func _listen_rain() -> Dictionary:
+	_listened_this_rain = String(main.streaming.current_id)
+	current.stage = "listening to the rain"
+	var sat := false
+	# under a roof the ground is dry and she sits; under a tree she stays standing, out of the drips
+	if me.has_clip("sit_ground_enter") and main.weather.covered(me.global_position):
+		me.play_gesture("sit_ground_enter", 0.3, 0.3)
+		me.set_ground_pose("sit", me.animation_length("sit_ground_enter") * 0.9)
+		await get_tree().create_timer(me.animation_length("sit_ground_enter") * 0.85).timeout
+		me.play_gesture("sit_ground_loop", 0.3, 0.6)
+		sat = true
+	if me.get("face") and me.face:
+		me.face.pulse("relaxed", 0.5, 6.0)
+	var secs := rng.randf_range(22.0, 40.0)
+	var t0 := Time.get_ticks_msec()
+	var said := false
+	while (Time.get_ticks_msec() - t0) / 1000.0 < secs and not _cancel and _interrupt == "" and main.weather.rain > 0.2:
+		if not said and (Time.get_ticks_msec() - t0) / 1000.0 > 6.0:
+			said = true
+			_maybe_say(_lines("rain_listen", ["Listen to it on the leaves.", "I could fall asleep to this.", "Everything smells different when it rains."]), 0.7, "rain_listen")
+		await get_tree().create_timer(0.5).timeout
+	if sat:
+		me.end_gesture()
+		me.play_gesture("sit_ground_exit", 0.2, 0.4)
+		me.set_ground_pose("", me.animation_length("sit_ground_exit") * 0.9)
+		await get_tree().create_timer(me.animation_length("sit_ground_exit") + 0.2).timeout
+	needs.energy = clampf(needs.energy + 0.2, 0.0, 1.0)
+	needs.curiosity = clampf(needs.curiosity + 0.1, 0.0, 1.0)
+	var heard := (Time.get_ticks_msec() - t0) / 1000.0
+	mind.knowledge["listened_to_rain"] = int(mind.knowledge.get("listened_to_rain", 0)) + 1
+	return {"ok": true, "detail": "%s and listened to the rain for %.0f s" % ["sat" if sat else "stood", heard], "seconds": heard}
+
+
 func _expedition(o: Dictionary) -> Dictionary:
 	var plan: Dictionary = main.journeys.start(String(o.area), String(o.purpose), ["mika", "luna"] if main.characters.has("luna") else ["mika"], agent_id)
 	if not plan.get("ok", false):

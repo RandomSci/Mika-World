@@ -434,6 +434,151 @@ func fold_step(caster: WorldCharacter, to: Vector3) -> Dictionary:
 	return _finish(res)
 
 
+## Rising Air (learned, never given): the air lifts her - up, across and down to a place she can see, at the pace
+## of a slow breath (about 1.3 m/s; never a jump cut, so TeleportGuard sees ordinary motion). The way must be open
+## air the whole way for a body her size, and there must be room to stand where she sets down.
+func rise_to(caster: WorldCharacter, to: Vector3) -> Dictionary:
+	var id := "rising_air"
+	var s := spell(id)
+	var who := caster.character_id
+	var res := {"spell": id, "ok": false, "caster": who}
+	var cc := can_cast(id, who)
+	if not cc.ok:
+		res["outcome"] = "refused"
+		res["reason"] = cc.reason
+		return _finish(res)
+	if _casting.has(who) or caster.casting or caster.lifted or not caster.is_on_floor():
+		res["outcome"] = "refused"
+		res["reason"] = "not now (already casting / not on her feet)"
+		return _finish(res)
+	var m := mastery(id, who)
+	var reach := float(s.get("range", 6.0)) + float(s.get("range_per_mastery", 4.0)) * m
+	var lift := float(s.get("lift", 8.5)) + float(s.get("lift_per_mastery", 3.0)) * m
+	var from := caster.global_position
+	var space := caster.get_world_3d().direct_space_state
+	var dest := NavigationServer3D.map_get_closest_point(caster.get_world_3d().navigation_map, to)
+	var down := PhysicsRayQueryParameters3D.create(dest + Vector3(0, 1.5, 0), dest - Vector3(0, 1.5, 0), 1)
+	down.exclude = [caster.get_rid()]
+	var fh := space.intersect_ray(down)
+	if not fh.is_empty():
+		dest.y = (fh.position as Vector3).y
+	var d := Vector2(dest.x - from.x, dest.z - from.z).length()
+	if dest.distance_to(Vector3(to.x, dest.y, to.z)) > 1.2 or absf(dest.y - to.y) > 1.5:
+		res["outcome"] = "refused"
+		res["reason"] = "no ground to set down on there"
+		return _finish(res)
+	if d > reach or dest.y - from.y > lift:
+		res["outcome"] = "refused"
+		res["reason"] = "too far for the air to carry her (%.1f m across, %.1f m up; she can manage %.1f / %.1f)" % [d, dest.y - from.y, reach, lift]
+		return _finish(res)
+	# the flight: straight up, across at the higher level plus clearance, straight down
+	var top := maxf(from.y, dest.y) + 0.9          # clear of a parapet or a gallery rail at the far end
+	# she must see where she will set down - from the ground, or from the air as it carries her (risen, she looks
+	# across; out over an edge, she looks down onto it); the open-air test below covers the whole way
+	var seen := false
+	for eye_at in [from + Vector3(0, 1.55, 0), Vector3(from.x, top + 1.55, from.z), Vector3(dest.x, top + 1.55, dest.z)]:
+		var eye := PhysicsRayQueryParameters3D.create(eye_at, dest + Vector3(0, 1.2, 0), 1)
+		eye.exclude = [caster.get_rid()]
+		if space.intersect_ray(eye).is_empty():
+			seen = true
+			break
+	if not seen:
+		res["outcome"] = "refused"
+		res["reason"] = "she cannot see where she would set down"
+		return _finish(res)
+	var path: Array = [from, Vector3(from.x, top, from.z), Vector3(dest.x, top, dest.z), dest]
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.3
+	cap.height = 1.3
+	var sq := PhysicsShapeQueryParameters3D.new()
+	sq.shape = cap
+	sq.collision_mask = 1
+	sq.exclude = [caster.get_rid()]
+	for i in range(1, path.size()):
+		var a: Vector3 = path[i - 1]
+		var b: Vector3 = path[i]
+		var n := maxi(1, int(a.distance_to(b) / 0.4))
+		for k in range(n + 1):
+			var pt := a.lerp(b, float(k) / float(n))
+			if (i == 1 and k == 0) or (i == path.size() - 1 and k == n):
+				pt.y += 0.25        # standing on the ground at either end is not "blocked"
+			sq.transform = Transform3D(Basis.IDENTITY, pt + Vector3(0, 1.0, 0))
+			var hits := space.intersect_shape(sq, 2)
+			if not hits.is_empty():
+				res["outcome"] = "refused"
+				res["reason"] = "no open air that way (%s in the way)" % String((hits[0].collider as Node).name if hits[0].collider else "something")
+				return _finish(res)
+	_casting[who] = true
+	last_spell = id
+	caster.stop_action()
+	caster.look_at_point(dest)
+	var vo := voicing(id, who)
+	if vo.text != "" and main.voice and not caster.combat_stance:
+		main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), vo.text, {"latin": true, "priority": 1, "subtitle": true})
+	caster.play_gesture("cast_quick_enter", 0.15, 0.3)
+	await get_tree().create_timer(0.5).timeout
+	# the air gathers under her: a ring of lifted leaves (Sylvan) or drifting dusk motes, a soft light at her feet
+	var fx: GPUParticles3D
+	if who == "luna":
+		fx = FX.particles(36, 1.4, FX.pm_motes("umbral", "rise"), FX.mote_mesh(0.07), true)
+	else:
+		fx = FX.particles(40, 1.6, FX.pm_leaves("lift"), FX.leaf_mesh(0.09), true)
+	fx.emitting = true
+	caster.add_child(fx)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(0.8, 1.0, 0.85) if who != "luna" else Color(0.7, 0.6, 1.0)
+	glow.light_energy = 0.0
+	glow.omni_range = 3.0
+	caster.add_child(glow)
+	glow.position = Vector3(0, 0.2, 0)
+	create_tween().tween_property(glow, "light_energy", 1.6, 0.6)
+	if main.get("audio"):
+		main.audio.play3d("phoenix_wing_gust", caster.global_position, "SFX", -8.0, "rising_air", 0.75)   # a soft up-draught
+	caster.play_gesture("lift_off", 0.15, 0.25)
+	await get_tree().create_timer(0.35).timeout
+	caster.lifted = true
+	caster.play_gesture("combat_idle", 0.3, 0.5)          # hands held out, holding the spell that holds her
+	var flown := 0.0
+	var speeds := [1.3, 1.6, 1.1]                          # up, across, settling down
+	for i in range(1, path.size()):
+		var a2: Vector3 = path[i - 1]
+		var b2: Vector3 = path[i]
+		var len := a2.distance_to(b2)
+		if len < 0.05:
+			continue
+		if i == 2:
+			caster.look_at_point(b2)
+		var dur := len / float(speeds[i - 1])
+		var t := 0.0
+		while t < dur:
+			if not is_instance_valid(caster):
+				_casting.erase(who)
+				return _finish(res)
+			t = minf(t + get_process_delta_time(), dur)
+			var k2 := t / dur
+			k2 = k2 * k2 * (3.0 - 2.0 * k2)
+			caster.global_position = a2.lerp(b2, k2)
+			await get_tree().process_frame
+		flown += len
+	caster.global_position = dest + Vector3(0, 0.03, 0)
+	caster.lifted = false
+	caster.velocity = Vector3.ZERO
+	caster.play_gesture("land_soft", 0.1, 0.4)
+	var tw := create_tween()
+	tw.tween_property(glow, "light_energy", 0.0, 0.6)
+	tw.tween_callback(glow.queue_free)
+	fx.emitting = false
+	get_tree().create_timer(2.0).timeout.connect(func(): if is_instance_valid(fx): fx.queue_free())
+	await get_tree().create_timer(0.6).timeout
+	_casting.erase(who)
+	res["ok"] = true
+	res["outcome"] = "rose"
+	res["metres"] = snappedf(flown, 0.1)
+	res["height"] = snappedf(dest.y - from.y, 0.1)
+	res["changes"] = _award(id, 0.08, "place", "rose", not WorldState.mind(who).knowledge.has("practical:" + id), "", who)
+	return _finish(res)
+
+
 ## Mastery grows with diminishing returns; the first success of an untested spell is "practical understanding".
 ## `target_id`: the struck object, recorded so trials about specific objects ("strike all four rune
 ## targets") are satisfied by real hits that produced an effect, not only by the E-key interaction.

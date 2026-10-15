@@ -72,4 +72,5 @@ text (`data/books.json`) and world content, or is marked *planned*. It extends t
   learned fold. Long-distance folding ("knowing both places") is the next step of the thread.
 * **The ninth gate** — a Level 90 milestone that only Mika and Luna *together* can open, at the summit temple
   under the Twin Lights; neither can climb past it alone.
-* **The Crown** — Level 100: having heard all nine rings.
+* **The Crown** — Level 100: having heard all nine rings. Nine bells hang on the Mentor's Tower crown, where no
+  stair goes; each sounds only for one who has heard its Warden's ring (`docs/THE_CROWN.md`).

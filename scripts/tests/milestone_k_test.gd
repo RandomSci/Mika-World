@@ -127,6 +127,7 @@ func _run() -> void:
 		"navcheck": await _navcheck()
 		"soak": await _soak()
 		"weather": await _weather()
+		"crown": await _crown()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -3512,6 +3513,129 @@ func _weather() -> void:
 	while not wx.log.any(func(e): return e.has("lightning")) and _gms() - t0 < 30000:
 		await get_tree().process_frame
 	_check(wx.log.any(func(e): return e.has("lightning")), "lightning, and the thunder after it", wx.log.filter(func(e): return e.has("lightning")))
+	# she gets out of it: her own planner wants shelter (a big tree here, a doorstep's eaves in the Village), she is
+	# dry there, then she sits (under a roof) or stands against the trunk and listens to it for a while
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	for place in ["whispering_woods", "village"]:
+		if place != main.streaming.current_id:
+			await main.streaming.travel(place, mika)
+			await _wait(3.0)
+		if wx.sheltered_at(mika.global_position):
+			mika.global_position = mika.global_position + Vector3(4, 0, 4)
+			await _wait(0.5)
+		var top: Array = mb.ranked()
+		var sh: Array = top.filter(func(o): return String(o.kind) == "shelter")
+		_check(not sh.is_empty() and String(top[0].kind) == "shelter", "%s: out in the rain, getting under cover is what she wants most (%s)" % [place, sh.map(func(o): return o.label)],
+			top.slice(0, 4).map(func(o): return [o.kind, snappedf(o.utility, 0.01)]))
+		if sh.is_empty():
+			continue
+		var r: Dictionary = await mb.run_activity(sh[0])
+		report["shelter_" + place] = r
+		_check(r.get("ok", false) and wx.sheltered_at(mika.global_position), "%s: %s" % [place, r.get("detail", "")], r)
+		var f := mika.global_transform.basis.z
+		f.y = 0.0
+		f = f.normalized()
+		var sd := f.cross(Vector3.UP)
+		main.camera_rig.set_shot(mika.global_position + f * 4.2 + sd * 1.6 + Vector3(0, 1.5, 0), mika.global_position + Vector3(0, 1.3, 0), 52.0)
+		var ls: Array = mb.options().filter(func(o): return String(o.kind) == "listen_rain")
+		_check(not ls.is_empty(), "%s: dry, with the rain all round, she can sit and listen to it" % place)
+		if not ls.is_empty():
+			get_tree().create_timer(9.0).timeout.connect(func(): _shot("weather_listen_" + place))
+			var lr: Dictionary = await mb.run_activity(ls[0])
+			report["listen_" + place] = lr
+			_check(lr.get("ok", false) and float(lr.get("seconds", 0)) > 15.0, "%s: %s" % [place, lr.get("detail", "")], lr)
 	wx.set_weather("clear", 3.0)
 	await _wait(30.0)
 	_check(wx.rain < 0.05 and absf(main.world.sun.light_energy - sun0) < sun0 * 0.15, "it clears again (sun %.2f)" % main.world.sun.light_energy, wx.describe())
+
+
+# ------------------------------------------------------------------ the Crown (Level 100) and Rising Air
+func _crown() -> void:
+	await _hold_all()
+	main.director.enabled = true
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var mk := WorldState.mind("mika").knowledge
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 11.0 * 60.0
+	WorldState.clock_rate = 0.0
+	var tg0: int = main.teleport_guard.violations.size()
+	_check(not main.magic.can_cast("rising_air", "mika").ok, "at first the air will not lift her", main.magic.can_cast("rising_air", "mika"))
+	await main.streaming.travel("mentor_tower", mika)
+	await _wait(2.5)
+	# 1) the founders' notes, before Master Aldric's lesson on footing: the last page means nothing yet
+	var r1: Dictionary = await mb._use("mentor_notes")
+	_check(mk.has("lore:rising_air") and mk.has("clue:crown_bells") and not mk.has("incantation:rising_air"),
+		"she read the founders' notes: the theory and the bells, but not the word (%s)" % [r1.get("detail", "")], r1)
+	_check(not main.magic.can_cast("rising_air", "mika").ok, "reading alone is not the spell")
+	# 2) the lesson (Master Aldric's "magic follows the body", as his footing lesson grants), then the last page
+	mk["fact:magic_follows_body"] = 1
+	var r2: Dictionary = await mb._use("mentor_notes")
+	_check(mk.has("incantation:rising_air") and main.magic.can_cast("rising_air", "mika").ok, "with the lesson understood, the last page gives her the word: Rising Air is hers", r2.get("detail", ""))
+	# 3) by day the bells hang still: no reason to go up
+	_check(not mb.options().any(func(o): return String(o.kind) == "ascend"), "by day she has no reason to rise to the crown")
+	var spot: Dictionary = main.world.rise_spots()[0]
+	var gap := (spot.top as Vector3).y - (spot.foot as Vector3).y      # two lifts: grass -> balcony -> crown
+	var pth := NavigationServer3D.map_get_path(mika.get_world_3d().navigation_map, mika.global_position, spot.foot, true)
+	var foot_nav := NavigationServer3D.map_get_closest_point(mika.get_world_3d().navigation_map, spot.foot)
+	report["crown_spot"] = {"foot": spot.foot, "top": spot.top, "gap": gap, "foot_nav": foot_nav, "path_end": pth[pth.size() - 1] if pth.size() > 0 else null, "path_n": pth.size(), "from": mika.global_position}
+	_check(pth.size() > 0 and (pth[pth.size() - 1] as Vector3).distance_to(spot.foot) < 1.0, "she can walk to where she rises from (the grass below the gallery)", report["crown_spot"])
+	var map: RID = mika.get_world_3d().navigation_map
+	var on_crown := NavigationServer3D.map_get_closest_point(map, spot.top)
+	_check(on_crown.distance_to(spot.top) < 0.8, "the crown walk is ground to stand on (navmesh %.2f m from the spot)" % on_crown.distance_to(spot.top))
+	# 4) night: six of the nine rings heard (a lesson, the rain, four Wardens' stories)
+	for k in ["fact:breath_before_word", "listened_to_rain", "lore:warden_verdance", "lore:warden_umbra", "lore:warden_emberhart", "lore:warden_stonefather"]:
+		mk[k] = 1
+	WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 22.5 * 60.0
+	await _wait(2.0)
+	_check(WorldState.daylight() < 0.15, "night has come (%s)" % WorldState.clock_text())
+	var asc: Array = mb.options().filter(func(o): return String(o.kind) == "ascend")
+	_check(not asc.is_empty(), "at night her planner offers to rise to the crown (%s)" % [asc.map(func(o): return o.label)])
+	if asc.is_empty():
+		return
+	var shots := func():
+		await _wait(9.0)
+		var c: Vector3 = mika.global_position
+		main.camera_rig.set_shot(c + Vector3(7.5, 1.0, 7.5), c + Vector3(0, 0.6, 0), 55.0)
+		await _wait(1.6)
+		_shot("crown_rising")
+	shots.call()
+	var a1: Dictionary = await mb.run_activity(asc[0])
+	report["ascend_partial"] = a1
+	var rise: Dictionary = a1.get("rise", {})
+	_check(rise.get("ok", false) and float(rise.get("height", 0)) > 12.0, "Rising Air: up %.1f m, onto the gallery and on to the crown (%s)" % [float(rise.get("height", 0)), rise.get("reason", rise.get("outcome", ""))], rise)
+	var cr: Dictionary = a1.get("crown", {})
+	_check(cr.get("ok", false) and (cr.get("sounded", []) as Array).size() == 6 and not cr.get("all_nine", true), "six bells sounded, three swung silent (%s)" % cr.get("detail", ""), cr)
+	_check(mk.has("crown:silent_7") and mk.has("crown:silent_9") and not mk.has("crown:heard_all_nine"), "she remembers which rings she has still to hear")
+	_check((a1.get("down", {}) as Dictionary).get("ok", false), "and she drifted back down, gallery then grass", a1.get("down", {}))
+	# 5) the rest of her journey: a fold, a ward that held, the ninth gate with Luna
+	for k in ["practical:fold_step", "practical:leaf_ward", "ninth_gate:opened"]:
+		mk[k] = 1
+	mk.erase("ascended:crown")
+	var g0: Dictionary = Progression.gate_status("mika", 100)
+	_check(not g0.met, "the Level 100 gate is still closed before the Crown is heard")
+	asc = mb.options().filter(func(o): return String(o.kind) == "ascend")
+	_check(not asc.is_empty(), "another night: up again")
+	if not asc.is_empty():
+		var top_shot := func():
+			while not (main.world.crown as CrownChime)._busy:
+				await get_tree().process_frame
+			await _wait(4.0)
+			var cc: Vector3 = (main.world.crown as CrownChime).global_position
+			main.camera_rig.set_shot(cc + Vector3(-6.5, 3.2, 6.5), cc + Vector3(0, 1.6, 0), 55.0)
+			await _wait(9.0)
+			_shot("crown_bells")
+			await _wait(4.5)
+			main.camera_rig.set_shot(cc + Vector3(-14.0, 2.0, 14.0), cc + Vector3(0, 4.0, 0), 50.0)
+			await _wait(1.2)
+			_shot("crown_of_light")
+		top_shot.call()
+		var a2: Dictionary = await mb.run_activity(asc[0])
+		report["ascend_all"] = a2
+		var cr2: Dictionary = a2.get("crown", {})
+		_check(cr2.get("all_nine", false) and mk.has("crown:heard_all_nine"), "all nine bells: she has heard the Crown (%s)" % cr2.get("detail", ""), cr2)
+		var g1: Dictionary = Progression.gate_status("mika", 100)
+		_check(g1.met, "the Level 100 gate is open (hear all nine rings)", g1)
+		_check((a2.get("down", {}) as Dictionary).get("ok", false), "back down safely")
+	_check(main.teleport_guard.violations.size() == tg0, "no one was ever moved instantly: the air carried her (violations %d)" % (main.teleport_guard.violations.size() - tg0), main.teleport_guard.violations.slice(tg0))
+

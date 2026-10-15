@@ -51,6 +51,8 @@ const CLIPS := {
 	"hit_knockback": ["ual:Hit_Knockback", false, true],
 	"brace": ["ual:Sword_Block", false, true],
 	"victory_nod": ["ual:Yes", false, true],
+	"lift_off": ["ual:Jump_Start", false, true],       # Rising Air: the push off the ground
+	"land_soft": ["ual:Jump_Land", false, true],       # and setting down again
 	# Milestone K (V3) rest set: Quaternius Universal Animation Library (CC0), second pack. "@t" freezes a clip at
 	# time t (a held pose), "~rev" plays it backwards (the get-up becomes the lie-down).
 	"sit_ground_enter": ["ual_rest:Sitting_Enter", false, true],
@@ -119,6 +121,7 @@ var current_action := "idle"
 var last_rejection := ""  # reason the most recent action request was refused outright
 var action_detail := {}
 var casting := false
+var lifted := false               # Rising Air holds her in the air: the spell moves her body, not gravity or walking
 var _move_input := Vector3.ZERO
 var _run := false
 var _look_target = null
@@ -1215,6 +1218,10 @@ func _physics_process(delta: float) -> void:
 		reaction.physics(delta)
 		if reaction.active:
 			return                     # the fall / the getting up owns her body
+	if lifted:
+		velocity = Vector3.ZERO
+		anim_tree.set("parameters/loco/blend_position", 0.0)
+		return
 	var now := _gclock
 	var desired := _move_input
 	if _nav_active:

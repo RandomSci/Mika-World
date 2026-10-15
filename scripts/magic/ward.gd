@@ -67,6 +67,8 @@ func setup(mage: WorldCharacter, p_kind: String, p_spell: String, p_charges: int
 		"mirror":
 			_build_mirror()
 	log.append({"event": "up", "kind": kind, "charges": charges, "seconds": snappedf(seconds, 0.1), "reflects": reflects})
+	if log.size() > 200:
+		log.pop_front()
 	if AudioDirector.instance:
 		AudioDirector.instance.play3d("ward_%s_up" % kind, _centre(), "SFX", -6.0, "ward")
 
@@ -162,6 +164,8 @@ func absorb(h: Node, at: Vector3) -> String:
 	WorldState.record_activity({"id": "ward:" + spell_id, "verb": "ward", "label": "%s stopped a blow" % MagicSystem.spell(spell_id).get("name", spell_id)},
 		{"skills": {spell_id: 0.04 / (1.0 + m * 0.8)}, "knowledge": {"warded:" + spell_id: 1}}, who)
 	log.append({"event": how, "heavy": heavy, "charges_left": charges, "at": [snappedf(at.x, 0.1), snappedf(at.y, 0.1), snappedf(at.z, 0.1)]})
+	if log.size() > 200:
+		log.pop_front()
 	if charges <= 0:
 		_spend("spent")
 	return how
@@ -226,6 +230,8 @@ func _spend(how: String) -> void:
 	if _light:
 		_light.light_energy = 0.0
 	log.append({"event": how, "age": snappedf(_age, 0.1), "absorbed": absorbed, "reflected": reflected})
+	if log.size() > 200:
+		log.pop_front()
 	spent.emit(self, how)
 	get_tree().create_timer(1.4).timeout.connect(queue_free)
 

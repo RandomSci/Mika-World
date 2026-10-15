@@ -136,6 +136,8 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 	_active = false
 	var entry := {"t": snappedf(Time.get_ticks_msec() / 1000.0, 0.1), "between": [a.agent_id, other_id], "lines": spoken}
 	log.append(entry)
+	if log.size() > 200:
+		log.pop_front()
 	talked.emit(entry)
 	return {"ok": true, "detail": "talked with %s (%d lines)" % [MagicSystem.display_name(other_id), spoken.size()], "lines": spoken}
 

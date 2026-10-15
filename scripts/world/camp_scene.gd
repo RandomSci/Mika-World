@@ -686,6 +686,8 @@ func _fireside(_cp: Dictionary) -> void:
 func _pass_time_to(h: float, real_s: float) -> void:
 	var now := WorldState.hour_f()
 	var dh := h - now
+	if dh < 0.0 and dh > -6.0:
+		return          # already past it (a long fireside talk ran over): never wrap round into tomorrow
 	if dh < 0.0:
 		dh += 24.0
 	var minutes := dh * 60.0

@@ -27,6 +27,10 @@ var _rain_fx: GPUParticles3D
 var _rain_mat: StandardMaterial3D
 var _rain_player: AudioStreamPlayer
 var _roof_player: AudioStreamPlayer
+var _splash: GPUParticles3D
+var _cover: GPUParticlesCollisionHeightField3D
+var _trunks: Array = []           # big trees of the current area: [pos, radius] (their trunk colliders)
+var _trunks_of: Object = null
 var _flash: DirectionalLight3D
 var _next_flash := 0.0
 var _written := {}                # env/sun property -> value this system last wrote (to tell the area's own updates)
@@ -100,7 +104,49 @@ func _build_rain() -> void:
 	q.material = _rain_mat
 	_rain_fx.draw_pass_1 = q
 	_rain_fx.emitting = false
+	# drops stop on whatever is above the ground (roofs, canopies, her hood) and burst into a tiny splash
+	pm.collision_mode = ParticleProcessMaterial.COLLISION_HIDE_ON_CONTACT
+	pm.collision_use_scale = false
+	_rain_fx.collision_base_size = 0.02
+	pm.sub_emitter_mode = ParticleProcessMaterial.SUB_EMITTER_AT_COLLISION
+	pm.sub_emitter_amount_at_collision = 1
 	add_child(_rain_fx)
+	_splash = GPUParticles3D.new()
+	_splash.name = "RainSplash"
+	_splash.amount = 2400
+	_splash.lifetime = 0.22
+	_splash.emitting = false
+	_splash.visibility_aabb = AABB(Vector3(-30, -30, -30), Vector3(60, 60, 60))
+	var sp := ParticleProcessMaterial.new()
+	sp.direction = Vector3(0, 1, 0)
+	sp.spread = 70.0
+	sp.initial_velocity_min = 0.6
+	sp.initial_velocity_max = 1.3
+	sp.gravity = Vector3(0, -9.8, 0)
+	sp.scale_min = 0.6
+	sp.scale_max = 1.0
+	_splash.process_material = sp
+	var sq := QuadMesh.new()
+	sq.size = Vector2(0.03, 0.03)
+	var sm := StandardMaterial3D.new()
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	sm.albedo_color = Color(0.8, 0.85, 0.92, 0.35)
+	sm.albedo_texture = gt
+	sq.material = sm
+	_splash.draw_pass_1 = sq
+	add_child(_splash)
+	_rain_fx.sub_emitter = _rain_fx.get_path_to(_splash)
+	# the height of whatever is overhead, around the camera (rendered from above when the camera moves)
+	_cover = GPUParticlesCollisionHeightField3D.new()
+	_cover.name = "RainCover"
+	_cover.size = Vector3(48, 40, 48)
+	_cover.resolution = GPUParticlesCollisionHeightField3D.RESOLUTION_512
+	_cover.update_mode = GPUParticlesCollisionHeightField3D.UPDATE_MODE_WHEN_MOVED
+	_cover.follow_camera_enabled = true
+	_cover.visible = false
+	add_child(_cover)
 
 
 ## The region's sky: no weather inside, under rock or between walls.
@@ -198,6 +244,8 @@ func _apply_rain(_delta: float) -> void:
 	var cam: Camera3D = get_viewport().get_camera_3d()
 	var on := rain > 0.02
 	_rain_fx.emitting = on
+	_splash.emitting = on
+	_cover.visible = on
 	if cam and on:
 		_rain_fx.global_position = cam.global_position + Vector3(0, 11.0, 0) - cam.global_transform.basis.z * 6.0
 	_rain_fx.amount_ratio = clampf(rain, 0.05, 1.0)
@@ -218,9 +266,83 @@ func _under_roof() -> bool:
 	var m: Node3D = main.characters.get("mika")
 	if m == null or not m.is_inside_tree():
 		return false
-	var q := PhysicsRayQueryParameters3D.create(m.global_position + Vector3(0, 1.8, 0), m.global_position + Vector3(0, 9.0, 0), 1 | 4)
-	q.exclude = [m.get_rid()]
-	return not m.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+	return covered(m.global_position, [m.get_rid()])
+
+
+## Something solid overhead at p (a roof, an arch, a rock shelf).
+func covered(p: Vector3, exclude := []) -> bool:
+	var vp := get_viewport()
+	if vp == null or vp.world_3d == null:
+		return false
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 1.8, 0), p + Vector3(0, 9.0, 0), 1 | 4 | HouseBuilder.ROOF_LAYER)
+	q.exclude = exclude
+	return not vp.world_3d.direct_space_state.intersect_ray(q).is_empty()
+
+
+## Is a person standing out of the rain here: under something solid, or close in under a big tree.
+func sheltered_at(p: Vector3) -> bool:
+	if sheltered_area() or covered(p):
+		return true
+	for t in _big_trees():
+		if Vector2(p.x - t[0].x, p.z - t[0].z).length() < float(t[1]) + 1.4:
+			return true
+	return false
+
+
+func _big_trees() -> Array:
+	var w = main.world
+	if w != _trunks_of:
+		_trunks_of = w
+		_trunks = []
+		if w != null:
+			for b in (w as Node).find_children("TreeTrunks*", "StaticBody3D", true, false):
+				for cs in (b as Node).get_children():
+					if cs is CollisionShape3D and (cs as CollisionShape3D).shape is CylinderShape3D:
+						var r := ((cs as CollisionShape3D).shape as CylinderShape3D).radius
+						if r >= 0.3:
+							var h := ((cs as CollisionShape3D).shape as CylinderShape3D).height
+							_trunks.append([(cs as Node3D).global_position - Vector3(0, h * 0.5 - 0.2, 0), r])
+	return _trunks
+
+
+## Places to wait out the rain near p, nearest first: a doorstep or stall under its eaves, the lee of a big tree.
+## [{pos, face (a point to look out at), kind: "eaves" | "tree"}], all on the walkable navmesh.
+func shelter_spots(p: Vector3, radius := 35.0) -> Array:
+	var out := []
+	var w = main.world
+	if w == null:
+		return out
+	var nav_map: RID = (w as Node3D).get_world_3d().navigation_map
+	var anchors: Dictionary = w.get("anchors") if w.get("anchors") != null else {}
+	for k in anchors:
+		var ks := String(k)
+		if not (ks.begins_with("home:") or ks.begins_with("stall:") or ks.begins_with("library") or ks.begins_with("quarters")):
+			continue
+		var a: Dictionary = anchors[k]
+		var ap: Vector3 = a.pos
+		if ap.distance_to(p) > radius:
+			continue
+		# step in toward the wall until the eaves are overhead
+		var out_dir := Vector3(sin(float(a.get("yaw", 0.0))), 0, cos(float(a.get("yaw", 0.0))))
+		for step in [0.0, 0.35, 0.7, -0.35]:
+			var c: Vector3 = ap - out_dir * float(step)
+			if covered(c):
+				var snapped := NavigationServer3D.map_get_closest_point(nav_map, c)
+				if snapped.distance_to(c) < 0.6:
+					out.append({"pos": snapped, "face": snapped + out_dir * 6.0, "kind": "eaves", "label": ks})
+				break
+	for t in _big_trees():
+		var tp: Vector3 = t[0]
+		if tp.distance_to(p) > radius:
+			continue
+		var away := Vector3(p.x - tp.x, 0, p.z - tp.z)
+		away = away.normalized() if away.length() > 0.1 else Vector3.FORWARD
+		var c2: Vector3 = tp + away * (float(t[1]) + 0.75)
+		var sn := NavigationServer3D.map_get_closest_point(nav_map, c2)
+		if Vector2(sn.x - tp.x, sn.z - tp.z).length() < float(t[1]) + 1.4 and absf(sn.y - c2.y) < 1.5:
+			out.append({"pos": sn, "face": sn + away * 6.0, "kind": "tree", "label": "the big tree"})
+	out.sort_custom(func(a, b): return (a.pos as Vector3).distance_to(p) < (b.pos as Vector3).distance_to(p))
+	return out
 
 
 ## A storm: lightning now and then; the thunder follows as many seconds later as it is far (sound ~ 340 m/s).

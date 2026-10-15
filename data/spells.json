@@ -326,6 +326,29 @@
    "power_per_mastery": 0.0,
    "target_kinds": [],
    "summary": "The Weaver of Ways' first teaching: bring two folds of the world together and step across the seam. Only to a place she can see (12 m, further with mastery); a fold made to a place half-known tears, so it never reaches what she cannot see. Learned from the glyph stones of the Forgotten Shrine and the Weaver's words under the Cloud Temple - never given."
+  },
+  "rising_air": {
+   "name": "Rising Air",
+   "element": "wind",
+   "clip": "cast_quick_enter",
+   "range": 6.0,
+   "range_per_mastery": 4.0,
+   "lift": 8.5,
+   "lift_per_mastery": 3.0,
+   "speed": 0.0,
+   "incantation": "Aer, tolle me!",
+   "translation": "Air, lift me!",
+   "incantation_short": "Tolle!",
+   "requires_knowledge": "incantation:rising_air",
+   "requires_all": [
+    "fact:magic_follows_body",
+    "lore:rising_air"
+   ],
+   "projectile": "rise",
+   "base_power": 0.0,
+   "power_per_mastery": 0.0,
+   "target_kinds": [],
+   "summary": "Aelis's breath turned upward: the air under her gathers and lifts her, slowly, to a place she can see - up a sheer wall, across a gap, down again. Learned from the founders' notes in the Mentor's Tower, and only by one who has understood that magic follows the body (Master Aldric's lesson on footing). Never given."
   }
  }
 }

@@ -10,7 +10,7 @@ GODOT="${GODOT:-$HOME/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64}"
 USERDIR="$HOME/.local/share/godot/app_userdata/Mika World 2.0 - Arcane Sanctuary (DEV)"
 OUT="screenshots/persisttest"
 mkdir -p "$OUT"
-COMMON=(--profile=live --no-bridge --no-visitors --no-voice)
+COMMON=(--profile=live --no-bridge --no-visitors --no-voice --no-weather)   # a fixed clear sky: a shower would (rightly) send her to shelter mid-suite
 fails=0
 
 run() {   # run <name> <timeout_s> <user args...>
@@ -35,7 +35,7 @@ clean() { rm -f "$USERDIR"/test_regress_"$1"*; }
 runw() {
   local name="$1" t="$2"; shift 2
   local log="$OUT/$name.log"
-  timeout "$t" "$GODOT" --path . --resolution 1600x900 -- --profile=live --no-bridge --no-visitors "$@" >"$log" 2>&1
+  timeout "$t" "$GODOT" --path . --resolution 1600x900 -- --profile=live --no-bridge --no-visitors --no-weather "$@" >"$log" 2>&1
   local code=$?
   local errs; errs=$(grep -c "SCRIPT ERROR" "$log")
   if [ $code -ne 0 ] || [ "$errs" -ne 0 ] || ! grep -qE "^\[(persisttest|mhtest|mitest)\] PASS" "$log"; then

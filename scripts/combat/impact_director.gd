@@ -244,6 +244,8 @@ func _help(h: WorldCharacter, fallen: WorldCharacter) -> void:
 		_hold(hid, false)
 		ev["outcome"] = "she was already up" if not fallen.reaction.active else "struck herself"
 		aftermath_log.append(ev)
+		if aftermath_log.size() > 200:
+			aftermath_log.pop_front()
 		return
 	h.look_at_point(fallen.global_position)
 	await get_tree().create_timer(0.35).timeout
@@ -264,6 +266,8 @@ func _help(h: WorldCharacter, fallen: WorldCharacter) -> void:
 		h.face.set_hold("concerned", 0.0)
 	ev["outcome"] = "knelt beside her and helped her up"
 	aftermath_log.append(ev)
+	if aftermath_log.size() > 200:
+		aftermath_log.pop_front()
 	await get_tree().create_timer(0.8).timeout
 	_helping.erase(hid)
 	_busy.erase(hid)
@@ -297,6 +301,8 @@ func _after(c: WorldCharacter, info: Dictionary) -> void:
 		if style == "evasive":
 			b.mind.knowledge["keep_distance_bonus"] = 2.0
 		aftermath_log.append(ev)
+		if aftermath_log.size() > 200:
+			aftermath_log.pop_front()
 		_busy.erase(who)
 		_hold(who, false)
 		return
@@ -323,6 +329,8 @@ func _after(c: WorldCharacter, info: Dictionary) -> void:
 		c.set_combat_stance(false)
 		ev["faced_danger"] = true
 	aftermath_log.append(ev)
+	if aftermath_log.size() > 200:
+		aftermath_log.pop_front()
 	await get_tree().create_timer(1.0).timeout
 	_busy.erase(who)
 	_hold(who, false)

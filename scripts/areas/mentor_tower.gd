@@ -7,6 +7,10 @@ extends ForestRegion
 const TOWER := Vector3(0, 0, -6)
 const R := 4.2
 const BALCONY_Y := 7.2
+const CROWN_Y := 14.7             # the crown walk (top of the tower's stone, round the turret): no stair goes there
+const TURRET_R := 2.0
+
+var crown: CrownChime
 const GATE := Vector2(-134, 30)
 
 var stone: ShaderMaterial
@@ -29,7 +33,7 @@ func gate_spots() -> Array:
 
 
 func features() -> Array:
-	return [_mats, _tower, _spiral, _balcony, _circle, _desk, func(): dress_clearing(Vector2(0, 2), 13.0, true, [[Vector2(0, 9), 6.5], [Vector2(TOWER.x, TOWER.z), 7.5]])]
+	return [_mats, _tower, _spiral, _balcony, _crown, _circle, _desk, func(): dress_clearing(Vector2(0, 2), 13.0, true, [[Vector2(0, 9), 6.5], [Vector2(TOWER.x, TOWER.z), 7.5]])]
 
 
 func _mats() -> void:
@@ -43,12 +47,20 @@ func _tower() -> void:
 	Kit.mesh_node(self, Kit.lathe(prof, 40, true, true), stone, Kit.xf(TOWER + Vector3(0, y0, 0)))
 	var cyl := CylinderShape3D.new()
 	cyl.radius = R
-	cyl.height = 15.0
+	cyl.height = CROWN_Y
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	cs.shape = cyl
-	cs.position = TOWER + Vector3(0, y0 + 7.5, 0)
+	cs.position = TOWER + Vector3(0, y0 + CROWN_Y * 0.5, 0)      # its top IS the crown walk (the stone you see)
 	body.add_child(cs)
+	# the inner turret is solid too: the crown is a ring of walk round it, between turret and battlements
+	var tcs := CollisionShape3D.new()
+	var tcyl := CylinderShape3D.new()
+	tcyl.radius = TURRET_R
+	tcyl.height = 3.0
+	tcs.shape = tcyl
+	tcs.position = TOWER + Vector3(0, y0 + CROWN_Y + 1.5, 0)
+	body.add_child(tcs)
 	add_child(body)
 	# crenellations
 	for i in 16:
@@ -56,8 +68,8 @@ func _tower() -> void:
 		if i % 2 == 0:
 			Kit.block(self, Vector3(1.2, 0.9, 0.6), Transform3D(Basis(Vector3.UP, -a + PI * 0.5), TOWER + Vector3(cos(a) * (R + 0.1), y0 + 15.05, sin(a) * (R + 0.1))), stone, false, 0.04)
 	# conical slate roof over an inner turret
-	Kit.mesh_node(self, Kit.lathe([Vector2(2.6, 0), Vector2(2.4, 3.0)], 24), stone, Kit.xf(TOWER + Vector3(0, y0 + 14.6, 0)))
-	Kit.mesh_node(self, Kit.lathe([Vector2(3.2, 0), Vector2(0.05, 5.0)], 24), Kit.uvmat("roof_slates_02", "1k", Vector2(3, 2)), Kit.xf(TOWER + Vector3(0, y0 + 17.6, 0)))
+	Kit.mesh_node(self, Kit.lathe([Vector2(TURRET_R, 0), Vector2(TURRET_R - 0.15, 3.0)], 24), stone, Kit.xf(TOWER + Vector3(0, y0 + 14.6, 0)))
+	Kit.mesh_node(self, Kit.lathe([Vector2(TURRET_R + 0.6, 0), Vector2(0.05, 4.6)], 24), Kit.uvmat("roof_slates_02", "1k", Vector2(3, 2)), Kit.xf(TOWER + Vector3(0, y0 + 17.6, 0)))
 	# windows glowing at night
 	for i in 6:
 		var a := TAU * i / 6.0 + 0.4
@@ -91,6 +103,19 @@ func _spiral() -> void:
 		Kit.mesh_node(self, Kit.box_mesh(Vector3(tread_len, 0.24, width), 0.02), stone, Transform3D(Basis(Vector3.UP, -a + PI * 0.5), p))
 		if k % 3 == 1:
 			Kit.mesh_node(self, Kit.box_mesh(Vector3(0.12, 1.0, 0.12), 0.01), stone, Kit.xf(p + Vector3(cos(a) * (width * 0.5 - 0.06), 0.6, sin(a) * (width * 0.5 - 0.06))))
+	# the foot of the stair: its first tread stands ~0.6 m off the grass, more than anyone can step - three broad
+	# stone steps on a gentle ramp lead up to it from the ground (the navmesh climbs 0.25 m at most)
+	var ra := 2.6
+	var rr := R + width * 0.5 + 0.05
+	var ground := height(cos(a0 + ra / rr * 0.5) * rr + TOWER.x, sin(a0 + ra / rr * 0.5) * rr + TOWER.z)
+	var ram_mid := a0 + ra / rr * 0.5
+	var ram_slope := atan2(y0 - ground, ra)
+	var rb := Basis(Vector3.UP, -ram_mid + PI * 0.5) * Basis(Vector3.FORWARD, -ram_slope)
+	Kit.static_box(self, Vector3(ra + 0.3, 0.2, width), Transform3D(rb, TOWER + Vector3(cos(ram_mid) * rr, (ground + y0) * 0.5 - 0.1, sin(ram_mid) * rr)))
+	for j in 3:
+		var aj := a0 + ra / rr * (0.83 - j * 0.33)
+		var top_y := ground + (y0 - ground) * (j + 1) / 3.0
+		Kit.block(self, Vector3(ra / 3.0 + 0.1, top_y - ground + 0.3, width), Transform3D(Basis(Vector3.UP, -aj + PI * 0.5), TOWER + Vector3(cos(aj) * rr, (top_y + ground - 0.3) * 0.5, sin(aj) * rr)), stone, false, 0.03)
 	# smooth ramp colliders, one per 3 steps (approximate helix)
 	for k in range(0, steps, 3):
 		var a_mid := a0 - sweep * (k + 1.5) / steps
@@ -155,6 +180,30 @@ func _desk() -> void:
 	Kit.place_prop(self, "magnifying_glass_01", Kit.xf(p + Vector3(-0.5, 0.83, 0.1), 1.0, Vector3.ONE * 1.2))
 	add_interactable(Interactable.make("mentor_notes", "Read the mentor's notes on advanced casting", "study", "mentors_tower",
 		p + Vector3(0.3, 0, 1.0), {"knowledge": {"lore:advanced_casting": 1}, "skills": {"arcane_orb": 0.1}}, "look_around", 4.0)).radius = 2.4
+	interactables["mentor_notes"].book_id = "founders_notes"      # a real text: the founders' notes on Rising Air
+
+
+## The Crown: nine bells on the bell-ring round the turret (CrownChime; Level 100).
+func _crown() -> void:
+	var y0 := height(TOWER.x, TOWER.z) - 0.4
+	crown = CrownChime.new()
+	crown.name = "CrownChime"
+	add_child(crown)
+	crown.build(TOWER + Vector3(0, y0 + CROWN_Y, 0), stone)
+	add_poi("tower_crown", TOWER + Vector3(R - 1.0, y0 + CROWN_Y, 0), "The tower's crown and its nine bells, where no stair goes", "mentors_tower", 2.0)
+
+
+## Places only Rising Air reaches from here (SanctuaryBrain "ascend"): from the balcony up to the crown walk.
+func rise_spots() -> Array:
+	var y0 := height(TOWER.x, TOWER.z) - 0.4
+	var a := 0.35
+	# two lifts: from the grass outside the gallery's edge up onto the balcony, then from the balcony to the crown
+	var fr := R + 3.6
+	var foot := TOWER + Vector3(cos(a) * fr, height(TOWER.x + cos(a) * fr, TOWER.z + sin(a) * fr), sin(a) * fr)
+	var mid := TOWER + Vector3(cos(a) * (R + 1.2), y0 + BALCONY_Y, sin(a) * (R + 1.2))
+	var top := TOWER + Vector3(cos(a) * ((R + TURRET_R) * 0.5 + 0.1), y0 + CROWN_Y, sin(a) * ((R + TURRET_R) * 0.5 + 0.1))
+	return [{"key": "crown", "foot": foot, "stages": [mid, top], "top": top, "label": "the tower's crown", "purpose": "crown",
+		"clue": "clue:crown_bells", "done": "crown:heard_all_nine"}]
 
 
 func links() -> void:
