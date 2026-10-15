@@ -6,7 +6,7 @@ extends Node3D
 
 @export var target: Node3D
 @export var height := 1.38
-@export var distance := 3.4
+@export var distance := 4.0
 @export var min_distance := 1.4
 @export var max_distance := 9.0
 @export var sensitivity := 0.0032
@@ -32,7 +32,7 @@ func _ready() -> void:
 	arm.position = Vector3(0.3, 0, 0)  # slight over-the-shoulder framing (camera itself is placed by the arm)
 	add_child(arm)
 	camera = Camera3D.new()
-	camera.fov = 52.0
+	camera.fov = 58.0
 	camera.near = 0.05
 	camera.far = 6000.0  # distant vistas are placed up to ~3.4 km away
 	arm.add_child(camera)
@@ -89,7 +89,7 @@ func clear_shot() -> void:
 	arm.process_mode = Node.PROCESS_MODE_INHERIT
 	camera.top_level = false
 	camera.transform = Transform3D.IDENTITY
-	camera.fov = 52.0
+	camera.fov = 58.0
 
 
 ## Planar forward of the camera, for camera-relative movement.

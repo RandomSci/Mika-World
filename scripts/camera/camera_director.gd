@@ -577,7 +577,17 @@ func _frame(delta: float) -> void:
 	_apply(pos, look, fov, delta)
 
 
+## The stream's framing (Part 5 look pass): every shot a little wider and further back so the world shows round
+## them - except the trailer-cut fights, which stay close on purpose. Pulled back only as far as the line of sight is
+## clear (never behind a bush or into a wall).
+const WIDE_FOV := 1.12
+const PULL_BACK := 1.18
+
+
 func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) -> void:
+	if mika and not (mode in ["combat", "signature"]) and not RenderProfile.options.has("no-wide"):
+		fov = minf(fov * WIDE_FOV, 66.0)
+		pos = _clear_line(look, look + (pos - look) * PULL_BACK) if (pos - look).length() > 0.7 else pos
 	# never inside something solid, whatever shot asked for it (a ray from inside a rock reports nothing: the overlap
 	# test does) - pulled toward what it looks at, and up, until it is in open air
 	if mika:
@@ -617,6 +627,16 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		_pos = _pos.lerp(pos, k2)
 		_look = _look.lerp(look, k2)
 		_fov = lerpf(_fov, fov, k2)
+	# the eased lens lags its target: in a frame that must hold her (an activity, a talk, a spell) she never drifts
+	# out of view while it catches up - if the lens actually used would lose her head, it cuts to the target shot
+	if mika and mode in ["conversation", "activity", "spell"]:
+		var hd0 := mika.global_position + Vector3(0, 1.45, 0)
+		var in_eased := rad_to_deg((_look - _pos).angle_to(hd0 - _pos)) < _fov * 0.5 * 0.92
+		var in_target := rad_to_deg((look - pos).angle_to(hd0 - pos)) < fov * 0.5 * 0.92
+		if not in_eased and in_target:
+			_pos = pos
+			_look = look
+			_fov = fov
 	# the eased path between two safe shots can cross a rock too: the lens actually used is checked as well
 	if mika and CombatFraming.inside_solid(mika.get_world_3d().direct_space_state, _pos):
 		_pos = pos

@@ -223,7 +223,7 @@ func _apply_light() -> void:
 	var sun: DirectionalLight3D = w.get("sun")
 	if env == null:
 		return
-	_mod(env, "fog_density", 1.0 + cloud * 2.2 + rain * 1.5)
+	_mod(env, "fog_density", (1.0 + cloud * 2.2 + rain * 1.5) * StreamGrade.fog_factor())
 	_mod(env, "background_energy_multiplier", 1.0 - cloud * 0.45)
 	_mod(env, "ambient_light_energy", 1.0 - cloud * 0.08)   # overcast: the sky's light stays, the sun goes
 	if sun:
