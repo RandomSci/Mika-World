@@ -34,6 +34,8 @@ var _state_t := 0.0
 var _speech: Array = []          # queued {who, wav, text, trace}
 var _speaking := false
 var _synth_complete := false
+var _progress := {}
+var _progress_at := -100000
 var _command := {}               # the running lifestyle action {id, action}
 var _results := {}               # id -> result (a repeated id is answered again, never re-run)
 var activity := "stand_relaxed"
@@ -357,6 +359,28 @@ func _snapshot() -> Dictionary:
 	return {"ready": true, "activity": activity, "camera": "ROOM_FALLBACK", "location": area, "held_object": null, "placement": null, "last_error": null}
 
 
+## Level, title, rank and the spells each mage can cast now: the one truth about her magic for every spoken
+## line (Mika-Live's own Three.js lesson ladder is not used with this world). Refreshed every ~25 s.
+func _mage_progress() -> Dictionary:
+	if Time.get_ticks_msec() - _progress_at < 25000 and not _progress.is_empty():
+		return _progress
+	_progress_at = Time.get_ticks_msec()
+	_progress = {}
+	for who in WorldState.minds.keys():
+		var d := Progression.describe(who)
+		var spells: Array = []
+		var learning: Array = []
+		if main.get("magic"):
+			for sp in main.magic.known_spells(who):
+				if sp.castable:
+					spells.append("%s (%s)" % [sp.name, sp.tier])
+				elif learning.size() < 3:
+					learning.append(sp.name)
+		_progress[who] = {"level": d.level, "title": d.title, "rank": WorldState.mage_rank(who), "toNextLevel": "%d%%" % int(d.fraction * 100.0),
+			"canCast": spells, "notYet": learning}
+	return _progress
+
+
 func _report(_force := false) -> void:
 	if not connected:
 		return
@@ -382,7 +406,7 @@ func _report(_force := false) -> void:
 			"landmarks": main.world.points_of_interest.keys().slice(0, 20).map(func(k): return {"id": String(k), "label": String(main.world.points_of_interest[k].get("description", k)).left(60), "zone": area}) if main.get("world") else []},
 		"dance": {"busy": main.performance.busy() if main.performance else false, "qualityReady": true, "game": {"active": main.performance.busy() if main.performance else false}},
 		"world": "a fantasy mage world (Godot): Mika and Luna, Level %d and %d" % [WorldState.mind("mika").level(), WorldState.mind("luna").level() if WorldState.minds.has("luna") else 1],
-		"clock": WorldState.clock_text()}
+		"clock": WorldState.clock_text(), "mageProgress": _mage_progress()}
 	# which characters are drawn here (the server's "Stage is loaded" check before it goes live)
 	_send({"type": "vr-room-client-status", "loaded": main.characters.keys().filter(func(k): return (main.characters[k] as Node3D).visible), "failed": []})
 	var payload := _snapshot()
