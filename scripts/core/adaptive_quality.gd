@@ -429,13 +429,22 @@ func reset_quality() -> void:
 # ------------------------------------------------------------------ applying (cheap, runtime-safe changes only)
 func _apply_all() -> void:
 	var vp := get_viewport()
-	if is_adaptive(RenderProfile.profile):
-		# FSR 2 (temporal, best quality per pixel); at the very bottom FSR 1 + FXAA (much cheaper, a little softer)
-		var fsr2 := float(knobs.upscaler) >= 0.5
-		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2 if fsr2 else Viewport.SCALING_3D_MODE_FSR
-		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED if fsr2 else Viewport.SCREEN_SPACE_AA_FXAA
-		vp.scaling_3d_scale = float(knobs.scale)
-		vp.fsr_sharpness = 0.25           # faces stay crisp at < 1.0 scale
+	if is_adaptive(RenderProfile.profile) and not RenderProfile.options.has("aa"):
+		var keep_msaa: bool = bool(RenderProfile.SETTINGS[RenderProfile.profile].get("keep_msaa", false))
+		if keep_msaa and float(knobs.scale) >= 0.999:
+			# native scale: MSAA, no temporal jitter (the stream profile's choice)
+			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+			vp.scaling_3d_scale = 1.0
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+			vp.msaa_3d = RenderProfile.SETTINGS[RenderProfile.profile].get("msaa", Viewport.MSAA_2X)
+		else:
+			# FSR 2 (temporal, best quality per pixel); at the very bottom FSR 1 + FXAA (much cheaper, a little softer)
+			var fsr2 := float(knobs.upscaler) >= 0.5
+			vp.msaa_3d = Viewport.MSAA_DISABLED
+			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2 if fsr2 else Viewport.SCALING_3D_MODE_FSR
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED if fsr2 else Viewport.SCREEN_SPACE_AA_FXAA
+			vp.scaling_3d_scale = float(knobs.scale)
+			vp.fsr_sharpness = 0.25           # faces stay crisp at < 1.0 scale
 	var w = main.get("world") if main else null
 	if w == null:
 		return

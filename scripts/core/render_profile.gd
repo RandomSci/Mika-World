@@ -54,7 +54,9 @@ const SETTINGS := {
 		"particle_scale": 1.0, "magic_light_scale": 0.75,
 	},
 	ADAPTIVE_30: {
-		"scale_3d": 1.0, "fsr": false, "fsr2": true, "taa": false, "fxaa": false, "msaa": Viewport.MSAA_DISABLED,
+		# MSAA 2x, no temporal AA (the developer's pick from an A/B, 2026-10-16: FSR 2's per-frame jitter made the
+		# scene shimmer - the mages looked like they were trembling). FSR 2 only if the scale ever has to drop.
+		"scale_3d": 1.0, "fsr": false, "fsr2": false, "taa": false, "fxaa": false, "msaa": Viewport.MSAA_2X, "keep_msaa": true,
 		"ssao": true, "ssil": true, "ssr": true, "sdfgi": false, "glow": true,
 		"volumetric_fog": true, "fog_density": 0.0035, "shadow_size": 4096, "shadow_distance": 45.0,
 		"foliage_density": 1.0, "magic_shadows": true, "max_fps": 30, "lod_threshold": 1.0,
