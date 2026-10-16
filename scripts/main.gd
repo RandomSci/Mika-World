@@ -111,6 +111,12 @@ func _ready() -> void:
 		luna.visible = false
 		mages.append("luna")
 
+	# PERMANENT RULE: the live camera never frames a face over 10% of the frame height (docs/world_look_rules.md)
+	var guard := FramingGuard.new()
+	guard.name = "FramingGuard"
+	guard.source = self
+	add_child(guard)
+
 	camera_rig = ThirdPersonCamera.new()
 	camera_rig.name = "CameraRig"
 	camera_rig.target = mika

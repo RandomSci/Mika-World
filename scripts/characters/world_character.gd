@@ -206,6 +206,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_natural_hair()
 	_lab_hair_fix()
 	_skin_tone()
+	_face_shadows()
 	_light_balance = Vector2(-1, -1)          # a new avatar's materials need the balance again
 	_setup_animation()
 	_setup_expressions()
@@ -838,6 +839,31 @@ func _skin_tone() -> void:
 				sm.set_meta("skin_base", sm.get_shader_parameter("_Color"))
 			var base: Color = sm.get_meta("skin_base")
 			sm.set_shader_parameter("_Color", Color(base.r * tint.r, base.g * tint.g, base.b * tint.b, base.a))
+
+
+## Cast shadows on the face (anime convention): the face, eyes, brows and mouth take only a trace of the shadows other
+## things cast on them (profile.face.receive_shadow, default 0.15). The hair fringe, crowns, tiaras, high collars and
+## leaves otherwise drop hard dark patches over her face; her own toon shading (light direction) is unchanged.
+## (From 7977bef on the outfit branch; only this function and its call are taken.)
+func _face_shadows() -> void:
+	var rate := float(AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("face", {}).get("receive_shadow", 0.15))
+	var n := 0
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var mat := m.get_active_material(si)
+			var nm := String(mat.resource_name) if mat else ""
+			if not (String(m.name).begins_with("Face") or "_Face" in nm or "_Eye" in nm):
+				continue
+			while mat is ShaderMaterial:
+				var sm := mat as ShaderMaterial
+				if sm.get_shader_parameter("_ReceiveShadowRate") != null:
+					sm.set_shader_parameter("_ReceiveShadowRate", rate)
+					n += 1
+				mat = sm.next_pass
+	print("[character] %s: face receives %.2f of cast shadows (%d materials)" % [character_id, rate, n])
 
 
 func _extend_skirt_colliders() -> void:

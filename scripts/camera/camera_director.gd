@@ -83,21 +83,22 @@ func end_stargaze() -> void:
 	_stargaze = {}
 
 ## Performance shot profiles (radius / height in metres, yaw degrees from her facing at the cut; yaw_to
-## makes a slow orbit across the shot; look = face | chest | hands | feet).
+## makes a slow orbit across the shot; look = chest | feet). PERMANENT RULE (docs/world_look_rules.md): no face or
+## hands close-ups - every shot is knees-up or wider, and _apply() enforces it (FramingRule).
 const PERF_SHOTS := {
 	"casual": [
 		{"name": "medium_front", "radius": 3.0, "height": 1.35, "yaw": 15.0, "look": "chest", "fov": 44.0},
 		{"name": "full_body", "radius": 4.3, "height": 1.05, "yaw": -32.0, "look": "chest", "fov": 50.0},
-		{"name": "face_close", "radius": 1.4, "height": 1.5, "yaw": 12.0, "look": "face", "fov": 36.0},
+		{"name": "full_body_side", "radius": 4.0, "height": 1.2, "yaw": 55.0, "look": "chest", "fov": 48.0},
 		{"name": "slow_orbit", "radius": 3.6, "height": 1.25, "yaw": -70.0, "yaw_to": 10.0, "look": "chest", "fov": 47.0},
 		{"name": "wide_env", "radius": 7.5, "height": 2.3, "yaw": 38.0, "look": "chest", "fov": 54.0},
-		{"name": "low_hero", "radius": 2.9, "height": 1.05, "yaw": -18.0, "look": "face", "fov": 50.0},
+		{"name": "low_hero", "radius": 3.6, "height": 0.9, "yaw": -18.0, "look": "chest", "fov": 50.0},
 	],
 	"special": [
 		{"name": "establishing", "radius": 9.0, "height": 3.0, "yaw": 25.0, "look": "chest", "fov": 55.0},
 		{"name": "slow_orbit", "radius": 3.8, "height": 1.3, "yaw": -90.0, "yaw_to": 20.0, "look": "chest", "fov": 46.0},
-		{"name": "hands", "radius": 1.7, "height": 1.3, "yaw": 30.0, "look": "hands", "fov": 40.0},
-		{"name": "face_close", "radius": 1.35, "height": 1.52, "yaw": -10.0, "look": "face", "fov": 35.0},
+		{"name": "medium_wide", "radius": 3.3, "height": 1.3, "yaw": 30.0, "look": "chest", "fov": 48.0},
+		{"name": "silhouette_low", "radius": 5.0, "height": 0.55, "yaw": -150.0, "look": "chest", "fov": 50.0},
 		{"name": "full_body_low", "radius": 4.0, "height": 1.1, "yaw": 20.0, "look": "chest", "fov": 50.0},
 		{"name": "finale_pullback", "radius": 4.5, "height": 1.6, "yaw": 0.0, "look": "chest", "fov": 50.0, "pull": 2.5},
 	],
@@ -360,10 +361,10 @@ func _frame(delta: float) -> void:
 			var phase := int(el / 14.0) % 2
 			var drift := sin(el * 0.08) * 0.35
 			if phase == 0:
-				# high three-quarter from the head side, close: both faces, the grass around them
-				pos = mid + axis * 1.2 + sd * (1.9 + drift) + Vector3(0, 1.75, 0)
-				look = hpa.origin + axis * 0.35 + Vector3(0, 0.25, 0)
-				fov = 40.0
+				# high three-quarter from the head side, wide: the two of them whole, the grass around them
+				pos = mid + axis * 2.2 + sd * (3.3 + drift) + Vector3(0, 2.6, 0)
+				look = hpa.origin + axis * 0.2 + Vector3(0, 0.15, 0)
+				fov = 46.0
 			else:
 				# low from the side: the two of them in the foreground, the night sky over the trees
 				pos = mid + sd * (2.9 + drift) - axis * 0.3 + Vector3(0, 0.85, 0)
@@ -512,8 +513,8 @@ func _frame(delta: float) -> void:
 				_side = float(_conv_pick.side)
 			var prf := Vector3(-axis.z, 0, axis.x).rotated(Vector3.UP, float(_conv_pick.get("swing", 0.0))) * _side
 			pos = mid + prf * dist + Vector3(0, 1.45, 0)
-			# shot / reverse shot: on a substantive line, over the LISTENER's shoulder onto the speaker's face
-			if _conv_ots != null and is_instance_valid(_conv_ots.speaker) and is_instance_valid(_conv_ots.listener):
+			# (no shot / reverse shot onto the speaker's face any more: the permanent no-close-up rule)
+			if false and _conv_ots != null and is_instance_valid(_conv_ots.speaker) and is_instance_valid(_conv_ots.listener):
 				var spk: Node3D = _conv_ots.speaker
 				var lis: Node3D = _conv_ots.listener
 				var sh_axis := Vector3(spk.global_position.x - lis.global_position.x, 0, spk.global_position.z - lis.global_position.z).normalized()
@@ -527,8 +528,8 @@ func _frame(delta: float) -> void:
 					pos = _clear_line(look, pos)
 					_apply(pos, look, fov, delta, 5.0)
 					return
-			look = mid.lerp(p, 0.15) + Vector3(0, 1.38, 0)
-			fov = 42.0
+			look = mid.lerp(p, 0.15) + Vector3(0, 1.0, 0)
+			fov = 46.0
 		"activity":
 			var it := _interaction
 			if it == null or not is_instance_valid(it):     # the interaction just ended: back to following her
@@ -536,12 +537,11 @@ func _frame(delta: float) -> void:
 				return
 			var obj: Vector3 = it.get_parent().to_global(it.face_point) if it.face_point != null else it.global_position
 			if it.book_id != "" and BookReader.instance and BookReader.instance.reading() and it.book_xf != null:
-				# book close-up: over her right shoulder, looking down onto the open pages
+				# reading: a medium-wide three-quarter from her side, her and the lectern whole (no close-up)
 				var anchor: Vector3 = BookReader.instance.current.anchor
-				pos = p - fwd * 0.45 + right * _side * 0.55 + Vector3(0, 1.72, 0)
-				pos = pos.lerp(anchor + Vector3(0, 0.75, 0), 0.25)
-				look = anchor + Vector3(0, 0.02, 0)
-				fov = 42.0
+				pos = p + right * _side * 2.6 + fwd * 1.2 + Vector3(0, 1.45, 0)
+				look = anchor.lerp(p + Vector3(0, 1.0, 0), 0.5)
+				fov = 48.0
 				pos = _clear_line(look, pos)
 				_apply(pos, look, fov, delta)
 				return
@@ -636,6 +636,13 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		var fp := mika.global_position
 		if Vector2(pos.x - fp.x, pos.z - fp.z).length() < 5.0 and pos.y < fp.y + 1.1:
 			pos.y = fp.y + 1.1
+	# PERMANENT RULE: never a close-up - no mage's face over 10% of the frame height, knees-up or wider (FramingRule)
+	if mika:
+		var chars: Array = main.characters.values() if main and main.get("characters") else [mika]
+		var fr := FramingRule.enforce(pos, look, fov, FramingRule.heads_of(chars), mika.get_world_3d().direct_space_state)
+		pos = fr.pos
+		look = fr.look
+		fov = fr.fov
 	var cut := _since_change < 0.05 and (_pos.distance_to(pos) > 4.0 or not rig.shot_active)
 	if cut or not rig.shot_active:
 		_pos = pos

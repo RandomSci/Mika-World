@@ -179,11 +179,11 @@ static func signature_shot(c: WorldCharacter, target: Node3D, beat: String, t_in
 			var k := clampf(t_in / 1.2, 0.0, 1.0)
 			return {"pos": p + fwd * lerpf(4.2, 3.4, k) + right * 2.0 + Vector3(0, 1.05, 0), "look": p + Vector3(0, 1.0, 0), "fov": 50.0, "cut": t_in < 0.05}
 		"gather":
-			# push in on her face and hands as the energy builds (her expression is part of the moment)
+			# the energy builds: a slow medium-wide drift on her whole body, her hands and the sigil (never a face
+			# push-in - the permanent no-close-up rule)
 			var k2 := clampf(t_in / 1.6, 0.0, 1.0)
-			var look := face.lerp(hands, 0.45)
-			# three-quarter, beside the formation (never through it): her face, her hands and the sigil
-			return {"pos": look + fwd * lerpf(1.9, 1.5, k2) + right * lerpf(1.6, 1.3, k2) + Vector3(0, 0.1, 0), "look": look, "fov": lerpf(44.0, 38.0, k2), "cut": t_in < 0.05}
+			var look := hands.lerp(p + Vector3(0, 0.9, 0), 0.5)
+			return {"pos": look + fwd * lerpf(3.7, 3.3, k2) + right * lerpf(2.2, 1.9, k2) + Vector3(0, 0.35, 0), "look": look, "fov": 48.0, "cut": t_in < 0.05}
 		"release", "flight":
 			# over her shoulder, wide: the release, the path and the target all on screen
 			var tgt := target.global_position + Vector3(0, 1.0, 0) if target and is_instance_valid(target) else p + fwd * 8.0
