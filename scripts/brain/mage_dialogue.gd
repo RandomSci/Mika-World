@@ -457,6 +457,8 @@ func _facts(who: String, other: String) -> Dictionary:
 		"you_and_her": {"talks_so_far": int(rel.get("meetings", 0)), "camaraderie": snappedf(float(rel.get("camaraderie", 0.0)), 0.1), "rivalry": snappedf(float(rel.get("rivalry", 0.0)), 0.1)}}
 	if who == "mika" and main.get("story"):
 		fx["your_goal"] = String(main.story.objective())
+	if StreamDay.day() > 0:
+		fx["stream_day"] = "Day %d of your stream (Day 1 was the first public stream); mention it only if it fits" % StreamDay.day()
 	return fx
 
 

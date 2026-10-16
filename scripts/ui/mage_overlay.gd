@@ -120,7 +120,8 @@ func _process(delta: float) -> void:
 	var form := " · %s" % TransformationDirector.appearance(who).capitalize() if main.transformer and main.transformer.is_transformed(who) else ""
 	if main.transformer and main.transformer.has_surge(who):
 		form += " (Orbit Surge)"
-	v_name.text = "%s  ·  Level %d %s%s" % [MagicSystem.display_name(who), pd.level, ("(" + pd.title + ")") if pd.title != "" else "", form]
+	var sday := StreamDay.day()
+	v_name.text = ("Day %d  ·  " % sday if sday > 0 else "") + "%s  ·  Level %d %s%s" % [MagicSystem.display_name(who), pd.level, ("(" + pd.title + ")") if pd.title != "" else "", form]
 	v_bar.value = pd.fraction
 	var doing := String(brain.current.get("label", "")) if brain and brain.enabled else ""
 	var where := ""

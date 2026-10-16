@@ -150,6 +150,7 @@ func _run() -> void:
 		"camshake": await _camshake()
 		"framepace": await _framepace()
 		"lenswatch": await _lenswatch()
+		"streamday": _check(StreamDay.day() == int(RenderProfile.options.get("expect-day", "-1")), "stream day %d" % StreamDay.day())
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
 		_: _check(false, "unknown mode " + mode)
