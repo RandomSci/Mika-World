@@ -1438,6 +1438,10 @@ func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
 		gesture_trace = {"clip": clip, "by": ("%s:%d %s" % [String(st0[1].source).get_file(), int(st0[1].line), String(st0[1].function)]) if st0.size() > 1 else "?", "t": Time.get_ticks_msec()}
 	if (reaction and reaction.blocks_actions()) or casting or not CLIPS.has(clip) or not has_clip(clip):
 		return false
+	# lying / sitting on the ground: only the ground's own clips (and reactions, waking). A wave or a point replaced the
+	# lying loop and she was drawn standing beside her friend for the rest of a stargaze (stage check 2026-10-17)
+	if ground_pose != "" and not (clip.begins_with(ground_pose) or clip.begins_with("rx_") or clip == "waking"):
+		return false
 	var bt := anim_tree.tree_root as AnimationNodeBlendTree
 	var shot := bt.get_node("cast") as AnimationNodeOneShot
 	shot.fadein_time = fade_in

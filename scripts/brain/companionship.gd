@@ -406,7 +406,7 @@ func _say(who: String, text: String, gesture := "") -> Dictionary:
 	if text == "":
 		return {}
 	var c: WorldCharacter = main.characters.get(who)
-	if gesture != "" and c and not c.casting:
+	if gesture != "" and c and not c.casting and c.ground_pose == "":   # (never from the ground: it would stand her up)
 		c.play_gesture(gesture, 0.3, 0.5)
 	return await main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), text)
 

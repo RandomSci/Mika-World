@@ -5146,7 +5146,8 @@ func _lenswatch() -> void:
 func _thumbshot() -> void:
 	await _hold_all()
 	for w in main.mage_brains:
-		main.mage_brains[w].enabled = false
+		main.mage_brains[w].set_enabled(false)       # (cancels a night on the hill already under way, not just the next one)
+		main.mage_brains[w].interrupt("thumbnail")
 	main.director.enabled = false
 	if main.get("subtitle"):
 		main.subtitle.visible = false
@@ -5182,9 +5183,21 @@ func _thumbshot() -> void:
 		var gy := (a.y + b.y) * 0.5
 		var cams := {"front": [c + Vector3(0.6, gy + 2.2, 7.5), c + Vector3(0, gy + 1.0, 0), 50.0],
 			"close": [c + Vector3(-0.9, gy + 1.75, 5.2), c + Vector3(-1.55, gy + 1.05, 0), 46.0],
-			"low": [c + Vector3(1.8, gy + 1.2, 6.2), c + Vector3(-0.6, gy + 2.2, 0), 52.0]}
+			"low": [c + Vector3(1.8, gy + 1.2, 6.2), c + Vector3(-0.6, gy + 2.2, 0), 52.0],
+			# larger figures (knees up), faces still ~7% of the frame height (the no-close-up rule allows 10%)
+			"medium": [c + Vector3(0.3, gy + 1.55, 4.3), c + Vector3(0, gy + 1.1, 0), 45.0],
+			"medium_side": [c + Vector3(2.3, gy + 1.5, 3.8), c + Vector3(-0.2, gy + 1.1, 0), 45.0]}
 		for nm in cams:
 			var cm: Array = cams[nm]
+			for pair in [[mika, a], [luna, b]]:
+				var ch2: WorldCharacter = pair[0]
+				if ch2.ground_pose != "":
+					await ch2.get_up()
+				ch2.end_gesture()
+				if Vector2(ch2.global_position.x - (pair[1] as Vector3).x, ch2.global_position.z - (pair[1] as Vector3).z).length() > 0.3:
+					if main.teleport_guard:
+						main.teleport_guard.allow(ch2)
+					ch2.global_position = (pair[1] as Vector3) + Vector3(0, 0.05, 0)
 			for ch in [mika, luna]:
 				(ch as WorldCharacter).stop_action()
 				(ch as WorldCharacter).look_at_point((cm[0] as Vector3).lerp(c, 0.4))

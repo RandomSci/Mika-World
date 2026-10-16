@@ -341,7 +341,9 @@ func _speak(sp: String, ls: String, text: String, line: Dictionary) -> Dictionar
 	var emo := String(line.get("emotion", ""))
 	if spc and spc.face and emo in EMOTIONS and emo != "neutral":
 		spc.face.pulse(emo, 0.75, clampf(text.length() / 14.0, 1.2, 5.0))
-	match String(line.get("gesture", "")):
+	# no arm gesture from the ground: a wave or a point replaced the lying / sitting loop and she was drawn standing
+	# beside her friend for the rest of the stargaze (stage check 2026-10-17)
+	match String(line.get("gesture", "")) if spc == null or spc.ground_pose == "" else "":
 		"wave":
 			if spc:
 				spc.play_gesture("waving", 0.3, 0.5)
