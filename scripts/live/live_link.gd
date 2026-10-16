@@ -34,6 +34,10 @@ var _state_t := 0.0
 var _speech: Array = []          # queued {who, wav, text, trace}
 var _speaking := false
 var _synth_complete := false
+var _h_t := 0.0
+var _h_frames := 0
+var _h_worst := 0.0
+var _h_hitches := 0
 var _progress := {}
 var _progress_at := -100000
 var _command := {}               # the running lifestyle action {id, action}
@@ -54,7 +58,29 @@ func setup(m: Node) -> void:
 	print("[livelink] Stage for Mika-Live at %s" % url)
 
 
+## Once a minute in the stage log: the real frame rate, the worst frame, hitches over 50 ms and both mages' levels
+## (the soak and the operator read it; nothing of it reaches viewers).
+func _health(delta: float) -> void:
+	_h_t += delta
+	_h_frames += 1
+	_h_worst = maxf(_h_worst, delta)
+	if delta > 0.05:
+		_h_hitches += 1
+	if _h_t < 60.0:
+		return
+	print("[health] fps=%.1f worst_ms=%.1f hitches=%d mika_level=%d luna_level=%d mika_visible=%s luna_visible=%s connected=%s" % [
+		_h_frames / _h_t, _h_worst * 1000.0, _h_hitches, WorldState.mind("mika").level(),
+		WorldState.mind("luna").level() if WorldState.minds.has("luna") else 0,
+		main.characters.has("mika") and (main.characters["mika"] as Node3D).visible,
+		main.characters.has("luna") and (main.characters["luna"] as Node3D).visible, connected])
+	_h_t = 0.0
+	_h_frames = 0
+	_h_worst = 0.0
+	_h_hitches = 0
+
+
 func _process(delta: float) -> void:
+	_health(delta)
 	ws.poll()
 	var st := ws.get_ready_state()
 	if st == WebSocketPeer.STATE_OPEN:
