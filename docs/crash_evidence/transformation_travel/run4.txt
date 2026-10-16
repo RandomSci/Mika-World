@@ -1,0 +1,78 @@
+# run: run4   log: ~/.cache/mika_qa/tfcontinuity/run4/godot.log   (2026-10-16 20:51:59)
+# --- the 40 lines before the crash (long lines cut at 300 chars) ---
+[bridge] event {"character":"mika","event":"cast_phase","phase":"dissipate","t":64.32}
+[tfcont] MID 0 director.playing=luna sequence.playing=luna
+[bridge] event {"character":"mika","decision":{"alternatives":[],"key":"magic:gale_spiral:rune_target_4","kind":"magic","label":"experiment with Gale Spiral at rune target 4","utility":1.154,"why":["untested reaction","advances a trial +0.25"]},"event":"brain_decision","t":84.81}
+[bridge] event {"character":"mika","event":"thought","sub_area":"training_grounds","t":84.83,"text":"I'll experiment with Gale Spiral at rune target 4."}
+[bridge] event {"action":"look_at","character":"mika","detail":{"target":[21.8430767059326,1.37259781360626,1.60000002384186]},"event":"action_started","t":84.84}
+[bridge] event {"action":"look_at","character":"mika","detail":"facing target","event":"action_finished","observation":{"action_detail":{},"area":"training_clearing","area_loaded":"sanctuary","camera":{"camera":[20.08,1.1,3.99],"enabled":false,"mode":"off","shot_age_s":2.3,"sub_area":"training_groun
+[bridge] event {"action":"cast_spell","character":"mika","detail":{"clip":"wide_arm_spell"},"event":"action_started","t":84.88}
+[bridge] event {"character":"mika","event":"cast_phase","phase":"activation","t":84.93}
+[bridge] event {"character":"mika","event":"cast_phase","phase":"rune","t":85.83}
+[bridge] event {"character":"mika","event":"cast_phase","phase":"gather","t":85.96}
+[bridge] event {"action":"navigate_to","character":"luna","detail":{"run":false,"target":[36.1587829589844,0.685975670814514,-0.904645204544067]},"event":"action_started","t":86.03}
+[bridge] event {"action":"navigate_to","character":"luna","detail":"arrived (0.42 m from target)","event":"action_finished","observation":{"action_detail":{},"area":"forest","area_loaded":"sanctuary","camera":{"camera":[20.08,1.1,3.99],"enabled":false,"mode":"off","shot_age_s":2.9,"sub_area":"traini
+[tfcont] play luna L10 took 25.64 s
+[bridge] event {"character":"mika","event":"cast_phase","phase":"charge","t":86.7}
+[bridge] event {"character":"mika","event":"cast_phase","phase":"release","t":87.56}
+[bridge] event {"character":"mika","event":"cast_phase","phase":"impact","t":87.96}
+[bridge] event {"action":"cast_spell","character":"mika","detail":"gale_spiral resolved (hit)","event":"action_finished","observation":{"action_detail":{},"area":"training_clearing","area_loaded":"sanctuary","camera":{"camera":[20.08,1.1,3.99],"enabled":true,"mode":"spell","shot_age_s":3.9,"sub_area
+[bridge] event {"entry":{"activity":{"id":"spell:gale_spiral","label":"Gale Spiral (rocked)","target":"rune_target_4","verb":"practice"},"changes":{"knowledge.reaction:gale_spiral:rune:rocked":[1,2],"skills.gale_spiral":[0.08,0.155187969924812]},"location":"mage_training_grounds","seq":2,"t":88.0,"u
+[magic] {"caster":"mika","changes":{"knowledge.reaction:gale_spiral:rune:rocked":[1,2],"skills.gale_spiral":[0.08,0.155187969924812]},"circle_amplified":false,"clip":"wide_arm_spell","detail":"the target rocked on its post","distance_from_target_m":0.33,"effect":"rocked","incantation":"Ventus, volve
+[bridge] event {"event":"camera_shot","mode":"chase","sub_area":"training_grounds","t":88.01}
+[bridge] event {"character":"mika","event":"cast_phase","phase":"dissipate","t":89.47}
+[bridge] event {"character":"mika","decision":{"alternatives":[["read Scroll of the First Circle",0.901],["look at a cluster of rocks and old stones beyond the Ancient Spell Library",0.848],["look at something half-hidden in the grass beyond the Meditation Garden",0.847]],"key":"research:liber_orbis
+[bridge] event {"character":"mika","event":"thought","sub_area":"training_grounds","t":89.85,"text":"I'll read Liber Orbis."}
+[bridge] event {"action":"navigate_to","character":"mika","detail":{"run":true,"target":[0.0,0.600000023841858,-1.45000004768372]},"event":"action_started","t":89.85}
+[gfx] quality down -> level 1 (distant foliage range 82 %): contention-bound: avg 33.9 ms, p95 45.5 ms, 1% low 8 fps, GPU 20.1 ms
+[tfcont] RESULT {"after":{"area":"sanctuary","camera":[19.32,0.87,0.36,58.0],"luna":{"action":"idle","activity":"","avatar":"LunaUmbral_L10Outfit.vrm","pos":[35.811,0.159,-0.674],"seated":false,"yaw":-63.05},"mika":{"action":"idle","activity":"","avatar":"MikaCelestial_L1Outfit.vrm","pos":[17.256,-0
+[bridge] event {"destination":"village_square","event":"journey_started","mode":"fast","route":["sanctuary","whispering_woods","highland_path","village"],"t":94.3}
+[tfcont] travel village_square -> {"hops":3,"mode":"fast","ok":true,"route":["sanctuary","whispering_woods","highland_path","village"],"status":"started"}
+[bridge] event {"entry":{"activity":{"id":"perform:mika_magical_world","label":"Danced to ミカの魔法世界！","mode":"casual","verb":"perform"},"changes":{"knowledge.song:mika_magical_world":[0,1]},"location":"ritual_sanctuary","seq":3,"t":167.74,"unix":1792155094,"who":"mika"},"event":"activi
+[village] houses { "houses": 21 }
+[forest_region] village dressing { &"trees": 1744, &"understory": 2598, &"undergrowth": 7140, &"rocks": 670, "steep_rocks": 9, &"light_shafts": 0, &"motes": 17, &"fireflies": 17 } features { &"leaf_emitters": 2 }
+[area] village: finalize_collisions added 149 colliders to solid props
+[discoveries] village: 2 placed
+[bridge] event {"area":"village","event":"area_activated","t":189.65,"transition":{"arrived_location":"village_square","build_ms":74826,"from":"sanctuary","instantiated_areas":1,"mem_static_mb_after":539.2,"nav_bake_ms":2986,"ok":true,"to":"village","total_ms":95312,"unload_ms":2204,"wait_for_preloa
+[stream] {"arrived_location":"village_square","build_frames":20,"build_ms":74826,"from":"sanctuary","instantiated_areas":1,"kit_released":241,"layout_hash":"b286e6008a6d","mask_ms":3252,"mem_static_mb_after":539.2,"mem_static_mb_before":464.7,"nav_bake_ms":2986,"nav_regions_after":1,"nodes_after":14
+[bridge] event {"arrived_area":"village","event":"journey_progress","location":"village_square","t":191.81,"transition":{"arrived_location":"village_square","build_ms":74826,"from":"sanctuary","instantiated_areas":1,"mem_static_mb_after":539.2,"nav_bake_ms":2986,"ok":true,"to":"village","total_ms":9
+[town] village: 5 residents (bram draw_water, hilde work, wenna sleep, odo work, rook sleep)
+[bridge] event {"action":"navigate_to","character":"mika","detail":"arrived (0.41 m from target)","event":"action_finished","observation":{"action_detail":{},"area":"village_square","area_loaded":"village","camera":{"camera":[1.15,1.65,-0.58],"enabled":true,"mode":"chase","shot_age_s":9.1,"sub_area"
+
+================================================================
+# --- crash ---
+handle_crash: Program crashed with signal 11
+Engine version: Godot Engine v4.7.2.stable.official (ed1daf0bf001b61586d9930840f2f1394092c079)
+Dumping the backtrace. Please include this when reporting the bug on: https://github.com/godotengine/godot/issues
+Load address: 400000
+[1] 7f56efe74d70 (libc.so.6+3fd70) - /lib/x86_64-linux-gnu/libc.so.6(+0x3fd70) [0x7f56efe74d70]
+[2] 46ada17 (main+42ada17) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x46ada17]
+[3] af6c08 (main+6f6c08) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0xaf6c08]
+[4] 9b9ec4 (main+5b9ec4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9b9ec4]
+[5] 9be642 (main+5be642) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9be642]
+[6] 9d4363 (main+5d4363) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9d4363]
+[7] 48f714b (main+44f714b) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x48f714b]
+[8] 468c83d (main+428c83d) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x468c83d]
+[9] 468cbc4 (main+428cbc4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x468cbc4]
+[10] 497f6e4 (main+457f6e4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x497f6e4]
+[11] af77bd (main+6f77bd) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0xaf77bd]
+[12] 9b9ec4 (main+5b9ec4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9b9ec4]
+[13] 9be642 (main+5be642) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9be642]
+[14] 9d4363 (main+5d4363) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9d4363]
+[15] 48f714b (main+44f714b) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x48f714b]
+[16] 468c83d (main+428c83d) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x468c83d]
+[17] 468cbc4 (main+428cbc4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x468cbc4]
+[18] 497f6e4 (main+457f6e4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x497f6e4]
+[19] 2b51224 (main+2751224) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x2b51224]
+[20] 5661f9 (main+1661f9) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x5661f9]
+[21] 42c157 (main+2c157) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x42c157]
+[22] 7f56efe5eca8 (libc.so.6+29ca8) - /lib/x86_64-linux-gnu/libc.so.6(+0x29ca8) [0x7f56efe5eca8]
+[23] 7f56efe5ed65 (libc.so.6+29d65) - /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x85) [0x7f56efe5ed65]
+[24] 48a6da (main+8a6da) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x48a6da]
+-- END OF C++ BACKTRACE --
+================================================================
+GDScript backtrace (most recent call first):
+    [0] _use (res://scripts/brain/sanctuary_brain.gd:1656)
+    [1] _walk (res://scripts/brain/sanctuary_brain.gd:1675)
+-- END OF GDSCRIPT BACKTRACE --
+================================================================

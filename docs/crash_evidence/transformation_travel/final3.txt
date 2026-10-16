@@ -1,0 +1,78 @@
+# run: final3   log: ~/.cache/mika_qa/tfcontinuity/final3/godot.log   (2026-10-16 23:01:07)
+# --- the 40 lines before the crash (long lines cut at 300 chars) ---
+         [1] _setup_animation (res://scripts/characters/world_character.gd:1031)
+         [2] _build_rig (res://scripts/characters/world_character.gd:212)
+         [3] swap_avatar (res://scripts/characters/world_character.gd:369)
+         [4] _swap_to_form (res://scripts/transform/transformation_sequence.gd:395)
+         [5] play (res://scripts/transform/transformation_sequence.gd:331)
+         [6] _flash_to (res://scripts/transform/transformation_sequence.gd:270)
+WARNING: [character] missing ual_react clip Idle_FoldArms_Loop; 'idle_folded' unavailable
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _build_library (res://scripts/characters/world_character.gd:1071)
+         [1] _setup_animation (res://scripts/characters/world_character.gd:1031)
+         [2] _build_rig (res://scripts/characters/world_character.gd:212)
+         [3] swap_avatar (res://scripts/characters/world_character.gd:369)
+         [4] _swap_to_form (res://scripts/transform/transformation_sequence.gd:395)
+         [5] play (res://scripts/transform/transformation_sequence.gd:331)
+         [6] _flash_to (res://scripts/transform/transformation_sequence.gd:270)
+[character] luna: avatar -> LunaUmbral_L10Outfit.vrm
+[tfcont] MID 0 director.playing=luna sequence.playing=luna
+[bridge] event {"entry":{"activity":{"id":"perform:mika_magical_world","label":"Danced to ミカの魔法世界！","mode":"casual","verb":"perform"},"changes":{"knowledge.song:mika_magical_world":[0,1]},"location":"mage_training_grounds","seq":2,"t":158.11,"unix":1792162756,"who":"mika"},"event":"a
+[bridge] event {"character":"mika","decision":{"alternatives":[["look at the water's edge beyond the Meditation Garden",0.978],["read Scroll of the First Circle",0.874],["look at something half-hidden in the grass beyond the Training Grounds",0.809]],"key":"research:liber_orbis","kind":"research","l
+[bridge] event {"character":"mika","event":"thought","sub_area":"training_grounds","t":160.17,"text":"I'll read Liber Orbis."}
+[bridge] event {"action":"navigate_to","character":"mika","detail":{"run":true,"target":[0.0,0.600000023841858,-1.45000004768372]},"event":"action_started","t":160.17}
+[tfcont] play luna L10 took 77.52 s
+[bridge] event {"action":"navigate_to","character":"luna","detail":{"run":false,"target":[23.2815361022949,0.5,18.1447429656982]},"event":"action_started","t":212.23}
+[bridge] event {"action":"navigate_to","character":"luna","detail":"arrived (0.58 m from target)","event":"action_finished","observation":{"action_detail":{},"area":"forest","area_loaded":"sanctuary","camera":{"camera":[14.19,1.52,2.67],"enabled":true,"mode":"chase","shot_age_s":16.6,"sub_area":""},
+[audit] VIOLATION {"area":"sanctuary","clock":"Day 1, 06:22","dist":0.69,"rule":"camera:inside_her","subject":"camera:chase:mika"}
+[tfcont] RESULT {"after":{"area":"sanctuary","camera":[14.81,1.86,2.47,58.0],"luna":{"action":"idle","activity":"","avatar":"LunaUmbral_L10Outfit.vrm","pos":[24.285,0.158,17.758],"seated":false,"yaw":110.72},"mika":{"action":"navigate_to","activity":"read Liber Orbis","avatar":"MikaCelestial_L1Outfi
+[bridge] event {"destination":"village_square","event":"journey_started","mode":"fast","route":["sanctuary","whispering_woods","highland_path","village"],"t":221.38}
+[tfcont] travel village_square -> {"hops":3,"mode":"fast","ok":true,"route":["sanctuary","whispering_woods","highland_path","village"],"status":"started"}
+[village] houses { "houses": 21 }
+[forest_region] village dressing { &"trees": 1744, &"understory": 2598, &"undergrowth": 7140, &"rocks": 670, "steep_rocks": 9, &"light_shafts": 0, &"motes": 17, &"fireflies": 17 } features { &"leaf_emitters": 2 }
+[area] village: finalize_collisions added 149 colliders to solid props
+[discoveries] village: 2 placed
+[bridge] event {"area":"village","event":"area_activated","t":266.4,"transition":{"arrived_location":"village_square","build_ms":23066,"from":"sanctuary","instantiated_areas":1,"mem_static_mb_after":544.1,"nav_bake_ms":2998,"ok":true,"to":"village","total_ms":45020,"unload_ms":1993,"wait_for_preload
+[stream] {"arrived_location":"village_square","build_frames":21,"build_ms":23066,"from":"sanctuary","instantiated_areas":1,"kit_released":241,"layout_hash":"b286e6008a6d","mask_ms":3883,"mem_static_mb_after":544.1,"mem_static_mb_before":467.2,"nav_bake_ms":2998,"nav_regions_after":1,"nodes_after":14
+[bridge] event {"arrived_area":"village","event":"journey_progress","location":"village_square","t":267.75,"transition":{"arrived_location":"village_square","build_ms":23066,"from":"sanctuary","instantiated_areas":1,"mem_static_mb_after":544.1,"nav_bake_ms":2998,"ok":true,"to":"village","total_ms":4
+[town] village: 5 residents (bram draw_water, hilde work, wenna sleep, odo work, rook sleep)
+[bridge] event {"action":"navigate_to","character":"mika","detail":"arrived (0.41 m from target)","event":"action_finished","observation":{"action_detail":{},"area":"village_square","area_loaded":"village","camera":{"camera":[0.84,1.65,-0.48],"enabled":true,"mode":"chase","shot_age_s":23.6,"sub_area
+
+================================================================
+# --- crash ---
+handle_crash: Program crashed with signal 11
+Engine version: Godot Engine v4.7.2.stable.official (ed1daf0bf001b61586d9930840f2f1394092c079)
+Dumping the backtrace. Please include this when reporting the bug on: https://github.com/godotengine/godot/issues
+Load address: 400000
+[1] 7f7fb94e8d70 (libc.so.6+3fd70) - /lib/x86_64-linux-gnu/libc.so.6(+0x3fd70) [0x7f7fb94e8d70]
+[2] 46ada17 (main+42ada17) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x46ada17]
+[3] af6c08 (main+6f6c08) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0xaf6c08]
+[4] 9b9ec4 (main+5b9ec4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9b9ec4]
+[5] 9be642 (main+5be642) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9be642]
+[6] 9d4363 (main+5d4363) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9d4363]
+[7] 48f714b (main+44f714b) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x48f714b]
+[8] 468c83d (main+428c83d) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x468c83d]
+[9] 468cbc4 (main+428cbc4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x468cbc4]
+[10] 497f6e4 (main+457f6e4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x497f6e4]
+[11] af77bd (main+6f77bd) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0xaf77bd]
+[12] 9b9ec4 (main+5b9ec4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9b9ec4]
+[13] 9be642 (main+5be642) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9be642]
+[14] 9d4363 (main+5d4363) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x9d4363]
+[15] 48f714b (main+44f714b) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x48f714b]
+[16] 468c83d (main+428c83d) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x468c83d]
+[17] 468cbc4 (main+428cbc4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x468cbc4]
+[18] 497f6e4 (main+457f6e4) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x497f6e4]
+[19] 2b51224 (main+2751224) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x2b51224]
+[20] 5661f9 (main+1661f9) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x5661f9]
+[21] 42c157 (main+2c157) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x42c157]
+[22] 7f7fb94d2ca8 (libc.so.6+29ca8) - /lib/x86_64-linux-gnu/libc.so.6(+0x29ca8) [0x7f7fb94d2ca8]
+[23] 7f7fb94d2d65 (libc.so.6+29d65) - /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x85) [0x7f7fb94d2d65]
+[24] 48a6da (main+8a6da) - /home/selwyn/Downloads/Godot-Engine/Godot_v4.7.2-stable_linux.x86_64() [0x48a6da]
+-- END OF C++ BACKTRACE --
+================================================================
+GDScript backtrace (most recent call first):
+    [0] _use (res://scripts/brain/sanctuary_brain.gd:1656)
+    [1] _walk (res://scripts/brain/sanctuary_brain.gd:1675)
+-- END OF GDSCRIPT BACKTRACE --
+================================================================
