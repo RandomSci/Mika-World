@@ -161,7 +161,7 @@ func _tree() -> void:
 	body.name = "TreeTrunk"
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
-	cyl.radius = 0.85
+	cyl.radius = 1.25            # the drawn bark reaches 0.9-1.4 m at body height (0.85 let her into it, walkaudit 2026-10-17)
 	cyl.height = 4.0
 	cs.shape = cyl
 	body.add_child(cs)

@@ -181,7 +181,7 @@ func call_luna() -> String:
 	if b:
 		b.hold = true
 		b.interrupt("phoenix")
-	luna.navigate_to(at, true)
+	luna.navigate_to(at, false)        # she walks over (never a dash)
 	_log("luna_coming", {"from_m": snappedf(d, 0.1)})
 	var release := func(_a, _ok, _d) -> void:
 		if b:

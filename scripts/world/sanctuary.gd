@@ -389,7 +389,9 @@ func _build_trees() -> void:
 		if ok:
 			spots.append(p)
 	var trunk_shape := CylinderShape3D.new()
-	trunk_shape.radius = 0.45
+	# as wide as the DRAWN trunk at body height (root flare and low limbs reach ~0.85-1.2 m from the axis): at 0.45 the
+	# navmesh came within 1 m of the axis and she walked into the bark (2026-10-17 live, walkaudit)
+	trunk_shape.radius = 1.0
 	trunk_shape.height = 4.0
 	for i in spots.size():
 		var p: Vector2 = spots[i]

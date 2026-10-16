@@ -18,6 +18,7 @@ func _physics_process(_delta: float) -> void:
 	if v.length() > 0.05:
 		dir = camera_rig.planar_basis() * Vector3(v.x, 0, v.y)
 	if dir != Vector3.ZERO or not character._nav_active:
+		character.nav_bound = dir == Vector3.ZERO       # the player walks where she likes
 		character.set_move_input(dir, Input.is_action_pressed("run"))
 
 

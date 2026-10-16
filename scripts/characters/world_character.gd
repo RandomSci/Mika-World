@@ -130,6 +130,10 @@ var action_detail := {}
 var casting := false
 var lifted := false               # Rising Air holds her in the air: the spell moves her body, not gravity or walking
 var _move_input := Vector3.ZERO
+## Hand-steered steps (a follower, the last steps into a talk, making room, closing in on a thing) stay on the
+## walkable navmesh: a wall that is only drawn, with no collider, never lets her through (2026-10-17 live).
+## The keyboard player turns it off.
+var nav_bound := true
 var _run := false
 var _look_target = null
 var _nav_active := false
@@ -1591,6 +1595,8 @@ func _physics_process(delta: float) -> void:
 				_nav_last_pos = global_position
 			elif now > _action_deadline:
 				_finish_action(false, "timeout")
+	elif nav_bound and desired.length() > 0.01:
+		desired = _keep_on_walkable(desired)
 	if casting:
 		desired = Vector3.ZERO
 	if not _dash.is_empty():
@@ -1674,6 +1680,27 @@ func _physics_process(delta: float) -> void:
 	elif blend > 1.0:
 		ref = clampf(_speed_smoothed / lerpf(walk_speed, run_speed, blend - 1.0), 0.7, 1.25)
 	anim_tree.set("parameters/loco_speed/scale", ref * float(motion.get("loco_tempo", 1.0)))
+
+
+## A hand-steered step that would leave the navmesh slides along its edge instead (toward the nearest walkable
+## point ahead), or stops when the edge is square across her way. Off the mesh already (a seat, a ledge) she is left
+## alone so she can step back on.
+func _keep_on_walkable(d: Vector3) -> Vector3:
+	var map := get_world_3d().navigation_map
+	if NavigationServer3D.map_get_iteration_id(map) == 0:
+		return d
+	var here := NavigationServer3D.map_get_closest_point(map, global_position)
+	if Vector2(here.x - global_position.x, here.z - global_position.z).length() > 0.6:
+		return d
+	var dir := d.normalized()
+	var ahead := global_position + dir * 0.4
+	var on := NavigationServer3D.map_get_closest_point(map, ahead)
+	if Vector2(on.x - ahead.x, on.z - ahead.z).length() < 0.15:
+		return d
+	var slide := Vector3(on.x - global_position.x, 0, on.z - global_position.z)
+	if slide.length() < 0.08 or slide.normalized().dot(dir) < 0.25:
+		return Vector3.ZERO
+	return slide.normalized() * d.length()
 
 
 ## Step-up for small ledges (rock lips, disc rims, kerbs) that navigation treats as climbable

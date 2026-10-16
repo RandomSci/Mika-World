@@ -764,7 +764,7 @@ func _encounter(cp: Dictionary, kind: String) -> void:
 	await _say("luna", "notice")
 	await _unsit(luna)
 	await _face(luna, mon.global_position)
-	await _walk(luna, mika.global_position + (luna.global_position - mika.global_position).normalized() * 0.9, true)
+	await _walk(luna, mika.global_position + (luna.global_position - mika.global_position).normalized() * 0.9, false)
 	luna.reaction.pose("rx_crouch_help", 0.5)
 	await _say("luna", "wake_mika")
 	luna.reaction.release(0.5)

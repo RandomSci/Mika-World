@@ -1728,8 +1728,9 @@ func _use(id: String) -> Dictionary:
 
 func _walk(target: Vector3, ignore_threat := false) -> bool:
 	for attempt in 2:
-		# she walks: a run only for a long way (every trip over 14 m used to be a dash - most of the sanctuary)
-		me.navigate_to(target, me.global_position.distance_to(target) > 45.0)
+		# she always walks (2026-10-17 live: trips over 45 m ran at 4.1 m/s - the altar to Starfall Hill is 44-50 m,
+		# so every crossing of the sanctuary looked like a dash). A run belongs to a fight, never to an errand.
+		me.navigate_to(target, false)
 		if me.current_action != "navigate_to":
 			if me.global_position.distance_to(target) < 2.0:
 				return true

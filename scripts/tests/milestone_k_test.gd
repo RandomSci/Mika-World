@@ -155,6 +155,7 @@ func _run() -> void:
 		"streamday": _check(StreamDay.day() == int(RenderProfile.options.get("expect-day", "-1")), "stream day %d" % StreamDay.day())
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
+		"walkaudit": await _walkaudit()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -595,7 +596,7 @@ func _stargaze() -> void:
 	runner.call()
 	var t0 := _gms()
 	var next_shot := 6000
-	while not box.done and _gms() - t0 < 240000:
+	while not box.done and _gms() - t0 < 360000:      # (the quiet rounds are random: the scene runs 2-5 min)
 		await _wait(0.5)
 		var el := _gms() - t0
 		modes[main.director.mode] = int(modes.get(main.director.mode, 0)) + 1
@@ -5218,3 +5219,235 @@ func _showdance() -> void:
 	_check(String(main.performance.active.get("who", "")) == "mika", "Mika dances for the show after %.1f s (performer: %s)" % [secs, main.performance.active.get("who", "")])
 	_check(bool(main.performance.active.get("filmed", false)) and main.director.mika == main.characters["mika"], "the camera films Mika's dance")
 	main.performance.interrupt("test over")
+
+
+# ------------------------------------------------------------------ every move a walk, round the walls (2026-10-17 live)
+## On stream Mika (and Luna) seemed to dash and pass through walls. Two halves:
+##  1. geometry: every DRAWN mesh at body height with no collider, standing on the walkable navmesh (she would walk
+##     straight through it): built as temporary shapes on layer 31 (no one collides with it), probed with a body-size
+##     capsule over the navmesh.
+##  2. the real walks: the brain's own trips (the altar to the old tree and the sanctuary errands, walked one after
+##     the other) and a stargaze-style walk where Mika FOLLOWS Luna; every physics frame: speed, gait blend, jumps,
+##     and the body inside a drawn-only mesh.
+const _GHOST_LAYER := 31
+
+func _walkaudit() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	if main.director:
+		main.director.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var map: RID = mika.get_world_3d().navigation_map
+	var space := mika.get_world_3d().direct_space_state
+	# --- 1. drawn-only geometry on the walkable floor
+	var ghosts := Node3D.new()
+	ghosts.name = "WalkauditGhosts"
+	main.add_child(ghosts)
+	var made := 0
+	var stack: Array = [main.world]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is WorldCharacter or n is GPUParticles3D or n is CPUParticles3D:
+			continue
+		for ch in n.get_children():
+			stack.append(ch)
+		if not (n is MeshInstance3D) or not (n as MeshInstance3D).is_visible_in_tree() or (n as MeshInstance3D).mesh == null:
+			continue
+		var mi := n as MeshInstance3D
+		var bb: AABB = mi.global_transform * mi.get_aabb()
+		var lname := String(mi.name).to_lower() + " " + String(mi.get_parent().name).to_lower()
+		if bb.size.y < 0.9 or bb.size.x > 150.0 or bb.size.z > 150.0:
+			continue                  # flat things (floors, rugs, grass, water) and the terrain itself
+		if lname.contains("terrain") or lname.contains("grass") or lname.contains("sky") or lname.contains("cloud") or lname.contains("water"):
+			continue
+		var shape := mi.mesh.create_trimesh_shape()
+		if shape == null:
+			continue
+		var body := StaticBody3D.new()
+		body.collision_layer = 0
+		body.collision_mask = 0
+		body.set_collision_layer_value(_GHOST_LAYER, true)
+		body.set_meta("src", str(mi.get_path()).trim_prefix(str(main.world.get_path()) + "/"))
+		var cs := CollisionShape3D.new()
+		cs.shape = shape
+		body.add_child(cs)
+		ghosts.add_child(body)
+		body.global_transform = mi.global_transform
+		made += 1
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.22
+	cap.height = 1.1
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = cap
+	q.exclude = [mika.get_rid(), luna.get_rid()]
+	var real_mask := mika.collision_mask & ~(1 << (_GHOST_LAYER - 1))
+	var offenders := {}
+	var probes := 0
+	var x := -70.0
+	while x <= 70.0:
+		var z := -70.0
+		while z <= 70.0:
+			var g := Vector3(x, 0, z)
+			var p := NavigationServer3D.map_get_closest_point(map, Vector3(x, 30.0, z))
+			p = NavigationServer3D.map_get_closest_point(map, Vector3(x, p.y + 1.0, z))
+			if Vector2(p.x - x, p.z - z).length() < 0.3:
+				probes += 1
+				q.transform = Transform3D(Basis.IDENTITY, p + Vector3(0, 0.45 + 0.55 + 0.05, 0))   # 0.45..1.55 m above the floor
+				q.collision_mask = 1 << (_GHOST_LAYER - 1)
+				var hits := space.intersect_shape(q, 4)
+				if not hits.is_empty():
+					q.collision_mask = real_mask
+					if space.intersect_shape(q, 1).is_empty():        # nothing real there either: she walks through it
+						for h in hits:
+							var src := String((h.collider as Node).get_meta("src", "?"))
+							if not offenders.has(src):
+								offenders[src] = {"n": 0, "at": p.snapped(Vector3.ONE * 0.1)}
+							offenders[src].n += 1
+			z += 0.6
+		x += 0.6
+	var ranked := offenders.keys()
+	ranked.sort_custom(func(a, b): return int(offenders[a].n) > int(offenders[b].n))
+	print("[mktest] walkaudit: %d drawn meshes shaped, %d navmesh probes, %d drawn-only meshes stand on the walkable floor" % [made, probes, ranked.size()])
+	for k in ranked.slice(0, 40):
+		print("[mktest]   drawn-only on the floor: %s  (%d probes, e.g. %s)" % [k, offenders[k].n, offenders[k].at])
+	var big := ranked.filter(func(k): return int(offenders[k].n) >= int(RenderProfile.options.get("ghost-min", 3)))
+	# (informational: hanging leaves, magic quads and animals show up here too; the walks below decide - her body never
+	# inside any of these meshes on the real trips)
+	print("[mktest]   info: %d drawn-only meshes with >= %s probes on the walkable floor: %s" % [big.size(), RenderProfile.options.get("ghost-min", 3), big.slice(0, 8)])
+	if RenderProfile.options.has("geo-only"):
+		# what reaches past the collider: per surface (material), the horizontal reach from the tree's axis at body
+		# height, beside the collider's radius
+		for k in big:
+			var mi := main.world.get_node_or_null(NodePath(k)) as MeshInstance3D
+			if mi == null:
+				continue
+			var root := mi.get_parent() as Node3D
+			while root and not (root.name.begins_with("Tree") or root.name == "HeroTree"):
+				root = root.get_parent() as Node3D
+			if root == null:
+				var mb: AABB = mi.global_transform * mi.get_aabb()
+				print("[mktest]   %s: not a tree: mesh '%s' %s, parent %s (%s), aabb %s size %s" % [k, mi.mesh.get_class() + "/" + str(mi.get_active_material(0).resource_path if mi.get_active_material(0) else "") + "/" + str((mi.get_active_material(0) as ShaderMaterial).shader.resource_path if mi.get_active_material(0) is ShaderMaterial else ""), str(mi.get_meta_list()) + " groups " + str(mi.get_groups()) + " cast_shadow " + str(mi.cast_shadow), mi.get_parent().name, mi.get_parent().get_class(), mb.position.snapped(Vector3.ONE * 0.1), mb.size.snapped(Vector3.ONE * 0.1)])
+				continue
+			var axis := root.global_position
+			var col_r := -1.0
+			for b in root.get_parent().find_children("*", "StaticBody3D", true, false) + root.find_children("*", "StaticBody3D", true, false):
+				for cs2 in (b as Node).get_children():
+					if cs2 is CollisionShape3D and (cs2 as CollisionShape3D).shape is CylinderShape3D and Vector2((b as Node3D).global_position.x - axis.x, (b as Node3D).global_position.z - axis.z).length() < 0.5:
+						col_r = ((cs2 as CollisionShape3D).shape as CylinderShape3D).radius * (b as Node3D).global_basis.get_scale().x
+			var floor_y := NavigationServer3D.map_get_closest_point(map, axis + Vector3(1.5, 2.0, 0)).y
+			for si in mi.mesh.get_surface_count():
+				var arr: Array = mi.mesh.surface_get_arrays(si)
+				var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+				var rs: Array = []
+				for v in verts:
+					var w := mi.global_transform * v
+					if w.y > floor_y + 0.3 and w.y < floor_y + 1.7:
+						rs.append(Vector2(w.x - axis.x, w.z - axis.z).length())
+				if rs.is_empty():
+					continue
+				rs.sort()
+				var mat := mi.get_active_material(si)
+				print("[mktest]   %s surf %d '%s': %d verts at body height, reach p50 %.2f p90 %.2f max %.2f m (collider r %.2f, scale %.2f)" % [k, si,
+					mat.resource_name if mat else "?", rs.size(), rs[rs.size() / 2], rs[int(rs.size() * 0.9)], rs[rs.size() - 1], col_r, root.global_basis.get_scale().x])
+		ghosts.queue_free()
+		return
+	# --- 2. the real walks
+	var dests := {"altar": Vector3(-21.55, 0.5, -21.0), "old_tree": Vector3(-31.02, 1.48, 21.06), "bed": Vector3(-28.33, 1.1, 19.65),
+		"flowers": Vector3(-26.95, 1.12, 21.75), "view": Vector3(-22.17, 0.5, 17.93), "roots": Vector3(-33.28, 1.4, 18.56),
+		"gate": Vector3(4.15, 0.5, -13.18), "journal": Vector3(2.96, 1.0, 2.1), "rune4": Vector3(16.84, 0.5, 1.72),
+		"dummy": Vector3(18.5, 0.25, 9.49), "rune2": Vector3(25.84, 0.31, 6.54), "scroll": Vector3(-2.5, 1.0, -0.9),
+		"stone": Vector3(-6.6, 0.33, -12.87), "tablet": Vector3(-20.4, 0.5, -23.24), "scholar": Vector3(-15.79, 0.0, -19.53)}
+	var order := ["altar", "old_tree", "gate", "roots", "journal", "flowers", "rune2", "view", "tablet", "dummy", "bed", "stone", "rune4", "scroll", "scholar", "old_tree"]
+	if RenderProfile.options.has("legs"):
+		order = order.slice(0, int(RenderProfile.options.legs) + 1)      # a short run: the first N trips
+	var brain: SanctuaryBrain = main.mage_brains["mika"]
+	if main.teleport_guard:
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, dests["altar"]) + Vector3(0, 0.1, 0)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(8, 0, 8)) + Vector3(0, 0.1, 0)
+	await _wait(1.5)
+	var st := {"worst_v": 0.0, "worst_at": "", "run_frames": 0, "jumps": 0, "ghost_frames": 0, "ghost_in": {}, "frames": 0}
+	for i in range(1, order.size()):
+		var leg := "%s->%s" % [order[i - 1], order[i]]
+		var goal: Vector3 = dests[order[i]]
+		var r := {"done": false, "ok": false}
+		var walker := func() -> void:
+			r.ok = await brain._walk(goal)
+			r.done = true
+		walker.call()
+		var res: Dictionary = await _walk_watch(mika, r, leg, 120.0, st)
+		_check(bool(r.ok), "walked %s (%.0f m in %.0f s, %.2f m/s)" % [leg, res.metres, res.secs, res.metres / maxf(res.secs, 0.1)], res)
+	# Mika follows Luna to the old tree (how the stargaze she was invited to went)
+	if main.teleport_guard:
+		main.teleport_guard.allow(mika)
+		main.teleport_guard.allow(luna)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, dests["altar"]) + Vector3(0, 0.1, 0)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, dests["altar"] + Vector3(9, 0, 4)) + Vector3(0, 0.1, 0)
+	await _wait(1.0)
+	var f := FollowCompanion.new()
+	f.leader = luna
+	f.follower = mika
+	main.companionship.add_child(f)
+	var r2 := {"done": false, "ok": false}
+	var lead_walk := func() -> void:
+		r2.ok = await main.companionship.walk_together(luna, f, dests["bed"], 120.0)
+		r2.done = true
+	lead_walk.call()
+	var res2: Dictionary = await _walk_watch(mika, r2, "follow luna altar->bed", 130.0, st)
+	f.queue_free()
+	_check(bool(r2.ok), "followed Luna to the bed spot (%.0f m in %.0f s)" % [res2.metres, res2.secs], res2)
+	print("[mktest] walkaudit walks: %s" % JSON.stringify(st))
+	_check(float(st.worst_v) <= 2.0, "never faster than a brisk walk (worst %.2f m/s over 0.5 s, %s)" % [st.worst_v, st.worst_at])
+	_check(int(st.run_frames) == 0, "never the run gait (%d frames of the loco blend above walk)" % st.run_frames)
+	_check(int(st.jumps) == 0, "no jump cut (%d frames moved > 0.35 m)" % st.jumps)
+	_check(int(st.ghost_frames) == 0, "never inside a drawn-only mesh (%d frames)" % st.ghost_frames, st.ghost_in)
+	ghosts.queue_free()
+
+
+## Sample one walker every physics frame until `r.done`: speed over 0.5 s windows, the loco blend, one-frame jumps,
+## her body inside a drawn-only (layer 31) mesh. Returns the leg's metres / seconds.
+func _walk_watch(c: WorldCharacter, r: Dictionary, leg: String, max_s: float, st: Dictionary) -> Dictionary:
+	var space := c.get_world_3d().direct_space_state
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.2
+	cap.height = 1.0
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = cap
+	q.collision_mask = 1 << (_GHOST_LAYER - 1)
+	var t := 0.0
+	var metres := 0.0
+	var last := c.global_position
+	var hist: Array = []
+	var leg_worst := 0.0
+	while not r.done and t < max_s:
+		await get_tree().physics_frame
+		var dt := get_physics_process_delta_time()
+		t += dt
+		var p := c.global_position
+		var step := Vector2(p.x - last.x, p.z - last.z).length()
+		metres += step
+		last = p
+		st.frames = int(st.frames) + 1
+		if step > 0.35:
+			st.jumps = int(st.jumps) + 1
+		hist.append([t, p])
+		while hist.size() > 2 and t - float(hist[0][0]) > 0.5:
+			hist.pop_front()
+		if t - float(hist[0][0]) >= 0.45:
+			var a: Vector3 = hist[0][1]
+			var v := Vector2(p.x - a.x, p.z - a.z).length() / (t - float(hist[0][0]))
+			leg_worst = maxf(leg_worst, v)
+			if v > float(st.worst_v):
+				st.worst_v = snappedf(v, 0.01)
+				st.worst_at = "%s at %s" % [leg, p.snapped(Vector3.ONE * 0.1)]
+		if float(c.anim_tree.get("parameters/loco/blend_position")) > 1.08:
+			st.run_frames = int(st.run_frames) + 1
+		q.transform = Transform3D(Basis.IDENTITY, p + Vector3(0, 1.0, 0))
+		for h in space.intersect_shape(q, 2):
+			st.ghost_frames = int(st.ghost_frames) + 1
+			var src := String((h.collider as Node).get_meta("src", "?"))
+			st.ghost_in[src] = "%s at %s" % [leg, p.snapped(Vector3.ONE * 0.1)]
+	return {"metres": snappedf(metres, 0.1), "secs": snappedf(t, 0.1), "worst_v": snappedf(leg_worst, 0.01)}

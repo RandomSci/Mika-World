@@ -3,7 +3,7 @@ extends Node
 ## Walking WITH someone (Milestone K): the follower keeps a companion's place beside and slightly behind the
 ## leader — on the side she is already on. She steers CONTINUOUSLY along a navmesh path to that place (re-planned
 ## a few times a second; never teleported), at a pace matched to the leader: a little faster while catching up,
-## a little slower when ahead, a jog only when really far behind. When the leader stops and she is close she
+## a little slower when ahead, never a run (the leader waits when she falls behind). When the leader stops and she is close she
 ## stops too and turns toward her. Local avoidance (WorldCharacter._steer_around) keeps them from bumping.
 
 var leader: WorldCharacter
@@ -69,8 +69,10 @@ func _physics_process(delta: float) -> void:
 		return
 	# pace: catch up to her place, never overtake her
 	var ahead := (follower.global_position - leader.global_position).dot(_fwd)
-	follower.pace = clampf(0.95 + (to_slot - 0.5) * 0.28 - maxf(ahead + 0.2, 0.0) * 0.6, 0.6, 1.45)
-	follower.set_move_input(follower._steer_around(dir.normalized()), d > 6.0)
+	# (never a run, never more than a brisk walk: up to 1.45 x a RUN, 5.9 m/s, zipped her after her friend on stream,
+	# 2026-10-17. Far behind, the leader waits for her - walk_together.)
+	follower.pace = clampf(0.95 + (to_slot - 0.5) * 0.28 - maxf(ahead + 0.2, 0.0) * 0.6, 0.6, 1.12)
+	follower.set_move_input(follower._steer_around(dir.normalized()), false)
 
 
 func _exit_tree() -> void:

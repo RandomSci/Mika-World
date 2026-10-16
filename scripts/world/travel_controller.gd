@@ -82,7 +82,7 @@ func _advance() -> void:
 		return
 	if here == journey.destination_area:
 		var target: Vector3 = streaming.current.points_of_interest[journey.destination].position
-		character.navigate_to(target, journey.mode != "walk_slow")
+		character.navigate_to(target, false)      # a journey is walked (never a dash)
 		journey.phase = "final_approach"
 		if character.current_action != "navigate_to":
 			_finish(false, "final approach refused: " + character.last_rejection)
@@ -107,7 +107,7 @@ func _advance() -> void:
 	var approach := NavigationServer3D.map_get_closest_point(map, gate.position)
 	if approach.distance_to(gate.position) > 6.0:
 		approach = NavigationServer3D.map_get_closest_point(map, (gate.arrive as Transform3D).origin)
-	character.navigate_to(approach, true)
+	character.navigate_to(approach, false)
 	journey.phase = "to_gate:" + next_area
 	if character.current_action != "navigate_to":
 		_finish(false, "gate approach refused: " + character.last_rejection)
