@@ -26,7 +26,7 @@ var BUDGET_MS := 1000.0 / 60.0           # the frame budget of the profile's cap
 # nothing measurable - so they are NOT on the ladder (shadow reach and spells keep their full look).
 const STEPS := [
 	{"knob": "distant", "value": 0.82, "label": "distant foliage range 82 %"},
-	{"knob": "scale", "value": 0.9, "label": "3D scale 0.90 (FSR 2)"},
+	{"knob": "scale", "value": 0.9, "label": "3D scale 0.90 (FSR; FSR 2 off the stream)"},
 	{"knob": "lod", "value": 1.8, "label": "mesh LOD threshold x1.8"},
 	{"knob": "distant", "value": 0.66, "label": "distant foliage range 66 %"},
 	{"knob": "ssr", "value": 0.0, "label": "screen-space reflections off"},
@@ -67,6 +67,11 @@ const HOLD_AFTER_LOAD := 3.0
 var main: Node
 var enabled := false
 var level := 0                     # how many ladder steps are applied (0 = full quality)
+## The stream's steady floor (30 FPS profile; --gfx-steady=N overrides, 0 = off): it starts there and never restores
+## above it. Restoring on every quiet view and dropping again on the next busy one went 175 times in 50 min on stream
+## (levels 0-13, 2026-10-17): distant foliage, LOD and the FSR scale switching back and forth = the world popping and
+## a shimmer on the characters. Below the floor (a fight) it still steps down and comes back up to the floor.
+var steady_floor := 0
 var knobs := KNOB_MAX.duplicate()
 var history: Array = []            # applied changes (overlay / tests), capped
 var step_gain := {}                # step index -> measured GPU ms saved when it was applied
@@ -108,6 +113,7 @@ func _budget_for(p: String) -> void:
 	BUDGET_MS = 1000.0 / (30.0 if p == RenderProfile.ADAPTIVE_30 else 60.0)
 	GPU_HEAVY = BUDGET_MS * 0.82
 	GPU_LIGHT = BUDGET_MS * 0.6
+	steady_floor = int(RenderProfile.options.get("gfx-steady", 9 if p == RenderProfile.ADAPTIVE_30 else 0))
 
 
 func setup(m: Node) -> void:
@@ -272,6 +278,10 @@ func _evaluate() -> void:
 		_pending = {}
 	if not enabled or _now() < _hold_until:
 		return
+	if level < steady_floor:
+		while level < steady_floor:
+			_step(1, "the stream's steady floor (no quality going back and forth)", w3, level < steady_floor - 1)
+		return
 	# a situation already met (this place; this place in a fight): go straight to what held 60 here last time
 	var sit := _situation()
 	if sit != _sit:
@@ -309,7 +319,7 @@ func _evaluate() -> void:
 		reason = ("CPU-bound (%.1f ms of CPU work per frame)" % w3.cpu_ms if bottleneck == "cpu" else
 			"late frames with the GPU at %.1f ms (not graphics: scripts / streaming / the OS)" % w3.gpu_ms) + ": graphics changes would not help"
 		return
-	if level > 0 and not cinematic and not w8.is_empty():
+	if level > steady_floor and not cinematic and not w8.is_empty():
 		# restore only with clear headroom, one step at a time, more patiently for a step that keeps coming back;
 		# quickly when the scene has become much lighter (a calm place after a fight)
 		var osc := float(oscillation.get(level - 1, 0))
@@ -438,11 +448,14 @@ func _apply_all() -> void:
 			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 			vp.msaa_3d = RenderProfile.SETTINGS[RenderProfile.profile].get("msaa", Viewport.MSAA_2X)
 		else:
-			# FSR 2 (temporal, best quality per pixel); at the very bottom FSR 1 + FXAA (much cheaper, a little softer)
-			var fsr2 := float(knobs.upscaler) >= 0.5
-			vp.msaa_3d = Viewport.MSAA_DISABLED
+			# FSR 2 (temporal, best quality per pixel); at the very bottom FSR 1 + FXAA (much cheaper, a little softer).
+			# The stream (keep_msaa) never gets FSR 2: its per-frame jitter is the "trembling" the developer picked MSAA
+			# against (2026-10-16) - but every scale step switched it back on, nearly all of the 2026-10-17 stream.
+			# There a lower scale is FSR 1 (spatial, no jitter) with the profile's MSAA kept.
+			var fsr2 := float(knobs.upscaler) >= 0.5 and not keep_msaa
+			vp.msaa_3d = RenderProfile.SETTINGS[RenderProfile.profile].get("msaa", Viewport.MSAA_2X) if keep_msaa else Viewport.MSAA_DISABLED
 			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2 if fsr2 else Viewport.SCALING_3D_MODE_FSR
-			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED if fsr2 else Viewport.SCREEN_SPACE_AA_FXAA
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED if fsr2 or keep_msaa else Viewport.SCREEN_SPACE_AA_FXAA
 			vp.scaling_3d_scale = float(knobs.scale)
 			vp.fsr_sharpness = 0.25           # faces stay crisp at < 1.0 scale
 	var w = main.get("world") if main else null

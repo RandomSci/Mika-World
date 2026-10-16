@@ -135,7 +135,11 @@ func setup(m: Node) -> void:
 
 
 # ------------------------------------------------------------------ music performances
+var _subject_before_perf: WorldCharacter = null
+
 func start_performance(c: WorldCharacter, mode: String) -> void:
+	if _perf.is_empty():
+		_subject_before_perf = mika
 	set_subject(c)
 	_perf = {"mode": mode, "i": -1, "t0": _now(), "yaw0": 0.0, "shot": {}}
 	performance_cut()
@@ -178,6 +182,11 @@ func performance_finale() -> void:
 func end_performance() -> void:
 	_perf = {}
 	_since_change = 99.0
+	# the camera goes back to whom it followed before the dance (after a dance of Luna's it stayed on her, fights
+	# included, until the next area load - 2026-10-17 stream)
+	if _subject_before_perf != null and is_instance_valid(_subject_before_perf) and _subject_before_perf != mika:
+		set_subject(_subject_before_perf)
+	_subject_before_perf = null
 
 
 func _perf_look(what: String) -> Vector3:

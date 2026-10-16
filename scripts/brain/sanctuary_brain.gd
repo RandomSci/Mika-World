@@ -221,7 +221,9 @@ func options() -> Array:
 		for c in explore_map.candidates(2):
 			out.append({"kind": "roam", "key": "roam:" + ExplorationMap.cell_key(c.pos), "pos": c.pos, "cand": c, "label": "look at %s" % c.describe})
 	# perform: a leisure option (casual) or, now and then, a special performance (celebration / evening)
-	if main.performance and _allowed("perform") and me.visible and threat == null and not main.performance.busy():
+	# (Mika's own choice only: Luna dances when asked - the show, a viewer - or as Mika's partner. Her solo dances out of
+	# nowhere, filmed since every dance in view is, looked random on stream, 2026-10-17)
+	if main.performance and _allowed("perform") and is_lead() and me.visible and threat == null and not main.performance.busy():
 		var cd: Dictionary = PerformanceController.load_cfg().cooldown_s
 		var last := float(mind.music.get("last_unix", 0))
 		var now_u := Time.get_unix_time_from_system()

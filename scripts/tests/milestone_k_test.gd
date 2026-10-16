@@ -156,6 +156,7 @@ func _run() -> void:
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
 		"walkaudit": await _walkaudit()
+		"livefixes": await _livefixes()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -5464,3 +5465,52 @@ func _walk_watch(c: WorldCharacter, r: Dictionary, leg: String, max_s: float, st
 			var src := String((h.collider as Node).get_meta("src", "?"))
 			st.ghost_in[src] = "%s at %s" % [leg, p.snapped(Vector3.ONE * 0.1)]
 	return {"metres": snappedf(metres, 0.1), "secs": snappedf(t, 0.1), "worst_v": snappedf(leg_worst, 0.01)}
+
+
+# ------------------------------------------------------------------ stream reports of 2026-10-17 (broadcast 2)
+## --profile=stream --luna: the steady quality floor (no back and forth), no FSR 2 jitter on the stream, no solo dance
+## from Luna's own brain, and the camera given back to Mika after a dance of Luna's.
+func _livefixes() -> void:
+	await _hold_all()
+	var g = main.gfx
+	_check(g.steady_floor > 0, "the stream has a steady quality floor (%d)" % g.steady_floor)
+	g._hold_until = 0.0
+	var t0 := _gms()
+	while g.level < g.steady_floor and _gms() - t0 < 15000:
+		await get_tree().process_frame
+	_check(g.level >= g.steady_floor, "quality settles at the floor (level %d)" % g.level)
+	var vp := get_viewport()
+	_check(vp.scaling_3d_mode != Viewport.SCALING_3D_MODE_FSR2 and vp.msaa_3d != Viewport.MSAA_DISABLED and not vp.use_taa,
+		"no temporal jitter on the stream (scaling mode %d, MSAA %d, TAA %s, scale %.2f)" % [vp.scaling_3d_mode, vp.msaa_3d, str(vp.use_taa), vp.scaling_3d_scale])
+	var lvl: int = g.level
+	await _wait(12.0)
+	_check(g.level >= g.steady_floor, "it never restores above the floor (level %d -> %d)" % [lvl, g.level])
+	# Luna's brain: no dance of her own choosing; Mika's may
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	var lkeys: Array = lb.options().map(func(o): return String(o.get("key", "")))
+	_check(lkeys.filter(func(k): return k.begins_with("perform:")).is_empty(), "Luna's brain offers no solo dance", lkeys.slice(0, 12))
+	# a dance of Luna's, then the camera is Mika's again
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	await _stage_pair()
+	if main.performance.busy():
+		main.performance.interrupt("test: a clean start")
+		var tq := _gms()
+		while main.performance.busy() and _gms() - tq < 15000:
+			await get_tree().process_frame
+		await _wait(1.0)
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	main.performance.perform("luna", "casual", {})
+	var t1 := _gms()
+	while not main.performance.busy() and _gms() - t1 < 15000:
+		await get_tree().process_frame
+	await _wait(2.0)
+	_check(String(main.performance.active.get("who", "")) == "luna" and main.director.mika == luna,
+		"the camera films Luna while she dances (performer %s, subject %s)" % [main.performance.active.get("who", "-"), main.director.mika.character_id])
+	main.performance.interrupt("test over")
+	var t2 := _gms()
+	while main.performance.busy() and _gms() - t2 < 15000:
+		await get_tree().process_frame
+	await _wait(1.0)
+	_check(main.director.mika == mika, "the camera is Mika's again after Luna's dance (subject: %s)" % main.director.mika.character_id)
