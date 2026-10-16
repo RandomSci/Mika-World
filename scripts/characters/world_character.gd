@@ -961,12 +961,17 @@ func lie_down(speed := 0.6) -> void:
 	set_gesture_speed(1.0)
 	play_gesture("lie_loop", 0.3, 0.6)
 	set_ground_pose("lie", 0.6)
+	# hair and dress settle on the grass (ground collider, lying spring tuning) once the pose has settled
+	await get_tree().create_timer(0.7).timeout
+	if ground_pose == "lie" and not RenderProfile.options.has("no-lying-springs"):
+		LyingSprings.apply(self)
 
 
 ## Get up from lying (the real get-up clip), back to standing idle.
 func get_up() -> void:
 	if ground_pose != "lie":
 		return
+	LyingSprings.restore(self)
 	end_gesture()
 	set_ground_pose("", 0.8)
 	play_gesture("lie_get_up", 0.2, 0.5)

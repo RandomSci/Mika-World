@@ -69,10 +69,59 @@ func _process(delta: float) -> void:
 	_t += delta
 	if not enabled or main == null or not main.get("characters"):
 		return
+	# the bones are sampled on each skeleton's FINAL pose (skeleton_updated: after the look-at, posture and spring
+	# modifiers) - read here they would be the animation alone, and the hair / dress physics would be invisible
 	for who in main.characters:
-		var c: WorldCharacter = main.characters[who]
+		var c0: WorldCharacter = main.characters[who]
+		if c0 and c0.skeleton and not _hooked.has(who):
+			_hooked[who] = c0.skeleton
+			var w0 := String(who)
+			c0.skeleton.skeleton_updated.connect(func(): _sample(w0))
+	_camera(delta)
+
+
+var _hooked := {}
+var _last_t := {}
+
+
+func _camera(delta: float) -> void:
+	# the camera too: a lens that jumps back and forth makes everyone on screen look like they tremble
+	var cam := get_viewport().get_camera_3d()
+	if cam:
+		var per_c: Dictionary = stats.get_or_add("camera", {}).get_or_add(_state(main.characters["mika"]) if main.characters.has("mika") else "any", {})
+		var prev_c: Dictionary = _prev.get_or_add("camera", {})
+		var aim := cam.global_position - cam.global_transform.basis.z * 3.0
+		for pair in [["lens", cam.global_position], ["aim_3m", aim]]:
+			var pc: Vector3 = pair[1]
+			var prc = prev_c.get(pair[0])
+			if prc == null:
+				prev_c[pair[0]] = [pc, Vector3.ZERO]
+				continue
+			var d2: Vector3 = pc - (prc[0] as Vector3)
+			var dp2: Vector3 = prc[1]
+			if d2.length() > 1.5:
+				prev_c[pair[0]] = [pc, Vector3.ZERO]
+				continue
+			var s2: Array = per_c.get_or_add(pair[0], [0, 0, 0.0])
+			s2[0] += 1
+			if d2.length() > STEP_M and dp2.length() > STEP_M and d2.dot(dp2) < 0.0:
+				s2[1] += 1
+			s2[2] += (d2 - dp2).length() * 1000.0
+			prev_c[pair[0]] = [pc, d2]
+
+
+
+func _sample(who: String) -> void:
+	if not enabled:
+		return
+	var delta := _t - float(_last_t.get(who, _t - 1.0 / 30.0))
+	_last_t[who] = _t
+	if delta <= 0.0:
+		return
+	if true:
+		var c: WorldCharacter = main.characters.get(who)
 		if c == null or not c.visible or c.skeleton == null:
-			continue
+			return
 		var sk := c.skeleton
 		var st := _state(c)
 		var per: Dictionary = stats.get_or_add(who, {}).get_or_add(st, {})
@@ -113,29 +162,6 @@ func _process(delta: float) -> void:
 				s[3] += off * off
 				s[4] += 1
 			prev[bn] = [p, d, ring]
-	# the camera too: a lens that jumps back and forth makes everyone on screen look like they tremble
-	var cam := get_viewport().get_camera_3d()
-	if cam:
-		var per_c: Dictionary = stats.get_or_add("camera", {}).get_or_add(_state(main.characters["mika"]) if main.characters.has("mika") else "any", {})
-		var prev_c: Dictionary = _prev.get_or_add("camera", {})
-		var aim := cam.global_position - cam.global_transform.basis.z * 3.0
-		for pair in [["lens", cam.global_position], ["aim_3m", aim]]:
-			var pc: Vector3 = pair[1]
-			var prc = prev_c.get(pair[0])
-			if prc == null:
-				prev_c[pair[0]] = [pc, Vector3.ZERO]
-				continue
-			var d2: Vector3 = pc - (prc[0] as Vector3)
-			var dp2: Vector3 = prc[1]
-			if d2.length() > 1.5:
-				prev_c[pair[0]] = [pc, Vector3.ZERO]
-				continue
-			var s2: Array = per_c.get_or_add(pair[0], [0, 0, 0.0])
-			s2[0] += 1
-			if d2.length() > STEP_M and dp2.length() > STEP_M and d2.dot(dp2) < 0.0:
-				s2[1] += 1
-			s2[2] += (d2 - dp2).length() * 1000.0
-			prev_c[pair[0]] = [pc, d2]
 	if RenderProfile.options.has("motion-watch"):
 		_acc += delta
 		if _acc >= _period:

@@ -4861,7 +4861,23 @@ func _starfall_look() -> void:
 	await _wait(1.5)
 	mika.lie_down()
 	await luna.lie_down()
-	await _wait(2.5)
+	await _wait(3.0)
+	# lying still: how much the hair and the dress keep moving (should settle on the grass)
+	var mw := MotionWatch.attach(main)
+	main.camera_rig.set_shot(sf.bed + fwd * 4.2 + side * 2.2 + Vector3(0, 1.7, 0), sf.bed + Vector3(0, 0.3, 0), 50.0)
+	await _wait(8.0)
+	for who in ["mika", "luna"]:
+		var per: Dictionary = mw.stats.get(who, {}).get("other", mw.stats.get(who, {}).get("idle", {}))
+		var g := {}
+		for bn in per:
+			var s5: Array = per[bn]
+			if s5.size() > 5 and int(s5[0]) > 30:
+				var grp := MotionWatch.group_of(bn)
+				var sp := float(s5[5]) / float(s5[0])
+				var cur: Array = g.get(grp, [0.0, 0])
+				g[grp] = [maxf(cur[0], sp), cur[1] + 1]
+		print("[mktest] starfall_look LYING max speed mm/s by group %s %s" % [who, JSON.stringify(g)])
+	mw.queue_free()
 	var hr := "%02d" % WorldState.hour()
 	print("[mktest] starfall_look hour %s night=%s daylight=%.2f phrase='%s'" % [hr, str(WorldState.night), WorldState.daylight(), WorldState.time_phrase()])
 	var shots := {"wide": [sf.bed + fwd * 13.0 + side * -2.5 + Vector3(0, 1.8, 0), sf.tree_base + Vector3(0, 5.0, 0), 55.0],
