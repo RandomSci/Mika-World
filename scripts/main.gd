@@ -144,11 +144,24 @@ func _ready() -> void:
 	if not WorldState.locations.has(start):
 		start = WorldState.registry.start_location
 	streaming.prewarm_once = func(): await ShaderPrewarm.run(camera_rig.camera, self)
-	var report := await streaming.travel(WorldState.area_of(start), mika)
+	# continuity: a saved world resumes where it stopped (her area and place); spawn points are for a new save only
+	var resume := _resume_point("mika")
+	for who in mages:
+		_resume_doing[who] = String(WorldState.mind(who).location.get("doing", "")) if not resume.is_empty() else ""
+	var first_area: String = resume.area if not resume.is_empty() else WorldState.area_of(start)
+	var report := await streaming.travel(first_area, mika)
 	if not report.get("ok", false):
 		push_error("[main] could not load start area: %s" % report)
 		return
-	if start != WorldState.registry.start_location and world.points_of_interest.has(start):
+	if not resume.is_empty():
+		var at: Vector3 = resume.pos
+		var snapped := NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, at)
+		at = snapped if snapped != Vector3.ZERO and snapped.distance_to(at) < 3.0 else at
+		mika.global_position = at + Vector3(0, 0.1, 0)
+		mika.velocity = Vector3.ZERO
+		camera_rig.snap_behind()
+		print("[resume] mika back in %s at %s (was: %s)" % [first_area, at.snapped(Vector3.ONE * 0.1), resume.doing])
+	elif start != WorldState.registry.start_location and world.points_of_interest.has(start):
 		mika.global_position = world.points_of_interest[start].position + Vector3(0, 0.1, 1.5)
 		camera_rig.snap_behind()
 	_on_area_for_mages(streaming.current_id)
@@ -156,7 +169,7 @@ func _ready() -> void:
 	if not RenderProfile.options.has("no-polish"):
 		env_polish_report = EnvPolish.apply(world, streaming.current_id)
 	streaming.transition_started.connect(func(_f, _t): _park_mages())
-	streaming.area_activated.connect(func(a, _r): _on_area_for_mages(a); GatherNode.populate(world, a))
+	streaming.area_activated.connect(func(a, _r): _on_area_for_mages(a); GatherNode.populate(world, a); WorldState.save_async("area " + a))
 	# Milestone J: targeted visual polish of the stream's home area (leaf material, meadow cover)
 	streaming.area_activated.connect(func(a, _r): if not RenderProfile.options.has("no-polish"): env_polish_report = EnvPolish.apply(world, a))
 
@@ -218,6 +231,8 @@ func _ready() -> void:
 	progression.setup(self)
 	# levelling has its own single, low cue (only for the mage the stream is following)
 	progression.leveled.connect(func(who, _lvl): if audio and who == focus: audio.play_progress("level_up", -4.0, "level_up"))
+	progression.leveled.connect(func(_w, _l): WorldState.save_async("level up"))
+	progression.form_unlocked.connect(func(_w, _l, _f): WorldState.save_async("form unlocked"))
 
 	# Target-aware magic (spell catalogue, targeting, reactive world)
 	magic = MagicSystem.new()
@@ -256,6 +271,8 @@ func _ready() -> void:
 		add_child(b)
 		b.setup(self, who)
 		mage_brains[who] = b
+	for who in mage_brains:
+		mage_brains[who].resume_key = String(_resume_doing.get(who, ""))
 	mage_talk = MageTalk.new()
 	mage_talk.name = "MageTalk"
 	add_child(mage_talk)
@@ -571,6 +588,22 @@ func sim_mode(who: String) -> String:
 		return "foreground"
 	var c: WorldCharacter = characters.get(who)
 	return "nearby" if c and c.visible else "background"
+
+
+var _resume_doing := {}        # who -> the activity she was in when the game stopped (read before anything moves)
+
+
+## Where a loaded save left her: {area, pos, doing} or {} (no save, a new save, --start=, or an area that no
+## longer exists - then the registry's start / spawn as before).
+func _resume_point(who: String) -> Dictionary:
+	if String(WorldState.load_report.get("result", "")) != "loaded" or RenderProfile.options.has("start"):
+		return {}
+	var m := WorldState.mind(who)
+	var area := String(m.location.get("area", ""))
+	var pos := m.location_pos()
+	if area == "" or pos == Vector3.INF or not WorldState.areas.has(area):
+		return {}
+	return {"area": area, "pos": pos, "doing": String(m.location.get("doing", ""))}
 
 
 func _home_area(who: String) -> String:
@@ -903,7 +936,9 @@ func _process(delta: float) -> void:
 		_loc_t = 1.0
 		for who in mages:
 			if characters[who].visible:
-				WorldState.mind(who).set_location(streaming.current_id, characters[who].global_position)
+				var cur: Dictionary = mage_brains[who].current if mage_brains.has(who) else {}
+				WorldState.mind(who).set_location(streaming.current_id, characters[who].global_position,
+					{"doing": String(cur.get("key", "")), "kind": String(cur.get("kind", "")), "pose": String(characters[who].ground_pose)})
 	if _fps_acc >= 0.5 and hud.visible:
 		var lname: String = WorldState.locations[loc].name if WorldState.locations.has(loc) else loc
 		var sub := ""

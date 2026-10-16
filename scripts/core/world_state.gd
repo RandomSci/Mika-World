@@ -65,6 +65,15 @@ const SAVE_VERSION := 1
 var persistent := false          # true when this run loads/saves (normal play); tests run ephemeral
 var _dirty := false
 var _save_timer := 0.0
+## Continuity: the world resumes where it stopped. Besides the save 2 s after any change, where everyone is and what
+## they are doing is written every PERIODIC_SAVE_S, and at once on a level up, a transformation's start and end, an
+## area change or an outfit change (save_async). Those writes run on a worker thread (the file, its check and the
+## rename never stall a frame); closing the game writes synchronously.
+const PERIODIC_SAVE_S := 30.0
+var _periodic_t := 0.0
+var _write_task := -1
+var _write_next: Array = []      # [text, knowledge count, reason]: newest state waiting for the writer
+var last_save := {}              # {reason, ok, unix}: the last write that finished (tests, [health])
 var _prefix_counts := {}         # activity prefix -> distinct activity ids done
 ## Every mage's private state. "mika" is a live view onto the fields above; others own their data.
 var minds := {}
@@ -155,14 +164,24 @@ func _process(delta: float) -> void:
 	if not persistent:
 		return
 	_save_timer += delta
+	_periodic_t += delta
+	if _write_task != -1 and WorkerThreadPool.is_task_completed(_write_task):
+		WorkerThreadPool.wait_for_task_completion(_write_task)
+		_write_task = -1
+		if not _write_next.is_empty():
+			var nx: Array = _write_next
+			_write_next = []
+			_write_task = WorkerThreadPool.add_task(_write_save.bind(nx[0], nx[1], nx[2]), false, "save")
 	if _dirty and _save_timer > 2.0:
-		save_game()
+		save_async("changed")
+	elif _periodic_t > PERIODIC_SAVE_S:
+		save_async("periodic")
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
-		if persistent and _dirty:
-			save_game()
+		if persistent:
+			save_game()          # always: where everyone stands right now (synchronous, waits for a write in flight)
 
 
 ## Save integrity:
@@ -201,21 +220,54 @@ func _agents_data() -> Dictionary:
 	return out
 
 
-func save_game() -> bool:
+## Writes now and waits (closing the game, tests). save_async() is the same write on a worker thread.
+func save_game(reason := "now") -> bool:
+	var text := _save_text()
+	if text == "":
+		return false
+	if _write_task != -1:
+		WorkerThreadPool.wait_for_task_completion(_write_task)
+		_write_task = -1
+	_write_next = []
+	return _write_save(text, knowledge.size(), reason)
+
+
+## A save in the background: the state is captured now (this frame), written off the main thread. If a write is
+## still running, this newest state follows it (states queued in between are superseded, never interleaved).
+func save_async(reason := "changed") -> void:
+	if not persistent:
+		return
+	var text := _save_text()
+	if text == "":
+		return
+	if _write_task != -1:
+		_write_next = [text, knowledge.size(), reason]
+		return
+	_write_task = WorkerThreadPool.add_task(_write_save.bind(text, knowledge.size(), reason), false, "save")
+
+
+## The save as text, or "" when it must not be written (it would hold less progress than was loaded).
+func _save_text() -> String:
 	_dirty = false
 	_save_timer = 0.0
+	_periodic_t = 0.0
 	var d := save_data()
 	for k in _loaded_floor:
 		if k.begins_with("agent:"):
 			var who: String = String(k).trim_prefix("agent:")
 			if (d.agents.get(who, {}).get("knowledge", {}) as Dictionary).size() < int(_loaded_floor[k]):
 				push_warning("[save] refused: %s's knowledge would shrink (state reset?); %s left untouched" % [who, save_path])
-				return false
+				return ""
 			continue
 		if (d[k] as Dictionary).size() < int(_loaded_floor[k]):
 			push_warning("[save] refused: %s would shrink from %d to %d entries (state reset?); %s left untouched" % [k, _loaded_floor[k], (d[k] as Dictionary).size(), save_path])
-			return false
-	var text := JSON.stringify(d)
+			return ""
+	return JSON.stringify(d)
+
+
+## temp file -> read back and checked -> backups rotated -> renamed over the save. Safe on a worker thread (only
+## files; the state was captured as text on the main thread).
+func _write_save(text: String, kn: int, reason: String) -> bool:
 	var tmp := save_path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
@@ -224,7 +276,7 @@ func save_game() -> bool:
 	f.store_string(text)
 	f.close()
 	var check := _read_save(tmp)
-	if not check.ok or (check.data.knowledge as Dictionary).size() != knowledge.size():
+	if not check.ok or (check.data.knowledge as Dictionary).size() != kn:
 		push_warning("[save] written file failed verification (%s); %s left untouched" % [check.get("why", "size mismatch"), save_path])
 		return false
 	_rotate_backups()
@@ -232,6 +284,7 @@ func save_game() -> bool:
 	if err != OK:
 		push_warning("[save] could not replace %s (%s)" % [save_path, error_string(err)])
 		return false
+	last_save = {"reason": reason, "ok": true, "unix": int(Time.get_unix_time_from_system())}
 	return true
 
 

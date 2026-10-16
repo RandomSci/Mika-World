@@ -38,6 +38,13 @@ var _h_t := 0.0
 var _h_frames := 0
 var _h_worst := 0.0
 var _h_hitches := 0
+var _h_pipes := 0
+
+
+func _pipelines() -> int:
+	return int(Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_CANVAS) + Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH)
+		+ Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SURFACE) + Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_DRAW)
+		+ Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SPECIALIZATION))
 var _progress := {}
 var _progress_at := -100000
 var _command := {}               # the running lifestyle action {id, action}
@@ -64,8 +71,14 @@ func _health(delta: float) -> void:
 	_h_t += delta
 	_h_frames += 1
 	_h_worst = maxf(_h_worst, delta)
+	var pc := _pipelines()
 	if delta > 0.05:
 		_h_hitches += 1
+		# what that frame did (operator log only): new GPU pipelines compiled, a voice line, a talk, each mage's activity
+		var dlg = main.mage_talk.dialogue if main.get("mage_talk") and main.mage_talk.get("dialogue") else null
+		print("[hitch] %d ms t=%.1f pipelines+%d talk=%s %s" % [int(delta * 1000.0), Time.get_ticks_msec() / 1000.0, pc - _h_pipes,
+			str(dlg != null and dlg.active), " ".join(main.mage_brains.keys().map(func(w): return "%s:%s" % [w, String(main.mage_brains[w].current.get("key", main.mage_brains[w].current.get("kind", "-")))]))])
+	_h_pipes = pc
 	if _h_t < 60.0:
 		return
 	print("[health] fps=%.1f worst_ms=%.1f hitches=%d mika_level=%d luna_level=%d mika_visible=%s luna_visible=%s connected=%s" % [

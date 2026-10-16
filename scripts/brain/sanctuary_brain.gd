@@ -56,6 +56,7 @@ var _listened_this_rain := ""      # the area where she already sat out this sho
 var _speak_cd := 0.0
 var _talked_this_visit := {}
 var curiosity_bonus := {}      # option key -> bonus from the curiosity module (one decision only)
+var resume_key := ""            # relaunch: what she was doing when the game stopped (favoured once, if still on offer)
 var viewer_request := {}            # spell id -> {target, t}: a viewer suggestion, kept until chosen or 4 minutes old
 const VIEWER_REQUEST_S := 240.0
 
@@ -356,7 +357,9 @@ func options() -> Array:
 			var oc2: WorldCharacter = main.characters.get(other_id)
 			if oc2 == null or not oc2.visible or me.global_position.distance_to(oc2.global_position) > (60.0 if _night_home() else 35.0):
 				continue
-			if Time.get_unix_time_from_system() - float(mind.knowledge.get("together_last:" + other_id, 0.0)) < TOGETHER_COOLDOWN_S:
+			# (a relaunch resuming a shared activity: the shutdown cut it short, its cooldown does not count)
+			if Time.get_unix_time_from_system() - float(mind.knowledge.get("together_last:" + other_id, 0.0)) < TOGETHER_COOLDOWN_S \
+					and not resume_key.ends_with(":" + other_id):
 				continue
 			var cands: Array = explore_map.candidates(1) if main.world and me.visible else []
 			if not cands.is_empty():
@@ -391,7 +394,9 @@ func options() -> Array:
 	# would take her to another area (the developer: "by day they stay in the sanctuary")
 	if mind.level() <= 9:
 		out = out.filter(func(o): return o.kind != "expedition" and String(o.get("area", "sanctuary")) in ["sanctuary", ""])
-	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend"])
+	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
+	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
+	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together"])
 
 
 const MEET_COOLDOWN_S := 420.0
@@ -672,7 +677,12 @@ func _loop() -> void:
 			continue
 		if main.curiosity and is_lead() and is_foreground():
 			await main.curiosity.consult(self)        # LLM-capable: only for the followed mage
+		if resume_key != "":
+			curiosity_bonus[resume_key] = float(curiosity_bonus.get(resume_key, 0.0)) + 1.0
 		var scored := ranked()
+		if resume_key != "":
+			print("[resume] %s carries on: %s (%s)" % [agent_id, resume_key, "on offer" if scored.any(func(o): return o.key == resume_key) else "no longer on offer"])
+			resume_key = ""
 		if scored.is_empty():
 			await get_tree().create_timer(2.0).timeout
 			continue

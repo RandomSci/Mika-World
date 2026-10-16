@@ -182,6 +182,16 @@ func converse(a: String, b: String, opts := {}) -> Dictionary:
 		return {"ok": false, "detail": "not here"}
 	active = true
 	var t_start := Time.get_ticks_msec()
+	# a few words on the way / about what just happened: neither starts something new (walks off) mid-talk -
+	# the 35-min proof had both event talks end after one question, the one asked walking away. Meet / stargaze
+	# already hold them (MageTalk / Companionship).
+	var held: Array = []
+	if mode in ["event", "ambient"]:
+		for w in [a, b]:
+			var br = main.mage_brains.get(w)
+			if br and not br.hold:
+				br.hold = true
+				held.append(br)
 	var seed_a: Dictionary = opts.get("topic", {})
 	var pre := _prepared
 	_prepared = {}
@@ -263,6 +273,8 @@ func converse(a: String, b: String, opts := {}) -> Dictionary:
 		log.pop_front()
 	current = {}
 	active = false
+	for br in held:
+		br.hold = false
 	print("[dialogue] end %s -> %s (%s) %d lines, ended by %s: %s" % [a, b, mode, spoken.size(), ended_by, JSON.stringify(spoken.map(func(l): return "%s: %s" % [l.who, l.text]))])
 	conversation_finished.emit(entry)
 	return entry

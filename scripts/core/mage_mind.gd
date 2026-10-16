@@ -81,8 +81,10 @@ func location_pos() -> Vector3:
 	return Vector3(float(p[0]), float(p[1]), float(p[2])) if p.size() == 3 else Vector3.INF
 
 
-func set_location(area: String, pos: Vector3) -> void:
+## extra: what she is doing there ({doing: option key, kind, pose}) so a relaunch resumes it
+func set_location(area: String, pos: Vector3, extra := {}) -> void:
 	location = {"area": area, "pos": [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), snappedf(pos.z, 0.01)]}
+	location.merge(extra)
 
 
 func level() -> int:
@@ -124,6 +126,10 @@ func from_dict(d: Dictionary) -> void:
 func load_progress(p: Dictionary) -> void:
 	progress.merge(p, true)
 	progress.level = int(progress.get("level", 1))
+	# the game stopped mid-transformation: she wakes in the form she was taking (it was already earned)
+	if String(progress.get("pending_form", "")) != "":
+		progress["appearance"] = String(progress.pending_form)
+		progress.erase("pending_form")
 	progress.xp = float(progress.get("xp", 0.0))
 	for k in ["awarded", "repeats", "gates"]:
 		if not progress.get(k) is Dictionary:

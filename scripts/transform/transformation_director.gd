@@ -163,6 +163,10 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 	await _step_into_open(c)
 	var t_start := Time.get_ticks_msec()
 	started.emit(who, version)
+	if version == "full" and not preview:
+		# continuity: a crash or shutdown mid-cinematic still wakes her in the new form (MageMind.load_progress)
+		WorldState.mind(who).progress["pending_form"] = String(sp.form)
+		WorldState.save_async("transformation started")
 	var brain = main.mage_brains.get(who)
 	if brain:
 		brain.hold = true
@@ -318,6 +322,7 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 		# the unlock: her new form is permanent from now on (saved appearance)
 		var m := WorldState.mind(who)
 		m.progress["appearance"] = String(sp.form)
+		m.progress.erase("pending_form")
 		WorldState.record_activity({"id": "transform:" + String(sp.form), "verb": "transform", "label": "Became %s" % sp.title},
 			{"knowledge": {"form:" + String(sp.form): 1}}, who)
 		res["permanent"] = true
@@ -331,6 +336,8 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 	if log.size() > 200:
 		log.pop_front()
 	finished.emit(who, res)
+	if not preview:
+		WorldState.save_async("transformation finished")
 	return res
 
 
