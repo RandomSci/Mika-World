@@ -85,7 +85,7 @@ func _run() -> void:
 	main.set_process_unhandled_input(false)
 	if main.hud:
 		main.hud.visible = false
-	if main.get("overlay_ui"):
+	if main.get("overlay_ui") and not RenderProfile.options.has("keep-overlay"):
 		main.overlay_ui.visible = false
 	print("[mktest] mode=%s save=%s persistent=%s mages=%s" % [mode, WorldState.save_path, WorldState.persistent, main.mages])
 	if not WorldState.save_path.begins_with("user://test_regress_"):
@@ -4916,6 +4916,8 @@ func _estcams() -> void:
 	for nm in shots:
 		var sh: Array = shots[nm]
 		main.camera_rig.set_shot(sh[0], sh[1], 55.0)
+		if RenderProfile.options.has("keep-overlay"):
+			main.show_subtitle("Luna: 'Return'? Sounds like a riddle waiting to be solved. Any ideas?", 5.0)
 		await _wait(1.2)
 		var img := get_viewport().get_texture().get_image()
 		img.resize(64, 36)

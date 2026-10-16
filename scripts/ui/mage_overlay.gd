@@ -1,7 +1,8 @@
 class_name MageOverlay
 extends CanvasLayer
 ## Two small overlays built from verified state only.
-##   Viewer (always on, compact, bottom-left): the mage in the spotlight - name, level + title, XP bar,
+##   Viewer (always on, compact, top-left; sized to be read on a phone - a 1080p frame shown ~6 cm tall: the
+##   smallest line is ~2.4% of the frame height): the mage in the spotlight - name, level + title, XP bar,
 ##   what she is doing, her current objective (from her own knowledge), and the latest notable event
 ##   (level, victory, discovery, fusion, transformation) for both mages.
 ##   Developer (F2, top-right): per mage - chosen action + utility + reasons, target, spell state, battle
@@ -30,28 +31,26 @@ func setup(m: Node) -> void:
 	sb.corner_radius_top_right = 8
 	sb.corner_radius_bottom_left = 8
 	sb.corner_radius_bottom_right = 8
-	sb.content_margin_left = 12
-	sb.content_margin_right = 12
-	sb.content_margin_top = 8
-	sb.content_margin_bottom = 8
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
 	viewer.add_theme_stylebox_override("panel", sb)
-	viewer.anchor_top = 1.0
-	viewer.anchor_bottom = 1.0
-	viewer.position = Vector2(18, -150)
-	viewer.custom_minimum_size = Vector2(360, 0)
+	viewer.position = Vector2(24, 24)
+	viewer.custom_minimum_size = Vector2(580, 0)
 	add_child(viewer)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
 	viewer.add_child(box)
-	v_name = _label(box, 18, Color(1.0, 0.94, 0.85))
+	v_name = _label(box, 34, Color(1.0, 0.94, 0.85))
 	v_bar = ProgressBar.new()
-	v_bar.custom_minimum_size = Vector2(330, 6)
+	v_bar.custom_minimum_size = Vector2(544, 10)
 	v_bar.show_percentage = false
 	v_bar.max_value = 1.0
 	box.add_child(v_bar)
-	v_doing = _label(box, 14, Color(0.9, 0.92, 0.98))
-	v_goal = _label(box, 13, Color(0.75, 0.85, 1.0))
-	v_event = _label(box, 13, Color(1.0, 0.85, 0.6))
+	v_doing = _label(box, 28, Color(0.9, 0.92, 0.98))
+	v_goal = _label(box, 26, Color(0.75, 0.85, 1.0))
+	v_event = _label(box, 26, Color(1.0, 0.85, 0.6))
 	dev = Label.new()
 	dev.anchor_left = 1.0
 	dev.anchor_right = 1.0
@@ -80,9 +79,9 @@ func _label(parent: Node, size: int, col: Color) -> Label:
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	l.add_theme_constant_override("outline_size", 4)
+	l.add_theme_constant_override("outline_size", 6)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(330, 0)
+	l.custom_minimum_size = Vector2(544, 0)
 	parent.add_child(l)
 	return l
 

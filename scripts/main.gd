@@ -515,12 +515,12 @@ func _build_hud() -> void:
 	subtitle = Label.new()
 	subtitle.anchor_left = 0.5
 	subtitle.anchor_right = 0.5
-	subtitle.anchor_top = 0.88
-	subtitle.position = Vector2(-520, 0)
-	subtitle.custom_minimum_size = Vector2(1040, 30)
+	subtitle.anchor_top = 0.84
+	subtitle.position = Vector2(-620, 0)
+	subtitle.custom_minimum_size = Vector2(1240, 30)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	subtitle.add_theme_font_size_override("font_size", 19)
+	subtitle.add_theme_font_size_override("font_size", 30)      # read on a phone too (19 px was ~1.8% of 1080)
 	subtitle.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 	subtitle.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	subtitle.add_theme_constant_override("outline_size", 6)
