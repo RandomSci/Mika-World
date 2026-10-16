@@ -333,6 +333,32 @@ func invite(a: SanctuaryBrain, other: String, kind: String, target: Dictionary) 
 
 ## Stand where people stand to talk: ~1.6 m from the other, on the navmesh, with nothing between them, as close
 ## to where she already is as possible; walk there (precise last steps) and face each other.
+## Personal space before a talk: closer than `min_d` (the other drifted on after being asked to stop, or a few words
+## start wherever they stand), `me` steps back along the line between them to about `want`, then both face each
+## other. Two bodies left overlapping push each other every frame: on screen they shake while they talk.
+static func make_room(me: WorldCharacter, other: WorldCharacter, want := 1.5, min_d := 1.2) -> void:
+	if me == null or other == null or me.ground_pose != "" or other.ground_pose != "" or RenderProfile.options.has("no-make-room"):
+		return
+	var away := Vector3(me.global_position.x - other.global_position.x, 0, me.global_position.z - other.global_position.z)
+	if away.length() >= min_d:
+		return
+	if away.length() < 0.05:
+		away = -other.global_transform.basis.z
+	away.y = 0.0
+	away = away.normalized()
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 2000:
+		var d := Vector2(me.global_position.x - other.global_position.x, me.global_position.z - other.global_position.z).length()
+		if d >= want:
+			break
+		me.set_move_input(away * 0.45, false)
+		await me.get_tree().physics_frame
+	me.set_move_input(Vector3.ZERO, false)
+	me.velocity = Vector3.ZERO
+	me.look_at_point(other.global_position)
+	other.look_at_point(me.global_position)
+
+
 static func approach_for_talk(brain, other: WorldCharacter, dist := 1.6) -> void:
 	var me: WorldCharacter = brain.me
 	var map := me.get_world_3d().navigation_map

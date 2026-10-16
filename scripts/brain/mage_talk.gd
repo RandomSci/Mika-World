@@ -99,6 +99,7 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 		return {"ok": false, "detail": "%s moved off" % MagicSystem.display_name(other_id)}
 	b.current = {"kind": "meet", "label": "talking with %s" % MagicSystem.display_name(a.agent_id), "stage": "talking"}
 	a.current.stage = "talking"
+	await Companionship.make_room(me, bc)
 	me.look_at_point(bc.global_position)
 	bc.look_at_point(me.global_position)
 	me.look_head_at(bc.global_position + Vector3(0, 1.5, 0))

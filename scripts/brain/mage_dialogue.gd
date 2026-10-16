@@ -158,6 +158,26 @@ func _news(who: String, other: String) -> float:
 var _prepared := {}                   # {between: [a, b], seed, target, job} - the opening line, written early
 
 
+var _body := {"min_d": 99.0, "twitch_mm": 0.0, "n": 0}
+
+
+## While a talk runs: how close they stand and how much their bodies twitch frame to frame (a standing body should
+## not move; a few mm/frame is the idle sway; more is two bodies pushing each other).
+func _watch_bodies(ca: WorldCharacter, cb: WorldCharacter) -> void:
+	_body = {"min_d": 99.0, "twitch_mm": 0.0, "n": 0}
+	var pa := ca.global_position
+	var pb := cb.global_position
+	while active and is_instance_valid(ca) and is_instance_valid(cb):
+		await get_tree().physics_frame
+		var d := Vector2(ca.global_position.x - cb.global_position.x, ca.global_position.z - cb.global_position.z).length()
+		_body.min_d = minf(float(_body.min_d), d)
+		if ca.velocity.length() < 0.2 and cb.velocity.length() < 0.2:
+			_body.twitch_mm = float(_body.twitch_mm) + (ca.global_position.distance_to(pa) + cb.global_position.distance_to(pb)) * 500.0
+			_body.n = int(_body.n) + 1
+		pa = ca.global_position
+		pb = cb.global_position
+
+
 ## A planned meeting: her opening line is written (and voiced) while she is still walking over, so she speaks the
 ## moment they meet instead of standing there thinking. converse() uses it if the pair and mode match.
 func prepare(a: String, b: String, mode := "meet") -> void:
@@ -203,6 +223,9 @@ func converse(a: String, b: String, opts := {}) -> Dictionary:
 	var target: int = int(pre.target) if use_pre else (max_lines if mode == "combat" else _rng.randi_range(maxi(2, max_lines - 3), max_lines))
 	current = {"between": [a, b], "mode": mode, "topic": String(seed_a.get("text", "")), "lines": [], "started": _now()}
 	conversation_started.emit(current)
+	if mode != "stargaze" and mode != "combat":
+		await Companionship.make_room(ca, cb)
+	_watch_bodies(ca, cb)
 	print("[dialogue] start %s -> %s (%s, %s remembers %d earlier talks)%s: %s" % [a, b, mode, a, (WorldState.mind(a).knowledge.get("talks:" + b, []) as Array).size(), " [opening line prepared on the way]" if use_pre else "", String(seed_a.get("text", "")).left(100)])
 	var transcript: Array = []
 	var spoken: Array = []
@@ -275,6 +298,7 @@ func converse(a: String, b: String, opts := {}) -> Dictionary:
 	active = false
 	for br in held:
 		br.hold = false
+	print("[dialogue] bodies: closest %.2f m, root twitch %.1f mm/frame (mika-luna, while talking)" % [_body.min_d, _body.twitch_mm / maxf(_body.n, 1.0)])
 	print("[dialogue] end %s -> %s (%s) %d lines, ended by %s: %s" % [a, b, mode, spoken.size(), ended_by, JSON.stringify(spoken.map(func(l): return "%s: %s" % [l.who, l.text]))])
 	conversation_finished.emit(entry)
 	return entry

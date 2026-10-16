@@ -146,6 +146,10 @@ func _run() -> void:
 		"starfall_look": await _starfall_look()
 		"estcams": await _estcams()
 		"estwalk": await _estwalk()
+		"skirtlook": await _skirtlook()
+		"camshake": await _camshake()
+		"framepace": await _framepace()
+		"lenswatch": await _lenswatch()
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
 		_: _check(false, "unknown mode " + mode)
@@ -4994,3 +4998,139 @@ func _estwalk() -> void:
 				if dark % 10 == 1:
 					_shot("dark_%d_%d" % [k, dark])
 	print("[mktest] estwalk %s: %d dark of %d frames (%d in its establishing shot) modes %s" % [sub, dark, frames, est_frames, modes])
+
+
+## Both mages standing as in a talk, photographed knees-down-to-head from the front, side and back (wide: the
+## no-close-up rule), the skirts' hem height printed: compare with / without --no-hem-floor.
+func _skirtlook() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	var pair: Array = await _stage_pair()
+	await _wait(4.0)
+	for c in pair:
+		var cw: WorldCharacter = c
+		var low := INF
+		var lowest := ""
+		var sk := cw.skeleton
+		for bi in sk.get_bone_count():
+			var bn := sk.get_bone_name(bi)
+			if bn.contains("Skirt"):
+				var y := (sk.global_transform * sk.get_bone_global_pose(bi)).origin.y - cw.global_position.y
+				if y < low:
+					low = y
+					lowest = bn
+		print("[mktest] skirtlook %s lowest skirt bone %s at %.3f m above her feet" % [cw.character_id, lowest, low])
+	var mid: Vector3 = ((pair[0] as Node3D).global_position + (pair[1] as Node3D).global_position) * 0.5
+	var axis: Vector3 = ((pair[1] as Node3D).global_position - (pair[0] as Node3D).global_position).normalized()
+	var perp := Vector3(-axis.z, 0, axis.x)
+	var shots := {"front": mid + perp * 4.2, "back": mid - perp * 4.2, "side": mid - axis * 4.6}
+	for nm in shots:
+		main.camera_rig.set_shot(shots[nm] + Vector3(0, 1.3, 0), mid + Vector3(0, 0.8, 0), 50.0)
+		await _wait(2.0)
+		_shot(nm)
+
+
+## The picture while they talk and while Mika stands: the real director frames them (conversation, then chase),
+## both held still; record with --write-movie and measure the frame-to-frame image motion afterwards. Also prints
+## the lens path's own wobble (direction reversals of the lens per second, mm).
+func _camshake() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].enabled = false
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("test")
+		await _wait(2.0)
+	var pair: Array = await _stage_pair()
+	for c in pair:
+		(c as WorldCharacter).stop_action()
+	main.director.enabled = true
+	await _wait(3.0)
+	var cam := get_viewport().get_camera_3d()
+	for phase in ["conversation", "chase"]:
+		if phase == "conversation":
+			main.director.focus_conversation(pair[1], 30.0)
+		else:
+			main.director.focus_conversation(null, 0.0)
+		await _wait(4.0)
+		print("[mktest] camshake PHASE %s start t=%.2f mode=%s" % [phase, Time.get_ticks_msec() / 1000.0, main.director.mode])
+		var prev := cam.global_position
+		var prev_d := Vector3.ZERO
+		var rev := 0
+		var path := 0.0
+		var n := 0
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 20000:
+			await get_tree().process_frame
+			var p := cam.global_position
+			var d := p - prev
+			if d.length() > 0.0002 and prev_d.length() > 0.0002 and d.dot(prev_d) < 0.0:
+				rev += 1
+			path += d.length()
+			prev_d = d
+			prev = p
+			n += 1
+		print("[mktest] camshake %s mode=%s frames=%d lens_path_mm=%.0f lens_reversals_per_s=%.2f" % [phase, main.director.mode, n, path * 1000.0, rev / 20.0])
+
+
+## The real frame times for 15 s in a window (no movie mode): how evenly frames come. With a 30 fps cap on a
+## 144 Hz panel the presentation can only alternate 4 and 5 refreshes (27.8 / 34.7 ms): motion judders.
+func _framepace() -> void:
+	await _wait(5.0)
+	var buckets := {}
+	var ds := []
+	var t0 := Time.get_ticks_usec()
+	var last := t0
+	while Time.get_ticks_usec() - t0 < 15000000:
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		var ms := (now - last) / 1000.0
+		last = now
+		ds.append(ms)
+		var k := "%d" % int(round(ms))
+		buckets[k] = int(buckets.get(k, 0)) + 1
+	var alt := 0
+	for i in range(2, ds.size()):
+		if absf(ds[i] - ds[i - 1]) > 4.0:
+			alt += 1
+	print("[mktest] framepace max_fps=%d vsync=%d frames=%d ms_histogram=%s uneven_steps=%d (%.0f%%)" % [Engine.max_fps, DisplayServer.window_get_vsync_mode(), ds.size(), JSON.stringify(buckets), alt, 100.0 * alt / maxf(ds.size(), 1)])
+
+
+## The director's chase lens while Mika stands still in different places (real time, both planners held): per frame
+## the lens step; reversals (> 0.5 mm one way, then back) per second and the mean step. A still subject with a
+## lens that keeps reversing looks like she shakes.
+func _lenswatch() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = mika.get_world_3d().navigation_map
+	main.director.enabled = true
+	var cam := get_viewport().get_camera_3d()
+	var spots := {"circle": Vector3(2, 0, 3), "garden": Vector3(12, 0, 22), "library_steps": Vector3(-8, 0, 9),
+		"altar": Vector3(-20, 0, -18), "starfall": Vector3(-28, 0, 19), "gate": Vector3(4, 0, -12), "training": Vector3(24, 0, 6)}
+	for nm in spots:
+		var at := NavigationServer3D.map_get_closest_point(map, spots[nm])
+		if main.teleport_guard:
+			main.teleport_guard.allow(mika)
+		mika.global_position = at + Vector3(0, 0.05, 0)
+		mika.velocity = Vector3.ZERO
+		main.camera_rig.snap_behind()
+		await _wait(4.0)
+		var prev := cam.global_position
+		var pd := Vector3.ZERO
+		var rev := 0
+		var steps := 0.0
+		var n := 0
+		var big := 0
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 8000:
+			await get_tree().process_frame
+			var p := cam.global_position
+			var d := p - prev
+			if d.length() > 0.0005 and pd.length() > 0.0005 and d.dot(pd) < 0.0:
+				rev += 1
+			if d.length() > 0.01:
+				big += 1
+			steps += d.length()
+			pd = d
+			prev = p
+			n += 1
+		print("[mktest] lenswatch %s mode=%s frames=%d reversals_per_s=%.2f mean_step_mm=%.2f steps_over_1cm=%d" % [nm, main.director.mode, n, rev / 8.0, steps * 1000.0 / maxf(n, 1), big])
