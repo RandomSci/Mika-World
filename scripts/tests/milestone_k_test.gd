@@ -4932,8 +4932,12 @@ func _estcams() -> void:
 ## brightness; a dark frame prints where the lens was and what it looked at. --estwalk-sub=<id> (default the library).
 func _estwalk() -> void:
 	var sub := String(RenderProfile.options.get("estwalk-sub", "ancient_spell_library"))
-	var sa: Dictionary = WorldState.sanctuary.sub_areas[sub]
-	var cen := Vector3(sa.center[0], 0, sa.center[2])
+	var cen := Vector3.ZERO
+	if sub == "starfall":
+		cen = StarfallPlace.instance.tree_base       # the chase camera round the old tree at night (crown)
+	else:
+		var sa: Dictionary = WorldState.sanctuary.sub_areas[sub]
+		cen = Vector3(sa.center[0], 0, sa.center[2])
 	var mika: WorldCharacter = main.characters["mika"]
 	var map: RID = mika.get_world_3d().navigation_map
 	main.brain.enabled = false
@@ -4947,7 +4951,7 @@ func _estwalk() -> void:
 		[Vector3(-22.17, 0.5, 17.93), Vector3(-8.59, 0.5, 5.47)], [Vector3(-26.95, 1.1, 21.75), Vector3(-2.5, 1, -0.9)]]
 	for k in 4:
 		var a := deg_to_rad(k * 90.0 + 20.0)
-		var start := NavigationServer3D.map_get_closest_point(map, cen + Vector3(sin(a), 0, cos(a)) * 11.0)
+		var start := NavigationServer3D.map_get_closest_point(map, cen + Vector3(sin(a), 0, cos(a)) * (6.0 if sub == "starfall" else 11.0))
 		if sub == "ancient_spell_library":
 			start = NavigationServer3D.map_get_closest_point(map, routes[k][0])
 		if main.teleport_guard:
@@ -4959,6 +4963,9 @@ func _estwalk() -> void:
 		# odd runs: running straight through it to the far side (how the proof run met it)
 		if sub == "ancient_spell_library":
 			mika.navigate_to(routes[k][1], true)
+		elif sub == "starfall":
+			# round the trunk under the crown to the far side, running
+			mika.navigate_to(NavigationServer3D.map_get_closest_point(map, cen + Vector3(sin(a + 2.6), 0, cos(a + 2.6)) * 4.0), true)
 		elif k % 2 == 1:
 			mika.navigate_to(NavigationServer3D.map_get_closest_point(map, cen - Vector3(sin(a), 0, cos(a)) * 11.0), true)
 		else:

@@ -173,17 +173,41 @@ func _tree() -> void:
 	crown.name = "TreeCrown"
 	crown.collision_layer = 4
 	crown.collision_mask = 0
-	var top := TREE_H
-	for ci in 7:
-		var cs2 := CollisionShape3D.new()
-		var sp := SphereShape3D.new()
-		sp.radius = 3.4 if ci == 0 else 2.6
-		cs2.shape = sp
-		var ca := TAU * ci / 6.0
-		cs2.position = Vector3(0, top * 0.68, 0) if ci == 0 else Vector3(cos(ca) * 3.2, top * 0.6 + (ci % 2) * 1.2, sin(ca) * 3.2)
-		crown.add_child(cs2)
 	add_child(crown)
 	crown.global_position = tree_base
+	# the hull of the leaves themselves (hand-placed spheres left the lens inside the outer leaves for ~0.5 s at a
+	# time in the 35-min proof)
+	var pts := PackedVector3Array()
+	var low := INF
+	for mi in t.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for si in m.mesh.get_surface_count():
+			var src := m.mesh.surface_get_material(si)
+			if src == null or not String(src.resource_name).ends_with("_leaves"):
+				continue
+			var verts: PackedVector3Array = m.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]
+			var step := maxi(1, verts.size() / 1500)
+			for vi in range(0, verts.size(), step):
+				var g := m.global_transform * verts[vi]
+				if g.y - tree_base.y < 3.0:
+					continue          # the few low twigs: a hull down to them would cover the bed below
+				pts.append(g - tree_base)
+				low = minf(low, g.y - tree_base.y)
+	if pts.size() >= 4:
+		var cs2 := CollisionShape3D.new()
+		var hull := ConvexPolygonShape3D.new()
+		hull.points = pts
+		cs2.shape = hull
+		crown.add_child(cs2)
+		var space := get_world_3d().direct_space_state
+		var clear := 0
+		for o in [Vector3(0, 1.8, 0), Vector3(0, 2.6, 0), Vector3(2, 2.2, 0), Vector3(-2, 2.2, 0), Vector3(0, 2.2, 2), Vector3(0, 2.2, -2)]:
+			var qp := PhysicsPointQueryParameters3D.new()
+			qp.position = bed + o
+			qp.collision_mask = 4
+			if space.intersect_point(qp, 1).is_empty():
+				clear += 1
+		print("[starfall] crown hull from %d leaf points above %.1f m; lens room over the bed %d/6" % [pts.size(), low, clear])
 
 
 # ------------------------------------------------------------------ grass, flowers, plants
