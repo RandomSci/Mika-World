@@ -252,7 +252,9 @@ func _action(m: Dictionary) -> void:
 ## One server activity, done for real in this world. {ok, value?, reason?}
 func _do(action: String, args: Dictionary) -> Dictionary:
 	match action:
-		"dance", "dance_routine", "repeat_dance", "dance_session", "dance_session_start":
+		"dance_session_start":
+			return {"ok": true}           # one performance here holds the whole session (the server's next call starts it)
+		"dance", "dance_routine", "repeat_dance", "dance_session":
 			if main.performance == null:
 				return {"ok": false, "reason": "no_dance_system"}
 			var routine := String(args.get("routine", ""))
@@ -404,7 +406,7 @@ func _report(_force := false) -> void:
 		"currentActivity": String(cur.get("label", activity)), "capabilities": caps, "availableActions": CAPABILITIES, "objects": objects.slice(0, 40),
 		"spatial": {"zone": area, "region": String(WorldState.areas.get(area, {}).get("region", "")), "nearby": nearby.slice(0, 10),
 			"landmarks": main.world.points_of_interest.keys().slice(0, 20).map(func(k): return {"id": String(k), "label": String(main.world.points_of_interest[k].get("description", k)).left(60), "zone": area}) if main.get("world") else []},
-		"dance": {"busy": main.performance.busy() if main.performance else false, "qualityReady": true, "game": {"active": main.performance.busy() if main.performance else false}},
+		"dance": {"busy": main.performance.busy() if main.performance else false, "qualityReady": true, "game": {"active": main.performance.busy() if main.performance else false, "enabledRoutines": ROUTINES.keys()}},
 		"world": "a fantasy mage world (Godot): Mika and Luna, Level %d and %d" % [WorldState.mind("mika").level(), WorldState.mind("luna").level() if WorldState.minds.has("luna") else 1],
 		"clock": WorldState.clock_text(), "mageProgress": _mage_progress()}
 	# which characters are drawn here (the server's "Stage is loaded" check before it goes live)
