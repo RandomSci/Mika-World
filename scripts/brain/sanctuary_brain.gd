@@ -1728,7 +1728,8 @@ func _use(id: String) -> Dictionary:
 
 func _walk(target: Vector3, ignore_threat := false) -> bool:
 	for attempt in 2:
-		me.navigate_to(target, me.global_position.distance_to(target) > 14.0)
+		# she walks: a run only for a long way (every trip over 14 m used to be a dash - most of the sanctuary)
+		me.navigate_to(target, me.global_position.distance_to(target) > 45.0)
 		if me.current_action != "navigate_to":
 			if me.global_position.distance_to(target) < 2.0:
 				return true

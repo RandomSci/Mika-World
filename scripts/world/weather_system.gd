@@ -167,7 +167,11 @@ func raining() -> bool:
 ## Next weather when this spell of it is over (weighted by the region's leanings; a storm passes into rain).
 func _advance() -> void:
 	var wtr: Dictionary = WorldState.weather
-	if WorldState.world_min < float(wtr.get("until", 0.0)):
+	# (a spell never lasts past its longest roll: a time from before the real clock - in game-clock minutes, days
+	# ahead of real-clock world minutes - would hold one weather for days: the 2026-10-16 test stream sat 'overcast'
+	# under a starry sky while Mika complained about the clouds)
+	var left := float(wtr.get("until", 0.0)) - WorldState.world_min
+	if left > 0.0 and left <= 8.0 * 60.0:
 		return
 	var region := String(WorldState.areas.get(main.streaming.current_id, {}).get("region", "default"))
 	var bias: Dictionary = REGION_BIAS.get(region, REGION_BIAS.default)

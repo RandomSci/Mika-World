@@ -564,11 +564,13 @@ func _night_sky() -> void:
 	skm.set_shader_parameter("meteor_heading", deg_to_rad(5.0))
 	skm.set_shader_parameter("pano_energy", 2.0)
 	(world._sky_night as Sky).sky_material = skm
+	_night_skm = skm
 	(world._sky_night as Sky).process_mode = Sky.PROCESS_MODE_INCREMENTAL
 
 
 # ------------------------------------------------------------------ moonlight on the glade (night only)
 var _moon: SpotLight3D
+var _night_skm: ShaderMaterial
 
 
 ## A soft, cool key from high above the bed: at night the two of them, the grass and the flowers round them read on
@@ -596,6 +598,14 @@ func _process(delta: float) -> void:
 		return
 	_acc = 0.0
 	_update_light(false)
+	# clouds cover the stars: what viewers see matches the weather Mika talks about (overcast ~ half the stars,
+	# a storm nearly none)
+	var w = main.get("weather") if main else null
+	if _night_skm and w:
+		var clear := 1.0 - clampf(float(w.cloud), 0.0, 1.0) * 0.9
+		_night_skm.set_shader_parameter("pano_energy", 2.0 * clear)
+		_night_skm.set_shader_parameter("star_energy", 1.3 * clear)
+		_night_skm.set_shader_parameter("meteor_energy", 9.0 * clear * clear)
 
 
 func _update_light(force: bool) -> void:
