@@ -1,5 +1,10 @@
 {
  "version": 1,
+ "clock": {
+  "_note": "real_time: in normal play (and live) the world's day and night follow the real clock at utc_offset_h (the developer's own time, never named in speech); tests keep the game clock unless --real-clock. --clock-hour=H starts the real clock at hour H.",
+  "real_time": true,
+  "utc_offset_h": 8
+ },
  "start_location": "ritual_sanctuary",
  "regions": {
   "arcane_sanctuary": {
@@ -153,7 +158,12 @@
    ],
    "interior": true
   },
-  "wayside": {"region": "enchanted_forest", "scene": "res://scenes/areas/wayside.tscn", "generated": true, "note": "a stretch of an overland route, generated per route and km by the JourneyDirector (docs/WORLD_TRAVEL.md)"},
+  "wayside": {
+   "region": "enchanted_forest",
+   "scene": "res://scenes/areas/wayside.tscn",
+   "generated": true,
+   "note": "a stretch of an overland route, generated per route and km by the JourneyDirector (docs/WORLD_TRAVEL.md)"
+  },
   "whispering_woods": {
    "region": "arcane_sanctuary",
    "scene": "res://scenes/areas/whispering_woods.tscn",
@@ -170,7 +180,13 @@
   }
  },
  "locations": {
-  "the_road": {"area": "wayside", "region": "enchanted_forest", "name": "On the road", "description": "A stretch of an overland route between the regions.", "status": "playable"},
+  "the_road": {
+   "area": "wayside",
+   "region": "enchanted_forest",
+   "name": "On the road",
+   "description": "A stretch of an overland route between the regions.",
+   "status": "playable"
+  },
   "ritual_sanctuary": {
    "area": "sanctuary",
    "region": "arcane_sanctuary",
@@ -367,7 +383,10 @@
    "sanctuary",
    "academy",
    "ley-line portal (magical, only between the two schools of magic)",
-   {"sealed": true, "why": "the ley-line gate between the two schools has lain dormant for centuries; opening it is spatial magic no living student has mastered (see docs/WORLD_TRAVEL.md: teleportation is a discipline to be discovered, not a given)"}
+   {
+    "sealed": true,
+    "why": "the ley-line gate between the two schools has lain dormant for centuries; opening it is spatial magic no living student has mastered (see docs/WORLD_TRAVEL.md: teleportation is a discipline to be discovered, not a given)"
+   }
   ],
   [
    "ancient_grove",

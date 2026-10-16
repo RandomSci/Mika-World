@@ -471,7 +471,7 @@ func _report(_force := false) -> void:
 			"landmarks": main.world.points_of_interest.keys().slice(0, 20).map(func(k): return {"id": String(k), "label": String(main.world.points_of_interest[k].get("description", k)).left(60), "zone": area}) if main.get("world") else []},
 		"dance": {"busy": main.performance.busy() if main.performance else false, "qualityReady": true, "game": {"active": main.performance.busy() if main.performance else false, "enabledRoutines": ROUTINES.keys()}},
 		"world": "a fantasy mage world (Godot): Mika and Luna, Level %d and %d" % [WorldState.mind("mika").level(), WorldState.mind("luna").level() if WorldState.minds.has("luna") else 1],
-		"clock": WorldState.clock_text(), "mageProgress": _mage_progress(),
+		"clock": WorldState.time_phrase(), "nightTime": WorldState.daylight() < 0.2, "mageProgress": _mage_progress(),
 		"weather": ({"sky": main.weather.kind(), "raining": main.weather.raining(), "underCover": main.weather.sheltered_area()} if main.get("weather") else {})}
 	# which characters are drawn here (the server's "Stage is loaded" check before it goes live)
 	_send({"type": "vr-room-client-status", "loaded": main.characters.keys().filter(func(k): return (main.characters[k] as Node3D).visible), "failed": []})

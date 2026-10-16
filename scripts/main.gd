@@ -87,6 +87,8 @@ func _ready() -> void:
 	add_child(streaming)
 	# places to find (data/discoveries.json): set into each area as it opens, behind the travel card
 	streaming.before_reveal.append(func(): await Discoveries.populate(world))
+	# Starfall Hill: the great tree and its grass a short walk from where they first wake (sanctuary only)
+	streaming.before_reveal.append(func(): StarfallPlace.populate(self, world))
 	if not RenderProfile.options.has("no-grade"):
 		var grade := StreamGrade.new()
 		grade.name = "StreamGrade"

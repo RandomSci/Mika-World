@@ -87,6 +87,12 @@ func _voice() -> String:
 	return String(profile.get("voice", agent_id))
 
 
+## Night, and she lives at home (Levels 1-9) in the sanctuary with Starfall Hill: the hill is where the night is spent.
+func _night_home() -> bool:
+	return mind.level() <= 9 and WorldState.daylight() < 0.2 and StarfallPlace.instance != null and is_instance_valid(StarfallPlace.instance) \
+		and main.streaming.current_id == "sanctuary"
+
+
 func _allowed(kind: String) -> bool:
 	return (profile.get("activities", []) as Array).is_empty() or (profile.activities as Array).has(kind)
 
@@ -357,6 +363,20 @@ func options() -> Array:
 	# journal
 	if not Journal.compose(mind).is_empty():
 		out.append({"kind": "journal", "key": "journal", "label": "write in my journal"})
+	# Starfall Hill at night: its spots to wander to (the old tree, the glowing flowers, the view, the roots)
+	if _night_home():
+		var sp: Dictionary = StarfallPlace.instance.spots()
+		for sid in sp:
+			if sid == "bed":
+				continue
+			var s3: Dictionary = sp[sid]
+			if (s3.pos as Vector3).distance_to(me.global_position) > 2.0:
+				out.append({"kind": "roam", "key": "starfall:" + sid, "pos": s3.pos, "cand": {"describe": String(s3.label), "pos": s3.pos, "score": 0.5, "novelty": 0.3, "off_path": false, "features": {}},
+					"label": "wander over to %s" % String(s3.label)})
+	# Levels 1-9 live at home: by day in the sanctuary, at night on Starfall Hill - no expeditions, nothing that
+	# would take her to another area (the developer: "by day they stay in the sanctuary")
+	if mind.level() <= 9:
+		out = out.filter(func(o): return o.kind != "expedition" and String(o.get("area", "sanctuary")) in ["sanctuary", ""])
 	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend"])
 
 
@@ -531,7 +551,10 @@ func score(o: Dictionary) -> Dictionary:
 				u += needs.mastery * 0.3 - 0.1
 			if String(o.sub) == "stargaze_together":
 				u += 0.2 + 0.25 * (1.0 - needs.energy) + 0.1 * needs.social
-				if mind.knowledge.has("stargazed:" + main.streaming.current_id):
+				if _night_home():
+					u += 0.6                 # their night: lying on Starfall Hill watching the stars, every night
+					why.append("night on Starfall Hill +0.6")
+				elif mind.knowledge.has("stargazed:" + main.streaming.current_id):
 					u -= 0.15
 			var declined := float(mind.knowledge.get("declined_by:%s:%s" % [o.other, o.sub], 0.0))
 			if Time.get_unix_time_from_system() - declined < 900.0:
@@ -556,6 +579,14 @@ func score(o: Dictionary) -> Dictionary:
 			u = 0.2 + 0.055 * minf(unwritten, 14)
 			if unwritten >= 8:
 				why.append("%d things unwritten" % unwritten)
+	# at night (Levels 1-9) the hill is where they are: its spots draw her, the ruins' errands wait for the morning
+	if _night_home() and o.kind != "together":
+		if String(o.key).begins_with("starfall:"):
+			u += 0.35
+			why.append("night on Starfall Hill +0.35")
+		elif not (o.kind in ["recover", "hunt", "collect", "shelter", "meet", "journal"]):
+			u -= 0.25
+			why.append("night: the ruins can wait -0.25")
 	var temper := float(profile.get("temperament", {}).get(o.kind, 1.0))
 	if temper != 1.0 and u > 0.0:
 		u *= temper

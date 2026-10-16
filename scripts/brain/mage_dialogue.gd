@@ -25,7 +25,7 @@ const EMOTIONS := ["happy", "excited", "curious", "thoughtful", "playful", "prou
 const CALM := ["", "roam", "explore", "rest", "journal", "gather", "research", "attune", "together", "listen_rain", "investigate", "away"]
 const AMBIENT_GAP_S := 200.0          # at least this long after their last talk before a chat on the way
 const EVENT_GAP_S := 45.0             # a real event can start one sooner (but never over another talk)
-const MAX_LINES := {"meet": 8, "ambient": 4, "event": 4, "combat": 2}
+const MAX_LINES := {"meet": 8, "ambient": 4, "event": 4, "combat": 2, "stargaze": 7}
 
 var main: Node
 var active := false
@@ -328,7 +328,8 @@ func _gen(sp: String, ls: String, transcript: Array, seed: Dictionary, n: int, t
 	var me := MagicSystem.display_name(sp)
 	var other := MagicSystem.display_name(ls)
 	var situation: String = {"meet": "%s came over to talk" % (me if n % 2 == 1 else other), "ambient": "you are both nearby, each busy with your own thing, and talk in passing",
-		"event": "something just happened", "combat": "you are in the middle of a fight"}.get(mode, "")
+		"event": "something just happened", "combat": "you are in the middle of a fight",
+		"stargaze": "you are lying side by side in the grass on Starfall Hill under the old tree at night, looking up at the stars; speak softly"}.get(mode, "")
 	var sys := ("You are %s, %s. %s is your close friend; you live and study magic together in a fantasy world. You are face to face with her now (%s). Speak ONE short line out loud to her, as %s: usually 5 to 16 words, never more than %d. "
 		+ "If %s just said something, respond to exactly that first (answer her question, react, agree, disagree or tease). "
 		+ "Use only YOUR facts below and what was said in this conversation; never invent events, places, creatures or spells. "
@@ -387,6 +388,9 @@ func _seed(who: String, other: String) -> Dictionary:
 
 
 func _where() -> String:
+	var sf: StarfallPlace = StarfallPlace.instance
+	if sf and is_instance_valid(sf) and main.characters.has("mika") and sf.near((main.characters["mika"] as Node3D).global_position):
+		return "Starfall Hill, by the old tree, in the Arcane Sanctuary"
 	var area := String(main.streaming.current_id) if main.get("streaming") else ""
 	return String(WorldState.areas.get(area, {}).get("name", area.replace("_", " ")))
 
@@ -409,7 +413,7 @@ func _facts(who: String, other: String) -> Dictionary:
 			told.append(String(m.knowledge[k]))
 	var rel := MageTalk.rel(who, other)
 	var fx := {"name": MagicSystem.display_name(who), "level": m.level(), "title": Progression.title(m.level()), "rank": WorldState.mage_rank(who),
-		"doing_now": String(br.current.get("label", "taking a breather")) if br else "", "where": _where(), "time": WorldState.clock_text(),
+		"doing_now": String(br.current.get("label", "taking a breather")) if br else "", "where": _where(), "time": WorldState.time_phrase(),
 		"weather": main.weather.kind() if main.get("weather") else "", "stamina": "low" if m.vigor < 0.45 else "fine",
 		"things_you_did_lately": recent, "spells_you_can_cast": spells.slice(0, 8),
 		"your_memories_of_talking_with_" + MagicSystem.display_name(other): (m.knowledge.get("talks:" + other, []) as Array).slice(-5).map(func(t): return String(t.get("gist", ""))),

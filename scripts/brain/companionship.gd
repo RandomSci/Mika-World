@@ -472,25 +472,45 @@ func _stargaze_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary
 	lead.look_head_at(sky_a)
 	fol.look_head_at(sky_b)
 	await get_tree().create_timer(5.0).timeout
-	# a few words, real pauses, heads turning to whoever speaks
-	var beats := [[a, b, "stargaze_quiet", 4.0], [b, a, "stargaze_wonder", 1.0], [a, b, "stargaze_reply", 6.0], [a, b, "stargaze_wonder", 1.0], [b, a, "stargaze_reply", 7.0], [b, a, "stargaze_quiet", 5.0]]
 	var said := 0
-	for bt in beats:
-		var sp: SanctuaryBrain = bt[0]
-		var ls: SanctuaryBrain = bt[1]
-		var text := line(sp.agent_id, String(bt[2]))
-		if text == "...":
+	var dlg = main.mage_talk.dialogue if main.get("mage_talk") and main.mage_talk.get("dialogue") else null
+	if dlg and main.llm and main.llm.provider == "openai":
+		# a real conversation lying under the sky: each line from the speaker's own mind, answering the other
+		active.stage = "talking under the stars"
+		var c1: Dictionary = await dlg.converse(a.agent_id, b.agent_id, {"mode": "stargaze",
+			"topic": {"text": "the night sky above you on %s right now (the stars, the Milky Way, a shooting star if you see one), and whatever is on your mind tonight" % place, "key": ""}})
+		said += (c1.get("lines", []) as Array).size()
+		lead.look_head_at(sky_a)
+		fol.look_head_at(sky_b)
+		active.stage = "just watching"
+		await get_tree().create_timer(_rng.randf_range(14.0, 26.0)).timeout
+		if _rng.randf() < 0.6:
+			var who: SanctuaryBrain = b if _rng.randf() < 0.5 else a
+			var other: SanctuaryBrain = a if who == b else b
+			var c2: Dictionary = await dlg.converse(who.agent_id, other.agent_id, {"mode": "stargaze",
+				"topic": {"text": "something you have been thinking about while watching the sky in silence (a memory, a plan for tomorrow, a question for %s)" % MagicSystem.display_name(other.agent_id), "key": ""}})
+			said += (c2.get("lines", []) as Array).size()
+			lead.look_head_at(sky_a)
+			fol.look_head_at(sky_b)
+	else:
+		# without a language model: their authored lines, real pauses, heads turning to whoever speaks
+		var beats := [[a, b, "stargaze_quiet", 4.0], [b, a, "stargaze_wonder", 1.0], [a, b, "stargaze_reply", 6.0], [a, b, "stargaze_wonder", 1.0], [b, a, "stargaze_reply", 7.0], [b, a, "stargaze_quiet", 5.0]]
+		for bt in beats:
+			var sp: SanctuaryBrain = bt[0]
+			var ls: SanctuaryBrain = bt[1]
+			var text := line(sp.agent_id, String(bt[2]))
+			if text == "...":
+				await get_tree().create_timer(float(bt[3])).timeout
+				continue
+			sp.me.look_head_at(ls.me.global_position + Vector3(0, 0.25, 0))
+			ls.me.look_head_at(sp.me.global_position + Vector3(0, 0.25, 0))
+			active.stage = "%s speaks" % MagicSystem.display_name(sp.agent_id)
+			await _say(sp.agent_id, text)
+			said += 1
+			await get_tree().create_timer(0.8).timeout
+			sp.me.look_head_at(sky_a if sp == a else sky_b)
+			ls.me.look_head_at(sky_a if ls == a else sky_b)
 			await get_tree().create_timer(float(bt[3])).timeout
-			continue
-		sp.me.look_head_at(ls.me.global_position + Vector3(0, 0.25, 0))
-		ls.me.look_head_at(sp.me.global_position + Vector3(0, 0.25, 0))
-		active.stage = "%s speaks" % MagicSystem.display_name(sp.agent_id)
-		await _say(sp.agent_id, text)
-		said += 1
-		await get_tree().create_timer(0.8).timeout
-		sp.me.look_head_at(sky_a if sp == a else sky_b)
-		ls.me.look_head_at(sky_a if ls == a else sky_b)
-		await get_tree().create_timer(float(bt[3])).timeout
 	active.stage = "just watching"
 	await get_tree().create_timer(8.0).timeout
 	await _say(a.agent_id, line(a.agent_id, "stargaze_done"))

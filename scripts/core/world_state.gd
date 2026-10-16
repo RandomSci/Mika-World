@@ -31,6 +31,10 @@ var play_s := 0.0             # accumulated game seconds across sessions (habita
 ## on a restart it catches up on the real time that passed while the game was closed (capped).
 var world_min := 360.0
 var clock_rate := 0.5
+var real_clock := false           # the world's clock IS the real time (data/world.json clock.real_time, normal play / live)
+var real_utc_offset_h := 8.0
+var _real_shift_min := 0.0        # --clock-hour=H: the real clock shifted so it starts at hour H (tests)
+var real_day0 := -1.0             # the real local day the save began on (it is Day 1); saved
 var clock_boost := 1.0            # > 1 while a journey's road time passes (set by the JourneyDirector)
 var clock_catch_up := {}          # what the last load caught up: {real_s, world_min}
 signal hour_changed(day: int, hour: int)
@@ -83,6 +87,8 @@ func _init() -> void:
 	for a in areas:
 		adjacency.get_or_add(a, {})
 	discovered_locations[registry.start_location] = true
+	var ck: Dictionary = registry.get("clock", {})
+	real_utc_offset_h = float(ck.get("utc_offset_h", 8.0))
 	var sf := FileAccess.open("res://data/sanctuary.json", FileAccess.READ)
 	if sf:
 		sanctuary = JSON.parse_string(sf.get_as_text())
@@ -120,14 +126,28 @@ func _ready() -> void:
 	var sp := String(RenderProfile.options.get("save-path", ""))
 	if sp.begins_with("user://") and sp.ends_with(".json") and not sp.contains(".."):
 		save_path = sp
+	real_clock = bool(registry.get("clock", {}).get("real_time", false)) and (persistent or RenderProfile.options.has("real-clock")) \
+		and not RenderProfile.options.has("game-clock")
+	if RenderProfile.options.has("clock-hour"):
+		real_clock = true
+		var want := float(RenderProfile.options.get("clock-hour", "21")) * 60.0
+		_real_shift_min = want - fmod(_real_local_min(), 1440.0)
 	if persistent:
 		load_game()
+	if real_clock:
+		if real_day0 < 0.0:
+			real_day0 = floorf(_real_local_min() / 1440.0)
+		world_min = _real_local_min() - real_day0 * 1440.0
+		print("[clock] real time: day %d, %02d:%02d (%s)" % [day(), hour(), int(fmod(world_min, 60.0)), time_phrase()])
 	state_changed.connect(func(_e): _dirty = true)
 
 
 func _process(delta: float) -> void:
 	play_s += delta
-	world_min += delta * clock_rate * clock_boost
+	if real_clock:
+		world_min = _real_local_min() - real_day0 * 1440.0
+	else:
+		world_min += delta * clock_rate * clock_boost
 	var h := int(world_min / 60.0)
 	if h != _last_hour:
 		_last_hour = h
@@ -169,7 +189,7 @@ func save_data() -> Dictionary:
 		"npc_state": npc_state, "story_state": story_state, "activity_counts": activity_counts, "activity_seq": activity_seq, "activity_log": activity_log.slice(maxi(0, activity_log.size() - 200)),
 		"progress": minds["mika"].progress, "agents": _agents_data(),
 		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred,
-		"mika_explored": minds["mika"].explored, "habitats": habitats, "play_s": play_s, "world_min": world_min,
+		"mika_explored": minds["mika"].explored, "habitats": habitats, "play_s": play_s, "world_min": world_min, "real_day0": real_day0,
 		"journey": journey, "rivals": rivals, "weather": weather}
 
 
@@ -271,6 +291,7 @@ func _apply_save(d: Dictionary) -> void:
 	habitats = d.get("habitats", {})
 	play_s = float(d.get("play_s", 0.0))
 	world_min = float(d.get("world_min", world_min))
+	real_day0 = float(d.get("real_day0", -1.0))
 	journey = d.get("journey", {})
 	rivals = d.get("rivals", {})
 	weather = d.get("weather", {})
@@ -505,7 +526,42 @@ func daylight() -> float:
 
 ## Advance the world by `minutes` (a journey's road time, a night's sleep): everything that runs on the clock follows.
 func advance_clock(minutes: float) -> void:
+	if real_clock:
+		return                       # the real clock cannot be skipped: time passes as it really does
 	world_min += minutes
+
+
+## Real local minutes since the epoch at the configured UTC offset (+ the test shift).
+func _real_local_min() -> float:
+	return Time.get_unix_time_from_system() / 60.0 + real_utc_offset_h * 60.0 + _real_shift_min
+
+
+## How a person would say the time, never as digits or with a place: "around nine in the evening", "just after
+## midnight", "early in the morning". The mages read it from the sky; the developer's time zone is never named.
+func time_phrase() -> String:
+	var h := hour_f()
+	var words := ["twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"]
+	var near := int(roundf(h)) % 24
+	var n12: String = words[near % 12]
+	if h >= 23.5 or h < 0.75:
+		return "around midnight"
+	if h < 4.5:
+		return "deep in the night, around %s" % n12
+	if h < 6.0:
+		return "just before dawn"
+	if h < 7.5:
+		return "early in the morning, the sun just up"
+	if h < 11.5:
+		return "around %s in the morning" % n12
+	if h < 12.75:
+		return "around midday"
+	if h < 17.5:
+		return "around %s in the afternoon" % n12
+	if h < 19.25:
+		return "evening, the sun going down"
+	if h < 21.75:
+		return "around %s in the evening, the stars out" % n12
+	return "late at night, around %s" % n12
 
 
 func snapshot() -> Dictionary:

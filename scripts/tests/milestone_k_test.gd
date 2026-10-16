@@ -142,6 +142,8 @@ func _run() -> void:
 		"tremble": await _tremble()
 		"motionwatch": await _motionwatch()
 		"earshot": await _earshot()
+		"starfall_site": await _starfall_site()
+		"starfall_look": await _starfall_look()
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
 		_: _check(false, "unknown mode " + mode)
@@ -4784,3 +4786,92 @@ func _earshot() -> void:
 	_check(float(vals[0]) >= 0.99, "beside the camera she is heard in full (%s)" % JSON.stringify(out))
 	_check(float(vals[1]) < 0.9 and float(vals[1]) > 0.05, "further off she is fainter")
 	_check(float(vals[3]) == 0.0, "far away she is not heard at all")
+
+
+## --mktest=starfall_site: where near their first spawn Starfall Hill could stand - open (nothing solid within 8 m at
+## body height), gentle, a little raised, on the walkable ground. Prints the best candidates.
+func _starfall_site() -> void:
+	await _hold_all()
+	var w = main.world
+	var space: PhysicsDirectSpaceState3D = main.characters["mika"].get_world_3d().direct_space_state
+	var map: RID = main.characters["mika"].get_world_3d().navigation_map
+	var rows := []
+	for r in [18.0, 24.0, 30.0, 36.0, 42.0, 50.0, 60.0]:
+		for k in 24:
+			var a := TAU * k / 24.0
+			var x: float = cos(a) * float(r)
+			var z: float = 1.6 + sin(a) * float(r)
+			var hh: float = w.ground_at(x, z)
+			var slope := 0.0
+			var ring := 0.0
+			for j in 8:
+				var b := TAU * j / 8.0
+				var h2: float = w.ground_at(x + cos(b) * 4.0, z + sin(b) * 4.0)
+				slope = maxf(slope, absf(h2 - hh) / 4.0)
+				ring += float(w.ground_at(x + cos(b) * 12.0, z + sin(b) * 12.0))
+			var raised := hh - ring / 8.0
+			var sh := SphereShape3D.new()
+			sh.radius = 8.0
+			var q := PhysicsShapeQueryParameters3D.new()
+			q.shape = sh
+			q.transform = Transform3D(Basis.IDENTITY, Vector3(x, hh + 9.0, z))   # above the ground: only things standing up
+			q.collision_mask = 1 | 4
+			var hits := space.intersect_shape(q, 16).filter(func(hd): return not ((hd.collider as Node).is_in_group("cat_terrain") if hd.collider is Node else false))
+			var q2 := PhysicsShapeQueryParameters3D.new()
+			var sh2 := SphereShape3D.new()
+			sh2.radius = 8.0
+			q2.shape = sh2
+			q2.transform = Transform3D(Basis.IDENTITY, Vector3(x, hh + 1.2, z))
+			q2.collision_mask = 1 | 4
+			var low := space.intersect_shape(q2, 16).filter(func(hd): return hd.collider is Node and not (hd.collider as Node).is_in_group("cat_terrain") and not String((hd.collider as Node).name).to_lower().contains("terrain"))
+			var nav := NavigationServer3D.map_get_closest_point(map, Vector3(x, hh, z))
+			var navd := Vector2(nav.x - x, nav.z - z).length()
+			rows.append({"x": snappedf(x, 0.1), "z": snappedf(z, 0.1), "r": r, "h": snappedf(hh, 0.01), "slope": snappedf(slope, 0.01), "raised": snappedf(raised, 0.01),
+				"blocked": low.size(), "nav_off": snappedf(navd, 0.1), "area": String(w.area_at(Vector3(x, 0, z))) if w.has_method("area_at") else ""})
+	var ok := rows.filter(func(rr): return rr.blocked == 0 and rr.nav_off < 1.0 and rr.slope < 0.2)
+	ok.sort_custom(func(a, b): return (a.raised - a.slope * 2.0 - a.r * 0.01) > (b.raised - b.slope * 2.0 - b.r * 0.01))
+	print("[mktest] starfall_site candidates %d of %d" % [ok.size(), rows.size()])
+	for rr in ok.slice(0, 14):
+		print("[mktest] starfall_site ", JSON.stringify(rr))
+	_check(not ok.is_empty(), "an open, gentle spot near the spawn exists")
+
+
+## --mktest=starfall_look --clock-hour=H: Starfall Hill in the sanctuary at hour H - both lying at the bed, then the
+## camera from down the hill, close, from the tree, up at the sky. Stills: starfall_look_<hour>_<shot>.png.
+func _starfall_look() -> void:
+	await _hold_all()
+	var sf: StarfallPlace = StarfallPlace.instance
+	_check(sf != null and is_instance_valid(sf), "Starfall Hill is in the sanctuary")
+	if sf == null:
+		return
+	main.director.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var fwd := sf.bed - sf.tree_base
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var side := Vector3(-fwd.z, 0, fwd.x)
+	var map: RID = mika.get_world_3d().navigation_map
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, sf.bed + side * 0.6)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, sf.bed - side * 0.6)
+	mika.visible = true
+	luna.visible = true
+	for c in [mika, luna]:
+		c.look_at_point(c.global_position + fwd * 3.0)
+	await _wait(1.5)
+	mika.lie_down()
+	await luna.lie_down()
+	await _wait(2.5)
+	var hr := "%02d" % WorldState.hour()
+	print("[mktest] starfall_look hour %s night=%s daylight=%.2f phrase='%s'" % [hr, str(WorldState.night), WorldState.daylight(), WorldState.time_phrase()])
+	var shots := {"wide": [sf.bed + fwd * 13.0 + side * -2.5 + Vector3(0, 1.8, 0), sf.tree_base + Vector3(0, 5.0, 0), 55.0],
+		"medium": [sf.bed + fwd * 4.2 + side * 2.2 + Vector3(0, 1.7, 0), sf.bed + Vector3(0, 0.3, 0), 50.0],
+		"from_tree": [sf.tree_base + fwd * 1.2 + Vector3(0, 2.0, 0), sf.bed + fwd * 6.0 + Vector3(0, 0.5, 0), 55.0],
+		"sky": [sf.bed + fwd * 2.0 + Vector3(0, 1.0, 0), sf.bed + Vector3(0, 30.0, 0) - fwd * 25.0, 70.0]}
+	for nm in shots:
+		var sh: Array = shots[nm]
+		main.camera_rig.set_shot(sh[0], sh[1], float(sh[2]))
+		await _wait(1.8)
+		_shot("%s_%s" % [hr, nm])
+	var fps := Engine.get_frames_per_second()
+	_check(fps >= 28.0, "30 fps there (%.1f)" % fps)
