@@ -1,10 +1,23 @@
 class_name LookFX
 ## Per-look effects from the outfit design sheets (they are not models): glowing petals, leaves, star-flower sparks,
-## swirling wind, a comet trail, shadow wisps, moon glints, a golden halo ring, shadow flames.
+## swirling wind, a comet trail, shadow wisps, moon glints, a golden halo ring, shadow flames, gold sparkles, falling
+## blossom petals, glowing rune rings, a wind-and-leaf tornado (round her, or round her spear: "spear_wind").
 ## The transformation plays a look's effects at full strength around her (data/transformations.json "effects"); the
 ## look's appearance profile "aura" keeps a few of them around her softly while she wears it.
 
-const KINDS := ["petals", "leaves", "starflowers", "wind", "comet", "wisps", "moons", "halo", "flames"]
+const KINDS := ["petals", "leaves", "starflowers", "wind", "comet", "wisps", "moons", "halo", "flames", "sparkles", "blossoms", "runes", "tornado", "spear_wind"]
+
+static var _petal_mesh: QuadMesh
+
+
+static func petal_mesh() -> QuadMesh:
+	if _petal_mesh == null:
+		_petal_mesh = QuadMesh.new()
+		_petal_mesh.size = Vector2(0.05, 0.065)
+		var sm := ShaderMaterial.new()
+		sm.shader = load("res://shaders/magic/petal.gdshader")
+		_petal_mesh.material = sm
+	return _petal_mesh
 
 
 static func make(kind: String, col: Color, acc: Color, strength := 1.0) -> Node3D:
@@ -150,6 +163,89 @@ static func make(kind: String, col: Color, acc: Color, strength := 1.0) -> Node3
 			ring.rotation = Vector3(deg_to_rad(90.0), 0, 0)
 			n = Node3D.new()
 			n.add_child(ring)
+		"sparkles":
+			n = FX.particles(int(90 * strength), 1.1, FX.process("look_sparkles_%s" % col.to_html(), func(pm: ParticleProcessMaterial):
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+				pm.emission_sphere_radius = 1.1
+				pm.gravity = Vector3(0, 0.05, 0)
+				pm.initial_velocity_min = 0.0
+				pm.initial_velocity_max = 0.08
+				pm.scale_min = 0.25
+				pm.scale_max = 0.9
+				pm.color_ramp = FX.ramp([Color(col, 0.0), Color(1, 1, 1, 1.0), Color(col, 0.9), Color(acc, 0.0)], [0.0, 0.12, 0.45, 1.0])), FX.mote_mesh(0.05))
+		"blossoms":
+			n = FX.particles(int(70 * strength), 5.0, FX.process("look_blossoms_%s" % col.to_html(), func(pm: ParticleProcessMaterial):
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+				pm.emission_box_extents = Vector3(1.3, 0.1, 1.3)
+				pm.direction = Vector3(0.3, -1, 0.1)
+				pm.spread = 30.0
+				pm.initial_velocity_min = 0.1
+				pm.initial_velocity_max = 0.3
+				pm.gravity = Vector3(0.05, -0.28, 0.0)
+				pm.damping_min = 0.2
+				pm.damping_max = 0.5
+				pm.angle_min = -180.0
+				pm.angle_max = 180.0
+				pm.angular_velocity_min = -120.0
+				pm.angular_velocity_max = 120.0
+				pm.turbulence_enabled = true
+				pm.turbulence_noise_strength = 0.6
+				pm.turbulence_noise_scale = 2.5
+				pm.turbulence_influence_min = 0.05
+				pm.turbulence_influence_max = 0.12
+				pm.scale_min = 0.7
+				pm.scale_max = 1.3
+				pm.color_ramp = FX.ramp([Color(col, 0.0), Color(col, 1.0), Color(col.lerp(acc, 0.4), 0.9), Color(acc, 0.0)], [0.0, 0.1, 0.8, 1.0])), petal_mesh())
+		"runes":
+			n = Node3D.new()
+			for spec in [[2.3, 0.18, 6, 3.0, 0.02], [1.45, -0.32, 8, 7.0, 0.03], [1.1, 0.5, 5, 11.0, 1.0]]:
+				var q := FX.quad("res://shaders/magic/sigil.gdshader", spec[0], {"color": col, "spin": spec[1], "sides": spec[2], "seed": spec[3], "intensity": 0.9 * strength, "draw_progress": 1.0})
+				q.position = Vector3(0, spec[4], 0)
+				q.set_meta("base_intensity", 0.9 * strength)
+				n.add_child(q)
+		"tornado", "spear_wind":
+			var big: bool = kind == "tornado"
+			n = Node3D.new()
+			var wind := FX.particles(int((160 if big else 70) * strength), 0.9 if big else 0.7, FX.process("look_%s_wind_%s" % [kind, col.to_html()], func(pm: ParticleProcessMaterial):
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+				pm.emission_ring_axis = Vector3.UP
+				pm.emission_ring_radius = 0.75 if big else 0.16
+				pm.emission_ring_inner_radius = 0.35 if big else 0.08
+				pm.emission_ring_height = 0.3 if big else 1.1
+				pm.direction = Vector3.UP
+				pm.spread = 8.0
+				pm.initial_velocity_min = 1.6 if big else 0.2
+				pm.initial_velocity_max = 2.6 if big else 0.5
+				pm.gravity = Vector3.ZERO
+				pm.tangential_accel_min = 9.0 if big else 5.0
+				pm.tangential_accel_max = 14.0 if big else 8.0
+				pm.radial_accel_min = -1.5
+				pm.radial_accel_max = -0.5
+				pm.scale_min = 0.6
+				pm.scale_max = 1.2
+				pm.color_ramp = FX.ramp([Color(1, 1, 1, 0.0), Color(col.lerp(Color.WHITE, 0.6), 0.8), Color(col, 0.0)], [0.0, 0.3, 1.0])), FX.mote_mesh(0.04 if big else 0.025, true), true)
+			n.add_child(wind)
+			var lv := FX.particles(int((50 if big else 18) * strength), 1.1 if big else 0.8, FX.process("look_%s_leaves" % kind, func(pm: ParticleProcessMaterial):
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+				pm.emission_ring_axis = Vector3.UP
+				pm.emission_ring_radius = 0.6 if big else 0.14
+				pm.emission_ring_inner_radius = 0.3 if big else 0.06
+				pm.emission_ring_height = 0.2 if big else 1.0
+				pm.direction = Vector3.UP
+				pm.spread = 10.0
+				pm.initial_velocity_min = 1.2 if big else 0.2
+				pm.initial_velocity_max = 2.0 if big else 0.4
+				pm.gravity = Vector3.ZERO
+				pm.tangential_accel_min = 8.0 if big else 4.0
+				pm.tangential_accel_max = 12.0 if big else 7.0
+				pm.radial_accel_min = -1.0
+				pm.radial_accel_max = 0.0
+				pm.angular_velocity_min = -300.0
+				pm.angular_velocity_max = 300.0
+				pm.scale_min = 0.6
+				pm.scale_max = 1.1
+				pm.color_ramp = FX.ramp([Color(1, 1, 1, 0.0), Color(1, 1, 1, 1.0), Color(1, 1, 1, 0.0)], [0.0, 0.2, 1.0])), FX.leaf_mesh(0.07 if big else 0.045, "thin"), true)
+			n.add_child(lv)
 		_:
 			n = Node3D.new()
 	n.name = "LookFX_" + kind
@@ -171,8 +267,12 @@ static func follow(n: Node3D, c: WorldCharacter, t := -1.0) -> void:
 			var tt := t if t >= 0.0 else Time.get_ticks_msec() / 1000.0
 			var r := 1.2
 			n.global_position = base + Vector3(sin(tt * 2.6) * r, 1.0 + 0.6 * sin(tt * 0.9), cos(tt * 2.6) * r)
-		"flames", "wisps", "leaves", "wind":
+		"flames", "wisps", "leaves", "wind", "runes", "tornado":
 			n.global_position = base + Vector3(0, 0.05, 0)
+		"blossoms":
+			n.global_position = base + Vector3(0, 2.4, 0)
+		"spear_wind":
+			pass                                        # rides the weapon (child of the hand's weapon root)
 		_:
 			n.global_position = base + Vector3(0, 1.15, 0)
 
@@ -180,6 +280,14 @@ static func follow(n: Node3D, c: WorldCharacter, t := -1.0) -> void:
 static func set_on(n: Node3D, on: bool, fade := 1.0) -> void:
 	if n is GPUParticles3D:
 		(n as GPUParticles3D).emitting = on
+	elif String(n.get_meta("look_fx", "")) in ["tornado", "spear_wind"]:
+		for ch in n.get_children():
+			(ch as GPUParticles3D).emitting = on
+	elif String(n.get_meta("look_fx", "")) == "runes":
+		n.visible = on and fade > 0.01
+		for ch in n.get_children():
+			var mi := ch as MeshInstance3D
+			(mi.material_override as ShaderMaterial).set_shader_parameter("intensity", float(mi.get_meta("base_intensity", 1.0)) * clampf(fade, 0.0, 1.0))
 	elif String(n.get_meta("look_fx", "")) == "halo":
 		n.visible = fade > 0.01
 		var ring := n.get_child(0) as MeshInstance3D

@@ -33,6 +33,7 @@ var blade_root: Node3D
 var blade_mat: ShaderMaterial
 var blade_light: OmniLight3D
 var available := false
+var weapon_fx: Node3D
 var _combo_i := 0
 var _base_loco := {}
 
@@ -123,6 +124,13 @@ func _build_blade() -> void:
 		w.scale = Vector3.ONE * float(wp.get("scale", 1.0))
 		w.name = "LookWeapon"
 		blade_root.add_child(w)
+		# "fx": a LookFX kind that rides the weapon while it is drawn (e.g. "spear_wind": wind and leaves round the blade)
+		if wp.has("fx"):
+			var fc: Array = wp.get("fx_color", [0.75, 1.0, 0.85])
+			weapon_fx = LookFX.make(String(wp.fx), Color(fc[0], fc[1], fc[2]), Color(fc[0], fc[1], fc[2]), 1.0)
+			weapon_fx.position = Vector3(0, float(wp.get("fx_y", 0.6)), 0)
+			w.add_child(weapon_fx)
+			LookFX.set_on(weapon_fx, false)
 	blade_root.visible = false
 	set_element(element)
 
@@ -186,6 +194,8 @@ func draw() -> Dictionary:
 	_oneshot("draw")
 	await get_tree().create_timer(0.35).timeout
 	blade_root.visible = true
+	if weapon_fx:
+		LookFX.set_on(weapon_fx, true)
 	_set_loco(true)
 	_glow(0.25)
 	return {"ok": true, "detail": "sword drawn (%s)" % element}
@@ -196,6 +206,8 @@ func sheathe() -> Dictionary:
 		return {"ok": false, "detail": "sword not drawn"}
 	drawn = false
 	blade_root.visible = false
+	if weapon_fx:
+		LookFX.set_on(weapon_fx, false)
 	_set_loco(false)
 	return {"ok": true, "detail": "sword sheathed"}
 

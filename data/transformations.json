@@ -287,6 +287,34 @@
      "leaves",
      "comet"
     ]
+   },
+   "40": {
+    "form": "nebula",
+    "title": "Blossom Nebula Empress",
+    "incantation": "Flos nebulae, floresce!",
+    "translation": "Flower of the nebula, bloom!",
+    "color": [
+     1.0,
+     0.7,
+     0.88
+    ],
+    "accent": [
+     0.6,
+     0.55,
+     1.0
+    ],
+    "gesture": "spell_casting",
+    "pose": "prepare_and_cast",
+    "expression": "happy",
+    "motes": "bloom",
+    "petals": true,
+    "power": 0.45,
+    "surge_s": 60.0,
+    "effects": [
+     "blossoms",
+     "sparkles",
+     "starflowers"
+    ]
    }
   },
   "luna": {

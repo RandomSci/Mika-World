@@ -17,6 +17,11 @@ var sit_left := Vector3(0.12, 0.08, 0.27)    # hips space: on top of each thigh,
 var sit_right := Vector3(-0.12, 0.08, 0.27)
 var sit_pole := Vector3(0.34, 0.05, -0.05)
 var enabled := true
+## A floor-length ball gown (profile clearance.knee_max, degrees): while she stands, walks, runs or casts, her thighs
+## lift at most this far from her hips' down axis, so a raised knee (the lunging cast, a high running stride) stays
+## inside the gown instead of coming out through its front. Off while seated (the gown drapes over her lap). 0 = off.
+var knee_max := 0.0
+var _knee_w := 0.0
 var _idx := {}
 
 
@@ -31,6 +36,8 @@ static func attach(sk: Skeleton3D, cfg: Dictionary) -> ClothClearance:
 		cc.pole = Vector3(cfg.pole[0], cfg.pole[1], cfg.pole[2])
 	if cfg.has("sit_left"):
 		cc.sit_left = Vector3(cfg.sit_left[0], cfg.sit_left[1], cfg.sit_left[2])
+	if cfg.has("knee_max"):
+		cc.knee_max = float(cfg.knee_max)
 	if cfg.has("sit_right"):
 		cc.sit_right = Vector3(cfg.sit_right[0], cfg.sit_right[1], cfg.sit_right[2])
 	sk.add_child(cc)
@@ -53,6 +60,21 @@ func _process_modification() -> void:
 	var dt := get_process_delta_time() if is_inside_tree() else 0.016
 	var hx := sk.get_bone_global_pose(hips)
 	hx.basis = hx.basis.orthonormalized()
+	if knee_max > 0.0:
+		_knee_w = lerpf(_knee_w, 0.0 if seated else 1.0, 1.0 - exp(-6.0 * dt))
+		if _knee_w > 0.002:
+			var down := -hx.basis.y
+			for side in ["Left", "Right"]:
+				var ul := _bone(side + "UpperLeg")
+				var ll := _bone(side + "LowerLeg")
+				if ul < 0 or ll < 0:
+					continue
+				var th := (sk.get_bone_global_pose(ll).origin - sk.get_bone_global_pose(ul).origin).normalized()
+				var ax := down.cross(th)
+				if rad_to_deg(th.angle_to(down)) <= knee_max or ax.length() < 1e-5:
+					continue
+				var lim := down.rotated(ax.normalized(), deg_to_rad(knee_max))
+				_turn(sk, ul, th, th.slerp(lim, _knee_w))
 	for side in ["Left", "Right"]:
 		var ua := _bone(side + "UpperArm")
 		var la := _bone(side + "LowerArm")

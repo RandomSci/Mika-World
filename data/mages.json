@@ -20,6 +20,11 @@
      "id": "verdant",
      "name": "Verdant Comet Mage",
      "avatar": "res://assets/characters/mika/stages/l30_verdant/MikaVerdantComet_L30Outfit.vrm"
+    },
+    "40": {
+     "id": "nebula",
+     "name": "Blossom Nebula Empress",
+     "avatar": "res://assets/characters/mika/stages/l40_nebula/MikaBlossomNebula_L40Outfit.vrm"
     }
    },
    "voice": "mika",
