@@ -345,7 +345,10 @@ func _ready() -> void:
 			PortalFX.play(world, characters[focus].global_position, WorldState.areas.get(a, {}).get("region", ""), true))
 	if RenderProfile.options.has("viewer"):
 		set_viewer_mode(true)
-	curiosity = CuriosityModule.new()
+		# the stage on native Wayland draws its own title bar (libdecor): OBS window capture would put it on stream
+		if DisplayServer.get_name() == "Wayland":
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
+	curiosity =CuriosityModule.new()
 	curiosity.name = "CuriosityModule"
 	add_child(curiosity)
 	curiosity.setup(self)
