@@ -872,7 +872,7 @@ func _process(delta: float) -> void:
 	var mika: WorldCharacter = characters["mika"]
 	var it := nearest_interactable(1.5)
 	var human: bool = player.enabled and not (brain and brain.enabled)
-	prompt.text = ("E: " + it.label) if it and not it.busy and human else ""
+	prompt.text = ("E: " + it.label) if it and not it.busy and human and not viewer_mode else ""   # a player hint, never on stream
 	if _comment_until > 0.0:
 		comment_label.modulate.a = clampf((_comment_until - Time.get_ticks_msec() / 1000.0) / 0.8, 0.0, 1.0)
 	# rank tag: shown briefly whenever the rank changes; always visible in developer mode
