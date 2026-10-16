@@ -87,6 +87,20 @@ func _voice() -> String:
 	return String(profile.get("voice", agent_id))
 
 
+## Where she stands to use `it`: its approach point, a little further back for a wide gown (Luna's hem overlapped
+## the spell altar's base standing at the plain approach point; motion_profiles.json "stand_off", metres).
+func _stand_at(it) -> Vector3:
+	var p: Vector3 = it.approach_point()
+	var off := float(me.motion.get("stand_off", 0.0)) if me.get("motion") is Dictionary else 0.0
+	if off <= 0.0:
+		return p
+	var away := Vector3(p.x - it.global_position.x, 0, p.z - it.global_position.z)
+	if away.length() < 0.05:
+		return p
+	var map: RID = me.get_world_3d().navigation_map
+	return NavigationServer3D.map_get_closest_point(map, p + away.normalized() * off)
+
+
 ## Night, and she lives at home (Levels 1-9) in the sanctuary with Starfall Hill: the hill is where the night is spent.
 func _night_home() -> bool:
 	return mind.level() <= 9 and WorldState.daylight() < 0.2 and StarfallPlace.instance != null and is_instance_valid(StarfallPlace.instance) \
@@ -340,7 +354,7 @@ func options() -> Array:
 			if other_id == agent_id:
 				continue
 			var oc2: WorldCharacter = main.characters.get(other_id)
-			if oc2 == null or not oc2.visible or me.global_position.distance_to(oc2.global_position) > 35.0:
+			if oc2 == null or not oc2.visible or me.global_position.distance_to(oc2.global_position) > (60.0 if _night_home() else 35.0):
 				continue
 			if Time.get_unix_time_from_system() - float(mind.knowledge.get("together_last:" + other_id, 0.0)) < TOGETHER_COOLDOWN_S:
 				continue
@@ -352,7 +366,7 @@ func options() -> Array:
 				out.append({"kind": "together", "key": "together:spar:" + other_id, "other": other_id, "sub": "train_together",
 					"target": {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}}, "label": "ask %s to spar at the training grounds" % MagicSystem.display_name(other_id)})
 			var area_info: Dictionary = WorldState.areas.get(main.streaming.current_id, {})
-			if WorldState.night and float(needs.energy) > 0.25 and area_info.has("stargaze_spot"):
+			if WorldState.night and (float(needs.energy) > 0.25 or _night_home()) and area_info.has("stargaze_spot"):
 				var sp: Array = area_info.stargaze_spot
 				out.append({"kind": "together", "key": "together:stargaze:" + other_id, "other": other_id, "sub": "stargaze_together",
 					"target": {"pos": Vector3(sp[0], 0, sp[1]), "fill": {"place": String(area_info.get("stargaze_place", "the grass"))}},
@@ -371,7 +385,7 @@ func options() -> Array:
 				continue
 			var s3: Dictionary = sp[sid]
 			if (s3.pos as Vector3).distance_to(me.global_position) > 2.0:
-				out.append({"kind": "roam", "key": "starfall:" + sid, "pos": s3.pos, "cand": {"describe": String(s3.label), "pos": s3.pos, "score": 0.5, "novelty": 0.3, "off_path": false, "features": {}},
+				out.append({"kind": "roam", "key": "starfall:" + sid, "pos": s3.pos, "cand": {"describe": String(s3.label), "pos": s3.pos, "score": 0.5, "novelty": 0.3, "off_path": false, "features": {"props": 2, "relief": 0.2, "water": false}},
 					"label": "wander over to %s" % String(s3.label)})
 	# Levels 1-9 live at home: by day in the sanctuary, at night on Starfall Hill - no expeditions, nothing that
 	# would take her to another area (the developer: "by day they stay in the sanctuary")
@@ -971,7 +985,7 @@ func _journal() -> Dictionary:
 	if it == null and is_lead():
 		return {"ok": false, "detail": "the journal is in the sanctuary"}
 	if it:
-		await _walk(it.approach_point())
+		await _walk(_stand_at(it))
 	var entry := Journal.compose(mind)
 	if entry.is_empty():
 		return {"ok": false, "detail": "nothing new to write"}
@@ -1694,11 +1708,11 @@ func _use(id: String) -> Dictionary:
 	var it: Interactable = main.world.interactables.get(id)
 	if it == null:
 		return {"ok": false, "detail": "no '%s' in %s" % [id, main.streaming.current_id]}
-	if not await _walk(it.approach_point()):
+	if not await _walk(_stand_at(it)):
 		return {"ok": false, "detail": "could not reach %s" % it.label}
 	if not it.in_reach(me.global_position):
 		# the walk tolerance is looser than the interaction reach: close the last metre
-		await _walk(it.approach_point())
+		await _walk(_stand_at(it))
 	return await it.perform(me)
 
 

@@ -4752,6 +4752,7 @@ func _motionwatch() -> void:
 	await get_tree().create_timer(secs).timeout
 	var live := mw.report(12)
 	print("[mktest] motionwatch LIVING ", JSON.stringify(live))
+	print("[mktest] motionwatch CLIPS ", JSON.stringify(mw.clips))
 	var vp := get_viewport()
 	print("[mktest] motionwatch AA msaa_3d=%d scaling_mode=%d scale=%.2f taa=%s" % [vp.msaa_3d, vp.scaling_3d_mode, vp.scaling_3d_scale, str(vp.use_taa)])
 	for who in still:

@@ -557,8 +557,10 @@ func time_phrase() -> String:
 		return "around midday"
 	if h < 17.5:
 		return "around %s in the afternoon" % n12
-	if h < 19.25:
+	if h < 19.0:
 		return "evening, the sun going down"
+	if h < 20.0:
+		return "dusk, the first stars coming out"
 	if h < 21.75:
 		return "around %s in the evening, the stars out" % n12
 	return "late at night, around %s" % n12

@@ -195,6 +195,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_repair_colliders()
 	_shoulder_colliders()
 	_tune_springs()
+	if not RenderProfile.options.has("no-hem-floor"):
+		HemFloor.attach.call_deferred(self)          # the hem rests on the floor, never through it
 	avatar.name = "Avatar"
 	avatar.rotation.y = PI  # VRM 1.0 faces +Z; Godot forward is -Z
 	add_child(avatar)

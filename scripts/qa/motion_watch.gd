@@ -162,11 +162,88 @@ func _sample(who: String) -> void:
 				s[3] += off * off
 				s[4] += 1
 			prev[bn] = [p, d, ring]
+		_clip_check(c, sk, xf, st)
 	if RenderProfile.options.has("motion-watch"):
 		_acc += delta
 		if _acc >= _period:
 			_acc = 0.0
 			print("[motion] ", JSON.stringify(report(8)))
+			print("[clip] ", JSON.stringify(clips))
+
+
+# ------------------------------------------------------------------ the body inside walls / props
+const CLIP_BONES := ["Hips", "Spine", "Chest", "UpperChest", "Neck", "Head", "LeftUpperArm", "RightUpperArm", "LeftLowerArm",
+	"RightLowerArm", "LeftHand", "RightHand", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot"]
+var clips := {}                      # who -> {total_frames, clip_frames, by_bone: {bone: n}, by_thing: {name: n}, worst_m, events: []}
+var _clip_next := {}
+
+
+## Is a body part INSIDE something solid (a wall, a ruin, a prop, a tree) - not the ground she stands on? A point
+## query on the world layer at each body bone, plus the tips of her skirt / sleeves; the terrain does not count.
+func _clip_check(c: WorldCharacter, sk: Skeleton3D, xf: Transform3D, st: String) -> void:
+	var space := c.get_world_3d().direct_space_state
+	var rec: Dictionary = clips.get_or_add(c.character_id, {"total_frames": 0, "clip_frames": 0, "by_bone": {}, "by_thing": {}, "by_state": {}, "events": []})
+	rec.total_frames += 1
+	var names: Array = CLIP_BONES.duplicate()
+	if not _clip_next.has(c.character_id):
+		var extra := []
+		for bi in sk.get_bone_count():
+			var bn := sk.get_bone_name(bi)
+			if (bn.contains("Skirt") or bn.contains("Sleeve")) and (bn.ends_with("_end") or bn.ends_with("_4") or bn.ends_with("_7")):
+				extra.append(bn)
+		_clip_next[c.character_id] = extra
+	names.append_array(_clip_next[c.character_id])
+	var ex: Array[RID] = []
+	for o in main.characters.values():
+		if o is CollisionObject3D:
+			ex.append((o as CollisionObject3D).get_rid())
+	var hit_any := false
+	var hips_i := sk.find_bone("Hips")
+	var core: Vector3 = xf * sk.get_bone_global_pose(hips_i).origin if hips_i >= 0 else c.global_position + Vector3(0, 0.9, 0)
+	for bn in names:
+		var bi := sk.find_bone(bn)
+		if bi < 0:
+			continue
+		var p: Vector3 = xf * sk.get_bone_global_pose(bi).origin
+		# through a wall: a surface between her own body centre and this part (works for mesh walls too)
+		if bn != "Hips" and core.distance_to(p) > 0.05:
+			var rq := PhysicsRayQueryParameters3D.create(core, p, 1 | 4)
+			rq.exclude = ex
+			rq.hit_back_faces = true
+			var rh := space.intersect_ray(rq)
+			if not rh.is_empty() and rh.collider is Node:
+				var rn := String((rh.collider as Node).name)
+				if not ((rh.collider as Node).is_in_group("cat_terrain") or rn.to_lower().contains("terrain") or rn.to_lower().contains("ground")):
+					hit_any = true
+					rec.by_bone[bn] = int(rec.by_bone.get(bn, 0)) + 1
+					var th := "through " + rn + " (" + String((rh.collider as Node).get_parent().name if (rh.collider as Node).get_parent() else "") + ")"
+					rec.by_thing[th] = int(rec.by_thing.get(th, 0)) + 1
+					if rec.events.size() < 200 and (rec.events.is_empty() or _t - float(rec.events[-1].t) > 1.0):
+						rec.events.append({"t": snappedf(_t, 0.1), "bone": bn, "thing": th, "state": st, "action": c.current_action,
+							"depth_m": snappedf(((rh.position as Vector3) - p).length(), 0.01), "pos": [snappedf(p.x, 0.01), snappedf(p.y, 0.01), snappedf(p.z, 0.01)]})
+					continue
+		var q := PhysicsPointQueryParameters3D.new()
+		q.position = p
+		q.collision_mask = 1 | 4
+		q.exclude = ex
+		for h in space.intersect_point(q, 4):
+			var col = h.get("collider")
+			if col == null or not (col is Node):
+				continue
+			var nm := String((col as Node).name)
+			if (col as Node).is_in_group("cat_terrain") or nm.to_lower().contains("terrain") or nm.to_lower().contains("ground"):
+				continue
+			hit_any = true
+			rec.by_bone[bn] = int(rec.by_bone.get(bn, 0)) + 1
+			var thing := nm + " (" + String((col as Node).get_parent().name if (col as Node).get_parent() else "") + ")"
+			rec.by_thing[thing] = int(rec.by_thing.get(thing, 0)) + 1
+			if rec.events.size() < 200 and (rec.events.is_empty() or _t - float(rec.events[-1].t) > 1.0):
+				rec.events.append({"t": snappedf(_t, 0.1), "bone": bn, "thing": thing, "state": st, "action": c.current_action,
+					"pos": [snappedf(p.x, 0.01), snappedf(p.y, 0.01), snappedf(p.z, 0.01)]})
+			break
+	if hit_any:
+		rec.clip_frames += 1
+		rec.by_state[st] = int(rec.by_state.get(st, 0)) + 1
 
 
 ## {who: {state: {seconds, trembling: [...], worst: [{bone, group, rev_per_s, jerk}]}}}; fps is the sampling rate.

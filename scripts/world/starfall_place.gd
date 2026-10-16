@@ -167,6 +167,23 @@ func _tree() -> void:
 	body.add_child(cs)
 	add_child(body)
 	body.global_position = tree_base + Vector3(0, 2.0, 0)
+	# the crown, for the camera only (vegetation layer, high above their heads): the lens never ends up inside the
+	# dark leaves at night (the every-frame check found 1 s black stretches there)
+	var crown := StaticBody3D.new()
+	crown.name = "TreeCrown"
+	crown.collision_layer = 4
+	crown.collision_mask = 0
+	var top := TREE_H
+	for ci in 7:
+		var cs2 := CollisionShape3D.new()
+		var sp := SphereShape3D.new()
+		sp.radius = 3.4 if ci == 0 else 2.6
+		cs2.shape = sp
+		var ca := TAU * ci / 6.0
+		cs2.position = Vector3(0, top * 0.68, 0) if ci == 0 else Vector3(cos(ca) * 3.2, top * 0.6 + (ci % 2) * 1.2, sin(ca) * 3.2)
+		crown.add_child(cs2)
+	add_child(crown)
+	crown.global_position = tree_base
 
 
 # ------------------------------------------------------------------ grass, flowers, plants
