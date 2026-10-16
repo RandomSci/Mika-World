@@ -139,6 +139,9 @@ func _run() -> void:
 		"dance": await _dance()
 		"pacing": await _pacing()
 		"headwatch": await _headwatch()
+		"tremble": await _tremble()
+		"motionwatch": await _motionwatch()
+		"earshot": await _earshot()
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
 		_: _check(false, "unknown mode " + mode)
@@ -4626,3 +4629,139 @@ func _headwatch() -> void:
 			"lookat_time_pct": snappedf(float(d.by_driver.look_at[1]) / n * 100.0, 0.1), "turning_pct_by_activity": top}
 		print("[mktest] headwatch ", JSON.stringify(res))
 	_check(true, "head motion measured")
+
+
+## --mktest=tremble [--tremble-key=research:chamber_tablet]: Mika does one activity (default: read the Heartstone
+## tablet on the altar-chamber wall); every frame her body, hips, head and hands are sampled in the world. Jitter =
+## how often each part reverses direction at mm scale (a still pose has none, a tremble many) and its frame-to-frame
+## acceleration, while she does it vs idle before it. Writes <shots>/tremble.csv.
+func _tremble() -> void:
+	var key := String(RenderProfile.options.get("tremble-key", "research:chamber_tablet"))
+	await _hold_all()
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var c: WorldCharacter = main.characters["mika"]
+	var csv := FileAccess.open(RenderProfile.shots_dir + "/tremble.csv", FileAccess.WRITE)
+	csv.store_line("t,phase,act,stage,body_x,body_y,body_z,hips_x,hips_y,hips_z,head_x,head_y,head_z,rh_x,rh_y,rh_z,lh_x,lh_y,lh_z,vel")
+	var phase := ["idle"]
+	var t0 := _gms()
+	var sampler := func():
+		var sk := c.skeleton
+		var pts := [c.global_position]
+		for bn in ["Hips", "Head", "RightHand", "LeftHand"]:
+			var bi := sk.find_bone(bn)
+			pts.append(sk.global_transform * sk.get_bone_global_pose(bi).origin if bi >= 0 else Vector3.ZERO)
+		var row := "%.3f,%s,%s,%s" % [(_gms() - t0) / 1000.0, phase[0], c.current_action, String(mb.current.get("stage", "")).replace(",", ";")]
+		for p3 in pts:
+			row += ",%.5f,%.5f,%.5f" % [p3.x, p3.y, p3.z]
+		csv.store_line(row + ",%.3f" % c.velocity.length())
+	get_tree().process_frame.connect(sampler)
+	main.director.enabled = true
+	var mw := MotionWatch.attach(main)
+	await get_tree().create_timer(6.0).timeout
+	var pick := {}
+	for o in mb.ranked():
+		if String(o.key) == key:
+			pick = o
+	if pick.is_empty():
+		for o in mb.options():
+			if String(o.get("key", "")) == key:
+				pick = o
+	_check(not pick.is_empty(), "the activity %s is on offer" % key)
+	if not pick.is_empty():
+		phase[0] = "activity"
+		mb.current = {"kind": pick.kind, "label": pick.label, "key": pick.key, "stage": "starting"}
+		var r: Dictionary = await mb.run_activity(pick)
+		mb.current = {}
+		_check(bool(r.get("ok", false)), "she did it (%s)" % String(r.get("detail", "")).left(80))
+	phase[0] = "after"
+	await get_tree().create_timer(4.0).timeout
+	get_tree().process_frame.disconnect(sampler)
+	csv.close()
+	print("[mktest] tremble motion ", JSON.stringify(mw.report(8)))
+	print("[mktest] tremble csv written")
+
+
+## --mktest=motionwatch [--motionwatch-s=180] [--motionwatch-idle-s=40]: first both mages stand still (planners held)
+## so an idle tremble shows on its own, then they live normally; MotionWatch watches every bone the whole time.
+## FAILS when any bone trembles while they stand still.
+func _motionwatch() -> void:
+	var secs := float(RenderProfile.options.get("motionwatch-s", "180"))
+	var idle_s := float(RenderProfile.options.get("motionwatch-idle-s", "40"))
+	await _hold_all()
+	if RenderProfile.options.has("motionwatch-pair"):
+		await _stage_pair()              # both side by side, on camera
+	await get_tree().create_timer(3.0).timeout
+	await get_tree().create_timer(6.0).timeout        # whatever she was doing settles first (standing up, a gesture)
+	var mw := MotionWatch.attach(main)
+	await get_tree().create_timer(idle_s).timeout
+	var still := mw.report(12)
+	# at rest, which parts are still moving at all (mm/s), per mage - the restless chains by name
+	for who in mw.stats:
+		if who == "camera":
+			continue
+		var per: Dictionary = mw.stats[who].get("idle", {})
+		var sp := []
+		for bn in per:
+			var s5: Array = per[bn]
+			if s5.size() > 5 and int(s5[0]) > 30:
+				sp.append([bn, float(s5[5]) / float(s5[0])])
+		sp.sort_custom(func(a, b): return a[1] > b[1])
+		print("[mktest] motionwatch REST SPEED %s %s" % [who, JSON.stringify(sp.slice(0, 25).map(func(x): return "%s %.0f" % [x[0], x[1]]))])
+		var core := {}
+		for x in sp:
+			if String(x[0]) in ["_ROOT", "_SKELETON", "Hips", "Spine", "Chest", "UpperChest", "Neck", "Head", "LeftHand", "RightHand", "LeftFoot", "RightFoot"]:
+				core[x[0]] = snappedf(x[1], 1.0)
+		var cc: WorldCharacter = main.characters.get(who)
+		if cc and cc.anim_tree:
+			var params := {}
+			for pr in cc.anim_tree.get_property_list():
+				var nm := String(pr.name)
+				if nm.begins_with("parameters/"):
+					var v = cc.anim_tree.get(nm)
+					if v is float or v is int or v is bool or v is Vector2 or v is String or v is StringName:
+						params[nm.trim_prefix("parameters/")] = str(v)
+			var bt := cc.anim_tree.tree_root as AnimationNodeBlendTree
+			var ca = bt.get_node("cast_anim") if bt and bt.has_node("cast_anim") else null
+			print("[mktest] motionwatch CAST CLIP %s %s active=%s gesture_trace=%s" % [who, str(ca.animation) if ca else "?", str(cc.anim_tree.get("parameters/cast/active")), JSON.stringify(cc.get("gesture_trace") if cc.get("gesture_trace") else {})])
+		print("[mktest] motionwatch REST CORE %s %s action=%s anim=%s" % [who, JSON.stringify(core), cc.current_action if cc else "", str(cc.anim_tree.get("parameters/playback").get_current_node()) if cc and cc.anim_tree and cc.anim_tree.get("parameters/playback") else "?"])
+	print("[mktest] motionwatch STANDING STILL ", JSON.stringify(still))
+	for w in main.mage_brains:
+		main.mage_brains[w].hold = false
+		if not main.mage_brains[w].enabled:
+			main.mage_brains[w].set_enabled(true)
+	mw.reset()
+	await get_tree().create_timer(secs).timeout
+	var live := mw.report(12)
+	print("[mktest] motionwatch LIVING ", JSON.stringify(live))
+	for who in still:
+		var n := int(still[who].get("idle", {}).get("trembling_bones", 0))
+		_check(n == 0, "%s stands still without trembling (%d trembling bones: %s)" % [who, n, JSON.stringify(still[who].get("idle", {}).get("trembling_by_group", {}))])
+	for who in live:
+		var n2 := int(live[who].get("idle", {}).get("trembling_bones", 0))
+		_check(n2 == 0, "%s idles in her own life without trembling (%d trembling bones: %s)" % [who, n2, JSON.stringify(live[who].get("idle", {}).get("trembling_by_group", {}))])
+
+
+## --mktest=earshot: a mage's voice depends on where she is - full beside the camera, fainter further off, and not
+## heard at all far away (no audio, no subtitle).
+func _earshot() -> void:
+	await _hold_all()
+	var luna: WorldCharacter = main.characters["luna"]
+	var cam := get_viewport().get_camera_3d()
+	main.director.enabled = false
+	var map: RID = luna.get_world_3d().navigation_map
+	var flat := -cam.global_transform.basis.z
+	flat.y = 0.0
+	flat = flat.normalized()
+	var out := {}
+	for dist in [3.0, 15.0, 24.0, 40.0]:
+		var p := NavigationServer3D.map_get_closest_point(map, cam.global_position + flat * dist)
+		luna.global_position = p + Vector3(0, 0.05, 0)
+		await get_tree().create_timer(0.3).timeout
+		var d := cam.global_position.distance_to(luna.global_position + Vector3(0, 1.4, 0))
+		var h: float = main.voice.hearing("luna")
+		out["%.0f m" % d] = snappedf(h, 0.01)
+	print("[mktest] earshot ", JSON.stringify(out))
+	var vals: Array = out.values()
+	_check(float(vals[0]) >= 0.99, "beside the camera she is heard in full (%s)" % JSON.stringify(out))
+	_check(float(vals[1]) < 0.9 and float(vals[1]) > 0.05, "further off she is fainter")
+	_check(float(vals[3]) == 0.0, "far away she is not heard at all")

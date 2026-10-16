@@ -40,7 +40,7 @@ func setup(m: Node) -> void:
 		var p := AudioStreamPlayer3D.new()
 		p.bus = "SFX"
 		p.unit_size = 4.0
-		p.max_distance = 45.0
+		p.max_distance = 32.0       # the same earshot as their voices (VoiceService.HEAR_MAX_M): a spell across the valley is silent
 		p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 		add_child(p)
 		_pool3d.append(p)

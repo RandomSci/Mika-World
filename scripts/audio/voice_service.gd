@@ -46,6 +46,11 @@ const GEMINI_TIMEOUT := 28.0
 const GEMINI_QUOTA_PAUSE_S := 600.0
 const DEFAULT_PYTHON := "/home/selwyn/Documents/Mika-Live/tools/kokoro/.venv/bin/python"
 const DEFAULT_MODELS := "/home/selwyn/Documents/Mika-Live/models/kokoro"
+const LIVE_VOICES := {
+	"mika": {"provider": "kokoro", "voice": "af_heart:0.6,jf_alpha:0.4", "gain": 0.7, "speed": 1.0, "note": "live: heart + alpha (developer's pick 2026-10-16)"},
+	"luna": {"provider": "kokoro", "voice": "af_nicole", "gain": 0.7, "speed": 1.0, "note": "live: nicole (developer's pick 2026-10-16)"},
+}
+const GPU_PYTHON := "/home/selwyn/.cache/mika_qa/kokoro-gpu/bin/python"   # onnxruntime-gpu venv (optional)
 const GEMINI_INTERACTIONS := "https://generativelanguage.googleapis.com/v1beta/interactions"
 const IDENTITY_SHIPPED := "res://assets/voice"
 const IDENTITY_CACHE := "user://voice_cache"
@@ -68,6 +73,7 @@ var _queue: Array = []
 var _busy := false
 var _player: AudioStreamPlayer
 var _pid := -1
+var _restarting := false       # a Kokoro restart is in progress (one at a time)
 var _speakers := {}            # speaker id -> Node (WorldCharacter or NPC) for mouth movement
 var _cache := {}               # speaker|text -> PackedByteArray (wav) or "pending" (prefetch)
 var _cache_meta := {}          # speaker|text -> what synthesis reported (provider, identity, mood, cached ...)
@@ -102,11 +108,13 @@ func setup(m: Node) -> void:
 	if vf:
 		config = JSON.parse_string(vf.get_as_text())
 	_load_gemini_key()
-	# the live show: Mika-Live speaks Mika with its Kokoro voice, so her own lines here use that same voice (one
-	# voice per character on the stream; --live-voice=identity keeps her Gemini identity instead)
+	# the live show (developer's choice 2026-10-16, from the Kokoro voice picker): both mages speak with local Kokoro
+	# voices - unlimited and ~0.2 s a line on the GPU (the Gemini identities allow ~200 new lines a day). Mika's is the
+	# same voice Mika-Live speaks her chat answers with (room/characters/mika.yaml), so the stream has one Mika voice.
+	# --live-voice=identity keeps their Gemini identities instead.
 	if RenderProfile.options.has("live-link") and String(RenderProfile.options.get("live-voice", "kokoro")) == "kokoro":
-		config.get_or_add("speakers", {})["mika"] = {"provider": "kokoro", "voice": "af_bella:0.6,jf_alpha:0.4", "gain": 0.7, "speed": 1.0,
-			"note": "live: the same voice Mika-Live speaks her with (conf.yaml kokoro_tts)"}
+		config.get_or_add("speakers", {})["mika"] = LIVE_VOICES.mika.duplicate()
+		config.get_or_add("speakers", {})["luna"] = LIVE_VOICES.luna.duplicate()
 	if enabled:
 		_start_service()
 		if _uses_edge():
@@ -169,9 +177,15 @@ func _start_service() -> void:
 	if not FileAccess.file_exists(py) or not FileAccess.file_exists(models + "/kokoro-v1.0.onnx"):
 		status = "unavailable: Kokoro python/models not found (%s)" % py
 		return
-	_pid = OS.create_process(py, ["-B", "-I", script, "--port", str(PORT), "--model", models + "/kokoro-v1.0.onnx",
-		"--voices", models + "/voices-v1.0.bin", "--voice", VOICES.wandering_mage.voice, "--threads", "3", "--parent-pid", str(OS.get_process_id())])
-	for i in 60:
+	var args := ["-B", "-I", script, "--port", str(PORT), "--model", models + "/kokoro-v1.0.onnx",
+		"--voices", models + "/voices-v1.0.bin", "--voice", VOICES.wandering_mage.voice, "--threads", "3", "--parent-pid", str(OS.get_process_id())]
+	# the RTX GPU when its venv is there (onnxruntime-gpu): ~0.2 s a line instead of 3 s (idle CPU) to 25 s (busy CPU)
+	var gpu_py := OS.get_environment("MIKA_DEV_KOKORO_GPU_PYTHON") if OS.get_environment("MIKA_DEV_KOKORO_GPU_PYTHON") != "" else GPU_PYTHON
+	if FileAccess.file_exists(gpu_py) and not RenderProfile.options.has("kokoro-cpu"):
+		py = gpu_py
+		args.append_array(["--provider", "cuda"])
+	_pid = OS.create_process(py, args)
+	for i in 160:
 		await get_tree().create_timer(0.5).timeout
 		if await _health():
 			available = true
@@ -326,14 +340,34 @@ func _synthesize(speaker: String, text: String, res: Dictionary, opts := {}) -> 
 		body["phonemes"] = ipa
 		res["phonemes"] = true
 	var http := HTTPRequest.new()
-	http.timeout = 12.0
+	http.timeout = 25.0
 	add_child(http)
+	var t_k := Time.get_ticks_msec()
 	http.request("http://127.0.0.1:%d/synthesize" % PORT, ["Content-Type: application/json"], HTTPClient.METHOD_POST, JSON.stringify(body))
 	var r: Array = await http.request_completed
 	http.queue_free()
+	var k_ms := Time.get_ticks_msec() - t_k
 	if r[0] == HTTPRequest.RESULT_SUCCESS and r[1] == 200:
+		if k_ms > 4000:
+			print("[voice] kokoro slow: %d ms for %s (%d chars)" % [k_ms, speaker, text.length()])
 		return r[3]
 	res["error"] = "tts failed (result %d, http %d)" % [r[0], r[1]]
+	print("[voice] kokoro failed after %d ms for %s: %s (%s)" % [k_ms, speaker, res.error, text.left(60)])
+	# nothing listening (the service died, or another app's service held the port and went away): start ours
+	# again and try this line once more - a dead service must never turn speech into silent subtitles
+	if r[0] == HTTPRequest.RESULT_CANT_CONNECT and not opts.get("_retried", false):
+		if not _restarting:
+			_restarting = true
+			available = false
+			await _start_service()
+			_restarting = false
+		else:
+			while _restarting:
+				await get_tree().create_timer(0.25).timeout
+		var o2 := opts.duplicate()
+		o2["_retried"] = true
+		res.erase("error")
+		return await _synthesize(speaker, text, res, o2)
 	return PackedByteArray()
 
 
@@ -821,6 +855,11 @@ func react(speaker: String, kind := "laugh") -> Dictionary:
 			var p := AudioStreamPlayer.new()
 			p.bus = "Voice"
 			p.stream = stream
+			var hear_r := hearing(speaker)
+			if hear_r <= 0.0:
+				res["out_of_earshot"] = true
+				return res
+			p.volume_db = linear_to_db(hear_r)
 			add_child(p)
 			p.play()
 			var t0 := Time.get_ticks_msec()
@@ -865,6 +904,27 @@ func say(speaker: String, text: String, opts := {}) -> Dictionary:
 	while not job.done:
 		await get_tree().process_frame
 	return job.result
+
+
+const HEAR_FULL_M := 8.0     # within this distance of the camera a voice is at full level
+const HEAR_MAX_M := 30.0     # beyond this she is out of earshot (not heard, no subtitle)
+
+
+## 0..1: how loud `speaker` is where the camera is (1 within HEAR_FULL_M, fading to -24 dB at HEAR_MAX_M, 0 past
+## it). A speaker with no body in the world (a narrator, the show) is always 1.
+func hearing(speaker: String) -> float:
+	var who = _speakers.get(speaker)
+	var cam := get_viewport().get_camera_3d() if get_viewport() else null
+	if who == null or not is_instance_valid(who) or not (who is Node3D) or cam == null:
+		return 1.0
+	if (who as Node3D).has_method("is_visible_in_tree") and not (who as Node3D).is_visible_in_tree():
+		return 0.0                   # in another area / not in this world right now
+	var d := cam.global_position.distance_to((who as Node3D).global_position + Vector3(0, 1.4, 0))
+	if d <= HEAR_FULL_M:
+		return 1.0
+	if d >= HEAR_MAX_M:
+		return 0.0
+	return db_to_linear(-24.0 * (d - HEAR_FULL_M) / (HEAR_MAX_M - HEAR_FULL_M))
 
 
 func busy() -> bool:
@@ -932,12 +992,25 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 	if latency.samples.size() > 400:
 		latency.samples.pop_front()
 	var subtitle: bool = opts.get("subtitle", true)
+	# where she is: a mage far from the camera is heard faintly, or not at all (her incantation across the valley
+	# was as loud as one beside the lens). Mika-Live's own lines (the host talking to chat) always carry.
+	var hear := 1.0 if res.get("external", false) else hearing(speaker)
+	res["hearing"] = snappedf(hear, 0.01)
+	if hear <= 0.0:
+		var secs_far := clampf(text.split(" ").size() / 2.6, 1.0, 9.0)
+		await get_tree().create_timer(secs_far).timeout
+		res["audio"] = false
+		res["out_of_earshot"] = true
+		res["total_ms"] = Time.get_ticks_msec() - started
+		line_finished.emit(speaker, res)
+		return res
 	if wav.size() > 44:
 		var stream := AudioStreamWAV.load_from_buffer(wav)
 		var env := _envelope(wav)
 		_player.stream = stream
 		var bus := String(opts.get("bus", "Voice"))
 		_player.bus = bus if AudioServer.get_bus_index(bus) != -1 else "Voice"
+		_player.volume_db = linear_to_db(hear)
 		_player.play()
 		res["audio"] = true
 		res["fallback"] = false

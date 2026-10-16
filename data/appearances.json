@@ -112,8 +112,9 @@
         "hit_radius": 2.2
        },
        "HairRibbon": {
-        "stiffness": 3.0,
-        "drag": 1.2
+        "stiffness": 7.0,
+        "drag": 1.6,
+        "gravity": 1.3
        },
        "Sleeve": {
         "stiffness": 6.0,

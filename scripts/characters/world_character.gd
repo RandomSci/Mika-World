@@ -1392,7 +1392,13 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 
 
 ## Play a one-off body gesture (study, practice, look around...) through the same one-shot slot as casting.
+var gesture_trace := {}         # the last gesture asked for {clip, by, t} (QA: who started what she is doing)
+
+
 func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
+	if RenderProfile.options.has("trace-gaze") or RenderProfile.options.has("mktest"):
+		var st0 := get_stack()
+		gesture_trace = {"clip": clip, "by": ("%s:%d %s" % [String(st0[1].source).get_file(), int(st0[1].line), String(st0[1].function)]) if st0.size() > 1 else "?", "t": Time.get_ticks_msec()}
 	if (reaction and reaction.blocks_actions()) or casting or not CLIPS.has(clip) or not has_clip(clip):
 		return false
 	var bt := anim_tree.tree_root as AnimationNodeBlendTree

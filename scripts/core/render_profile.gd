@@ -144,6 +144,27 @@ func apply_to_viewport(vp: Viewport) -> void:
 	vp.use_taa = s.taa and not is_compatibility_renderer()
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if s.fxaa else Viewport.SCREEN_SPACE_AA_DISABLED
 	vp.msaa_3d = s.msaa
+	# --aa=fsr2|taa|msaa2|msaa4|fxaa|none: the anti-aliasing for this run only (A/B tests of edge shimmer)
+	match String(options.get("aa", "")):
+		"fsr2":
+			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2
+			vp.use_taa = false
+		"taa":
+			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+			vp.use_taa = true
+		"msaa2", "msaa4":
+			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+			vp.use_taa = false
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+			vp.msaa_3d = Viewport.MSAA_2X if String(options.aa) == "msaa2" else Viewport.MSAA_4X
+		"fxaa":
+			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+			vp.use_taa = false
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+		"none":
+			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+			vp.use_taa = false
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	vp.mesh_lod_threshold = s.lod_threshold
 	vp.anisotropic_filtering_level = Viewport.ANISOTROPY_8X
 	RenderingServer.directional_shadow_atlas_set_size(s.shadow_size, true)
