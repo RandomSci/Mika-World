@@ -426,6 +426,15 @@ func _ready() -> void:
 		var qa = load("res://scripts/tests/qa_reel.gd").new()
 		qa.main = self
 		add_child(qa)
+	elif RenderProfile.options.has("tfcontinuity"):
+		var tc = load("res://scripts/tests/tf_continuity_test.gd").new()
+		tc.main = self
+		add_child(tc)
+	elif RenderProfile.options.has("tfseq"):
+		travel._cooldown_until = 1e12
+		var tq = load("res://scripts/tests/tfseq_test.gd").new()
+		tq.main = self
+		add_child(tq)
 	elif RenderProfile.options.has("transformvideo"):
 		travel._cooldown_until = 1e12
 		var tv = load("res://scripts/tests/transform_video.gd").new()

@@ -287,10 +287,13 @@ func handle(req: Dictionary) -> Dictionary:
 					"attack": r = await c.sword.attack()
 					"power_up": r = await c.sword.power_up(String(req.get("element", "")))
 					"element": r = {"ok": c.sword.set_element(String(req.get("element", ""))), "detail": "element " + c.sword.element}
-					_: r = {"ok": false, "detail": "unknown sword action (draw|sheathe|attack|power_up|element)"}
+					"summon": r = await c.sword.summon(String(req.get("weapon", "")))
+					"mode": r = {"ok": c.sword.set_idle_mode(String(req.get("mode", "hold"))), "detail": "idle " + c.sword.idle_mode}
+					"arsenal": r = {"ok": true, "detail": "arsenal", "arsenal": WeaponArsenal.describe(cid)}
+					_: r = {"ok": false, "detail": "unknown sword action (draw|sheathe|attack|power_up|element|summon|mode|arsenal)"}
 				reply.merge(r)
 				reply["status"] = "done" if r.ok else "error"
-				reply["sword"] = {"drawn": c.sword.drawn, "element": c.sword.element}
+				reply["sword"] = {"drawn": c.sword.drawn, "element": c.sword.element, "weapon": c.sword.weapon_id, "idle": c.sword.idle_mode}
 		"probe_space":
 			# dev diagnostic: physics bodies overlapping a sphere around the character
 			var q := PhysicsShapeQueryParameters3D.new()
@@ -335,6 +338,15 @@ func handle(req: Dictionary) -> Dictionary:
 				var r3: Dictionary = await main.transformer.play(who2, String(req.get("version", "short")), preview)
 				reply.merge(r3)
 				reply["status"] = "done" if r3.get("ok", false) else "error"
+		"transformation":
+			# DEV test command: any character, any form, now (full | skip). preview (default) changes no progress
+			var who3 := String(req.get("who", cid))
+			var r4: Dictionary = await main.transformer.play(who3, String(req.get("mode", "full")), bool(req.get("preview", true)), int(req.get("level", 10)))
+			reply.merge(r4)
+			reply["status"] = "done" if r4.get("ok", false) else "error"
+		"transformation_skip":
+			var okk: bool = main.transformer.sequence.request_skip(String(req.get("by", "bridge")))
+			reply.merge({"ok": okk, "status": "done" if okk else "error"})
 		"spawn_monster":
 			var mon: Monster = main.spawner.spawn(String(req.get("kind", "")))
 			reply.merge({"ok": mon != null, "status": "done" if mon else "error", "monster": mon.id if mon else "", "error": "" if mon else "no valid spawn spot right now"})

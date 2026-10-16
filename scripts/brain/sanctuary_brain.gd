@@ -46,6 +46,8 @@ var needs := {"energy": 0.85, "curiosity": 0.7, "mastery": 0.6, "social": 0.4}
 var last_decision := {}
 var history: Array = []
 var current := {}              # the running activity {kind, label, key, stage, started}
+var last_choice := {}          # the option behind `current` (a transformation saves it to resume it)
+var resume_next := {}          # an activity to take up again first (set when a transformation interrupted it)
 var rng := RandomNumberGenerator.new()
 var _recent_kinds: Array[String] = []
 var _recent_targets: Array[String] = []
@@ -621,11 +623,13 @@ func _loop() -> void:
 			continue
 		if main.curiosity and is_lead() and is_foreground():
 			await main.curiosity.consult(self)        # LLM-capable: only for the followed mage
-		var scored := ranked()
+		var scored := ranked() if resume_next.is_empty() else [resume_next]
+		resume_next = {}
 		if scored.is_empty():
 			await get_tree().create_timer(2.0).timeout
 			continue
 		var choice: Dictionary = scored[0]
+		last_choice = choice
 		curiosity_bonus.clear()
 		if choice.kind == "magic":
 			viewer_request.erase(choice.spell)

@@ -34,6 +34,9 @@ var blade_mat: ShaderMaterial
 var blade_light: OmniLight3D
 var available := false
 var weapon_fx: Node3D
+var weapon_id := ""
+var idle_mode := "hold"
+var _swinging := false
 var _combo_i := 0
 var _base_loco := {}
 
@@ -113,26 +116,108 @@ func _build_blade() -> void:
 	# a look can bring its own weapon (appearance profile "weapon": {"model": glb with the blade along +Y and the grip's
 	# middle at the origin, "offset": [x, y, z], "scale": 1.0}); it replaces the procedural blade and hilt and, like
 	# them, is only shown while the sword is drawn
+	# her weapon: the one she chose / her current form's (WeaponArsenal), else the look's own (profile.weapon)
 	var wp: Dictionary = AppearanceRegistry.stage_for_avatar(character.character_id, character.avatar_path).get("profile", {}).get("weapon", {})
-	if wp.has("model") and ResourceLoader.exists(String(wp.model)):
-		for ch in blade_root.get_children():
-			if ch is MeshInstance3D:
-				ch.visible = false
-		var w: Node3D = (load(String(wp.model)) as PackedScene).instantiate()
-		var off: Array = wp.get("offset", [0, 0, 0])
-		w.position = Vector3(off[0], off[1], off[2])
-		w.scale = Vector3.ONE * float(wp.get("scale", 1.0))
-		w.name = "LookWeapon"
-		blade_root.add_child(w)
-		# "fx": a LookFX kind that rides the weapon while it is drawn (e.g. "spear_wind": wind and leaves round the blade)
-		if wp.has("fx"):
-			var fc: Array = wp.get("fx_color", [0.75, 1.0, 0.85])
-			weapon_fx = LookFX.make(String(wp.fx), Color(fc[0], fc[1], fc[2]), Color(fc[0], fc[1], fc[2]), 1.0)
-			weapon_fx.position = Vector3(0, float(wp.get("fx_y", 0.6)), 0)
-			w.add_child(weapon_fx)
-			LookFX.set_on(weapon_fx, false)
+	var cur := WeaponArsenal.current(character.character_id)
+	if cur != "":
+		var aw := WeaponArsenal.model_for(character.character_id, cur)
+		if not aw.is_empty():
+			wp = aw
+			weapon_id = cur
+	set_model(wp)
 	blade_root.visible = false
 	set_element(element)
+
+
+## A look's weapon (profile.weapon: {"model": glb with the blade along +Y and the grip's middle at the origin,
+## "offset", "scale", "fx": a LookFX kind riding it while drawn, "fx_color", "fx_y"}); {} = the procedural blade.
+func set_model(wp: Dictionary) -> void:
+	var old := blade_root.get_node_or_null("LookWeapon")
+	if old:
+		blade_root.remove_child(old)
+		old.queue_free()
+	weapon_fx = null
+	var has_model := wp.has("model") and ResourceLoader.exists(String(wp.model))
+	for ch in blade_root.get_children():
+		if ch is MeshInstance3D:
+			ch.visible = not has_model
+	if not has_model:
+		return
+	var w: Node3D = (load(String(wp.model)) as PackedScene).instantiate()
+	var off: Array = wp.get("offset", [0, 0, 0])
+	w.position = Vector3(off[0], off[1], off[2])
+	w.scale = Vector3.ONE * float(wp.get("scale", 1.0))
+	w.name = "LookWeapon"
+	blade_root.add_child(w)
+	# "fx": a LookFX kind that rides the weapon while it is drawn (e.g. "spear_wind": wind and leaves round the blade)
+	if wp.has("fx"):
+		var fc: Array = wp.get("fx_color", [0.75, 1.0, 0.85])
+		weapon_fx = LookFX.make(String(wp.fx), Color(fc[0], fc[1], fc[2]), Color(fc[0], fc[1], fc[2]), 1.0)
+		weapon_fx.position = Vector3(0, float(wp.get("fx_y", 0.6)), 0)
+		w.add_child(weapon_fx)
+		LookFX.set_on(weapon_fx, drawn)
+
+
+## Summon an unlocked weapon (any earlier form's): it appears in her hand with a burst of her element.
+func summon(id: String) -> Dictionary:
+	if not WeaponArsenal.unlocked(character.character_id).has(id):
+		return {"ok": false, "detail": "%s has not unlocked %s" % [character.character_id, id]}
+	var wp := WeaponArsenal.model_for(character.character_id, id)
+	if wp.is_empty():
+		return {"ok": false, "detail": "no model for " + id}
+	WeaponArsenal.choose(character.character_id, id)
+	weapon_id = id
+	set_model(wp)
+	var host: Node = character.get_parent()
+	var el := "nature" if character.character_id == "mika" else "umbral"
+	FX.burst(host, blade_root.global_position + Vector3(0, 0.4, 0), 60, 0.9, FX.pm_motes(el, "burst"), FX.mote_mesh(0.05))
+	if AudioDirector.instance:
+		AudioDirector.instance.play3d("spell_%s_activation" % el, character.global_position, "SFX", -6.0, "weapon_summon")
+	var r := {"ok": true, "detail": "summoned " + id}
+	if not drawn:
+		r = await draw()
+		r["detail"] = "summoned " + id
+	return r
+
+
+## Idle with the weapon out: "hold" (in her hand), "shoulder" (resting on her right shoulder), "float" (floating
+## beside her). Attacks always take it back into her hand.
+func set_idle_mode(m: String) -> bool:
+	if m not in ["hold", "shoulder", "float"]:
+		return false
+	idle_mode = m
+	_place_blade()
+	return true
+
+
+func _place_blade() -> void:
+	if blade_root == null:
+		return
+	var want: Node3D = character.right_hand
+	if idle_mode == "shoulder" and not _swinging:
+		want = character.chest
+	elif idle_mode == "float" and not _swinging:
+		want = character
+	if blade_root.get_parent() != want:
+		blade_root.get_parent().remove_child(blade_root)
+		want.add_child(blade_root)
+	if want == character.right_hand:
+		var y_axis := GRIP_AXIS.normalized()
+		var x_axis := Vector3(0, 0, 1).cross(y_axis).normalized()
+		var z_axis := x_axis.cross(y_axis).normalized()
+		blade_root.transform = Transform3D(Basis(x_axis, y_axis, z_axis), GRIP_PALM - y_axis * 0.07)
+	elif want == character.chest:
+		# diagonal across her back, the haft resting on her right shoulder
+		blade_root.transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(10), 0, deg_to_rad(-38))), Vector3(-0.12, -0.05, -0.13))
+	else:
+		blade_root.transform = Transform3D(Basis.from_euler(Vector3(0, 0, deg_to_rad(8))), Vector3(-0.55, 0.55, 0.1))
+
+
+func _process(_delta: float) -> void:
+	if available and drawn and idle_mode == "float" and not _swinging and blade_root.get_parent() == character:
+		var tt := Time.get_ticks_msec() / 1000.0
+		blade_root.position = Vector3(-0.55, 0.55 + 0.05 * sin(tt * 1.6), 0.1)
+		blade_root.rotation.y = tt * 0.6
 
 
 ## Flattened diamond blade along +Y with a pointed tip; UV.x across, UV.y along.
@@ -194,6 +279,7 @@ func draw() -> Dictionary:
 	_oneshot("draw")
 	await get_tree().create_timer(0.35).timeout
 	blade_root.visible = true
+	_place_blade()
 	if weapon_fx:
 		LookFX.set_on(weapon_fx, true)
 	_set_loco(true)
@@ -217,11 +303,15 @@ func attack() -> Dictionary:
 		return {"ok": false, "detail": "draw the sword first" if not drawn else "busy casting"}
 	var role: String = COMBO[_combo_i % COMBO.size()]
 	_combo_i += 1
+	_swinging = true
+	_place_blade()
 	_oneshot(role)
 	_glow(0.7)
 	var len := character.body_player.get_animation("sw/" + role).length
 	await get_tree().create_timer(len * 0.8).timeout
 	_glow(0.25)
+	_swinging = false
+	_place_blade()
 	return {"ok": true, "detail": "sword " + role}
 
 

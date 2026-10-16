@@ -111,7 +111,9 @@ func _process(delta: float) -> void:
 			ws.inbound_buffer_size = 16 * 1024 * 1024
 			ws.outbound_buffer_size = 1024 * 1024
 			ws.connect_to_url(url)
-	if not _speaking and not _speech.is_empty():
+	# viewer replies wait while a transformation plays (zero speech over it), then resume
+	var tf_busy: bool = main.transformer != null and main.transformer.playing != ""
+	if not _speaking and not _speech.is_empty() and not tf_busy:
 		_play_next()
 
 
@@ -195,6 +197,10 @@ var _card_id := ""
 
 
 func _chat_card(m: Dictionary) -> void:
+	# a viewer typed "skip" during a transformation she has shown once in full: the short version
+	if bool(m.get("active", false)) and String(m.get("message", "")).strip_edges().to_lower().trim_prefix("!") == "skip":
+		if main.transformer and main.transformer.sequence and main.transformer.sequence.request_skip(String(m.get("author", "viewer"))):
+			return
 	if not bool(m.get("active", false)):
 		if _card and (String(m.get("id", "")) == _card_id or _card_id == ""):
 			_card.visible = false

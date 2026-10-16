@@ -1,0 +1,2411 @@
+{
+ "_note": "TransformationSequence data (scripts/transform/transformation_sequence.gd): the shared beat sheet, per character item / call / colours / music / final pose, and per form its dimension, signature moment, weapon and which outfit pieces the signature builds. Forms without a 3D outfit yet play with the latest ready look as a placeholder (AppearanceRegistry): drop the GLB-built VRM in and register its stage to replace it. Written by ~/Downloads/Mika-Transformation-Lab/tools/gen_tfseq_data.py.",
+ "timing": {
+  "full": {
+   "length": 40.0,
+   "trigger": 0.0,
+   "shatter": 0.35,
+   "black": 1.0,
+   "hand": 1.3,
+   "circle": 1.9,
+   "item": 2.4,
+   "item_open": 2.9,
+   "burst": 3.4,
+   "music_at": 3.4,
+   "nails": 3.6,
+   "call": 4.0,
+   "eyes": 5.6,
+   "head": 7.0,
+   "profile": 7.8,
+   "reveal": 8.6,
+   "chest": 11.2,
+   "top": 13.0,
+   "hair": 15.4,
+   "arms": 16.8,
+   "legs": 19.2,
+   "skirt": 21.6,
+   "crown": 23.8,
+   "signature": 26.0,
+   "weapon": 31.0,
+   "catch": 33.0,
+   "final": 33.6,
+   "splash": 35.0,
+   "freeze": 35.8,
+   "title": 35.9,
+   "flashback": 38.3,
+   "land": 38.5,
+   "end": 40.0
+  },
+  "skip": {
+   "length": 8.0,
+   "trigger": 0.0,
+   "shatter": 0.2,
+   "black": 0.5,
+   "hand": 0.6,
+   "item": 0.7,
+   "call": 0.85,
+   "burst": 1.2,
+   "music_at": 1.2,
+   "build": 1.6,
+   "build_end": 4.2,
+   "weapon": 4.2,
+   "catch": 4.8,
+   "final": 5.2,
+   "title": 6.2,
+   "flashback": 7.2,
+   "land": 7.35,
+   "end": 8.0
+  }
+ },
+ "cine": {
+  "full": {
+   "fall": 3.0,
+   "ignite": 2.6,
+   "sphere": 2.2,
+   "cracks": 5.6,
+   "crown": 1.6,
+   "wings": 2.8,
+   "weapon": 4.6,
+   "burst": 2.6,
+   "finale": 2.6,
+   "return": 1.8
+  },
+  "skip": {
+   "fall": 1.0,
+   "ignite": 1.0,
+   "cracks": 2.6,
+   "weapon": 1.2,
+   "burst": 1.0,
+   "return": 1.2
+  }
+ },
+ "characters": {
+  "mika": {
+   "item": "star_flower_brooch",
+   "call": "res://assets/audio/transform_seq/mika_call.wav",
+   "call_text": "Starlight Bloom, Make Up!",
+   "name": "MIKA",
+   "element": "wind",
+   "music": "tfseq_mika_full",
+   "music_skip": "tfseq_mika_skip",
+   "glow": [
+    0.12,
+    0.36,
+    1.0
+   ],
+   "glow2": [
+    0.0,
+    0.82,
+    0.58
+   ],
+   "glow3": [
+    1.0,
+    0.82,
+    0.36
+   ],
+   "nail": [
+    0.1,
+    0.95,
+    0.62
+   ],
+   "stream": "wind",
+   "streaks": [
+    [
+     0.06,
+     0.32,
+     1.0
+    ],
+    [
+     0.0,
+     0.85,
+     0.52
+    ],
+    [
+     1.0,
+     0.78,
+     0.2
+    ],
+    [
+     0.0,
+     0.72,
+     1.0
+    ]
+   ],
+   "col_top": [
+    0.12,
+    0.03,
+    0.34
+   ],
+   "col_mid": [
+    0.03,
+    0.08,
+    0.46
+   ],
+   "col_bot": [
+    0.01,
+    0.02,
+    0.15
+   ],
+   "symbols": [
+    "starflower",
+    "leaf"
+   ],
+   "grade": {
+    "tint": [
+     1.0,
+     0.99,
+     1.02
+    ],
+    "saturation": 1.05,
+    "contrast": 1.06
+   },
+   "splash": "petal",
+   "splash_col": [
+    0.4,
+    0.9,
+    1.0
+   ],
+   "final": {
+    "pose": "final_mika",
+    "expression": "happy",
+    "wink": true
+   },
+   "gold": [
+    1.0,
+    0.6,
+    0.18
+   ],
+   "gold_hot": [
+    1.0,
+    0.9,
+    0.66
+   ],
+   "accent": [
+    0.12,
+    0.85,
+    0.5
+   ],
+   "sky_yaw": 0.0
+  },
+  "luna": {
+   "item": "crescent_locket",
+   "call": "res://assets/audio/transform_seq/luna_call.wav",
+   "call_text": "Lunar Shadow, Make Up!",
+   "name": "LUNA",
+   "element": "shadow",
+   "music": "tfseq_luna_full",
+   "music_skip": "tfseq_luna_skip",
+   "glow": [
+    0.52,
+    0.18,
+    1.0
+   ],
+   "glow2": [
+    0.0,
+    0.72,
+    0.76
+   ],
+   "glow3": [
+    1.0,
+    0.78,
+    0.3
+   ],
+   "nail": [
+    1.0,
+    0.76,
+    0.28
+   ],
+   "stream": "shadow",
+   "streaks": [
+    [
+     0.5,
+     0.08,
+     0.95
+    ],
+    [
+     0.0,
+     0.72,
+     0.7
+    ],
+    [
+     1.0,
+     0.74,
+     0.18
+    ],
+    [
+     0.82,
+     0.08,
+     0.62
+    ]
+   ],
+   "col_top": [
+    0.14,
+    0.02,
+    0.3
+   ],
+   "col_mid": [
+    0.04,
+    0.05,
+    0.36
+   ],
+   "col_bot": [
+    0.01,
+    0.01,
+    0.1
+   ],
+   "symbols": [
+    "crescent",
+    "rune"
+   ],
+   "grade": {
+    "tint": [
+     1.0,
+     0.98,
+     1.03
+    ],
+    "saturation": 1.05,
+    "contrast": 1.06
+   },
+   "splash": "crescent",
+   "splash_col": [
+    1.0,
+    0.8,
+    0.35
+   ],
+   "final": {
+    "pose": "final_luna",
+    "expression": "neutral",
+    "wink": false
+   },
+   "gold": [
+    1.0,
+    0.58,
+    0.22
+   ],
+   "gold_hot": [
+    1.0,
+    0.88,
+    0.7
+   ],
+   "accent": [
+    0.62,
+    0.36,
+    1.0
+   ],
+   "sky_yaw": 40.0
+  }
+ },
+ "forms": {
+  "mika": {
+   "10": {
+    "title": "Starbloom Ascendant",
+    "tier": 1,
+    "dimension": {
+     "sky": {},
+     "ground": {
+      "mode": 0,
+      "col_a": [
+       0.011,
+       0.017,
+       0.055
+      ],
+      "col_b": [
+       0.066,
+       0.077,
+       0.22
+      ]
+     },
+     "figures": [
+      {
+       "id": "sky1",
+       "kind": "constellation",
+       "shape": "wolf_howl",
+       "size": 14,
+       "at": [
+        -14,
+        10,
+        30
+       ],
+       "col": [
+        0.75,
+        0.95,
+        1.0
+       ],
+       "progress": 0.0
+      }
+     ],
+     "particles": []
+    },
+    "signature": {
+     "kind": "bloom_burst",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "pose",
+       "name": "item_front"
+      },
+      {
+       "t": 0.2,
+       "do": "figure",
+       "id": "sky1",
+       "to": 1.0,
+       "dur": 3.5
+      },
+      {
+       "t": 0.6,
+       "do": "bloom_flower"
+      },
+      {
+       "t": 2.2,
+       "do": "burst",
+       "kind": "petal",
+       "amount": 4.0
+      },
+      {
+       "t": 2.2,
+       "do": "burst",
+       "kind": "petal",
+       "amount": 3.0
+      },
+      {
+       "t": 2.2,
+       "do": "flash",
+       "col": [
+        1.0,
+        0.85,
+        0.95
+       ],
+       "a": 0.55,
+       "dur": 0.35
+      },
+      {
+       "t": 2.2,
+       "do": "sfx",
+       "name": "tf_sparkle"
+      },
+      {
+       "t": 2.6,
+       "do": "pose",
+       "name": "arms_wide"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "push",
+       "r": [
+        1.4,
+        0.8
+       ],
+       "h": 0.12,
+       "look": "hands",
+       "fov": 38
+      },
+      {
+       "t": 2.2,
+       "type": "orbit",
+       "r": 3.4,
+       "h": 0.12,
+       "speed": 0.55,
+       "look": "chest",
+       "fov": 50
+      }
+     ]
+    },
+    "weapon": null,
+    "pieces": {}
+   },
+   "20": {
+    "title": "Gale Knight",
+    "tier": 2,
+    "dimension": {
+     "sky": {
+      "clouds": 0.9,
+      "cloud_speed": 0.12,
+      "vortex": 0.36,
+      "cloud_col": [
+       0.08,
+       0.12,
+       0.3
+      ],
+      "cloud_lit": [
+       0.14,
+       0.22,
+       0.52
+      ]
+     },
+     "ground": {
+      "mode": 4,
+      "col_a": [
+       0.303,
+       0.341,
+       0.396
+      ],
+      "col_b": [
+       0.506,
+       0.522,
+       0.55
+      ]
+     },
+     "figures": [
+      {
+       "id": "wolf",
+       "kind": "constellation",
+       "shape": "wolf_howl",
+       "size": 20,
+       "at": [
+        10,
+        9,
+        30
+       ],
+       "col": [
+        0.75,
+        0.95,
+        1.0
+       ]
+      }
+     ],
+     "particles": [
+      {
+       "kind": "wind",
+       "layer": "mid",
+       "strength": 0.77
+      },
+      {
+       "kind": "leaves",
+       "layer": "bg",
+       "strength": 0.64
+      }
+     ]
+    },
+    "signature": {
+     "kind": "wind_armor",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "figure",
+       "id": "wolf",
+       "to": 1.0,
+       "dur": 2.5
+      },
+      {
+       "t": 0.3,
+       "do": "slashes"
+      },
+      {
+       "t": 0.3,
+       "do": "sfx",
+       "name": "tf_whoosh_big"
+      },
+      {
+       "t": 1.0,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.6,
+       "chunks": 4,
+       "sfx": "tf_metal"
+      },
+      {
+       "t": 3.8,
+       "do": "cape_snap"
+      },
+      {
+       "t": 3.8,
+       "do": "sfx",
+       "name": "tf_whoosh_big"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 3.0,
+       "h": 0.12,
+       "speed": 1.4,
+       "look": "chest",
+       "fov": 46
+      },
+      {
+       "t": 3.6,
+       "type": "low",
+       "r": 2.6,
+       "h": 0.4,
+       "look": "chest",
+       "fov": 52
+      }
+     ]
+    },
+    "weapon": {
+     "form": "wind",
+     "point_at_camera": true
+    },
+    "pieces": {
+     "L1_Bodice": "signature",
+     "L1_Arm": "signature",
+     "L1_Cape": "signature"
+    }
+   },
+   "30": {
+    "title": "Verdant Comet Mage",
+    "tier": 3,
+    "dimension": {
+     "sky": {},
+     "ground": {
+      "mode": 0,
+      "col_a": [
+       0.006,
+       0.028,
+       0.022
+      ],
+      "col_b": [
+       0.033,
+       0.121,
+       0.099
+      ]
+     },
+     "props": [
+      {
+       "kind": "trees",
+       "count": 6,
+       "radius": 16,
+       "col": [
+        0.5,
+        1.0,
+        0.75
+       ]
+      },
+      {
+       "id": "circle",
+       "kind": "magic_circle",
+       "size": 4.5,
+       "col": [
+        0.55,
+        1.0,
+        0.7
+       ],
+       "col2": [
+        0.9,
+        1.0,
+        0.6
+       ],
+       "hidden": true
+      }
+     ],
+     "particles": [
+      {
+       "kind": "leaves",
+       "layer": "mid",
+       "strength": 0.55
+      },
+      {
+       "kind": "comet",
+       "layer": "bg",
+       "strength": 0.64
+      }
+     ]
+    },
+    "signature": {
+     "kind": "comet_dive",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "comet"
+      },
+      {
+       "t": 1.0,
+       "do": "flash",
+       "col": [
+        0.6,
+        1.0,
+        0.7
+       ],
+       "a": 0.85,
+       "dur": 0.4
+      },
+      {
+       "t": 1.0,
+       "do": "sfx",
+       "name": "tf_impact"
+      },
+      {
+       "t": 1.1,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.2
+      },
+      {
+       "t": 1.2,
+       "do": "burst",
+       "kind": "leaf",
+       "amount": 4.0
+      },
+      {
+       "t": 2.6,
+       "do": "prop",
+       "id": "circle",
+       "on": true
+      },
+      {
+       "t": 2.6,
+       "do": "sfx",
+       "name": "tf_chime"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "low",
+       "r": 0.8,
+       "h": 0.3,
+       "look": "face",
+       "fov": 55
+      },
+      {
+       "t": 1.1,
+       "type": "orbit",
+       "r": 3.2,
+       "h": 0.12,
+       "speed": 1.1,
+       "look": "chest",
+       "fov": 48
+      }
+     ]
+    },
+    "weapon": {
+     "form": "seed"
+    },
+    "pieces": {
+     "L1_Coat": "signature",
+     "L1_Hat": "signature"
+    }
+   },
+   "40": {
+    "title": "Blossom Nebula Empress",
+    "tier": 4,
+    "dimension": {
+     "sky": {},
+     "ground": {
+      "mode": 0,
+      "col_a": [
+       0.028,
+       0.017,
+       0.077
+      ],
+      "col_b": [
+       0.231,
+       0.121,
+       0.286
+      ]
+     },
+     "figures": [
+      {
+       "id": "wolf",
+       "kind": "constellation",
+       "shape": "wolf_howl",
+       "size": 34,
+       "at": [
+        0,
+        12,
+        34
+       ],
+       "col": [
+        0.75,
+        0.95,
+        1.0
+       ],
+       "progress": 0.0
+      }
+     ],
+     "particles": [
+      {
+       "kind": "blossoms",
+       "layer": "mid",
+       "strength": 0.88
+      },
+      {
+       "kind": "blossoms",
+       "layer": "bg",
+       "strength": 0.8
+      }
+     ]
+    },
+    "signature": {
+     "kind": "nebula_gown",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "figure",
+       "id": "wolf",
+       "to": 1.0,
+       "dur": 3.2
+      },
+      {
+       "t": 0.0,
+       "do": "sfx",
+       "name": "tf_whoosh_big"
+      },
+      {
+       "t": 0.3,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "down",
+       "dur": 2.8
+      },
+      {
+       "t": 0.3,
+       "do": "burst",
+       "kind": "petal",
+       "amount": 3.0
+      },
+      {
+       "t": 3.2,
+       "do": "gold",
+       "dur": 1.6
+      },
+      {
+       "t": 3.2,
+       "do": "sfx",
+       "name": "tf_chime"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "push",
+       "r": [
+        5.0,
+        3.0
+       ],
+       "h": 0.12,
+       "look": "chest",
+       "fov": 50
+      },
+      {
+       "t": 2.4,
+       "type": "orbit",
+       "r": 3.8,
+       "h": 0.12,
+       "speed": 0.7,
+       "look": "feet",
+       "fov": 55
+      },
+      {
+       "t": 4.0,
+       "type": "push",
+       "r": [
+        1.4,
+        1.0
+       ],
+       "h": 0.12,
+       "look": "chest",
+       "fov": 38
+      }
+     ]
+    },
+    "weapon": {
+     "form": "lotus"
+    },
+    "pieces": {
+     "skirt": "signature"
+    }
+   },
+   "50": {
+    "title": "Tempest Valkyrie",
+    "tier": 5,
+    "dimension": {
+     "sky": {
+      "clouds": 1.0,
+      "cloud_speed": 0.22,
+      "vortex": 0.45,
+      "cloud_col": [
+       0.08,
+       0.12,
+       0.3
+      ],
+      "cloud_lit": [
+       0.14,
+       0.22,
+       0.52
+      ]
+     },
+     "ground": {
+      "mode": 4,
+      "col_a": [
+       0.099,
+       0.132,
+       0.154
+      ],
+      "col_b": [
+       0.303,
+       0.358,
+       0.374
+      ]
+     },
+     "figures": [
+      {
+       "id": "wolf",
+       "kind": "constellation",
+       "shape": "wolf_run",
+       "size": 30,
+       "at": [
+        16,
+        8,
+        26
+       ],
+       "col": [
+        0.75,
+        0.95,
+        1.0
+       ],
+       "progress": 1.0
+      }
+     ],
+     "props": [
+      {
+       "id": "rings",
+       "kind": "rings3d",
+       "count": 3,
+       "radius": 2.4,
+       "y": 1.0,
+       "col": [
+        0.7,
+        1.0,
+        0.85
+       ]
+      }
+     ],
+     "particles": [
+      {
+       "kind": "tornado",
+       "layer": "mid",
+       "strength": 0.55
+      },
+      {
+       "kind": "leaves",
+       "layer": "bg",
+       "strength": 0.96
+      },
+      {
+       "kind": "wind",
+       "layer": "fg",
+       "strength": 0.18
+      }
+     ]
+    },
+    "signature": {
+     "kind": "storm_wings",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "thunder"
+      },
+      {
+       "t": 0.05,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.4,
+       "chunks": 3,
+       "sfx": "tf_metal",
+       "thunder": true
+      },
+      {
+       "t": 2.6,
+       "do": "slowmo",
+       "scale": 0.35,
+       "dur": 2.2
+      },
+      {
+       "t": 2.6,
+       "do": "wings_open"
+      },
+      {
+       "t": 2.6,
+       "do": "sfx",
+       "name": "tf_feathers"
+      },
+      {
+       "t": 2.7,
+       "do": "burst",
+       "kind": "feather",
+       "amount": 5.0
+      },
+      {
+       "t": 2.7,
+       "do": "flash",
+       "col": [
+        0.9,
+        1.0,
+        0.95
+       ],
+       "a": 0.5,
+       "dur": 0.3
+      },
+      {
+       "t": 2.6,
+       "do": "pose",
+       "name": "arms_wide"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 2.8,
+       "h": 0.12,
+       "speed": 1.5,
+       "look": "chest",
+       "fov": 46
+      },
+      {
+       "t": 2.6,
+       "type": "orbit",
+       "r": 4.2,
+       "h": 0.12,
+       "speed": 3.2,
+       "look": "chest",
+       "fov": 55
+      }
+     ]
+    },
+    "weapon": {
+     "form": "tornado"
+    },
+    "pieces": {
+     "L1_Armor": "signature",
+     "wings": "signature"
+    }
+   },
+   "60": {
+    "title": "World Tree Queen",
+    "tier": 6,
+    "placeholder_title": true,
+    "dimension": {
+     "sky": {},
+     "ground": {
+      "mode": 4,
+      "col_a": [
+       0.138,
+       0.099,
+       0.028
+      ],
+      "col_b": [
+       0.385,
+       0.303,
+       0.11
+      ]
+     },
+     "figures": [
+      {
+       "id": "tree",
+       "kind": "tree",
+       "size": 60,
+       "at": [
+        0,
+        18,
+        40
+       ],
+       "col": [
+        0.75,
+        1.0,
+        0.55
+       ],
+       "col2": [
+        1.0,
+        0.82,
+        0.35
+       ],
+       "progress": 0.2
+      }
+     ],
+     "particles": [
+      {
+       "kind": "leaves",
+       "layer": "mid",
+       "strength": 0.77
+      },
+      {
+       "kind": "blossoms",
+       "layer": "bg",
+       "strength": 0.8
+      }
+     ]
+    },
+    "signature": {
+     "kind": "root_gown",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "figure",
+       "id": "tree",
+       "to": 1.0,
+       "dur": 4.5
+      },
+      {
+       "t": 0.4,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.6
+      },
+      {
+       "t": 0.6,
+       "do": "burst",
+       "kind": "leaf",
+       "amount": 4.0
+      },
+      {
+       "t": 3.0,
+       "do": "burst",
+       "kind": "petal",
+       "amount": 3.0
+      },
+      {
+       "t": 3.2,
+       "do": "wings_open"
+      },
+      {
+       "t": 3.4,
+       "do": "gold",
+       "dur": 1.4
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "low",
+       "r": 3.6,
+       "h": 0.2,
+       "look": "chest",
+       "fov": 60
+      },
+      {
+       "t": 2.4,
+       "type": "orbit",
+       "r": 3.6,
+       "h": 0.12,
+       "speed": 1.6,
+       "look": "chest",
+       "fov": 50
+      }
+     ]
+    },
+    "weapon": {
+     "form": "seed"
+    },
+    "pieces": {
+     "skirt": "signature"
+    }
+   },
+   "70": {
+    "title": "Storm Seraph",
+    "tier": 7,
+    "dimension": {
+     "sky": {
+      "clouds": 0.5,
+      "cloud_speed": 0.06,
+      "cloud_col": [
+       0.08,
+       0.12,
+       0.3
+      ],
+      "cloud_lit": [
+       0.14,
+       0.22,
+       0.52
+      ]
+     },
+     "ground": {
+      "mode": 4,
+      "col_a": [
+       0.413,
+       0.44,
+       0.495
+      ],
+      "col_b": [
+       0.55,
+       0.55,
+       0.55
+      ]
+     },
+     "props": [
+      {
+       "id": "rings",
+       "kind": "rings3d",
+       "count": 4,
+       "radius": 2.0,
+       "y": 1.1,
+       "col": [
+        0.7,
+        1.0,
+        0.85
+       ]
+      }
+     ],
+     "particles": [
+      {
+       "kind": "tornado",
+       "layer": "mid",
+       "strength": 0.66
+      },
+      {
+       "kind": "blossoms",
+       "layer": "mid",
+       "strength": 0.55
+      },
+      {
+       "kind": "leaves",
+       "layer": "bg",
+       "strength": 0.96
+      }
+     ]
+    },
+    "signature": {
+     "kind": "wind_seraph",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "burst",
+       "kind": "leaf",
+       "amount": 4.0
+      },
+      {
+       "t": 0.6,
+       "do": "wings_open"
+      },
+      {
+       "t": 0.6,
+       "do": "sfx",
+       "name": "tf_feathers"
+      },
+      {
+       "t": 2.0,
+       "do": "wings_open"
+      },
+      {
+       "t": 2.0,
+       "do": "sfx",
+       "name": "tf_feathers"
+      },
+      {
+       "t": 3.4,
+       "do": "wings_open"
+      },
+      {
+       "t": 3.4,
+       "do": "sfx",
+       "name": "tf_feathers"
+      },
+      {
+       "t": 4.2,
+       "do": "gold",
+       "dur": 1.0
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 4.0,
+       "h": 0.12,
+       "speed": 2.2,
+       "look": "chest",
+       "fov": 52
+      }
+     ]
+    },
+    "weapon": null,
+    "pieces": {}
+   },
+   "80": {
+    "title": "Sylvan Star Deity",
+    "tier": 8,
+    "dimension": {
+     "sky": {
+      "galaxies": 0.4
+     },
+     "ground": {
+      "mode": 5
+     },
+     "figures": [
+      {
+       "id": "wolf",
+       "kind": "constellation",
+       "shape": "wolf_howl",
+       "size": 44,
+       "at": [
+        -12,
+        14,
+        40
+       ],
+       "col": [
+        0.75,
+        0.95,
+        1.0
+       ],
+       "progress": 0.0
+      }
+     ],
+     "props": [
+      {
+       "id": "armillary",
+       "kind": "rings3d",
+       "count": 4,
+       "radius": 3.6,
+       "y": 1.2,
+       "col": [
+        1.0,
+        0.82,
+        0.4
+       ]
+      }
+     ],
+     "particles": [
+      {
+       "kind": "leaves",
+       "layer": "fg",
+       "strength": 0.18
+      }
+     ]
+    },
+    "signature": {
+     "kind": "constellation_weave",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "figure",
+       "id": "wolf",
+       "to": 1.0,
+       "dur": 3.0
+      },
+      {
+       "t": 0.2,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "down",
+       "dur": 3.0
+      },
+      {
+       "t": 2.0,
+       "do": "prop",
+       "id": "armillary",
+       "on": true
+      },
+      {
+       "t": 3.0,
+       "do": "wings_open"
+      },
+      {
+       "t": 3.6,
+       "do": "gold",
+       "dur": 1.2
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 5.0,
+       "h": 0.12,
+       "speed": 2.6,
+       "look": "chest",
+       "fov": 55
+      }
+     ]
+    },
+    "weapon": null,
+    "pieces": {
+     "skirt": "signature"
+    }
+   },
+   "90": {
+    "title": "Origin of Wind and Stars",
+    "tier": 9,
+    "final_form": true,
+    "dimension": {
+     "sky": {
+      "galaxies": 1.0
+     },
+     "ground": {
+      "mode": 5
+     },
+     "props": [
+      {
+       "kind": "planets"
+      },
+      {
+       "id": "armillary",
+       "kind": "rings3d",
+       "count": 4,
+       "radius": 4.0,
+       "y": 1.2,
+       "col": [
+        1.0,
+        0.85,
+        0.5
+       ]
+      }
+     ],
+     "particles": [
+      {
+       "kind": "blossoms",
+       "layer": "mid",
+       "strength": 0.88
+      },
+      {
+       "kind": "leaves",
+       "layer": "mid",
+       "strength": 0.77
+      },
+      {
+       "kind": "tornado",
+       "layer": "fg",
+       "strength": 0.18
+      }
+     ]
+    },
+    "signature": {
+     "kind": "origin",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "burst",
+       "kind": "petal",
+       "amount": 5.0
+      },
+      {
+       "t": 0.4,
+       "do": "wings_open"
+      },
+      {
+       "t": 0.4,
+       "do": "slowmo",
+       "scale": 0.4,
+       "dur": 2.0
+      },
+      {
+       "t": 1.4,
+       "do": "wings_open"
+      },
+      {
+       "t": 2.4,
+       "do": "wings_open"
+      },
+      {
+       "t": 3.0,
+       "do": "gold",
+       "dur": 1.4
+      },
+      {
+       "t": 3.0,
+       "do": "flash",
+       "col": [
+        1,
+        1,
+        1
+       ],
+       "a": 0.6,
+       "dur": 0.4
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 5.5,
+       "h": 0.12,
+       "speed": 3.4,
+       "look": "chest",
+       "fov": 58
+      }
+     ]
+    },
+    "weapon": {
+     "form": "seed"
+    },
+    "pieces": {},
+    "white_out": true
+   }
+  },
+  "luna": {
+   "10": {
+    "title": "Umbral Priestess",
+    "tier": 1,
+    "dimension": {
+     "sky": {
+      "moon_size": 0.22,
+      "moon_dir": [
+       0.0,
+       0.25,
+       1.0
+      ]
+     },
+     "ground": {
+      "mode": 1,
+      "col_a": [
+       0.0,
+       0.0,
+       0.011
+      ],
+      "col_b": [
+       0.044,
+       0.039,
+       0.088
+      ]
+     },
+     "particles": [
+      {
+       "kind": "wisps",
+       "layer": "mid",
+       "strength": 0.55
+      }
+     ]
+    },
+    "signature": {
+     "kind": "shadow_wrap",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "burst",
+       "kind": "crescent",
+       "amount": 4.0
+      },
+      {
+       "t": 0.3,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.4
+      },
+      {
+       "t": 2.8,
+       "do": "gold",
+       "dur": 1.4
+      },
+      {
+       "t": 2.8,
+       "do": "sfx",
+       "name": "tf_chime"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 3.2,
+       "h": 0.12,
+       "speed": 0.6,
+       "look": "chest",
+       "fov": 48
+      },
+      {
+       "t": 2.8,
+       "type": "push",
+       "r": [
+        0.9,
+        0.7
+       ],
+       "h": 0.12,
+       "look": "face",
+       "fov": 36
+      }
+     ]
+    },
+    "weapon": null,
+    "pieces": {}
+   },
+   "20": {
+    "title": "Shadowblade Seer",
+    "tier": 2,
+    "dimension": {
+     "sky": {
+      "moon_size": 0.2,
+      "moon_dir": [
+       -0.3,
+       0.3,
+       1.0
+      ]
+     },
+     "ground": {
+      "mode": 1,
+      "col_a": [
+       0.0,
+       0.0,
+       0.011
+      ],
+      "col_b": [
+       0.055,
+       0.033,
+       0.099
+      ]
+     },
+     "props": [
+      {
+       "id": "pillars",
+       "kind": "pillars",
+       "count": 10,
+       "radius": 8,
+       "col": [
+        0.55,
+        0.3,
+        1.0
+       ]
+      }
+     ],
+     "particles": [
+      {
+       "kind": "wisps",
+       "layer": "mid",
+       "strength": 0.66
+      },
+      {
+       "kind": "flames",
+       "layer": "bg",
+       "strength": 0.48
+      }
+     ]
+    },
+    "signature": {
+     "kind": "liquid_gold_armor",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "pillars"
+      },
+      {
+       "t": 0.4,
+       "do": "slashes"
+      },
+      {
+       "t": 0.4,
+       "do": "sfx",
+       "name": "tf_whoosh_big"
+      },
+      {
+       "t": 1.2,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.4,
+       "chunks": 3,
+       "sfx": "tf_metal"
+      },
+      {
+       "t": 3.8,
+       "do": "burst",
+       "kind": "crescent",
+       "amount": 3.0
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "low",
+       "r": 4.0,
+       "h": 0.3,
+       "look": "chest",
+       "fov": 58
+      },
+      {
+       "t": 1.2,
+       "type": "orbit",
+       "r": 3.0,
+       "h": 0.12,
+       "speed": 1.3,
+       "look": "chest",
+       "fov": 46
+      }
+     ]
+    },
+    "weapon": {
+     "form": "crescent"
+    },
+    "pieces": {
+     "L1_Bodice": "signature",
+     "L1_Sleeve": "signature"
+    }
+   },
+   "30": {
+    "title": "Eclipse Oracle",
+    "tier": 3,
+    "dimension": {
+     "sky": {
+      "sun_size": 0.2,
+      "sun_dir": [
+       0.0,
+       0.3,
+       1.0
+      ],
+      "eclipse": 0.0,
+      "corona": [
+       1.0,
+       0.2,
+       0.08
+      ]
+     },
+     "ground": {
+      "mode": 1,
+      "col_a": [
+       0.011,
+       0.0,
+       0.0
+      ],
+      "col_b": [
+       0.099,
+       0.022,
+       0.017
+      ]
+     },
+     "particles": [
+      {
+       "kind": "wisps",
+       "layer": "mid",
+       "strength": 0.66
+      },
+      {
+       "kind": "flames",
+       "layer": "bg",
+       "strength": 0.64
+      }
+     ]
+    },
+    "signature": {
+     "kind": "eclipse_veil",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "sky",
+       "key": "eclipse",
+       "to": 1.0,
+       "dur": 4.6
+      },
+      {
+       "t": 0.2,
+       "do": "burst",
+       "kind": "crescent",
+       "amount": 4.0
+      },
+      {
+       "t": 0.4,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "down",
+       "dur": 2.6
+      },
+      {
+       "t": 3.0,
+       "do": "gold",
+       "dur": 1.2
+      },
+      {
+       "t": 4.6,
+       "do": "flash",
+       "col": [
+        1.0,
+        0.4,
+        0.2
+       ],
+       "a": 0.5,
+       "dur": 0.4
+      },
+      {
+       "t": 4.6,
+       "do": "halo"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "push",
+       "r": [
+        4.5,
+        2.6
+       ],
+       "h": 0.12,
+       "look": "chest",
+       "fov": 50
+      },
+      {
+       "t": 3.0,
+       "type": "push",
+       "r": [
+        0.9,
+        0.7
+       ],
+       "h": 0.12,
+       "look": "face",
+       "fov": 40
+      }
+     ]
+    },
+    "weapon": {
+     "form": "orb"
+    },
+    "pieces": {
+     "skirt": "signature",
+     "crown": "signature"
+    }
+   },
+   "40": {
+    "title": "Gilded Night Sorceress",
+    "tier": 4,
+    "dimension": {
+     "sky": {
+      "moon_size": 0.16,
+      "moon_dir": [
+       0.35,
+       0.45,
+       1.0
+      ],
+      "moon_col": [
+       1.0,
+       0.86,
+       0.55
+      ]
+     },
+     "ground": {
+      "mode": 2,
+      "col_a": [
+       0.0,
+       0.017,
+       0.022
+      ],
+      "col_b": [
+       0.022,
+       0.077,
+       0.088
+      ]
+     },
+     "figures": [
+      {
+       "id": "goddess",
+       "kind": "goddess",
+       "size": 38,
+       "at": [
+        0,
+        10,
+        34
+       ],
+       "col": [
+        0.15,
+        0.4,
+        0.45
+       ],
+       "col2": [
+        1.0,
+        0.8,
+        0.4
+       ],
+       "progress": 0.0
+      }
+     ],
+     "props": [
+      {
+       "id": "runes",
+       "kind": "rune_rings",
+       "count": 3,
+       "size": 2.6,
+       "col": [
+        1.0,
+        0.8,
+        0.38
+       ],
+       "hidden": true
+      }
+     ],
+     "particles": [
+      {
+       "kind": "wisps",
+       "layer": "fg",
+       "strength": 0.12
+      }
+     ]
+    },
+    "signature": {
+     "kind": "gold_runes",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "figure",
+       "id": "goddess",
+       "to": 1.0,
+       "dur": 4.0
+      },
+      {
+       "t": 0.2,
+       "do": "prop",
+       "id": "runes",
+       "on": true
+      },
+      {
+       "t": 0.2,
+       "do": "sfx",
+       "name": "tf_chime"
+      },
+      {
+       "t": 0.6,
+       "do": "emission",
+       "piece": "skirt",
+       "to": 1.0,
+       "dur": 2.0
+      },
+      {
+       "t": 0.6,
+       "do": "burst",
+       "kind": "sparkle",
+       "amount": 3.0
+      },
+      {
+       "t": 1.6,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.0,
+       "wave": true
+      },
+      {
+       "t": 3.6,
+       "do": "sfx",
+       "name": "tf_sparkle"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 3.6,
+       "h": 0.12,
+       "speed": 1.2,
+       "look": "chest",
+       "fov": 50
+      },
+      {
+       "t": 1.6,
+       "type": "push",
+       "r": [
+        1.6,
+        1.1
+       ],
+       "h": 0.12,
+       "look": "chest",
+       "fov": 40
+      },
+      {
+       "t": 3.6,
+       "type": "push",
+       "r": [
+        0.9,
+        0.7
+       ],
+       "h": 0.12,
+       "look": "face",
+       "fov": 36
+      }
+     ]
+    },
+    "weapon": {
+     "form": "sea"
+    },
+    "pieces": {
+     "top": "signature"
+    }
+   },
+   "50": {
+    "title": "Golden Moon Goddess",
+    "tier": 5,
+    "dimension": {
+     "sky": {
+      "earth_size": 0.28,
+      "earth_dir": [
+       0.3,
+       0.35,
+       1.0
+      ]
+     },
+     "ground": {
+      "mode": 3
+     },
+     "particles": []
+    },
+    "signature": {
+     "kind": "moon_wings",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "down",
+       "dur": 2.4
+      },
+      {
+       "t": 0.0,
+       "do": "burst",
+       "kind": "sparkle",
+       "amount": 3.0
+      },
+      {
+       "t": 2.6,
+       "do": "slowmo",
+       "scale": 0.35,
+       "dur": 2.2
+      },
+      {
+       "t": 2.6,
+       "do": "wings_open"
+      },
+      {
+       "t": 2.6,
+       "do": "sfx",
+       "name": "tf_feathers"
+      },
+      {
+       "t": 2.7,
+       "do": "burst",
+       "kind": "feather",
+       "amount": 5.0,
+       "col": [
+        0.05,
+        0.03,
+        0.06
+       ]
+      },
+      {
+       "t": 3.6,
+       "do": "halo"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 3.4,
+       "h": 0.12,
+       "speed": 1.2,
+       "look": "chest",
+       "fov": 48
+      },
+      {
+       "t": 2.6,
+       "type": "orbit",
+       "r": 4.2,
+       "h": 0.12,
+       "speed": 3.0,
+       "look": "chest",
+       "fov": 55
+      }
+     ]
+    },
+    "weapon": null,
+    "pieces": {
+     "skirt": "signature"
+    }
+   },
+   "60": {
+    "title": "Blood Moon Empress",
+    "tier": 6,
+    "dimension": {
+     "sky": {
+      "moon_size": 0.34,
+      "moon_dir": [
+       0.0,
+       0.3,
+       1.0
+      ],
+      "moon_col": [
+       1.0,
+       0.18,
+       0.12
+      ],
+      "tint_amount": 0.15,
+      "tint": [
+       1.0,
+       0.2,
+       0.15
+      ]
+     },
+     "ground": {
+      "mode": 1,
+      "col_a": [
+       0.017,
+       0.0,
+       0.0
+      ],
+      "col_b": [
+       0.165,
+       0.011,
+       0.017
+      ]
+     },
+     "particles": [
+      {
+       "kind": "flames",
+       "layer": "mid",
+       "strength": 0.77
+      },
+      {
+       "kind": "wisps",
+       "layer": "bg",
+       "strength": 0.8
+      }
+     ]
+    },
+    "signature": {
+     "kind": "blood_moon",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "flash",
+       "col": [
+        0.8,
+        0.0,
+        0.05
+       ],
+       "a": 0.6,
+       "dur": 0.6
+      },
+      {
+       "t": 0.4,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.6
+      },
+      {
+       "t": 3.0,
+       "do": "wings_open"
+      },
+      {
+       "t": 3.6,
+       "do": "halo"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "low",
+       "r": 3.8,
+       "h": 0.3,
+       "look": "chest",
+       "fov": 58
+      },
+      {
+       "t": 2.6,
+       "type": "orbit",
+       "r": 3.6,
+       "h": 0.12,
+       "speed": 1.8,
+       "look": "chest",
+       "fov": 50
+      }
+     ]
+    },
+    "weapon": {
+     "form": "crescent"
+    },
+    "pieces": {
+     "skirt": "signature"
+    }
+   },
+   "70": {
+    "title": "Umbral Seraph",
+    "tier": 7,
+    "dimension": {
+     "sky": {
+      "split": 1.0
+     },
+     "ground": {
+      "mode": 5
+     },
+     "props": [
+      {
+       "id": "runes",
+       "kind": "rune_rings",
+       "count": 4,
+       "size": 2.8,
+       "col": [
+        1.0,
+        0.82,
+        0.4
+       ]
+      }
+     ],
+     "particles": [
+      {
+       "kind": "wisps",
+       "layer": "bg",
+       "strength": 0.8
+      }
+     ]
+    },
+    "signature": {
+     "kind": "umbral_seraph",
+     "events": [
+      {
+       "t": 0.4,
+       "do": "wings_open"
+      },
+      {
+       "t": 0.4,
+       "do": "sfx",
+       "name": "tf_feathers"
+      },
+      {
+       "t": 1.8,
+       "do": "wings_open"
+      },
+      {
+       "t": 1.8,
+       "do": "sfx",
+       "name": "tf_feathers"
+      },
+      {
+       "t": 3.2,
+       "do": "wings_open"
+      },
+      {
+       "t": 3.2,
+       "do": "sfx",
+       "name": "tf_feathers"
+      },
+      {
+       "t": 4.0,
+       "do": "halo"
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 4.2,
+       "h": 0.12,
+       "speed": 2.4,
+       "look": "chest",
+       "fov": 52
+      }
+     ]
+    },
+    "weapon": null,
+    "pieces": {}
+   },
+   "80": {
+    "title": "Moon Throne Deity",
+    "tier": 8,
+    "dimension": {
+     "sky": {
+      "galaxies": 0.5
+     },
+     "ground": {
+      "mode": 2,
+      "col_a": [
+       0.0,
+       0.0,
+       0.017
+      ],
+      "col_b": [
+       0.033,
+       0.028,
+       0.077
+      ]
+     },
+     "figures": [
+      {
+       "id": "throne",
+       "kind": "throne",
+       "size": 26,
+       "at": [
+        0,
+        3,
+        10
+       ],
+       "col2": [
+        1.0,
+        0.82,
+        0.4
+       ],
+       "progress": 0.0
+      }
+     ],
+     "particles": []
+    },
+    "signature": {
+     "kind": "moon_throne",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "figure",
+       "id": "throne",
+       "to": 1.0,
+       "dur": 4.0
+      },
+      {
+       "t": 0.4,
+       "do": "reveal",
+       "piece": "signature",
+       "dir": "up",
+       "dur": 2.4,
+       "chunks": 3,
+       "sfx": "tf_metal"
+      },
+      {
+       "t": 3.0,
+       "do": "reveal",
+       "piece": "skirt",
+       "dir": "back",
+       "dur": 1.8
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "push",
+       "r": [
+        6.0,
+        3.4
+       ],
+       "h": 0.12,
+       "look": "chest",
+       "fov": 52
+      },
+      {
+       "t": 3.0,
+       "type": "orbit",
+       "r": 3.4,
+       "h": 0.12,
+       "speed": 1.4,
+       "look": "feet",
+       "fov": 55
+      }
+     ]
+    },
+    "weapon": null,
+    "pieces": {
+     "top": "signature"
+    }
+   },
+   "90": {
+    "title": "Eternal Night",
+    "tier": 9,
+    "final_form": true,
+    "dimension": {
+     "sky": {},
+     "ground": {
+      "mode": 5
+     },
+     "props": [
+      {
+       "kind": "orbit_phases"
+      },
+      {
+       "id": "runes",
+       "kind": "rune_rings",
+       "count": 4,
+       "size": 3.0,
+       "col": [
+        1.0,
+        0.82,
+        0.4
+       ]
+      }
+     ],
+     "particles": [
+      {
+       "kind": "wisps",
+       "layer": "mid",
+       "strength": 0.88
+      }
+     ]
+    },
+    "signature": {
+     "kind": "eternal_night",
+     "events": [
+      {
+       "t": 0.0,
+       "do": "burst",
+       "kind": "crescent",
+       "amount": 5.0
+      },
+      {
+       "t": 0.4,
+       "do": "wings_open"
+      },
+      {
+       "t": 0.4,
+       "do": "slowmo",
+       "scale": 0.4,
+       "dur": 2.0
+      },
+      {
+       "t": 1.4,
+       "do": "wings_open"
+      },
+      {
+       "t": 2.4,
+       "do": "wings_open"
+      },
+      {
+       "t": 3.0,
+       "do": "halo"
+      },
+      {
+       "t": 3.4,
+       "do": "gold",
+       "dur": 1.2
+      }
+     ],
+     "shots": [
+      {
+       "t": 0.0,
+       "type": "orbit",
+       "r": 5.5,
+       "h": 0.12,
+       "speed": 3.4,
+       "look": "chest",
+       "fov": 58
+      }
+     ]
+    },
+    "weapon": {
+     "form": "orb"
+    },
+    "pieces": {},
+    "black_out": true
+   }
+  }
+ },
+ "weapons": {
+  "mika": {
+   "20": {
+    "id": "rapier",
+    "name": "Gale Rapier"
+   },
+   "30": {
+    "id": "comet_staff",
+    "name": "Comet Staff"
+   },
+   "40": {
+    "id": "lotus_scepter",
+    "name": "Lotus Scepter"
+   },
+   "50": {
+    "id": "tempest_spear",
+    "name": "Tempest Spear"
+   }
+  },
+  "luna": {
+   "20": {
+    "id": "glaive",
+    "name": "Shadow Glaive"
+   },
+   "30": {
+    "id": "eclipse_staff",
+    "name": "Eclipse Staff"
+   },
+   "40": {
+    "id": "gilded_trident",
+    "name": "Gilded Trident"
+   }
+  }
+ }
+}

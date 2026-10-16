@@ -69,6 +69,10 @@ func receive(msg: Dictionary) -> Dictionary:
 		return {"accepted": false, "why": "duplicate message id"}
 	seen_ids[id] = _now()
 	var norm := text.to_lower()
+	# "skip" during a transformation she has already shown in full: the 8 s version (not answered as a comment)
+	if norm.strip_edges().trim_prefix("!") == "skip" and main.transformer and main.transformer.sequence and main.transformer.sequence.playing != "":
+		var ok: bool = main.transformer.sequence.request_skip(String(msg.get("author", "viewer")))
+		return {"accepted": ok, "skip": ok, "why": "" if ok else "this transformation can't be skipped (first showing or nearly over)"}
 	var times: Array = (recent_texts.get(norm, []) as Array).filter(func(t): return _now() - float(t) < REPEAT_WINDOW_S)
 	if times.size() >= 2:
 		return {"accepted": false, "why": "same text repeated too often (within %d s)" % int(REPEAT_WINDOW_S)}

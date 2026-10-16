@@ -14,3 +14,7 @@ assets/audio/music/library/*/*.mp3
 assets/audio/music/library/*/*.wav
 # Local voice venv (edge-tts) for tools/voice/edge_service.py
 /.venv-voice/
+
+# transformation cutscene sources dropped for conversion (tools/transformations/convert.sh)
+assets/transformations/incoming/*
+!assets/transformations/incoming/.gdignore

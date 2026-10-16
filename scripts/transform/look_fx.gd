@@ -5,7 +5,7 @@ class_name LookFX
 ## The transformation plays a look's effects at full strength around her (data/transformations.json "effects"); the
 ## look's appearance profile "aura" keeps a few of them around her softly while she wears it.
 
-const KINDS := ["petals", "leaves", "starflowers", "wind", "comet", "wisps", "moons", "halo", "flames", "sparkles", "blossoms", "runes", "tornado", "spear_wind"]
+const KINDS := ["petals", "leaves", "starflowers", "wind", "comet", "wisps", "moons", "halo", "flames", "sparkles", "blossoms", "runes", "tornado", "spear_wind", "feathers"]
 
 static var _petal_mesh: QuadMesh
 
@@ -196,6 +196,28 @@ static func make(kind: String, col: Color, acc: Color, strength := 1.0) -> Node3
 				pm.scale_min = 0.7
 				pm.scale_max = 1.3
 				pm.color_ramp = FX.ramp([Color(col, 0.0), Color(col, 1.0), Color(col.lerp(acc, 0.4), 0.9), Color(acc, 0.0)], [0.0, 0.1, 0.8, 1.0])), petal_mesh())
+		"feathers":
+			n = FX.particles(int(90 * strength), 3.0, FX.process("look_feathers_%s" % col.to_html(), func(pm: ParticleProcessMaterial):
+				pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+				pm.emission_sphere_radius = 0.5
+				pm.direction = Vector3(0, 0.4, -1)
+				pm.spread = 120.0
+				pm.initial_velocity_min = 1.2
+				pm.initial_velocity_max = 3.2
+				pm.damping_min = 1.2
+				pm.damping_max = 2.4
+				pm.gravity = Vector3(0, -0.25, 0)
+				pm.angle_min = -180.0
+				pm.angle_max = 180.0
+				pm.angular_velocity_min = -160.0
+				pm.angular_velocity_max = 160.0
+				pm.turbulence_enabled = true
+				pm.turbulence_noise_strength = 0.5
+				pm.turbulence_influence_min = 0.05
+				pm.turbulence_influence_max = 0.15
+				pm.scale_min = 1.4
+				pm.scale_max = 2.4
+				pm.color_ramp = FX.ramp([Color(col, 0.0), Color(col.lerp(Color.WHITE, 0.6), 1.0), Color(col, 0.9), Color(col, 0.0)], [0.0, 0.08, 0.8, 1.0])), petal_mesh())
 		"runes":
 			n = Node3D.new()
 			for spec in [[2.3, 0.18, 6, 3.0, 0.02], [1.45, -0.32, 8, 7.0, 0.03]]:      # ground rings (a ring at waist height reads as a line through her)

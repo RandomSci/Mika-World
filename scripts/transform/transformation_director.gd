@@ -35,6 +35,7 @@ var _flash: ColorRect
 var _title: Label
 var _check := 0.0
 var _orbits := {}                  # who -> orbit ring node while a surge lasts
+var sequence: TransformationSequence   # the grand transformation (full / skip) - data/transformation_sequences.json
 
 
 static func load_data() -> Dictionary:
@@ -73,6 +74,12 @@ func setup(m: Node) -> void:
 	_overlay.add_child(_title)
 	if main.progression:
 		main.progression.form_unlocked.connect(func(who, level, _f): queue.append({"who": who, "level": level}))
+	sequence = TransformationSequence.new()
+	sequence.name = "TransformationSequence"
+	add_child(sequence)
+	sequence.setup(main, self)
+	for who in ["mika", "luna"]:
+		WeaponArsenal.sync(who)            # saves from before the arsenal: weapons of forms she already wears
 
 
 func spec(who: String, level := 10) -> Dictionary:
@@ -151,6 +158,8 @@ func _safe_to_start(who: String) -> bool:
 func play(who: String, version := "full", preview := false, level := 10) -> Dictionary:
 	if playing != "":
 		return {"ok": false, "detail": "another transformation is playing"}
+	if version in ["full", "skip"] and not RenderProfile.options.has("legacy-transform"):
+		return await _play_sequence(who, version, preview, level)
 	var c: WorldCharacter = main.characters.get(who)
 	var sp := spec(who, level)
 	var v: Dictionary = data.versions.get(version, {})
@@ -342,6 +351,39 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 		c.set_meta("form_power", float(sp.power))
 		_add_orbit(c, who, col, acc)
 		res["surge"] = true
+	log.append(res)
+	if log.size() > 200:
+		log.pop_front()
+	finished.emit(who, res)
+	return res
+
+
+## The grand transformation (TransformationSequence). Its form becomes her permanent appearance (not in a preview,
+## which reverts to what she wore before).
+func _play_sequence(who: String, version: String, preview: bool, level: int) -> Dictionary:
+	var c: WorldCharacter = main.characters.get(who)
+	if c == null:
+		return {"ok": false, "detail": "no " + who}
+	var base_path := c.avatar_path
+	var sp := spec(who, level)
+	var res: Dictionary = await sequence.play(who, level, version, {"preview": preview, "shots_dir": String(RenderProfile.options.get("tfseq-shots", ""))})
+	res["version"] = version
+	res["preview"] = preview
+	res["form"] = String(sp.get("form", "")) if not sp.is_empty() else String(sequence.target_avatar(who, level).get("stage", ""))
+	if not res.get("ok", false):
+		return res
+	if preview:
+		await get_tree().create_timer(1.5).timeout
+		if c.avatar_path != base_path:
+			c.swap_avatar(base_path)
+		res["reverted"] = true
+	else:
+		var m := WorldState.mind(who)
+		var form := String(sp.get("form", "")) if not sp.is_empty() else String(sequence.target_avatar(who, level).get("stage", ""))
+		m.progress["appearance"] = form
+		WorldState.record_activity({"id": "transform:" + form, "verb": "transform", "label": "Became %s" % String(res.get("title", form))},
+			{"knowledge": {"form:" + form: 1}}, who)
+		res["permanent"] = true
 	log.append(res)
 	if log.size() > 200:
 		log.pop_front()
@@ -671,4 +713,5 @@ func describe() -> Dictionary:
 	var su := {}
 	for who in surges:
 		su[who] = snappedf(float(surges[who].until) - Time.get_ticks_msec() / 1000.0, 0.1)
-	return {"playing": playing, "transformed": tr, "surges": su, "queued": queue.map(func(q): return q.who), "recent": log.slice(maxi(0, log.size() - 4))}
+	return {"playing": playing, "transformed": tr, "surges": su, "queued": queue.map(func(q): return q.who), "recent": log.slice(maxi(0, log.size() - 4)),
+		"sequence": sequence.describe() if sequence else {}}
