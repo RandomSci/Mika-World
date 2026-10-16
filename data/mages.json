@@ -8,8 +8,18 @@
    "forms": {
     "10": {
      "id": "bloom",
-     "name": "Bloom Form",
-     "avatar": "res://assets/characters/mika/forms/Mika_Level10.vrm"
+     "name": "Starbloom Ascendant",
+     "avatar": "res://assets/characters/mika/stages/l10_starbloom/MikaStarbloom_L10Outfit.vrm"
+    },
+    "20": {
+     "id": "gale",
+     "name": "Gale Knight",
+     "avatar": "res://assets/characters/mika/stages/l20_gale/MikaGaleKnight_L20Outfit.vrm"
+    },
+    "30": {
+     "id": "verdant",
+     "name": "Verdant Comet Mage",
+     "avatar": "res://assets/characters/mika/stages/l30_verdant/MikaVerdantComet_L30Outfit.vrm"
     }
    },
    "voice": "mika",
@@ -301,8 +311,18 @@
    "forms": {
     "10": {
      "id": "eclipse",
-     "name": "Gilded Eclipse Form",
-     "avatar": "res://assets/characters/luna/forms/Luna_Level10.vrm"
+     "name": "Umbral Priestess",
+     "avatar": "res://assets/characters/luna/stages/l10_umbral/LunaUmbral_L10Outfit.vrm"
+    },
+    "20": {
+     "id": "shadowblade",
+     "name": "Shadowblade Seer",
+     "avatar": "res://assets/characters/luna/stages/l20_shadowblade/LunaShadowblade_L20Outfit.vrm"
+    },
+    "30": {
+     "id": "eclipse_oracle",
+     "name": "Eclipse Oracle",
+     "avatar": "res://assets/characters/luna/stages/l30_eclipse/LunaEclipse_L30Outfit.vrm"
     }
    },
    "voice": "luna",

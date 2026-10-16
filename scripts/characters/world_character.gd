@@ -113,6 +113,7 @@ var chest: BoneAttachment3D
 var nav_agent: NavigationAgent3D
 var world: Node  # the active area (magic bounce / rune floor), set by the streaming manager
 var sword: SwordLayer  # optional magical-sword layer
+var aura_fx: Array = []        # the look's soft ambient effects (appearance profile "aura", LookFX)
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
 var cloth_clearance: ClothClearance   # hands kept out of her clothes (profile.clearance)
 var foot_guard: FootGuard              # feet kept on top of the floor (a dance carrying her hips over a raised floor)
@@ -211,6 +212,10 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	pose_adjust = PoseAdjust.new()
 	pose_adjust.name = "PoseAdjust"
 	pose_adjust.influence = 0.0
+	for an in aura_fx:
+		if is_instance_valid(an):
+			an.queue_free()
+	aura_fx = LookFX.attach_aura(self, stage_profile().get("aura", {}))
 	skeleton.add_child(pose_adjust)
 	var clr: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("clearance", {})
 	cloth_clearance = ClothClearance.attach(skeleton, clr) if not clr.is_empty() else null
@@ -364,6 +369,8 @@ func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = nul
 		var had := sword
 		sword = SwordLayer.attach(self)
 		had.queue_free()
+	elif stage_profile().has("weapon"):
+		sword = SwordLayer.attach(self)          # a look that carries its own weapon (e.g. Luna's Level 20 glaive)
 	avatar_swapped.emit(path)
 	print("[character] %s: avatar -> %s" % [character_id, path.get_file()])
 	return true
@@ -1642,6 +1649,9 @@ func _try_step_up(dir: Vector3) -> void:
 func _process(delta: float) -> void:
 	_update_expressions(delta)
 	_idle_glance(delta)
+	for an in aura_fx:
+		if is_instance_valid(an):
+			LookFX.follow(an, self)
 
 
 # ------------------------------------------------------------------ observation

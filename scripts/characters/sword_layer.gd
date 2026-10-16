@@ -109,6 +109,20 @@ func _build_blade() -> void:
 	pommel.height = 0.056
 	Kit.mesh_node(blade_root, pommel, metal, Kit.xf(Vector3(0, -0.14, 0)), false)
 	blade_light = Kit.omni(blade_root, Vector3(0, 0.6, 0), ELEMENTS[element], 0.0, 3.0)
+	# a look can bring its own weapon (appearance profile "weapon": {"model": glb with the blade along +Y and the grip's
+	# middle at the origin, "offset": [x, y, z], "scale": 1.0}); it replaces the procedural blade and hilt and, like
+	# them, is only shown while the sword is drawn
+	var wp: Dictionary = AppearanceRegistry.stage_for_avatar(character.character_id, character.avatar_path).get("profile", {}).get("weapon", {})
+	if wp.has("model") and ResourceLoader.exists(String(wp.model)):
+		for ch in blade_root.get_children():
+			if ch is MeshInstance3D:
+				ch.visible = false
+		var w: Node3D = (load(String(wp.model)) as PackedScene).instantiate()
+		var off: Array = wp.get("offset", [0, 0, 0])
+		w.position = Vector3(off[0], off[1], off[2])
+		w.scale = Vector3.ONE * float(wp.get("scale", 1.0))
+		w.name = "LookWeapon"
+		blade_root.add_child(w)
 	blade_root.visible = false
 	set_element(element)
 

@@ -1,15 +1,15 @@
 {
- "_note": "Original Mika World transformation language: an Aether Orbit sigil opens under the mage, light gathers in her hands while she speaks her words, an aura column rises as she lifts off the ground, a flash carries the form change, the mage's own orbit ring forms around her, a finishing pose, then back to play. Times in seconds; 'swap' is the flash peak where the avatar changes (the music cue's reveal hit is composed to land there). Camera shots are relative to the mage (radius/height in metres, yaw degrees from her facing, look = 'face' | 'chest' | 'hands' | 'feet'). No third-party sequences, symbols, poses or music. Gestures/poses avoid clips that rotate the hips (wide_arm_spell), and each shot is anchored to the mage's visual facing (from her shoulders) when the shot begins. The form reached at a tenth level is PERMANENT (saved appearance); 'surge_s' is the length of the temporary Orbit Surge (power + orbit ring) a mage may call before a strong fight. Milestone J: the FIRST awakening (full) is an 11.6 s, five-stage sequence (versions.full.stages): 1 awakening (she senses it; ambient light gathers), 2 build-up (orbit frames rise and turn, she lifts off, speaks her words), 3 clothing reveal (a cocoon of light ribbons wraps her feet-to-head, the form changes inside it, then the ribbons unravel head-to-feet so the outfit appears progressively - never an abrupt swap or a white-out), 4 Aether Orbit awakening (arc segments and beads fly in and lock into her first orbit), 5 final reveal (landing, finishing pose on the musical climax, clear full-body shot). Music: tools/audio/synth_milestone_j.py transform. Camera rule (Milestone J): no low angles on a mage at close range - every shot is at least 1.0 m high (a skirt lifted by spring bones during the lift-off must never be framed from below).",
+ "_note": "Original Mika World transformation language: an Aether Orbit sigil opens under the mage, light gathers in her hands while she speaks her words, an aura column rises as she lifts off the ground, a flash carries the form change, the mage's own orbit ring forms around her, a finishing pose, then back to play. Times in seconds; 'swap' is the flash peak where the avatar changes (the music cue's reveal hit is composed to land there). Camera shots are relative to the mage (radius/height in metres, yaw degrees from her facing, look = 'face' | 'chest' | 'hands' | 'feet'). No third-party sequences, symbols, poses or music. Gestures/poses avoid clips that rotate the hips (wide_arm_spell), and each shot is anchored to the mage's visual facing (from her shoulders) when the shot begins. The form reached at a tenth level is PERMANENT (saved appearance); 'surge_s' is the length of the temporary Orbit Surge (power + orbit ring) a mage may call before a strong fight. Milestone J: the FIRST awakening (full) is an 11.6 s, five-stage sequence (versions.full.stages): 1 awakening (she senses it; ambient light gathers), 2 build-up (orbit frames rise and turn, she lifts off, speaks her words), 3 clothing reveal (a cocoon of light ribbons wraps her feet-to-head, the form changes inside it, then the ribbons unravel head-to-feet so the outfit appears progressively - never an abrupt swap or a white-out), 4 Aether Orbit awakening (arc segments and beads fly in and lock into her first orbit), 5 final reveal (landing, finishing pose on the musical climax, clear full-body shot). Music: tools/audio/synth_milestone_j.py transform. Camera rule (Milestone J): no low angles on a mage at close range - every shot is at least 1.0 m high (a skirt lifted by spring bones during the lift-off must never be framed from below). 2026-10-16: the full awakening is stretched to 15 s (every stage, shot and cue scaled by 15/11.6, music re-synthesised from the same stages) and each form lists the effects of its design sheet (\"effects\": LookFX petals / leaves / starflowers / wind / comet / wisps / moons / halo / flames), which play from the build-up to the end.",
  "versions": {
   "full": {
-   "length": 11.6,
-   "swap": 5.6,
+   "length": 15.0,
+   "swap": 7.24,
    "float": 0.2,
    "music": "full",
    "shots": [
     {
      "from": 0.0,
-     "to": 1.8,
+     "to": 2.33,
      "radius": [
       5.4,
       4.4
@@ -26,8 +26,8 @@
      "fov": 50
     },
     {
-     "from": 1.8,
-     "to": 4.3,
+     "from": 2.33,
+     "to": 5.56,
      "radius": [
       3.3,
       2.6
@@ -44,8 +44,8 @@
      "fov": 46
     },
     {
-     "from": 4.3,
-     "to": 5.6,
+     "from": 5.56,
+     "to": 7.24,
      "radius": [
       2.6,
       2.3
@@ -62,8 +62,8 @@
      "fov": 44
     },
     {
-     "from": 5.6,
-     "to": 7.4,
+     "from": 7.24,
+     "to": 9.57,
      "radius": [
       2.3,
       3.3
@@ -81,8 +81,8 @@
      "fov": 46
     },
     {
-     "from": 7.4,
-     "to": 9.4,
+     "from": 9.57,
+     "to": 12.16,
      "radius": [
       3.7,
       3.4
@@ -99,8 +99,8 @@
      "fov": 48
     },
     {
-     "from": 9.4,
-     "to": 11.6,
+     "from": 12.16,
+     "to": 15.0,
      "radius": [
       4.0,
       4.7
@@ -117,21 +117,21 @@
      "fov": 46
     }
    ],
-   "incantation_at": 2.4,
-   "gesture_at": 2.0,
-   "pose_at": 9.6,
-   "title_at": 10.0,
+   "incantation_at": 3.1,
+   "gesture_at": 2.59,
+   "pose_at": 12.41,
+   "title_at": 12.93,
    "stages": {
     "awaken": 0.0,
-    "build": 1.8,
-    "cover": 4.3,
-    "swap": 5.6,
-    "reveal_end": 7.4,
-    "orbit": 7.6,
-    "orbit_lock": 9.2,
-    "pose": 9.6,
-    "title": 10.0,
-    "length": 11.6
+    "build": 2.33,
+    "cover": 5.56,
+    "swap": 7.24,
+    "reveal_end": 9.57,
+    "orbit": 9.83,
+    "orbit_lock": 11.9,
+    "pose": 12.41,
+    "title": 12.93,
+    "length": 15.0
    },
    "flash_alpha": 0.22
   },
@@ -206,7 +206,7 @@
   "mika": {
    "10": {
     "form": "bloom",
-    "title": "Bloom Form",
+    "title": "Starbloom Ascendant",
     "incantation": "Flos lucis, aperi te!",
     "translation": "Flower of light, open!",
     "color": [
@@ -225,13 +225,74 @@
     "motes": "bloom",
     "petals": true,
     "power": 0.2,
-    "surge_s": 60.0
+    "surge_s": 60.0,
+    "effects": [
+     "petals",
+     "leaves",
+     "starflowers"
+    ]
+   },
+   "20": {
+    "form": "gale",
+    "title": "Gale Knight",
+    "incantation": "Ventus, eleva me!",
+    "translation": "Wind, lift me up!",
+    "color": [
+     0.62,
+     1.0,
+     0.78
+    ],
+    "accent": [
+     0.92,
+     1.0,
+     0.96
+    ],
+    "gesture": "wide_arm_spell",
+    "pose": "prepare_and_cast",
+    "expression": "happy",
+    "motes": "wind",
+    "petals": false,
+    "power": 0.3,
+    "surge_s": 60.0,
+    "effects": [
+     "wind",
+     "leaves",
+     "comet"
+    ]
+   },
+   "30": {
+    "form": "verdant",
+    "title": "Verdant Comet Mage",
+    "incantation": "Cometa viridis, veni!",
+    "translation": "Green comet, come!",
+    "color": [
+     0.45,
+     0.95,
+     0.75
+    ],
+    "accent": [
+     0.4,
+     0.95,
+     1.0
+    ],
+    "gesture": "spell_casting",
+    "pose": "prepare_and_cast",
+    "expression": "happy",
+    "motes": "nature",
+    "petals": false,
+    "power": 0.4,
+    "surge_s": 60.0,
+    "effects": [
+     "wind",
+     "leaves",
+     "comet"
+    ]
    }
   },
   "luna": {
    "10": {
     "form": "eclipse",
-    "title": "Gilded Eclipse Form",
+    "title": "Umbral Priestess",
     "incantation": "Umbra aurea, surge mecum!",
     "translation": "Golden shadow, rise with me!",
     "color": [
@@ -250,7 +311,68 @@
     "motes": "umbral",
     "petals": false,
     "power": 0.2,
-    "surge_s": 60.0
+    "surge_s": 60.0,
+    "effects": [
+     "wisps",
+     "moons",
+     "starflowers"
+    ]
+   },
+   "20": {
+    "form": "shadowblade",
+    "title": "Shadowblade Seer",
+    "incantation": "Umbra, acue me!",
+    "translation": "Shadow, sharpen me!",
+    "color": [
+     1.0,
+     0.76,
+     0.3
+    ],
+    "accent": [
+     0.45,
+     0.18,
+     0.75
+    ],
+    "gesture": "wide_arm_spell",
+    "pose": "magic_attack_2h",
+    "expression": "relaxed",
+    "motes": "umbral",
+    "petals": false,
+    "power": 0.3,
+    "surge_s": 60.0,
+    "effects": [
+     "wisps",
+     "moons",
+     "flames"
+    ]
+   },
+   "30": {
+    "form": "eclipse_oracle",
+    "title": "Eclipse Oracle",
+    "incantation": "Sol obscura, corona mea!",
+    "translation": "Darkened sun, my crown!",
+    "color": [
+     1.0,
+     0.76,
+     0.3
+    ],
+    "accent": [
+     0.45,
+     0.18,
+     0.75
+    ],
+    "gesture": "spell_casting",
+    "pose": "magic_attack_2h",
+    "expression": "relaxed",
+    "motes": "umbral",
+    "petals": false,
+    "power": 0.4,
+    "surge_s": 60.0,
+    "effects": [
+     "halo",
+     "flames",
+     "moons"
+    ]
    }
   }
  }

@@ -108,6 +108,8 @@ func _ready() -> void:
 		WorldState.register_mind("luna")
 		var luna := spawn_character("luna", "Luna", TransformationDirector.avatar_for("luna"), Transform3D.IDENTITY, chars)
 		luna.set_physics_process(false)
+		if luna.stage_profile().has("weapon"):
+			luna.sword = SwordLayer.attach(luna)
 		luna.visible = false
 		mages.append("luna")
 
@@ -419,6 +421,16 @@ func _ready() -> void:
 		var mt := MagicTest.new()
 		mt.main = self
 		add_child(mt)
+	elif RenderProfile.options.has("qareel"):
+		travel._cooldown_until = 1e12
+		var qa = load("res://scripts/tests/qa_reel.gd").new()
+		qa.main = self
+		add_child(qa)
+	elif RenderProfile.options.has("transformvideo"):
+		travel._cooldown_until = 1e12
+		var tv = load("res://scripts/tests/transform_video.gd").new()
+		tv.main = self
+		add_child(tv)
 	elif RenderProfile.options.has("outfittest"):
 		travel._cooldown_until = 1e12
 		var ot = load("res://scripts/tests/outfit_test.gd").new()

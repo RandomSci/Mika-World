@@ -175,6 +175,14 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 	var col := Color(sp.color[0], sp.color[1], sp.color[2])
 	var acc := Color(sp.accent[0], sp.accent[1], sp.accent[2])
 	var fx := _build_fx(c, sp, col, acc, who)
+	# the look's own effects from its design sheet (petals, leaves, wind, wisps, halo, flames ... - LookFX)
+	var look_fx: Array = []
+	for kind in sp.get("effects", []):
+		var lf := LookFX.make(String(kind), col, acc, 1.0)
+		c.get_parent().add_child(lf)
+		LookFX.set_on(lf, false, 0.0)
+		look_fx.append(lf)
+		fx["look_" + String(kind)] = lf
 	var stages: Dictionary = v.get("stages", {})
 	var awk: AwakeningFX = null
 	if not stages.is_empty():
@@ -232,6 +240,13 @@ func play(who: String, version := "full", preview := false, level := 10) -> Dict
 		var lift := smoothstep(0.15 * length, swap_t, t) * (1.0 - smoothstep(swap_t + 2.4, length * 0.8, t))
 		c.global_position.y = start_y + float(v.float) * lift
 		_update_fx(fx, c, t, swap_t, length, col, acc)
+		var build_t := float(stages.get("build", swap_t * 0.3)) if not stages.is_empty() else swap_t * 0.3
+		for lf in look_fx:
+			LookFX.follow(lf, c, t)
+			if String(lf.get_meta("look_fx")) == "halo":
+				LookFX.set_on(lf, true, smoothstep(swap_t, swap_t + 1.5, t) * (1.0 - smoothstep(length - 1.0, length, t)))
+			else:
+				LookFX.set_on(lf, t > build_t and t < length - 1.2)
 		if t >= float(v.gesture_at) and not fired.has("gesture"):
 			fired.gesture = true
 			c.play_gesture(String(sp.gesture), 0.4, 0.6)

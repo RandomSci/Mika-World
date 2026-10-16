@@ -1,6 +1,6 @@
 class_name OutfitTest
 extends Node
-## --outfittest: appearance-stage QA for a new look (default: whatever stage Mika's level picks; --outfit-stage=<id>
+## --outfittest: appearance-stage QA for a new look (--outfit-who=mika|luna, default mika; the stage her level picks; --outfit-stage=<id>
 ## previews another one, e.g. the archived look for a baseline). Rendered, with Luna in the scene (--luna).
 ##  * idle / walk / sit / cast, each from the front, back and side (+ face close-ups with expressions, blink and the
 ##    lip-sync mouth) -> <shots>/outfittest/<tag>_<state>_<view>.png
@@ -70,6 +70,7 @@ func _views(m: WorldCharacter, state: String, height := 0.95, dist := 3.1, views
 	var dirs := {"front": fwd, "back": -fwd, "side": right, "side_l": -right, "front34": (fwd + right * 0.8).normalized()}
 	await _dump_pose(m, state)
 	for v in views:
+		c = m.global_position + Vector3(0, height, 0)       # she may be running: frame where she is now
 		rig.set_shot(c + dirs[v] * dist + Vector3(0, 0.15, 0), c, 38.0)
 		report.get_or_add("shots", []).append(await _shot("%s_%s" % [state, v]))
 
@@ -237,10 +238,10 @@ func _perf(seconds: float) -> Dictionary:
 
 
 func _run() -> void:
-	# --outfit-who=luna: the same checks on Luna (the other mage stands beside her)
-	var who := String(RenderProfile.options.get("outfit-who", "mika"))
+	var who := String(RenderProfile.options.get("outfit-who", "mika"))       # the mage whose look is tested
+	var other_id := "luna" if who == "mika" else "mika"
 	var m: WorldCharacter = main.characters[who]
-	var luna: WorldCharacter = main.characters.get("mika" if who == "luna" else "luna")
+	var luna: WorldCharacter = main.characters.get(other_id)                  # the other mage, framed for the cost check
 	main.player.enabled = false
 	# both mages' own minds paused (a mage walking off or casting mid-measurement is not her clothes misbehaving)
 	for w in main.mage_brains:
@@ -259,10 +260,15 @@ func _run() -> void:
 		m.swap_avatar(AppearanceRegistry.avatar_for(who))
 	await _wait(3.0)
 	var st := AppearanceRegistry.stage_for_avatar(who, m.avatar_path)
+	report["who"] = who
 	report["stage"] = st.get("id", "")
 	report["avatar"] = m.avatar_path
 	report["face_bound_shapes"] = m.face.bound_count() if m.face else -1
 	report["profile"] = RenderProfile.profile
+	for k in ["brain", "duel", "companionship", "attention", "impacts", "mage_talk", "performance"]:      # nobody else drives the mages during the test
+		var n: Node = main.get(k)
+		if n:
+			n.process_mode = Node.PROCESS_MODE_DISABLED
 	var rig: ThirdPersonCamera = main.camera_rig
 	# a clear standing spot: where she spawned, facing the open side; Luna beside her
 	var home := m.global_position
@@ -272,9 +278,9 @@ func _run() -> void:
 	await _wait(2.5)
 
 	# ---- cost first (Mika + Luna framed, nothing else changing)
-	report["tris_mika"] = _tris(m)
+	report["tris_" + who] = _tris(m)
 	if luna:
-		report["tris_luna"] = _tris(luna)
+		report["tris_" + other_id] = _tris(luna)
 	var mid := home + m.global_transform.basis.x * 0.8 + Vector3(0, 1.0, 0)
 	rig.set_shot(mid - m.global_transform.basis.z * 4.2 + Vector3(0, 0.3, 0), mid, 45.0)
 	await _wait(float(RenderProfile.options.get("outfit-warmup-s", "2")))
@@ -287,7 +293,10 @@ func _run() -> void:
 		get_tree().quit()
 		return
 	if luna:
-		luna.global_position = home + m.global_transform.basis.x * 4.0 + m.global_transform.basis.z * 2.0
+		# after the both-mages perf sample the other mage leaves every shot (she would walk over and block the camera)
+		luna.global_position = home + Vector3(40, 0, 40)
+		luna.visible = false
+		luna.process_mode = Node.PROCESS_MODE_DISABLED
 
 	# ---- idle: springs settle, then views, face, expressions. Her random idle glances are paused while the springs are
 	# measured (a head turn swings the hair - that is motion, not jitter)
@@ -331,7 +340,7 @@ func _run() -> void:
 		report["hair_clip_" + gait[0]] = await _hair_clip(m, 1.5)
 
 		print("[outfittest] hair_clip_%s %s" % [gait[0], JSON.stringify(report["hair_clip_" + gait[0]])])
-		await _views(m, gait[0], 0.95, 3.4, ["front", "side", "back"] if gait[0] == "walk" else ["side", "back"])
+		await _views(m, gait[0], 0.95, 3.4, ["front", "side", "back"])
 		m.set_move_input(Vector3.ZERO, false)
 		if gait[0] == "walk":
 			m.set("_glance_t", 1e9)
@@ -348,6 +357,39 @@ func _run() -> void:
 			await _wait(1.3)
 			await _views(m, "cast_" + clip, 0.95, 3.1, ["front", "side", "back"])
 			await _wait(2.5)
+
+	# ---- head turns (the hair and collar against the shoulders)
+	m.global_position = home
+	await _wait(0.8)
+	var hfwd := -m.global_transform.basis.z
+	var hright := hfwd.cross(Vector3.UP).normalized()
+	for side in [["head_turn_r", 1.0], ["head_turn_l", -1.0]]:
+		m.look_head_at(_bone(m, "Head") + hright * 2.0 * float(side[1]) + hfwd * 0.4)
+		await _wait(1.0)
+		await _views(m, side[0], 1.1, 2.6, ["front", "side"])
+	m.look_head_at(null)
+	await _wait(0.6)
+
+	# ---- weapon: draw, attack mid-swing, sheathe (the look's weapon, or the default magic blade)
+	if m.sword and m.sword.available:
+		await m.sword.draw()
+		await _wait(1.0)
+		await _views(m, "weapon_drawn", 0.95, 3.1, ["front"])
+		m.sword.attack()
+		await _wait(0.55)
+		await _views(m, "attack", 0.95, 3.1, ["front", "side", "back"])
+		await _wait(1.5)
+		m.sword.sheathe()
+		await _wait(1.0)
+	else:
+		report["weapon"] = "no weapon layer on this character"
+
+	# ---- taking a heavy hit from the front
+	var hf := -m.global_transform.basis.z
+	m.take_hit(m.global_position + hf * 2.0 + Vector3(0, 1.2, 0), true)
+	await _wait(0.35)
+	await _views(m, "hit", 0.95, 3.1, ["front", "side", "back"])
+	await _wait(2.5)
 
 	# ---- sit on the garden Still Stone (the interaction the game uses)
 	var it: Interactable = main.world.interactables.get("garden_meditate") if "interactables" in main.world else null
