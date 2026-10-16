@@ -656,18 +656,153 @@
     "source": "~/Downloads/Mika-Transformation-Lab/looks/mika_l40 (tools/mika_l40_place.py + mika_l40_rig.py) from MIKA_L40_Outfit_3D"
    },
    {
-    "id": "l50",
+    "id": "valkyrie",
     "order": 50,
-    "name": "Level 50 form (future)",
+    "name": "Tempest Valkyrie (Level 50-59, 3D-piece outfit, first wings)",
     "levels": [
      50,
      59
     ],
     "requires": {
-     "level": 50
+     "level": 50,
+     "form": "valkyrie"
     },
-    "status": "planned",
-    "avatar": ""
+    "status": "ready",
+    "avatar": "res://assets/characters/mika/stages/l50_valkyrie/MikaTempestValkyrie_L50Outfit.vrm",
+    "transformation": "level 50 (data/transformations.json, full cinematic once, then permanent)",
+    "profile": {
+     "face": {
+      "brows_through_fringe": false
+     },
+     "motion": "mika",
+     "springs": {
+      "stiffness": 1.0,
+      "drag": 1.0,
+      "chains": {
+       "HairBack": {
+        "stiffness": 8.0,
+        "drag": 1.3,
+        "gravity": 2.0,
+        "hit_radius": 2.2
+       },
+       "HairSide": {
+        "stiffness": 7.0,
+        "drag": 1.3,
+        "gravity": 1.8,
+        "hit_radius": 2.2
+       },
+       "HairRibbon": {
+        "stiffness": 3.0,
+        "drag": 1.2
+       },
+       "Sleeve": {
+        "stiffness": 6.0,
+        "drag": 1.3,
+        "gravity": 1.2
+       },
+       "Skirt": {
+        "stiffness": 2.5,
+        "drag": 1.2,
+        "gravity": 1.4,
+        "hit_radius": 1.4,
+        "center": "body"
+       },
+       "Sash": {
+        "stiffness": 2.5,
+        "drag": 1.2
+       },
+       "Cape": {
+        "stiffness": 1.6,
+        "drag": 1.1,
+        "gravity": 1.2,
+        "hit_radius": 1.2,
+        "center": "body"
+       }
+      },
+      "shoulders": {
+       "radius": 0.06,
+       "cap": 0.065,
+       "arm": 0.065,
+       "forearm": 0.06,
+       "hand": 0.07
+      }
+     },
+     "skin": {
+      "tint": [
+       1.0,
+       1.05,
+       1.04
+      ]
+     },
+     "clearance": {
+      "left": [
+       0.05,
+       0.1,
+       0.19
+      ],
+      "right": [
+       -0.03,
+       0.08,
+       0.2
+      ],
+      "pole": [
+       0.32,
+       -0.05,
+       -0.18
+      ]
+     },
+     "aura": {
+      "kinds": [
+       "leaves",
+       "wind"
+      ],
+      "color": [
+       0.6,
+       1.0,
+       0.8
+      ],
+      "accent": [
+       0.55,
+       0.85,
+       1.0
+      ],
+      "strength": 0.12
+     },
+     "weapon": {
+      "model": "res://assets/characters/mika/stages/l50_valkyrie/MikaTempestSpear_L50.glb",
+      "offset": [
+       0,
+       0,
+       0
+      ],
+      "scale": 1.0,
+      "fx": "spear_wind",
+      "fx_color": [
+       0.7,
+       1.0,
+       0.85
+      ],
+      "fx_y": 0.75
+     },
+     "wings": {
+      "bones": {
+       "L": [
+        "J_Sec_WingL_0",
+        "J_Sec_WingL_1",
+        "J_Sec_WingL_2"
+       ],
+       "R": [
+        "J_Sec_WingR_0",
+        "J_Sec_WingR_1",
+        "J_Sec_WingR_2"
+       ]
+      },
+      "flap_deg": 5.0,
+      "flap_hz": 0.22,
+      "sit": "fold"
+     }
+    },
+    "source": "~/Downloads/Mika-Transformation-Lab/looks/mika_l50 (tools/mika_l50_place.py + mika_l50_rig.py) from MIKA_L50_Outfit_3D"
    },
    {
     "id": "l60",
@@ -774,6 +909,11 @@
    {
     "id": "l40_placeholder",
     "name": "Level 40 form (future)",
+    "avatar": ""
+   },
+   {
+    "id": "l50_placeholder",
+    "name": "Level 50 form (future)",
     "avatar": ""
    }
   ]
@@ -1261,18 +1401,103 @@
     "source": "~/Downloads/Mika-Transformation-Lab/looks/luna_l30 (tools/luna_l30_place.py + luna_l30_rig.py) from LUNA_L30_Outfit_3D_{Dress,Accessories}.zip"
    },
    {
-    "id": "l40",
+    "id": "gilded",
     "order": 40,
-    "name": "Level 40 form (future)",
+    "name": "Gilded Night Sorceress (Level 40-49, 3D-piece outfit)",
     "levels": [
      40,
      49
     ],
     "requires": {
-     "level": 40
+     "level": 40,
+     "form": "gilded"
     },
-    "status": "planned",
-    "avatar": ""
+    "status": "ready",
+    "avatar": "res://assets/characters/luna/stages/l40_gilded/LunaGildedNight_L40Outfit.vrm",
+    "transformation": "level 40 (data/transformations.json, full cinematic once, then permanent)",
+    "profile": {
+     "face": {
+      "brows_through_fringe": false
+     },
+     "motion": "luna",
+     "springs": {
+      "stiffness": 1.0,
+      "drag": 1.0,
+      "chains": {
+       "HairBack": {
+        "stiffness": 8.5,
+        "drag": 1.35,
+        "gravity": 2.2,
+        "hit_radius": 2.2
+       },
+       "HairSide": {
+        "stiffness": 7.5,
+        "drag": 1.35,
+        "gravity": 2.0,
+        "hit_radius": 2.2
+       },
+       "Sleeve": {
+        "stiffness": 1.5,
+        "drag": 1.2,
+        "gravity": 1.5,
+        "center": "body"
+       },
+       "Earring": {
+        "stiffness": 2.0,
+        "drag": 1.2
+       },
+       "HeadTassel": {
+        "stiffness": 2.0,
+        "drag": 1.2
+       },
+       "Skirt": {
+        "stiffness": 3.0,
+        "drag": 1.3,
+        "gravity": 1.2,
+        "hit_radius": 1.8,
+        "center": "body"
+       },
+       "NeckPendant": {
+        "stiffness": 2.0,
+        "drag": 1.2
+       }
+      },
+      "shoulders": {
+       "radius": 0.06,
+       "cap": 0.065,
+       "arm": 0.065,
+       "forearm": 0.06,
+       "hand": 0.07
+      }
+     },
+     "aura": {
+      "kinds": [
+       "runes",
+       "sparkles"
+      ],
+      "color": [
+       1.0,
+       0.8,
+       0.38
+      ],
+      "accent": [
+       0.15,
+       0.6,
+       0.6
+      ],
+      "strength": 0.12
+     },
+     "weapon": {
+      "model": "res://assets/characters/luna/stages/l40_gilded/LunaGildedTrident_L40.glb",
+      "offset": [
+       0,
+       0,
+       0
+      ],
+      "scale": 1.0
+     }
+    },
+    "source": "~/Downloads/Mika-Transformation-Lab/looks/luna_l40 (tools/luna_l40_place.py + luna_l40_rig.py) from LUNA_L40_Outfit_3D"
    },
    {
     "id": "l50",
@@ -1388,6 +1613,11 @@
    {
     "id": "l30_placeholder",
     "name": "Level 30 form (future)",
+    "avatar": ""
+   },
+   {
+    "id": "l40_placeholder",
+    "name": "Level 40 form (future)",
     "avatar": ""
    }
   ]

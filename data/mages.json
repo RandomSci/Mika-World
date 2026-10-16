@@ -25,6 +25,11 @@
      "id": "nebula",
      "name": "Blossom Nebula Empress",
      "avatar": "res://assets/characters/mika/stages/l40_nebula/MikaBlossomNebula_L40Outfit.vrm"
+    },
+    "50": {
+     "id": "valkyrie",
+     "name": "Tempest Valkyrie",
+     "avatar": "res://assets/characters/mika/stages/l50_valkyrie/MikaTempestValkyrie_L50Outfit.vrm"
     }
    },
    "voice": "mika",
@@ -328,6 +333,11 @@
      "id": "eclipse_oracle",
      "name": "Eclipse Oracle",
      "avatar": "res://assets/characters/luna/stages/l30_eclipse/LunaEclipse_L30Outfit.vrm"
+    },
+    "40": {
+     "id": "gilded",
+     "name": "Gilded Night Sorceress",
+     "avatar": "res://assets/characters/luna/stages/l40_gilded/LunaGildedNight_L40Outfit.vrm"
     }
    },
    "voice": "luna",

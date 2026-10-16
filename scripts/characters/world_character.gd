@@ -116,6 +116,7 @@ var sword: SwordLayer  # optional magical-sword layer
 var aura_fx: Array = []        # the look's soft ambient effects (appearance profile "aura", LookFX)
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
 var cloth_clearance: ClothClearance   # hands kept out of her clothes (profile.clearance)
+var wing_layer: WingLayer             # feathered wings with their own bones (profile.wings)
 var foot_guard: FootGuard              # feet kept on top of the floor (a dance carrying her hips over a raised floor)
 var head_look: LookAtModifier3D  # eases her head toward what she reads / inspects
 var eye_looks: Array[LookAtModifier3D] = []
@@ -222,6 +223,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	cloth_clearance = ClothClearance.attach(skeleton, clr) if not clr.is_empty() else null
 	if cloth_clearance and RenderProfile.options.has("no-clearance"):
 		cloth_clearance.enabled = false
+	var wcfg: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("wings", {})
+	wing_layer = WingLayer.attach(skeleton, avatar, wcfg) if not wcfg.is_empty() else null
 	foot_guard = FootGuard.new()
 	foot_guard.name = "FootGuard"
 	skeleton.add_child(foot_guard)
@@ -847,11 +850,15 @@ func _skin_tone() -> void:
 			sm.set_shader_parameter("_Color", Color(base.r * tint.r, base.g * tint.g, base.b * tint.b, base.a))
 
 
-## Cast shadows on the face (anime convention): the face, eyes, brows and mouth take only a trace of the shadows other
-## things cast on them (profile.face.receive_shadow, default 0.15). The hair fringe, crowns, tiaras, high collars and
-## leaves otherwise drop hard dark patches over her face; her own toon shading (light direction) is unchanged.
+## Shadows on the face (anime convention): the face, eyes, brows and mouth take only a trace of the shadows other
+## things cast on them (profile.face.receive_shadow, default 0.15) - the hair fringe, crowns, tiaras, high collars and
+## leaves otherwise drop hard dark patches over her face - and the face is lit almost everywhere (its MToon shade
+## shift at most profile.face.shade_shift, default -0.8, as VRoid faces are): a side light no longer splits the face
+## down the nose into a lit and a dark half.
 func _face_shadows() -> void:
-	var rate := float(AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("face", {}).get("receive_shadow", 0.15))
+	var fcfg: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("face", {})
+	var rate := float(fcfg.get("receive_shadow", 0.15))
+	var shift_max := float(fcfg.get("shade_shift", -0.8))
 	var n := 0
 	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
 		var m: MeshInstance3D = mi
@@ -867,6 +874,8 @@ func _face_shadows() -> void:
 				if sm.get_shader_parameter("_ReceiveShadowRate") != null:
 					sm.set_shader_parameter("_ReceiveShadowRate", rate)
 					n += 1
+				if sm.get_shader_parameter("_ShadeShift") != null and String(m.name).begins_with("Face"):
+					sm.set_shader_parameter("_ShadeShift", minf(float(sm.get_shader_parameter("_ShadeShift")), shift_max))
 				mat = sm.next_pass
 	print("[character] %s: face receives %.2f of cast shadows (%d materials)" % [character_id, rate, n])
 
@@ -1533,6 +1542,10 @@ func _physics_process(delta: float) -> void:
 			and (pose_adjust.influence < 0.05 or cloth_clearance.seated) and spd < walk_speed * 1.35 \
 			and not (reaction and reaction.active) and not lifted \
 			and not bool(anim_tree.get("parameters/cast/active") if anim_tree else false)   # a gesture / dance owns her arms
+	if wing_layer:
+		# folded while she sits or lies (or is knocked down), spread while she casts, fights or transforms
+		wing_layer.seated = (pose_adjust and pose_adjust.influence > 0.5) or (reaction != null and reaction.active) or lifted
+		wing_layer.spread = casting or (sword != null and sword.drawn) or bool(get_meta("transforming", false))
 	if reaction:
 		reaction.physics(delta)
 		if reaction.active:

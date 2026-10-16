@@ -198,7 +198,7 @@ static func make(kind: String, col: Color, acc: Color, strength := 1.0) -> Node3
 				pm.color_ramp = FX.ramp([Color(col, 0.0), Color(col, 1.0), Color(col.lerp(acc, 0.4), 0.9), Color(acc, 0.0)], [0.0, 0.1, 0.8, 1.0])), petal_mesh())
 		"runes":
 			n = Node3D.new()
-			for spec in [[2.3, 0.18, 6, 3.0, 0.02], [1.45, -0.32, 8, 7.0, 0.03], [1.1, 0.5, 5, 11.0, 1.0]]:
+			for spec in [[2.3, 0.18, 6, 3.0, 0.02], [1.45, -0.32, 8, 7.0, 0.03]]:      # ground rings (a ring at waist height reads as a line through her)
 				var q := FX.quad("res://shaders/magic/sigil.gdshader", spec[0], {"color": col, "spin": spec[1], "sides": spec[2], "seed": spec[3], "intensity": 0.9 * strength, "draw_progress": 1.0})
 				q.position = Vector3(0, spec[4], 0)
 				q.set_meta("base_intensity", 0.9 * strength)

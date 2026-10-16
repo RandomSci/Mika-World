@@ -315,6 +315,34 @@
      "sparkles",
      "starflowers"
     ]
+   },
+   "50": {
+    "form": "valkyrie",
+    "title": "Tempest Valkyrie",
+    "incantation": "Tempestas, alas mihi!",
+    "translation": "Storm, give me wings!",
+    "color": [
+     0.6,
+     1.0,
+     0.82
+    ],
+    "accent": [
+     0.55,
+     0.85,
+     1.0
+    ],
+    "gesture": "spell_casting",
+    "pose": "prepare_and_cast",
+    "expression": "happy",
+    "motes": "wind",
+    "petals": false,
+    "power": 0.5,
+    "surge_s": 60.0,
+    "effects": [
+     "tornado",
+     "leaves",
+     "sparkles"
+    ]
    }
   },
   "luna": {
@@ -399,6 +427,34 @@
     "effects": [
      "halo",
      "flames",
+     "moons"
+    ]
+   },
+   "40": {
+    "form": "gilded",
+    "title": "Gilded Night Sorceress",
+    "incantation": "Aurum noctis, surge!",
+    "translation": "Gold of the night, rise!",
+    "color": [
+     1.0,
+     0.76,
+     0.3
+    ],
+    "accent": [
+     0.45,
+     0.18,
+     0.75
+    ],
+    "gesture": "spell_casting",
+    "pose": "magic_attack_2h",
+    "expression": "relaxed",
+    "motes": "umbral",
+    "petals": false,
+    "power": 0.45,
+    "surge_s": 60.0,
+    "effects": [
+     "runes",
+     "sparkles",
      "moons"
     ]
    }
