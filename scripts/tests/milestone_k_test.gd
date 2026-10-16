@@ -144,6 +144,8 @@ func _run() -> void:
 		"earshot": await _earshot()
 		"starfall_site": await _starfall_site()
 		"starfall_look": await _starfall_look()
+		"estcams": await _estcams()
+		"estwalk": await _estwalk()
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
 		_: _check(false, "unknown mode " + mode)
@@ -4892,3 +4894,94 @@ func _starfall_look() -> void:
 		_shot("%s_%s" % [hr, nm])
 	var fps := Engine.get_frames_per_second()
 	_check(fps >= 28.0, "30 fps there (%.1f)" % fps)
+
+
+## Every sub-area's establishing shot, and candidates for one being replaced (the 35-min proof: the Ancient Spell
+## Library's lens sat in a tree - no collider, so the solid checks pass - and went near black 14 times). Each frame's
+## brightness is printed (mean < 0.04 of white is a black screen on stream).
+func _estcams() -> void:
+	await _hold_all()
+	main.director.enabled = false
+	var shots := {}
+	for id in WorldState.sanctuary.sub_areas:
+		var cam: Dictionary = WorldState.sanctuary.sub_areas[id].camera
+		shots[id] = [Vector3(cam.pos[0], cam.pos[1], cam.pos[2]), Vector3(cam.look[0], cam.look[1], cam.look[2])]
+		# as the director plays it: a little wider, pulled back 18% from what it looks at
+		var lk0 := Vector3(cam.look[0], cam.look[1], cam.look[2])
+		shots[id + "_played"] = [lk0 + (shots[id][0] - lk0) * CameraDirector.PULL_BACK, lk0]
+	var lk := Vector3(-10.5, 1.5, 12.0)
+	for i in (8 if RenderProfile.options.has("estcams-cands") else 0):
+		var a := deg_to_rad(i * 45.0)
+		shots["lib_cand_%d" % i] = [lk + Vector3(sin(a), 0, cos(a)) * 9.0 + Vector3(0, 1.8, 0), lk]
+	for nm in shots:
+		var sh: Array = shots[nm]
+		main.camera_rig.set_shot(sh[0], sh[1], 55.0)
+		await _wait(1.2)
+		var img := get_viewport().get_texture().get_image()
+		img.resize(64, 36)
+		var sum := 0.0
+		for y in 36:
+			for x in 64:
+				sum += img.get_pixel(x, y).get_luminance()
+		var sp3: PhysicsDirectSpaceState3D = (main.characters["mika"] as Node3D).get_world_3d().direct_space_state
+		print("[mktest] estcams %s pos=%s brightness=%.3f solid=%s crowded=%s" % [nm, sh[0], sum / (64.0 * 36.0), str(CombatFraming.inside_solid(sp3, sh[0])), str(main.director._crowded(sp3, sh[0], sh[1]))])
+		_shot(nm)
+
+
+## Walks Mika into a sub-area with the real camera director (its establishing shot plays) and reads every frame's
+## brightness; a dark frame prints where the lens was and what it looked at. --estwalk-sub=<id> (default the library).
+func _estwalk() -> void:
+	var sub := String(RenderProfile.options.get("estwalk-sub", "ancient_spell_library"))
+	var sa: Dictionary = WorldState.sanctuary.sub_areas[sub]
+	var cen := Vector3(sa.center[0], 0, sa.center[2])
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = mika.get_world_3d().navigation_map
+	main.brain.enabled = false
+	main.director.enabled = true
+	var dark := 0
+	var frames := 0
+	var est_frames := 0
+	var modes := {}
+	# the routes the 35-min proof ran when the library's wide shot went dark (Starfall Hill -> the circle)
+	var routes := [[Vector3(-22.17, 0.5, 17.93), Vector3(0, 1, 1.5)], [Vector3(-33.28, 1.4, 18.56), Vector3(1.34, 1, -1.25)],
+		[Vector3(-22.17, 0.5, 17.93), Vector3(-8.59, 0.5, 5.47)], [Vector3(-26.95, 1.1, 21.75), Vector3(-2.5, 1, -0.9)]]
+	for k in 4:
+		var a := deg_to_rad(k * 90.0 + 20.0)
+		var start := NavigationServer3D.map_get_closest_point(map, cen + Vector3(sin(a), 0, cos(a)) * 11.0)
+		if sub == "ancient_spell_library":
+			start = NavigationServer3D.map_get_closest_point(map, routes[k][0])
+		if main.teleport_guard:
+			main.teleport_guard.allow(mika)
+		mika.global_position = start + Vector3(0, 0.1, 0)
+		main.director.current_sub = ""
+		main.director._last_established.clear()
+		await _wait(2.5)
+		# odd runs: running straight through it to the far side (how the proof run met it)
+		if sub == "ancient_spell_library":
+			mika.navigate_to(routes[k][1], true)
+		elif k % 2 == 1:
+			mika.navigate_to(NavigationServer3D.map_get_closest_point(map, cen - Vector3(sin(a), 0, cos(a)) * 11.0), true)
+		else:
+			mika.navigate_to(cen)
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 12000:
+			await get_tree().process_frame
+			frames += 1
+			if main.director.mode == "establishing":
+				est_frames += 1
+			modes[main.director.mode] = int(modes.get(main.director.mode, 0)) + 1
+			var img := get_viewport().get_texture().get_image()
+			img.resize(48, 27)
+			var sum := 0.0
+			for y in 27:
+				for x in 48:
+					sum += img.get_pixel(x, y).get_luminance()
+			var br := sum / (48.0 * 27.0)
+			if br < 0.02:
+				dark += 1
+				var cam := get_viewport().get_camera_3d()
+				print("[mktest] estwalk DARK run=%d t=%.2f br=%.3f mode=%s cam=%s fwd=%s mika=%s" % [k, (Time.get_ticks_msec() - t0) / 1000.0, br,
+					main.director.mode, cam.global_position.snapped(Vector3.ONE * 0.01), (-cam.global_basis.z).snapped(Vector3.ONE * 0.01), mika.global_position.snapped(Vector3.ONE * 0.01)])
+				if dark % 10 == 1:
+					_shot("dark_%d_%d" % [k, dark])
+	print("[mktest] estwalk %s: %d dark of %d frames (%d in its establishing shot) modes %s" % [sub, dark, frames, est_frames, modes])

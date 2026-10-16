@@ -21,6 +21,7 @@ signal shot_changed(mode: String)
 const MIN_SHOT := 2.2
 const ESTABLISH_TIME := 4.0
 const ESTABLISH_COOLDOWN := 90.0
+var _established_sub := ""
 
 var rig: ThirdPersonCamera
 var mika: WorldCharacter
@@ -270,17 +271,28 @@ func _process(delta: float) -> void:
 	if world and world.has_method("sub_area_at"):
 		sub = world.sub_area_at(mika.global_position)
 	if sub != current_sub:
+		# she left the place the wide shot introduces: it ends (the 35-min proof: running through the library's stair
+		# mouth, the fixed lens held on while she went out of view behind a tree - 14 near-black stretches)
+		if _now() < _establish_until and sub == "":
+			_establish_until = 0.0
 		current_sub = sub
-		if sub != "" and _now() - float(_last_established.get(sub, -999.0)) > ESTABLISH_COOLDOWN:
+		# only when she arrives, not running straight through it
+		var passing := Vector2(mika.velocity.x, mika.velocity.z).length() > 2.6
+		if sub != "" and not passing and _now() - float(_last_established.get(sub, -999.0)) > ESTABLISH_COOLDOWN:
 			var cam: Dictionary = WorldState.sanctuary.sub_areas[sub].camera
-			_establish_target = [_arr(cam.pos), _arr(cam.look)]
-			_establish_until = _now() + ESTABLISH_TIME
+			var tgt := [_arr(cam.pos), _arr(cam.look)]
 			_last_established[sub] = _now()
+			# played only from where it was set: a lens the line-of-sight clamp would move (someone or something
+			# between it and the place) is not walked in toward the place - that put it in the library's stairwell
+			if _clear_line(tgt[1], tgt[0]).distance_to(tgt[0]) < 1.0 and _view_ok(tgt[0], tgt[1]):
+				_established_sub = sub
+				_establish_target = tgt
+				_establish_until = _now() + ESTABLISH_TIME
 	if not enabled or main.streaming.state != "idle":
 		return
 	var want := _choose()
 	if want != mode:
-		var urgent := want in ["spell", "activity", "signature", "combat"]
+		var urgent := want in ["spell", "activity", "signature", "combat"] or (mode == "establishing" and _establish_until == 0.0)
 		if _since_change < MIN_SHOT and not urgent and mode != "off":
 			want = mode  # hold the current shot a little longer
 		else:
@@ -482,6 +494,8 @@ func _frame(delta: float) -> void:
 			pos = _establish_target[0]
 			look = _establish_target[1].lerp(p + Vector3(0, 1.2, 0), 0.25)
 			fov = 55.0
+			if _clear_line(look, pos).distance_to(pos) > 1.0:
+				_establish_until = 0.0          # something came between: dropped (cuts away next frame)
 		"spell":
 			pos = p + fwd * 2.6 + right * _side * 2.0 + Vector3(0, 1.05, 0)   # never a low angle on her
 			look = p + fwd * 1.6 + Vector3(0, 1.45, 0)
@@ -601,6 +615,7 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 	if mika and not (mode in ["combat", "signature"]) and not RenderProfile.options.has("no-wide"):
 		fov = minf(fov * WIDE_FOV, 66.0)
 		pos = _clear_line(look, look + (pos - look) * PULL_BACK) if (pos - look).length() > 0.7 else pos
+	var as_set := pos
 	# never inside something solid, whatever shot asked for it (a ray from inside a rock reports nothing: the overlap
 	# test does) - pulled toward what it looks at, and up, until it is in open air
 	if mika:
@@ -615,6 +630,10 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		while tries < 8 and pos.distance_to(look) > 1.6 and _crowded(space, pos, look):
 			pos = pos.lerp(look, 0.14)
 			tries += 1
+		# an authored wide shot only plays from where it was set: one that has to be walked toward its subject to be
+		# clean is dropped (the library's lens ended at the stair mouth looking down the unlit stairwell: near-black)
+		if mode == "establishing" and pos.distance_to(as_set) > 1.5:
+			_establish_until = 0.0
 	# she is IN the shot: in a director-made frame (a fight, a conversation, an activity) her head must be inside
 	# the view and not behind something solid - otherwise the shot is re-solved round her instead of trusted
 	if mika and mode in ["combat", "conversation", "activity", "spell"]:
@@ -668,7 +687,9 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		_pos = pos
 	# and whatever shot this is (a staged scene included): open air round the lens and a clear view of what it looks
 	# at - a lens pressed against a boulder fills the screen with rock (QA: a black screen while Luna spoke)
-	if mika and not _view_ok(_pos, _look):
+	if mika and mode == "establishing" and not _view_ok(_pos, _look):
+		_establish_until = 0.0          # an authored wide shot with its view blocked is dropped, not re-placed
+	elif mika and not _view_ok(_pos, _look):
 		var rs := _rescue_shot(_pos, _look)
 		if rs != Vector3.INF:
 			_pos = rs
