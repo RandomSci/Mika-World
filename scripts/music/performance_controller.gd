@@ -90,20 +90,20 @@ func _process(_d: float) -> void:
 
 
 ## Can `partner` join a dance now (not fighting, casting, holding, seated, reading, transforming)?
-## The nearest spot (on the navmesh, within ~4 m) with nothing solid around her at body height - and, with a
+## The nearest spot (on the navmesh, within ~6 m) with nothing solid around her at body height, room for a camera - and, with a
 ## partner, open floor on (nearly) every side, since the partner's place depends on where the camera is. Vector3.INF when even her own spot is as good as it gets.
 func _open_floor(c: WorldCharacter, with_partner: bool) -> Vector3:
 	var map := c.get_world_3d().navigation_map
 	var here := c.global_position
 	var best := Vector3.INF
-	for ring in [0.0, 2.0, 3.0, 4.0]:
+	for ring in [0.0, 2.0, 3.0, 4.0, 6.0]:
 		for k in (1 if ring == 0.0 else 8):
 			var a := TAU * k / 8.0
 			var p := NavigationServer3D.map_get_closest_point(map, here + Vector3(cos(a), 0, sin(a)) * ring)
 			if p.distance_to(here + Vector3(cos(a), 0, sin(a)) * ring) > 0.8 or absf(p.y - here.y) > 1.0:
 				continue                 # off the walkable floor
-			if not _clear_at(c, p):
-				continue
+			if not _clear_at(c, p) or _camera_room(c, p) < 3:
+				continue                 # boxed in (a ruin chamber): no side a camera could film from
 			if with_partner:             # she turns to the camera later: open floor nearly all around her
 				var open_sides := 0
 				for j in 8:
@@ -115,6 +115,25 @@ func _open_floor(c: WorldCharacter, with_partner: bool) -> Vector3:
 					continue
 			return p
 	return best
+
+
+## In how many of 8 directions a camera has 4.5 m of open air at eye height from `p` (the performance shots
+## stand 2.5-5 m off; walls closer than that put the lens behind them).
+func _camera_room(c: WorldCharacter, p: Vector3) -> int:
+	var space := c.get_world_3d().direct_space_state
+	var ex: Array[RID] = []
+	for o in main.characters.values():
+		if o is CollisionObject3D:
+			ex.append((o as CollisionObject3D).get_rid())
+	var from := p + Vector3(0, 1.5, 0)
+	var n := 0
+	for j in 8:
+		var a := TAU * j / 8.0
+		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3(cos(a), 0.15, sin(a)) * 4.5, 0xFFFFFFFF)
+		q.exclude = ex
+		if space.intersect_ray(q).is_empty():
+			n += 1
+	return n
 
 
 func _clear_at(c: WorldCharacter, p: Vector3) -> bool:

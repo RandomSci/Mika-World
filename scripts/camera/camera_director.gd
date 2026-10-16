@@ -416,6 +416,19 @@ func _frame(delta: float) -> void:
 				pos.y = maxf(pos.y, float(main.world.ground_at(pos.x, pos.z)) + 0.25)
 			fov = float(sh.fov)
 			pos = _clear_line(_perf_look("chest"), _clear_line(look, pos))
+			if not _sees_dancers(pos, pair):
+				# something solid between the lens and the dancers (a ruin wall, a column): swing the shot round to
+				# the first open side and keep that side for the rest of the shot (no flicker between sides)
+				for off in [0.8, -0.8, 1.6, -1.6, PI]:
+					var y2: float = yaw + float(off)
+					var p2 := pc + Vector3(-sin(y2), 0, -cos(y2)) * r + Vector3(0, float(sh.height), 0)
+					if main.world and main.world.has_method("ground_at"):
+						p2.y = maxf(p2.y, float(main.world.ground_at(p2.x, p2.z)) + 0.25)
+					p2 = _clear_line(_perf_look("chest"), _clear_line(look, p2))
+					if _sees_dancers(p2, pair):
+						pos = p2
+						_perf.yaw0 = float(_perf.yaw0) + float(off)
+						break
 			_apply(pos, look, fov, delta)
 			return
 		"chase":
@@ -596,6 +609,12 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		while CombatFraming.inside_solid(space, pos) and tries < 14:
 			pos = pos.lerp(look, 0.12) + Vector3(0, 0.22, 0)
 			tries += 1
+		# nor rubbing against one (a post filling a quarter of the frame) or tucked under a roof she is not under
+		# (its dark underside across the top of the picture): stepped toward her until it is in the open
+		tries = 0
+		while tries < 8 and pos.distance_to(look) > 1.6 and _crowded(space, pos, look):
+			pos = pos.lerp(look, 0.14)
+			tries += 1
 	# she is IN the shot: in a director-made frame (a fight, a conversation, an activity) her head must be inside
 	# the view and not behind something solid - otherwise the shot is re-solved round her instead of trusted
 	if mika and mode in ["combat", "conversation", "activity", "spell"]:
@@ -716,6 +735,43 @@ func _two_clear(cam: Vector3, a: Vector3, b: Vector3) -> bool:
 
 ## Keep the subject visible: if geometry blocks the line from the subject to the camera, move the
 ## camera to just in front of the obstruction.
+func _crowded(space: PhysicsDirectSpaceState3D, pos: Vector3, look: Vector3) -> bool:
+	var ex: Array[RID] = []
+	for c in main.characters.values():
+		if c is CollisionObject3D:
+			ex.append((c as CollisionObject3D).get_rid())
+	for j in 8:                                       # level probes: the ground under a low lens never counts
+		var a := TAU * j / 8.0
+		var q := PhysicsRayQueryParameters3D.create(pos, pos + Vector3(cos(a), 0, sin(a)) * 0.6, 1 | 4)
+		q.exclude = ex
+		if not space.intersect_ray(q).is_empty():
+			return true
+	var up := PhysicsRayQueryParameters3D.create(pos, pos + Vector3(0, 3.0, 0), 1)
+	up.exclude = ex
+	if space.intersect_ray(up).is_empty():
+		return false
+	var up2 := PhysicsRayQueryParameters3D.create(look, look + Vector3(0, 3.0, 0), 1)
+	up2.exclude = ex
+	return space.intersect_ray(up2).is_empty()        # the lens is under a roof and she is not
+
+
+## The dancer's head and chest (and her partner's chest) can be seen from `cam`: nothing solid in between.
+func _sees_dancers(cam: Vector3, pair) -> bool:
+	var space := mika.get_world_3d().direct_space_state
+	var ex: Array[RID] = [mika.get_rid()]
+	var targets: Array = [mika.global_position + Vector3(0, 1.45, 0), mika.chest.global_position]
+	if pair != null and is_instance_valid(pair) and (pair as Node3D).visible:
+		ex.append((pair as CollisionObject3D).get_rid())
+		targets.append((pair as WorldCharacter).chest.global_position)
+	for t in targets:
+		var q := PhysicsRayQueryParameters3D.create(cam, t, 0xFFFFFFFF)
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty() and (hit.position as Vector3).distance_to(t) > 0.35:
+			return false
+	return true
+
+
 func _clear_line(subject: Vector3, cam: Vector3) -> Vector3:
 	var space := mika.get_world_3d().direct_space_state
 	# start a little out from the subject: a look point ON an object (a plaque, a notice board) sits inside that

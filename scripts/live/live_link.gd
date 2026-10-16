@@ -143,6 +143,8 @@ func _on_message(m: Dictionary) -> void:
 					_synth_complete = false
 		"youtube-live-selected-message":
 			_chat_card(m)
+			if bool(m.get("active", false)) and main.get("chat") and main.chat.addressee(String(m.get("message", ""))) == "luna":
+				_luna_answers(m)
 		"lifestyle-action":
 			_action(m)
 		"lifestyle-cancel":
@@ -152,6 +154,37 @@ func _on_message(m: Dictionary) -> void:
 			_glance("mika")
 		_:
 			pass
+
+
+# ------------------------------------------------------------------ Luna answers her own messages
+## The server's cast is Mika: a message that names only Luna is answered here, by Luna, in her own voice, at a
+## safe moment (not over Mika's speech, a cast or a dance; given up after 60 s). Mika's line, if any, comes first.
+var _luna_busy := false
+
+
+func _luna_answers(m: Dictionary) -> void:
+	if _luna_busy or not main.characters.has("luna") or not (main.characters["luna"] as Node3D).visible:
+		return
+	_luna_busy = true
+	var t0 := Time.get_ticks_msec()
+	await get_tree().create_timer(2.0).timeout          # Mika's reply (from the server) starts first
+	while Time.get_ticks_msec() - t0 < 60000 and (not main.chat._safe_point("luna") or _speaking or not _speech.is_empty()):
+		await get_tree().create_timer(0.5).timeout
+	if Time.get_ticks_msec() - t0 >= 60000:
+		_luna_busy = false
+		return
+	var ctx: Dictionary = main.chat._context("luna")
+	var sys := "You are Luna, a young mage, proud, confident and a little dry, living and studying with your friend Mika in a fantasy world that viewers watch on a livestream. Answer the viewer in one or two short, natural sentences using ONLY the facts provided. No em dashes. JSON {\"reply\": string}."
+	var fallback := "Thanks for asking, %s. I'm busy with my own studies, but I heard you." % String(m.get("author", "friend"))
+	var r: Dictionary = await main.llm.ask_json(sys, JSON.stringify({"viewer": String(m.get("author", "")), "comment": String(m.get("message", "")), "facts": ctx}), {"reply": fallback})
+	var reply := VoiceService.clean(String((r.get("json", {}) as Dictionary).get("reply", fallback)))
+	if reply.split(" ").size() > 45 or reply.length() < 2:
+		reply = fallback
+	if main.attention:
+		main.attention.glance_camera("luna", clampf(reply.split(" ").size() / 2.6, 1.5, 6.0))
+	await main.voice.say(String(Progression.mages.get("luna", {}).get("voice", "luna")), reply)
+	print("[livelink] luna answered %s: %s" % [String(m.get("author", "")), reply.left(120)])
+	_luna_busy = false
 
 
 # ------------------------------------------------------------------ speech
@@ -434,7 +467,8 @@ func _report(_force := false) -> void:
 			"landmarks": main.world.points_of_interest.keys().slice(0, 20).map(func(k): return {"id": String(k), "label": String(main.world.points_of_interest[k].get("description", k)).left(60), "zone": area}) if main.get("world") else []},
 		"dance": {"busy": main.performance.busy() if main.performance else false, "qualityReady": true, "game": {"active": main.performance.busy() if main.performance else false, "enabledRoutines": ROUTINES.keys()}},
 		"world": "a fantasy mage world (Godot): Mika and Luna, Level %d and %d" % [WorldState.mind("mika").level(), WorldState.mind("luna").level() if WorldState.minds.has("luna") else 1],
-		"clock": WorldState.clock_text(), "mageProgress": _mage_progress()}
+		"clock": WorldState.clock_text(), "mageProgress": _mage_progress(),
+		"weather": ({"sky": main.weather.kind(), "raining": main.weather.raining(), "underCover": main.weather.sheltered_area()} if main.get("weather") else {})}
 	# which characters are drawn here (the server's "Stage is loaded" check before it goes live)
 	_send({"type": "vr-room-client-status", "loaded": main.characters.keys().filter(func(k): return (main.characters[k] as Node3D).visible), "failed": []})
 	var payload := _snapshot()
