@@ -4553,7 +4553,23 @@ func _headwatch() -> void:
 		st[w] = {"n": 0, "turning": 0, "rev": 0, "abs_yaw": 0.0, "by_driver": {"look_at": [0, 0], "anim": [0, 0]}, "by_act": {}, "last_yaw": 0.0, "last_v": 0.0, "last_sign_t": -9.0, "big": 0}
 	var csv := FileAccess.open(RenderProfile.shots_dir + "/headwatch.csv", FileAccess.WRITE)
 	if csv:
-		csv.store_line("t,who,yaw,pitch,lookat,act,speed,bl,root_yaw,body_yaw,gaze_by,gaze_age_ms")
+		csv.store_line("t,who,yaw,pitch,lookat,act,speed,bl,root_yaw,body_yaw,gaze_by,gaze_age_ms,qx,qy,qz,qw,dt")
+	# the FINAL pose (after the look-at, head posture and body language modifiers), as it is rendered
+	var fcsv := FileAccess.open(RenderProfile.shots_dir + "/headwatch_final.csv", FileAccess.WRITE)
+	fcsv.store_line("t,who,qx,qy,qz,qw,lookat,act")
+	var t_fin := Time.get_ticks_msec()
+	for w2 in ["mika", "luna"]:
+		var c2: WorldCharacter = main.characters.get(w2)
+		if c2 and c2.skeleton:
+			var sk2 := c2.skeleton
+			sk2.skeleton_updated.connect(func():
+				var hi2 := sk2.find_bone("Head")
+				var ci2 := sk2.find_bone("UpperChest")
+				if hi2 < 0 or ci2 < 0 or not c2.visible:
+					return
+				var rq2 := (sk2.get_bone_global_pose(ci2).basis.inverse() * sk2.get_bone_global_pose(hi2).basis).get_rotation_quaternion()
+				var a2 := "walking" if c2.velocity.length() > 0.3 else String(c2.current_action)
+				fcsv.store_line("%.4f,%s,%.5f,%.5f,%.5f,%.5f,%.2f,%s" % [(Time.get_ticks_msec() - t_fin) / 1000.0, w2, rq2.x, rq2.y, rq2.z, rq2.w, c2.head_look.influence if c2.head_look else 0.0, a2]))
 	var t0 := _gms()
 	print("[mktest] headwatch t0_ticks_ms=%d" % Time.get_ticks_msec())
 	var prev_t := t0
@@ -4586,7 +4602,8 @@ func _headwatch() -> void:
 					a0 += "/" + String(b0.current.get("kind", ""))
 				var fr := hb * Vector3(0, 0, 1)          # skeleton space = the character's own facing
 				var root_yaw := rad_to_deg(atan2(fr.x, fr.z))
-				csv.store_line("%.3f,%s,%.2f,%.2f,%.2f,%s,%.2f,%s,%.2f,%.2f,%s,%d" % [(now - t0) / 1000.0, w, yaw, pitch, c.head_look.influence if c.head_look else 0.0, a0, c.velocity.length(), str(c.body_language != null), root_yaw, rad_to_deg(c.global_rotation.y), String(c.gaze_trace.get("by", "")).replace(",", ";"), Time.get_ticks_msec() - int(c.gaze_trace.get("t", 0))])
+				var rq := (cb.inverse() * hb).get_rotation_quaternion()
+				csv.store_line("%.3f,%s,%.2f,%.2f,%.2f,%s,%.2f,%s,%.2f,%.2f,%s,%d,%.5f,%.5f,%.5f,%.5f,%.4f" % [(now - t0) / 1000.0, w, yaw, pitch, c.head_look.influence if c.head_look else 0.0, a0, c.velocity.length(), str(c.body_language != null), root_yaw, rad_to_deg(c.global_rotation.y), String(c.gaze_trace.get("by", "")).replace(",", ";"), Time.get_ticks_msec() - int(c.gaze_trace.get("t", 0)), rq.x, rq.y, rq.z, rq.w, dt])
 			var v := (yaw - float(d.last_yaw)) / dt
 			if int(d.n) == 0:
 				v = 0.0

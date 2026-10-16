@@ -202,6 +202,10 @@ func _enqueue_audio(m: Dictionary) -> void:
 
 func _play_next() -> void:
 	_speaking = true
+	# Mika and Luna are talking to each other: the show's line waits for the end of their exchange (at most 25 s)
+	var tw := Time.get_ticks_msec()
+	while main.get("mage_talk") and main.mage_talk.dialogue and main.mage_talk.dialogue.active and Time.get_ticks_msec() - tw < 25000:
+		await get_tree().process_frame
 	var item: Dictionary = _speech.pop_front()
 	var tr: Dictionary = item.trace
 	if not item.monitor:

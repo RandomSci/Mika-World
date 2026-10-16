@@ -26,6 +26,8 @@ var max_output_tokens := 300
 var timeout_s := 12.0
 var status := "mock (no DEV LLM configured)"
 var calls: Array = []          # timestamps of real calls (budget window)
+var dialogue_calls: Array = []  # the mages' conversation lines (own budget)
+const DIALOGUE_CALLS_PER_HOUR := 240
 var stats := {"real_calls": 0, "mock_calls": 0, "failures": 0, "over_budget": 0}
 var _key := ""
 
@@ -88,14 +90,24 @@ func _calls_last_hour() -> int:
 
 ## Ask for a JSON object. Returns {"ok", "json" (Dictionary), "provider", "error"}. Never throws.
 ## `mock` is the deterministic answer used whenever no real call is made.
-func ask_json(system: String, user: String, mock: Dictionary) -> Dictionary:
+## purpose "dialogue": the mages' own conversation lines, on their own budget (DIALOGUE_CALLS_PER_HOUR, one
+## short line per call) so talking never starves NPC phrasing / curiosity, and they never starve the talk.
+func ask_json(system: String, user: String, mock: Dictionary, purpose := "") -> Dictionary:
 	if provider != "openai":
 		stats.mock_calls += 1
 		return {"ok": true, "json": mock, "provider": "mock"}
-	if _calls_last_hour() >= max_calls_per_hour:
+	var now_u := Time.get_unix_time_from_system()
+	if purpose == "dialogue":
+		dialogue_calls = dialogue_calls.filter(func(t): return now_u - float(t) < 3600.0)
+		if dialogue_calls.size() >= DIALOGUE_CALLS_PER_HOUR:
+			stats.over_budget += 1
+			return {"ok": true, "json": mock, "provider": "mock (dialogue over budget)"}
+		dialogue_calls.append(now_u)
+	elif _calls_last_hour() >= max_calls_per_hour:
 		stats.over_budget += 1
 		return {"ok": true, "json": mock, "provider": "mock (over budget)"}
-	calls.append(Time.get_unix_time_from_system())
+	else:
+		calls.append(now_u)
 	var http := HTTPRequest.new()
 	http.timeout = timeout_s
 	add_child(http)

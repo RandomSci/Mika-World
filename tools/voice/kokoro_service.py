@@ -30,12 +30,21 @@ MAX_CHARS = 1200
 
 
 class Engine:
-    def __init__(self, model, voices, threads, voice):
+    def __init__(self, model, voices, threads, voice, provider="cpu"):
         started = time.perf_counter()
         options = ort.SessionOptions()
         options.intra_op_num_threads = threads
         options.inter_op_num_threads = 1
-        session = ort.InferenceSession(model, options, providers=["CPUExecutionProvider"])
+        # --provider cuda: the RTX GPU (a venv with onnxruntime-gpu); the CPU is shared with the world and the stream
+        providers = ["CPUExecutionProvider"]
+        if provider == "cuda" and "CUDAExecutionProvider" in ort.get_available_providers():
+            try:
+                ort.preload_dlls()  # CUDA / cuDNN from the nvidia-* wheels in this venv
+            except Exception as exc:  # noqa: BLE001 - falls back to the CPU below
+                print(json.dumps({"cuda_preload": str(exc)[:200]}), flush=True)
+            providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        session = ort.InferenceSession(model, options, providers=providers)
+        self.provider = session.get_providers()[0]
         self.kokoro = Kokoro.from_session(session, voices)
         self.load_s = time.perf_counter() - started
         self.style(voice)  # fails early on an unknown voice
@@ -50,6 +59,7 @@ class Engine:
             "model": os.path.basename(model),
             "voice": voice,
             "threads": threads,
+            "provider": self.provider,
             "load_s": round(self.load_s, 3),
             "warmup_s": round(self.warmup_s, 3),
             "lines": 0,
@@ -146,6 +156,7 @@ def main():
     parser.add_argument("--voices", default=os.path.join(ROOT, "models/kokoro/voices-v1.0.bin"))
     parser.add_argument("--voice", default="af_heart")
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--provider", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--parent-pid", type=int, default=0,
                         help="exit when this process (the app that started us) is gone")
     args = parser.parse_args()
@@ -161,7 +172,7 @@ def main():
                 time.sleep(2)
 
         threading.Thread(target=watch_parent, daemon=True).start()
-    engine = Engine(args.model, args.voices, args.threads, args.voice)
+    engine = Engine(args.model, args.voices, args.threads, args.voice, args.provider)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(engine))
     print(json.dumps({"listening": args.port, **engine.info}), flush=True)
     server.serve_forever()

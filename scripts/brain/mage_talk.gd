@@ -11,7 +11,7 @@ extends Node
 
 signal talked(entry: Dictionary)
 
-const INTERRUPTIBLE := ["", "explore", "journal", "rest", "magic"]
+const INTERRUPTIBLE := ["", "explore", "journal", "rest", "magic", "roam", "attune", "gather", "investigate"]
 
 var main: Node
 var log: Array = []
@@ -20,10 +20,17 @@ var _active := false
 
 var phrase_ms: Array = []       # how long phrasing a conversation took (LLM), for the latency report
 
+var dialogue: MageDialogue       # turn-by-turn conversations (each line from the speaker's own mind)
+
+
 func setup(m: Node) -> void:
 	main = m
 	if main.spawner:
 		main.spawner.monster_defeated.connect(_on_defeat)
+	dialogue = MageDialogue.new()
+	dialogue.name = "MageDialogue"
+	add_child(dialogue)
+	dialogue.setup(main)
 
 
 func _line(who: String, key: String, other := "") -> String:
@@ -61,7 +68,7 @@ static func latest_deed(who: String) -> Dictionary:
 
 
 func busy() -> bool:
-	return _active
+	return _active or (dialogue != null and dialogue.active)
 
 
 ## Run a meeting started by planner `a` toward mage `other_id`. Returns the planner result.
@@ -80,6 +87,8 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 	b.hold = true
 	b.interrupt("social")
 	a.current.stage = "walking over to %s" % MagicSystem.display_name(other_id)
+	if main.llm and main.llm.provider == "openai" and dialogue:
+		dialogue.prepare(a.agent_id, other_id)      # her opening line is written while she walks over
 	await Companionship.approach_for_talk(a, bc, 1.6)
 	var t0 := Time.get_ticks_msec()
 	while not b.current.is_empty() and b.current.get("kind", "") != "away" and Time.get_ticks_msec() - t0 < 8000:
@@ -97,6 +106,13 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 	if main.director and main.director.enabled:
 		main.director.focus_conversation(bc if main.director.mika == me else me, 14.0)
 	var first := not WorldState.mind(a.agent_id).knowledge.has("met:" + other_id)
+	var spoken := []
+	if main.llm and main.llm.provider == "openai" and dialogue:
+		# a real conversation: each line from the speaker's own mind, answering what was actually said
+		var conv: Dictionary = await dialogue.converse(a.agent_id, other_id, {"mode": "meet"})
+		for l in conv.get("lines", []):
+			spoken.append({"who": l.who, "text": l.text, "audio": l.audio, "told": ""})
+		return _after_meeting(a, other_id, b, bc, me, now, spoken)
 	var lines: Array = _compose(a.agent_id, other_id) if first or main.get("companionship") == null else main.companionship.compose(a.agent_id, other_id)
 	if lines.size() < 2:
 		lines = _compose(a.agent_id, other_id)
@@ -108,7 +124,6 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 	# the whole exchange is known now: every next line synthesises while the one before it is spoken
 	if main.voice:
 		main.voice.prefetch_lines(lines.map(func(l): return {"speaker": String(Progression.mages.get(l.who, {}).get("voice", l.who)), "text": String(l.text)}))
-	var spoken := []
 	for l in lines:
 		var spk: WorldCharacter = main.characters.get(String(l.who))
 		if String(l.get("gesture", "")) != "" and spk and not spk.casting:
@@ -118,6 +133,10 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 		spoken.append({"who": l.who, "text": l.text, "audio": r.get("audio", false), "told": l.get("teach", {}).get("topic", "")})
 		# a natural beat between turns: shorter after a short reply, longer after news
 		await get_tree().create_timer(0.25 + clampf(String(l.text).length() / 120.0, 0.0, 0.6)).timeout
+	return _after_meeting(a, other_id, b, bc, me, now, spoken)
+
+
+func _after_meeting(a: SanctuaryBrain, other_id: String, b: SanctuaryBrain, bc: WorldCharacter, me: WorldCharacter, now: float, spoken: Array) -> Dictionary:
 	me.look_head_at(null)
 	bc.look_head_at(null)
 	# what each of them now remembers (social memory only; no knowledge crosses over)
