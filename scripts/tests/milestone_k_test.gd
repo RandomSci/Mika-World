@@ -138,6 +138,7 @@ func _run() -> void:
 		"view": await _view()
 		"dance": await _dance()
 		"pacing": await _pacing()
+		"headwatch": await _headwatch()
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
 		_: _check(false, "unknown mode " + mode)
@@ -4530,3 +4531,98 @@ func _discoveries() -> void:
 			_check(au.violations.size() == v0, "%s: no visible defect while doing it" % d.id, au.violations.slice(v0))
 			await _wait(0.3)
 
+
+
+# ------------------------------------------------------------------ why do their heads keep moving?
+## --mktest=headwatch [--headwatch-s=240]: both mages live on their own (brains on); every frame each one's head yaw
+## relative to her chest is sampled, with what moves it (the look-at modifier vs the animation) and what she is doing
+## (idle / walking / other). Reports how much of the time the head is turning, how often it swings back and forth,
+## and where that comes from.
+func _headwatch() -> void:
+	var secs := float(RenderProfile.options.get("headwatch-s", "240"))
+	for w in main.mage_brains:
+		main.mage_brains[w].hold = false
+		if not main.mage_brains[w].enabled:
+			main.mage_brains[w].set_enabled(true)
+	await get_tree().create_timer(8.0).timeout
+	var st := {}
+	for w in ["mika", "luna"]:
+		st[w] = {"n": 0, "turning": 0, "rev": 0, "abs_yaw": 0.0, "by_driver": {"look_at": [0, 0], "anim": [0, 0]}, "by_act": {}, "last_yaw": 0.0, "last_v": 0.0, "last_sign_t": -9.0, "big": 0}
+	var csv := FileAccess.open(RenderProfile.shots_dir + "/headwatch.csv", FileAccess.WRITE)
+	if csv:
+		csv.store_line("t,who,yaw,pitch,lookat,act,speed,bl,root_yaw,body_yaw,gaze_by,gaze_age_ms")
+	var t0 := _gms()
+	print("[mktest] headwatch t0_ticks_ms=%d" % Time.get_ticks_msec())
+	var prev_t := t0
+	while _gms() - t0 < secs * 1000.0:
+		await get_tree().process_frame
+		var now := _gms()
+		var dt := maxf((now - prev_t) / 1000.0, 0.001)
+		prev_t = now
+		for w in ["mika", "luna"]:
+			var c: WorldCharacter = main.characters.get(w)
+			if c == null or not c.visible or c.skeleton == null:
+				continue
+			var sk := c.skeleton
+			var hi := sk.find_bone("Head")
+			var ci := sk.find_bone("UpperChest")
+			if ci < 0:
+				ci = sk.find_bone("Chest")
+			if hi < 0 or ci < 0:
+				continue
+			var hb := sk.get_bone_global_pose(hi).basis
+			var cb := sk.get_bone_global_pose(ci).basis
+			var f := (cb.inverse() * hb) * Vector3(0, 0, 1)
+			var yaw := rad_to_deg(atan2(f.x, f.z))
+			var pitch := rad_to_deg(asin(clampf(f.y, -1.0, 1.0)))
+			var d: Dictionary = st[w]
+			if csv:
+				var a0 := "walking" if c.velocity.length() > 0.3 else String(c.current_action)
+				var b0 = main.mage_brains.get(w)
+				if b0 and not b0.current.is_empty():
+					a0 += "/" + String(b0.current.get("kind", ""))
+				var fr := hb * Vector3(0, 0, 1)          # skeleton space = the character's own facing
+				var root_yaw := rad_to_deg(atan2(fr.x, fr.z))
+				csv.store_line("%.3f,%s,%.2f,%.2f,%.2f,%s,%.2f,%s,%.2f,%.2f,%s,%d" % [(now - t0) / 1000.0, w, yaw, pitch, c.head_look.influence if c.head_look else 0.0, a0, c.velocity.length(), str(c.body_language != null), root_yaw, rad_to_deg(c.global_rotation.y), String(c.gaze_trace.get("by", "")).replace(",", ";"), Time.get_ticks_msec() - int(c.gaze_trace.get("t", 0))])
+			var v := (yaw - float(d.last_yaw)) / dt
+			if int(d.n) == 0:
+				v = 0.0
+			d.last_yaw = yaw
+			d.n = int(d.n) + 1
+			d.abs_yaw = float(d.abs_yaw) + absf(yaw)
+			if absf(yaw) > 25.0:
+				d.big = int(d.big) + 1
+			var turning := absf(v) > 20.0
+			var driver := "look_at" if c.head_look and c.head_look.influence > 0.05 else "anim"
+			var act := "walking" if c.velocity.length() > 0.3 else String(c.current_action)
+			var br = main.mage_brains.get(w)
+			if br and not br.current.is_empty():
+				act += "/" + String(br.current.get("kind", ""))
+			if turning:
+				d.turning = int(d.turning) + 1
+				d.by_driver[driver][0] += 1
+				if not d.by_act.has(act):
+					d.by_act[act] = 0
+				d.by_act[act] += 1
+				# a swing back: the turn reverses direction within a second of the last turn
+				if signf(v) != signf(float(d.last_v)) and absf(float(d.last_v)) > 20.0 and (now - float(d.last_sign_t)) < 1000.0:
+					d.rev = int(d.rev) + 1
+				d.last_v = v
+				d.last_sign_t = now
+			d.by_driver[driver][1] += 1
+	for w in ["mika", "luna"]:
+		var d: Dictionary = st[w]
+		var n := maxf(float(d.n), 1.0)
+		var acts: Array = (d.by_act as Dictionary).keys()
+		acts.sort_custom(func(a, b): return d.by_act[a] > d.by_act[b])
+		var top := {}
+		for a in acts.slice(0, 6):
+			top[a] = snappedf(float(d.by_act[a]) / n * 100.0, 0.1)
+		var res := {"who": w, "seconds": secs, "turning_pct": snappedf(float(d.turning) / n * 100.0, 0.1),
+			"swings_back_per_min": snappedf(float(d.rev) / (secs / 60.0), 0.1), "mean_abs_yaw_deg": snappedf(float(d.abs_yaw) / n, 0.1),
+			"head_off_centre_over_25deg_pct": snappedf(float(d.big) / n * 100.0, 0.1),
+			"turning_while_lookat_pct_of_lookat_time": snappedf(float(d.by_driver.look_at[0]) / maxf(float(d.by_driver.look_at[1]), 1.0) * 100.0, 0.1),
+			"turning_while_anim_pct_of_anim_time": snappedf(float(d.by_driver.anim[0]) / maxf(float(d.by_driver.anim[1]), 1.0) * 100.0, 0.1),
+			"lookat_time_pct": snappedf(float(d.by_driver.look_at[1]) / n * 100.0, 0.1), "turning_pct_by_activity": top}
+		print("[mktest] headwatch ", JSON.stringify(res))
+	_check(true, "head motion measured")

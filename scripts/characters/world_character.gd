@@ -120,6 +120,7 @@ var head_look: LookAtModifier3D  # eases her head toward what she reads / inspec
 var eye_looks: Array[LookAtModifier3D] = []
 var handler: ObjectHandler       # right-arm IK + holding objects
 var _head_target: Node3D
+var gaze_trace := {}            # --trace-gaze: the last head-target change {t (ticks ms), by}
 var seated := false
 var _gclock := 0.0   # game seconds: action deadlines must not depend on real time (Movie Maker recording runs slower)
 
@@ -878,11 +879,17 @@ func _extend_skirt_colliders() -> void:
 
 ## Turn her head toward a world point (books, objects, speakers); null releases it smoothly.
 func look_head_at(p) -> void:
+	if RenderProfile.options.has("trace-gaze"):
+		var st := get_stack()
+		var caller := ("%s:%d %s" % [String(st[1].source).get_file(), int(st[1].line), String(st[1].function)]) if st.size() > 1 else "?"
+		print("[gaze] %.2f %s look_head_at %s by %s" % [Time.get_ticks_msec() / 1000.0, character_id, "null" if p == null else "point", caller])
+		gaze_trace = {"t": Time.get_ticks_msec(), "by": caller + ("(release)" if p == null else "")}
 	var tw := create_tween()
 	if p == null:
-		tw.tween_property(head_look, "influence", 0.0, 0.5)
+		# back to looking ahead gently (a quick release read as the head swinging back and forth)
+		tw.tween_property(head_look, "influence", 0.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		for el in eye_looks:
-			tw.parallel().tween_property(el, "influence", 0.0, 0.4)
+			tw.parallel().tween_property(el, "influence", 0.0, 0.6)
 		return
 	_head_target.global_position = p
 	tw.tween_property(head_look, "influence", 0.85, 0.5)
@@ -890,8 +897,19 @@ func look_head_at(p) -> void:
 		tw.parallel().tween_property(el, "influence", 0.9, 0.4)
 
 
+## How far the head follows the gaze (0..1); the eyes keep following fully. Reading uses ~0.35: the eyes travel the
+## lines, the head only drifts (a head that followed every line swung left and right all page long).
+func set_head_share(share: float, seconds := 0.4) -> void:
+	if head_look:
+		create_tween().tween_property(head_look, "influence", clampf(share, 0.0, 1.0), seconds)
+
+
 ## Shift the gaze target without changing influence (reading lines, glancing).
 func gaze_to(p: Vector3, seconds := 0.25) -> void:
+	if RenderProfile.options.has("trace-gaze"):
+		var st := get_stack()
+		print("[gaze] %.2f %s gaze_to by %s" % [Time.get_ticks_msec() / 1000.0, character_id, ("%s:%d" % [String(st[1].source).get_file(), int(st[1].line)]) if st.size() > 1 else "?"])
+		gaze_trace = {"t": Time.get_ticks_msec(), "by": ("gaze_to %s:%d" % [String(st[1].source).get_file(), int(st[1].line)]) if st.size() > 1 else "gaze_to"}
 	var tw := create_tween()
 	tw.tween_property(_head_target, "global_position", p, seconds).set_trans(Tween.TRANS_SINE)
 

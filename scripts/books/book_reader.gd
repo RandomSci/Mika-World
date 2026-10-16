@@ -122,7 +122,8 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 				break
 			var spoken: Dictionary = await main.voice.say(voice_id, String(l.text), {"latin": true})
 			res.spoken.append({"latin": l.text, "translation": l.translation, "audio": spoken.get("audio", false), "seconds": spoken.get("seconds", 0)})
-		# her eyes travel down the page she is reading, line by line, with small pauses
+		# her eyes travel down the page she is reading, line by line, with small pauses (the head only drifts)
+		c.set_head_share(0.35, 0.6)
 		var side := i % 2
 		var t_start := Time.get_ticks_msec() / 1000.0
 		var next_glance := 0.0

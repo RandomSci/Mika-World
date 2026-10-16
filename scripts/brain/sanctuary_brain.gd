@@ -541,6 +541,12 @@ func score(o: Dictionary) -> Dictionary:
 		"meet":
 			var rel: Dictionary = mind.knowledge.get("rel:" + String(o.other), {})
 			u = 0.3 + needs.social * 0.45 + 0.15 * float(rel.get("camaraderie", 0.0)) - 0.1 * float(rel.get("rivalry", 0.0))
+			# something of her own to tell (a clue, a fight, a worry, something she wants to ask): she goes to say it
+			if main.get("companionship"):
+				var news: Array = Companionship.topics(agent_id, String(o.other))
+				if not news.is_empty() and float(news[0].w) >= 1.0:
+					u += 0.25
+					why.append("something to tell +0.25")
 			if not mind.knowledge.has("met:" + String(o.other)):
 				u += 0.2
 				why.append("we have never spoken")
@@ -858,15 +864,25 @@ func _roam(o: Dictionary) -> Dictionary:
 	for r in main.magic.reactives().values():
 		if (r as ReactiveElement).kind == "water" and (r as ReactiveElement).global_position.distance_to(me.global_position) < 10.0:
 			targets.append((r as ReactiveElement).global_position)
+	# what is in front of her, scanned in one direction (left to right or right to left): looking from one side to
+	# the other and back read as her head swinging back and forth
+	var fwd := -me.global_transform.basis.z
+	var bearing := func(p: Vector3) -> float:
+		var d := p - me.global_position
+		return rad_to_deg(Vector2(fwd.x, fwd.z).angle_to(Vector2(d.x, d.z)))
+	targets = targets.filter(func(p): return absf(bearing.call(p)) < 75.0)
 	targets.shuffle()
 	if targets.is_empty():
 		for k in 2:
-			var a := rng.randf() * TAU
-			targets.append(me.global_position + Vector3(cos(a), 0, sin(a)) * 6.0)
+			var a := rng.randf_range(-0.9, 0.9)
+			targets.append(me.global_position + fwd.rotated(Vector3.UP, a) * 6.0)
+	targets = targets.slice(0, rng.randi_range(2, 3))
+	var dir_sign := 1.0 if rng.randf() < 0.5 else -1.0
+	targets.sort_custom(func(a, b): return dir_sign * bearing.call(a) < dir_sign * bearing.call(b))
 	var looked := 0
-	for p in targets.slice(0, rng.randi_range(2, 3)):
+	for p in targets:
 		me.look_head_at((p as Vector3) + Vector3(0, 0.6, 0))
-		await get_tree().create_timer(rng.randf_range(1.6, 3.0)).timeout
+		await get_tree().create_timer(rng.randf_range(2.2, 3.6)).timeout
 		looked += 1
 	me.look_head_at(null)
 	var noticed := perceive()
