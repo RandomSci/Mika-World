@@ -344,12 +344,19 @@ func _do(action: String, args: Dictionary) -> Dictionary:
 			while mb and not mb.current.is_empty() and Time.get_ticks_msec() - w0 < 25000:
 				await get_tree().process_frame
 			activity = "dance"
+			# a dance already running (Luna celebrating on her own) gives way to the show's: before this the wait below
+			# took HER dance for Mika's, Mika stood still to Luna's song, then danced when the song came round again
+			if main.performance.busy() and String(main.performance.active.get("who", "")) != "mika":
+				main.performance.interrupt("the show asked Mika to dance")
+				var wi := Time.get_ticks_msec()
+				while main.performance.busy() and Time.get_ticks_msec() - wi < 8000:
+					await get_tree().process_frame
 			var req := {"dance": clip, "partner_if_near": true, "why": "the show"}
 			main.performance.request("mika", req)
 			var t0 := Time.get_ticks_msec()
-			while not main.performance.busy() and Time.get_ticks_msec() - t0 < 45000:
+			while not (main.performance.busy() and String(main.performance.active.get("who", "")) == "mika") and Time.get_ticks_msec() - t0 < 45000:
 				await get_tree().process_frame
-			if not main.performance.busy():
+			if not (main.performance.busy() and String(main.performance.active.get("who", "")) == "mika"):
 				# never danced later after saying it could not
 				main.performance.requests = main.performance.requests.filter(func(r): return String(r.get("why", "")) != "the show")
 				activity = "stand_relaxed"

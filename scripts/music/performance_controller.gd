@@ -223,9 +223,10 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	var brain = main.mage_brains.get(who)
 	var voice_id := String(Progression.mages.get(who, {}).get("voice", who))
 	var dir_was: bool = main.director.enabled if main.director else false
-	# the camera films a performance only when it belongs to the stream's mage (Mika-first) or the shared
-	# profile is on; a mage performing on her own elsewhere is never a cutaway (Milestone J)
-	var films: bool = main.director != null and (String(main.get("stream_profile")) == "shared" or main.characters.get(main.get("focus")) == c)
+	# the camera films every performance in view: music with no dancer on screen looked broken on stream (2026-10-17:
+	# Luna's celebration song played while the camera stayed on Mika standing). A mage away in another area (not
+	# visible, not loaded) is still never a cutaway.
+	var films: bool = main.director != null and c.visible
 	active["filmed"] = films
 	if films:
 		main.director.enabled = true

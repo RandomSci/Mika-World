@@ -150,6 +150,8 @@ func _run() -> void:
 		"camshake": await _camshake()
 		"framepace": await _framepace()
 		"lenswatch": await _lenswatch()
+		"thumbshot": await _thumbshot()
+		"showdance": await _showdance()
 		"streamday": _check(StreamDay.day() == int(RenderProfile.options.get("expect-day", "-1")), "stream day %d" % StreamDay.day())
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
@@ -5135,3 +5137,84 @@ func _lenswatch() -> void:
 			prev = p
 			n += 1
 		print("[mktest] lenswatch %s mode=%s frames=%d reversals_per_s=%.2f mean_step_mm=%.2f steps_over_1cm=%d" % [nm, main.director.mode, n, rev / 8.0, steps * 1000.0 / maxf(n, 1), big])
+
+
+## Thumbnail art: both mages standing together, wide shots in the light of the hour (--clock-hour), faces small (the
+## no-close-up rule), no overlay, their planners OFF (at night they would go and lie down). Spots: the Ritual Circle
+## (the launch start) and Starfall Hill. Saved as thumb_<spot>_<cam>.png for picking.
+func _thumbshot() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].enabled = false
+	main.director.enabled = false
+	if main.get("subtitle"):
+		main.subtitle.visible = false
+	# night only now, with nobody planning: started at night they would already be off to lie on the hill
+	if RenderProfile.options.has("thumb-night"):
+		WorldState.world_min = floorf(WorldState.world_min / 1440.0) * 1440.0 + 22.0 * 60.0
+		WorldState.night = true
+		if main.world and main.world.has_method("set_night"):
+			main.world.set_night(true)
+		await _wait(3.0)
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var map: RID = mika.get_world_3d().navigation_map
+	var spots := {"circle": Vector3(0, 0, 3.2)}
+	if StarfallPlace.instance:
+		var sf: StarfallPlace = StarfallPlace.instance
+		var fwd := sf.bed - sf.tree_base
+		fwd.y = 0.0
+		spots["starfall"] = sf.tree_base + fwd.normalized() * 6.5
+	for spot in spots:
+		var c: Vector3 = spots[spot]
+		c.y = 0.0
+		var a := NavigationServer3D.map_get_closest_point(map, c + Vector3(-0.75, 0, 0))
+		var b := NavigationServer3D.map_get_closest_point(map, c + Vector3(0.75, 0, 0))
+		for pair in [[mika, a], [luna, b]]:
+			var ch: WorldCharacter = pair[0]
+			ch.stop_action()
+			if main.teleport_guard:
+				main.teleport_guard.allow(ch)
+			ch.global_position = (pair[1] as Vector3) + Vector3(0, 0.05, 0)
+			ch.visible = true
+			ch.velocity = Vector3.ZERO
+		var gy := (a.y + b.y) * 0.5
+		var cams := {"front": [c + Vector3(0.6, gy + 2.2, 7.5), c + Vector3(0, gy + 1.0, 0), 50.0],
+			"close": [c + Vector3(-0.9, gy + 1.75, 5.2), c + Vector3(-1.55, gy + 1.05, 0), 46.0],
+			"low": [c + Vector3(1.8, gy + 1.2, 6.2), c + Vector3(-0.6, gy + 2.2, 0), 52.0]}
+		for nm in cams:
+			var cm: Array = cams[nm]
+			for ch in [mika, luna]:
+				(ch as WorldCharacter).stop_action()
+				(ch as WorldCharacter).look_at_point((cm[0] as Vector3).lerp(c, 0.4))
+			await _wait(4.0)
+			main.camera_rig.set_shot(cm[0], cm[1], float(cm[2]))
+			await _wait(2.0)
+			_shot("thumb_%s_%s" % [spot, nm])
+
+
+## The launch-night bug: Luna dances on her own (music), then the show asks Mika to dance. Luna's dance must be filmed
+## while it runs, then give way; Mika must be the one dancing (filmed) shortly after the show asked.
+func _showdance() -> void:
+	await _hold_all()
+	await _stage_pair()
+	var ll = main.get("live_link")
+	_check(ll != null, "live link present (--live-link)")
+	if ll == null:
+		return
+	main.performance.perform("luna", "casual", {})
+	var t := Time.get_ticks_msec()
+	while not main.performance.busy() and Time.get_ticks_msec() - t < 15000:
+		await get_tree().process_frame
+	await _wait(3.0)
+	_check(String(main.performance.active.get("who", "")) == "luna" and bool(main.performance.active.get("filmed", false)),
+		"Luna's own dance is filmed (%s, filmed=%s)" % [main.performance.active.get("who", ""), str(main.performance.active.get("filmed", false))])
+	ll._do("dance", {"routine": "chicken"})
+	var t2 := Time.get_ticks_msec()
+	while not (main.performance.busy() and String(main.performance.active.get("who", "")) == "mika") and Time.get_ticks_msec() - t2 < 40000:
+		await get_tree().process_frame
+	var secs := (Time.get_ticks_msec() - t2) / 1000.0
+	await _wait(2.0)
+	_check(String(main.performance.active.get("who", "")) == "mika", "Mika dances for the show after %.1f s (performer: %s)" % [secs, main.performance.active.get("who", "")])
+	_check(bool(main.performance.active.get("filmed", false)) and main.director.mika == main.characters["mika"], "the camera films Mika's dance")
+	main.performance.interrupt("test over")
