@@ -90,6 +90,48 @@ func _process(_d: float) -> void:
 
 
 ## Can `partner` join a dance now (not fighting, casting, holding, seated, reading, transforming)?
+## The nearest spot (on the navmesh, within ~4 m) with nothing solid around her at body height - and, with a
+## partner, open floor on (nearly) every side, since the partner's place depends on where the camera is. Vector3.INF when even her own spot is as good as it gets.
+func _open_floor(c: WorldCharacter, with_partner: bool) -> Vector3:
+	var map := c.get_world_3d().navigation_map
+	var here := c.global_position
+	var best := Vector3.INF
+	for ring in [0.0, 2.0, 3.0, 4.0]:
+		for k in (1 if ring == 0.0 else 8):
+			var a := TAU * k / 8.0
+			var p := NavigationServer3D.map_get_closest_point(map, here + Vector3(cos(a), 0, sin(a)) * ring)
+			if p.distance_to(here + Vector3(cos(a), 0, sin(a)) * ring) > 0.8 or absf(p.y - here.y) > 1.0:
+				continue                 # off the walkable floor
+			if not _clear_at(c, p):
+				continue
+			if with_partner:             # she turns to the camera later: open floor nearly all around her
+				var open_sides := 0
+				for j in 8:
+					var side := p + Vector3(cos(TAU * j / 8.0), 0, sin(TAU * j / 8.0)) * 1.7
+					var ps := NavigationServer3D.map_get_closest_point(map, side)
+					if ps.distance_to(side) < 0.6 and _clear_at(c, ps):
+						open_sides += 1
+				if open_sides < 6:
+					continue
+			return p
+	return best
+
+
+func _clear_at(c: WorldCharacter, p: Vector3) -> bool:
+	var sh := SphereShape3D.new()
+	sh.radius = 0.85
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = sh
+	q.transform = Transform3D(Basis.IDENTITY, p + Vector3(0, 1.05, 0))
+	q.collision_mask = 1 | 4
+	var ex: Array[RID] = []
+	for o in main.characters.values():
+		if o is CollisionObject3D:
+			ex.append((o as CollisionObject3D).get_rid())
+	q.exclude = ex
+	return c.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
+
+
 func _partner_free(partner: String) -> bool:
 	var c2: WorldCharacter = main.characters.get(partner)
 	if c2 == null or not c2.visible or c2.casting or c2.seated or (c2.handler and c2.handler.held != null):
@@ -189,6 +231,16 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 			await get_tree().process_frame
 		if main.camera_rig and main.characters.get(main.get("focus")) == c:
 			pass
+	# room to dance: where she stands, or the nearest open floor a few steps away, with her partner's place beside
+	# her clear too (a brazier or a column there hid her partner from the camera for the whole dance)
+	var partner_wanted := String(opts.get("with", "")) != "" and String(opts.get("with", "")) != who
+	var open := _open_floor(c, partner_wanted)
+	if open != Vector3.INF and open.distance_to(c.global_position) > 0.6:
+		active.stage = "finding room to dance"
+		c.navigate_to(open, false)
+		var tw := Time.get_ticks_msec()
+		while c.current_action == "navigate_to" and Time.get_ticks_msec() - tw < 12000:
+			await get_tree().process_frame
 	# the dance is on: she turns to the camera FIRST, then the performance shot is set from her front (a shot set
 	# before she turned filmed her back while her partner walked over)
 	if films:
@@ -210,6 +262,10 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 			b2.hold = true
 		var map2 := c.get_world_3d().navigation_map
 		var side := NavigationServer3D.map_get_closest_point(map2, c.global_position + c.global_transform.basis.x * -1.7)
+		if not _clear_at(c, side):       # her left is blocked (a brazier, a column): the right side
+			var right := NavigationServer3D.map_get_closest_point(map2, c.global_position + c.global_transform.basis.x * 1.7)
+			if _clear_at(c, right):
+				side = right
 		if c2.global_position.distance_to(side) > 0.8:
 			c2.navigate_to(side, false)
 			var tw0 := Time.get_ticks_msec()
