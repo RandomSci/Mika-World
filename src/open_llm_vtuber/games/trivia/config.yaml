@@ -1,0 +1,55 @@
+# Trivia Battle. Rules, timers and scores are decided by code, never by an LLM.
+id: trivia
+display_name: Trivia Battle
+description: Two characters and the chat race to answer trivia questions.
+aliases: [trivia, trivia battle, quiz, trivia game, quiz game]
+enabled: true
+players: 2
+viewer_participation: true
+# Read out when a viewer asks how the game works. Keep it true to the code below.
+how_to_play: >-
+  A question pops up on the board and it's chat's turn first: you get 15 seconds,
+  all to yourselves, to type the answer. If nobody gets it, Mika and Luna take
+  their guesses. Every correct answer is a point, and after
+  five rounds whoever has the most points wins. Chat plays as one team!
+
+rounds_per_game: 5
+default_difficulty: mixed           # easy, medium, hard, or mixed
+intro_seconds: 3
+# Viewer first: chat gets this long, alone, before Mika and Luna may answer. The
+# girls never answer (or hint) during chat's turn, and if chat gets it right they
+# skip their answers entirely. 15 s covers reading, typing and the YouTube chat
+# delay; check /vr-agent/room/status "chat_timing" after a real stream and raise it
+# if answers keep arriving late.
+viewer_answer_window_seconds: 15
+quick_rules: >-
+  Chat, type the answer in chat when you see chat's turn. Get it before the timer
+  runs out and chat gets the point!
+board_hint: "Type your answer in chat on CHAT'S TURN"
+wrong_answers_keep_window: true     # a wrong guess does not end chat's turn
+character_think_seconds: 2.5        # pause before a character answers
+line_timeout_seconds: 12            # safety net if a spoken line never finishes
+reveal_seconds: 4.5
+between_rounds_seconds: 2.5
+finish_display_seconds: 9
+
+# Viewer answers
+max_answer_words: 5                 # longer messages are chat, not answers
+typo_tolerance: 0.86                # similarity needed for answers of 5+ letters
+viewer_feed_size: 4
+
+# Boredom (local counters only)
+bored_after_rounds: 10
+bored_after_minutes: 15
+
+# Question variety. Questions never repeat until every question was asked (the
+# rotation is saved in cache/trivia_seen.json, so it survives restarts).
+# AI questions: when a viewer starts a trivia game, one LLM request (the room's
+# own LLM from conf.yaml) writes a few brand-new questions in the background.
+# They are checked (short typeable answer, answer not in the question, no
+# duplicates) and saved in cache/trivia_ai_questions.json. Nothing runs while
+# nobody plays, so the idle stream still makes zero requests.
+ai_questions:
+  enabled: true
+  per_game: 8                  # new questions requested per started game
+  max_saved: 1500

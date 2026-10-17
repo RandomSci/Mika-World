@@ -1,0 +1,122 @@
+# ignore the user configuration file
+conf.yaml
+
+# ignore non-default background images
+/backgrounds/*
+!/backgrounds/README.md
+
+# ignore non-default live2d models
+/live2d-models/*
+!/live2d-models/mao_pro
+!/live2d-models/shizuku
+!/live2d-models/hiyori
+!/live2d-models/natori
+!/live2d-models/hibiki
+
+# ignore non-default character configs
+/characters/*
+!/characters/README.md
+# but all of the defaults are already tracked, so no need to un-ignore them
+
+# ignore avatars
+avatars/*
+
+# macOS system files
+.DS_Store
+
+# Python files
+__pycache__/
+*.pyc
+lab.py
+.idea
+
+# Virtual environment
+.venv
+.conda
+conda
+
+# Sensitive data
+.env
+api_keys.py
+src/open_llm_vtuber/llm/user_credentials.json
+
+# Database files
+memory.db
+memory.db.bk
+
+# Logs
+server.log
+logs/*
+
+# Cache and models
+cache/*
+src/open_llm_vtuber/tts/asset
+src/open_llm_vtuber/tts/config
+src/open_llm_vtuber/asr/models*
+!src/open_llm_vtuber/asr/models/silero_vad.onnx
+asset
+models/*
+!models/piper_voice
+models/piper_voice/*
+
+
+# Legacy and specific directories
+legacy/
+chat_history/
+knowledge_base/
+submodules/MeloTTS
+openapi_assistants.json
+openapi_memgpt.json
+
+# memory log
+mem.json
+conf.yaml.backup
+
+*.exe
+
+tmp/
+private/
+mcp_servers.json
+
+.vscode/
+# Publishing: secrets and local state never go into git
+.env
+.env.*
+!.env.example
+data/creations/
+data/publish-dry-run/
+
+# YouTube sign-in token (scripts/youtube_authorize.py)
+data/secrets/
+
+# Paintings made on stream (published copies live in the games repo)
+frontend/stage-assets/generated/
+
+# Class mode progress and saved lesson notebooks
+data/class/
+
+# Minecraft mode runtime state (castle progress, playlist ids) stays on each PC
+data/minecraft_project.json
+data/youtube_playlists.json
+data/minecraft_net.json
+data/youtube_made_broadcasts.json
+data/minecraft_viewers.json
+# Claude session: evidence dumps and caches stay out of the checkpoint repo
+/review/
+/.pytest_cache/
+/.ruff_cache/
+*.before-*
+# Runtime session state written by the running server
+/data/mika-session.json*
+
+# Mika-Live runtime: local state, shared node_modules link
+/data/
+/node_modules
+/assets/animations/mixamo-source/
+
+# the broadcast intro video (copyrighted AMV music; local only)
+/assets/intro/
+
+# Day 3 viewer memory: personal data about viewers - never commit or push (this repository is public)
+/data/viewer_memory.json
+/data/viewer_memory.json.tmp

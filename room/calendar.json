@@ -1,0 +1,10 @@
+{
+  "timezone": "America/New_York",
+  "regionalContext": "New York, USA; temperate four-season regional context. Calendar context is not a live weather report.",
+  "events": [],
+  "location": {
+    "name": "New York",
+    "latitude": 40.71,
+    "longitude": -74.01
+  }
+}

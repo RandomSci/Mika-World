@@ -1,0 +1,8 @@
+{
+  "mode": "curated_metadata_only",
+  "titles": [
+    {"title":"SPY × FAMILY","source":"https://www.viz.com/spy-x-family","themes":["secret identities","an unconventional family","comic misunderstandings"],"chapterKnowledge":null},
+    {"title":"ONE PIECE","source":"https://www.viz.com/one-piece","themes":["adventure","friendship","dreams"],"chapterKnowledge":null}
+  ],
+  "rules": "Metadata and general commentary only. No pages, scans, quoted dialogue, latest chapter claims or claims that the physical prop contains a published book."
+}
