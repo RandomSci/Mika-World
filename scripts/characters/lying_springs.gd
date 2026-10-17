@@ -75,9 +75,18 @@ static func apply(c: WorldCharacter) -> void:
 		sec._on_recreate_collider()
 
 
-## Seated on a solid seat (a stone bench): the skirt's / cape's chains hung straight down through the seat (the dress
-## "spread through the stone", 2026-10-17). Spheres filling the seat's own volume (tops at the seat's top), only
-## colliders - the springs keep their standing tuning. Undone by restore().
+## Seated on a solid seat (a stone bench). Two faults on stream (2026-10-17): the skirt's chains hung straight down
+## through the stone, and with a row of seat-filling spheres they were shoved out sideways into flat spikes (the
+## standing tuning keeps a seated skirt stiff and pointing out from her hips). Now, like a real dress on a bench:
+##   * the seat's TOP is a soft bolster: a row of large spheres along the bench whose tops are exactly the seat
+##     surface - the cloth rests on the seat under and beside her, and its rounded front lets the dress fall
+##     over the edge in front of her knees (nothing fills the space her legs and hips are in)
+##   * skirt / cape / sash: softer and heavier, well damped - the fabric drapes over her thighs and the seat
+##     instead of holding its standing shape
+## Undone by restore().
+const SEAT_BALL_R := 0.25
+
+
 static func apply_seat(c: WorldCharacter, seat: CollisionShape3D) -> void:
 	if c == null or c.avatar == null or seat == null or not (seat.shape is BoxShape3D) or c.has_meta("lying_springs"):
 		return
@@ -86,33 +95,41 @@ static func apply_seat(c: WorldCharacter, seat: CollisionShape3D) -> void:
 		return
 	var size: Vector3 = (seat.shape as BoxShape3D).size
 	var xf := seat.global_transform
-	var r := clampf(minf(size.y, size.z) * 0.5, 0.08, 0.3)
 	var pts: Array[Vector3] = []
-	var count := maxi(2, ceili(size.x / (r * 1.4)))
+	var count := maxi(2, ceili(size.x / 0.15) + 1)
+	var rows := 1 if size.z < 0.6 else ceili((size.z - 0.3) / 0.25) + 1     # a deep seat (the Still Stone) gets rows
 	for i in count:
-		var lx := lerpf(-size.x * 0.5 + r * 0.7, size.x * 0.5 - r * 0.7, float(i) / float(count - 1))
-		pts.append(xf * Vector3(lx, size.y * 0.5 - r - 0.01, 0.0))
+		var lx := lerpf(-size.x * 0.5 + 0.1, size.x * 0.5 - 0.1, float(i) / float(count - 1))
+		for k in rows:
+			var lz := 0.0 if rows == 1 else lerpf(-size.z * 0.5 + 0.15, size.z * 0.5 - 0.15, float(k) / float(rows - 1))
+			pts.append(xf * Vector3(lx, size.y * 0.5 - SEAT_BALL_R, lz))
 	var original = sec.spring_bones
 	var kept = original.duplicate()
 	kept.clear()
 	var balls: Array = []
 	var s_inv := c.skeleton.global_transform.affine_inverse()
+	var grp = null
 	for sb in original:
 		var d: Resource = (sb as Resource).duplicate()
 		d.set("collider_groups", (sb.collider_groups as Array).duplicate())
 		var cm := String(sb.comment)
+		if cm.begins_with("Skirt") or cm.begins_with("Cape") or cm.begins_with("Sash"):
+			d.set("stiffness_scale", float(d.get("stiffness_scale")) * 0.3)
+			d.set("drag_force_scale", 0.85)
+			d.set("gravity_scale", float(d.get("gravity_scale")) * 2.4)
 		if cm.begins_with("Skirt") or cm.begins_with("Cape") or cm.begins_with("Sash") or cm.begins_with("Hair"):
-			var grp = load("res://addons/vrm/vrm_collider_group.gd").new()
-			for p in pts:
-				var ball := Node3D.new()
-				ball.name = "SeatCollider_%d" % balls.size()
-				c.add_child(ball)
-				ball.global_transform = s_inv * s_inv * Transform3D(Basis.IDENTITY, p)     # (see apply: the addon's transform)
-				var col = load("res://addons/vrm/vrm_collider.gd").new()
-				col.radius = r
-				col.node_path = ball.get_path()
-				grp.colliders.append(col)
-				balls.append(ball)
+			if grp == null:
+				grp = load("res://addons/vrm/vrm_collider_group.gd").new()
+				for p in pts:
+					var ball := Node3D.new()
+					ball.name = "SeatCollider_%d" % balls.size()
+					c.add_child(ball)
+					ball.global_transform = s_inv * s_inv * Transform3D(Basis.IDENTITY, p)     # (see apply: the addon's transform)
+					var col = load("res://addons/vrm/vrm_collider.gd").new()
+					col.radius = SEAT_BALL_R
+					col.node_path = ball.get_path()
+					grp.colliders.append(col)
+					balls.append(ball)
 			d.collider_groups.append(grp)
 		kept.append(d)
 	c.set_meta("lying_springs", original)

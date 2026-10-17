@@ -161,6 +161,7 @@ func _run() -> void:
 		"benchwalk": await _benchwalk()
 		"sunflash": await _sunflash()
 		"standstill": await _standstill()
+		"benchrest": await _benchrest()
 		"showline": await _showline()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
@@ -5765,6 +5766,88 @@ func _showline() -> void:
 	_check(starts.has(world2), "her in-world line follows the reply", "%.2f s later" % (float(starts.get(world2, 99.0)) - t1))
 	# an autonomous show line (no viewer) never waits more than a few seconds behind a talk either
 	v.line_started.disconnect(on_start)
+
+
+
+# ------------------------------------------------------------------ a long rest on the watchpoint bench, as the brain does it (broadcast 2, 15:15)
+## Selwyn's screenshot: the seat slab through her waist, the dress spread flat sideways through the stone. The brain's
+## rest is long (12-60 s) and walks there itself: this runs exactly that, samples her hips against the seat top and
+## her root against the sit point all through, and shoots it from the live camera's high rear angle and the side.
+func _benchrest() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var b: SanctuaryBrain = main.mage_brains["mika"]
+	b.set_enabled(false)
+	b.current = {}
+	var it: Interactable = main.world.interactables.get("watchpoint_rest")
+	if it == null:
+		_check(false, "watchpoint bench exists")
+		return
+	var seat_top := -99.0
+	for cs in it.seat_body.get_children():
+		if cs is CollisionShape3D and (cs as CollisionShape3D).shape is BoxShape3D:
+			seat_top = (cs as CollisionShape3D).global_position.y + ((cs as CollisionShape3D).shape as BoxShape3D).size.y * 0.5
+	var sp: Vector3 = it.get_parent().to_global(it.sit_point)
+	var map: RID = mika.get_world_3d().navigation_map
+	if main.teleport_guard:
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, sp + Vector3(6, 0, 4)) + Vector3(0, 0.05, 0)
+	await _wait(1.5)
+	# (a disabled brain cancels its own walks: walk there directly, then the bench's own sit with the brain's long rest)
+	mika.navigate_to(it.approach_point(), false)
+	var tn := _game_t
+	while mika.current_action == "navigate_to" and _game_t - tn < 60.0:
+		await get_tree().process_frame
+	it.duration_override = 40.0
+	var job := func(): await it.perform(mika)
+	job.call()
+	var hb := mika.skeleton.find_bone("Hips")
+	var samples: Array = []
+	var t0 := _game_t
+	var sat_at := -1.0
+	var shots := 0
+	while _game_t - t0 < 75.0:
+		await get_tree().process_frame
+		if mika.seated and sat_at < 0.0:
+			sat_at = _game_t
+		if sat_at >= 0.0 and not mika.seated:
+			break
+		if sat_at >= 0.0 and _game_t - sat_at > 2.5:
+			var hy := (mika.skeleton.global_transform * mika.skeleton.get_bone_global_pose(hb).origin).y
+			samples.append({"t": _game_t - sat_at, "hips": hy, "root_y": mika.global_position.y, "off": Vector2(mika.global_position.x - sp.x, mika.global_position.z - sp.z).length(),
+				"g": mika.current_gesture, "gp": mika.ground_pose, "avy": mika.avatar.position.y})
+			if DisplayServer.get_name() != "headless" and _game_t - sat_at > 4.0 + shots * 12.0 and shots < 4:
+				var fwd := -mika.global_transform.basis.z
+				fwd.y = 0
+				fwd = fwd.normalized()
+				var side := Vector3(-fwd.z, 0, fwd.x)
+				var hip := mika.global_position + Vector3(0, 0.6, 0)
+				var view: bool = main.director.enabled
+				main.director.enabled = false
+				if shots % 2 == 0:
+					main.camera_rig.set_shot(hip - fwd * 3.2 + side * 0.6 + Vector3(0, 2.0, 0), hip, 50.0)
+				else:
+					main.camera_rig.set_shot(hip + side * 3.0 + fwd * 0.6 + Vector3(0, 0.3, 0), hip + Vector3(0, -0.1, 0), 50.0)
+				await _wait(0.3)
+				_shot("rest_%d" % shots)
+				main.camera_rig.clear_shot()
+				main.director.enabled = view
+				shots += 1
+	var low := 99.0
+	var high := -99.0
+	var off := 0.0
+	var gs := {}
+	for s in samples:
+		low = minf(low, s.hips)
+		high = maxf(high, s.hips)
+		off = maxf(off, s.off)
+		gs["%s|%s|%.2f" % [s.g, s.gp, s.avy]] = int(gs.get("%s|%s|%.2f" % [s.g, s.gp, s.avy], 0)) + 1
+	print("[mktest] benchrest: seat top %.3f, hips %.3f..%.3f over %.0f s seated, root off the sit point up to %.2f m, root y %.3f, poses %s" % [seat_top, low, high,
+		(samples[-1].t if not samples.is_empty() else 0.0), off, (samples[-1].root_y if not samples.is_empty() else 0.0), str(gs)])
+	_check(not samples.is_empty() and float(samples[-1].t) > 15.0, "a long rest on the bench (%.0f s)" % (samples[-1].t if not samples.is_empty() else 0.0))
+	_check(low >= seat_top + 0.04, "she stays on top of the seat the whole rest (lowest hips %.3f, seat top %.3f)" % [low, seat_top])
+	_check(off < 0.25, "she stays over the seat (root drifts up to %.2f m)" % off)
 
 
 ## Bodies shaking while they stand (talks, casts, spars; broadcast 2): standing still on several real floors, every
