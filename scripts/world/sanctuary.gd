@@ -909,11 +909,10 @@ func _build_world_links() -> void:
 	tome.kind = "study"
 	tome.book_id = "liber_orbis"
 	tome.effects = {"skills": {"arcane_orb": 0.05}}
-	var altar_top := DAIS_TOP + 0.44 + 0.74 + 0.19
-	tome.book_xf = Transform3D(Basis.IDENTITY, Vector3(0, altar_top + 0.03, -2.45))
-	tome.book_props = altar_books
-	tome.stand_point = Vector3(0, DAIS_TOP, -1.45)
-	tome.face_point = Vector3(0, altar_top, -2.45)
+	# The altar top (1.37 m above the dais) is at her eye level: the spellbook is read from a lectern
+	# beside it instead, sized for her (surface 1.02 m, tilted toward her). The altar books stay as decor.
+	tome.book_props = []
+	ReadingLectern.install(self, tome, Vector3(1.45, DAIS_TOP, -2.2), -0.52, "wood")
 	add_interactable(Interactable.make("ritual_circle_attune", "Attune to the ritual circle", "meditate", "ritual_sanctuary",
 		Vector3(0, DAIS_TOP, 0.5), {"skills": {"arcane_orb": 0.15}, "knowledge": {"attuned:ritual_circle": 1}}, "spell_casting", 4.2)).radius = 2.6
 	interactables.ritual_circle_attune.kind = "practice"

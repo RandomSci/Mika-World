@@ -30,7 +30,7 @@ MagicEvents="*res://scripts/core/magic_events.gd"
 
 window/size/viewport_width=1600
 window/size/viewport_height=900
-window/stretch/mode="disabled"
+window/size/mode=3
 window/vsync/vsync_mode=1
 
 [editor_plugins]
@@ -39,16 +39,11 @@ enabled=PackedStringArray("res://addons/Godot-MToon-Shader/plugin.cfg", "res://a
 
 [physics]
 
-common/physics_ticks_per_second=60
 3d/physics_engine="Jolt Physics"
 
 [rendering]
 
-renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="gl_compatibility"
-textures/default_filters/anisotropic_filtering_level=3
-anti_aliasing/quality/msaa_3d=0
-lights_and_shadows/directional_shadow/size=4096
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
-lights_and_shadows/positional_shadow/soft_shadow_filter_quality=2
+textures/default_filters/anisotropic_filtering_level=3
 environment/defaults/default_clear_color=Color(0.06, 0.07, 0.09, 1)
