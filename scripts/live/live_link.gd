@@ -536,9 +536,79 @@ func _mage_progress() -> Dictionary:
 					spells.append("%s (%s)" % [sp.name, sp.tier])
 				elif learning.size() < 3:
 					learning.append(sp.name)
-		_progress[who] = {"level": d.level, "title": d.title, "rank": WorldState.mage_rank(who), "toNextLevel": "%d%%" % int(d.fraction * 100.0),
-			"canCast": spells, "notYet": learning}
+		# Day 2: the level and the percent were in every line's facts, and she said them in nearly every line. Now the
+		# level is a fact she keeps (title, rank) but only HIGHLIGHTED for a while after it changes or when the next one
+		# is very close; otherwise the note says not to bring it up unprompted.
+		var m := WorldState.mind(who)
+		var lu := float(m.progress.get("leveled_unix", 0.0))
+		var fresh := Time.get_unix_time_from_system() - lu < 600.0
+		var e := {"title": d.title, "rank": WorldState.mage_rank(who), "canCast": spells, "notYet": learning}
+		if fresh:
+			e["level"] = d.level
+			e["levelNews"] = "just reached Level %d - worth celebrating once" % d.level
+		elif d.fraction >= 0.9:
+			e["level"] = d.level
+			e["levelNote"] = "very close to the next level (mention at most once)"
+		else:
+			e["levelNote"] = "Level %d; do not bring up the level or progress percentages unless a viewer asks" % d.level
+		if who == "mika":
+			e["somethingFreshToTalkAbout"] = _rotating_topic()
+		_progress[who] = e
 	return _progress
+
+
+## Show-commentary topics that rotate (Day 2: "talk topics rotate"): each pick is a true, current fact from the world,
+## never the same kind twice in a row and none of the last few again; the choice changes every ~2 minutes.
+var _topic := ""
+var _topic_at := -1000000
+var _topic_kinds: Array = []
+
+
+func _rotating_topic() -> String:
+	if Time.get_ticks_msec() - _topic_at < 120000 and _topic != "":
+		return _topic
+	var mika := WorldState.mind("mika")
+	var cands := []        # [kind, text]
+	if main.get("story"):
+		var obj := String(main.story.objective())
+		if obj != "":
+			cands.append(["story", "the mystery of the Heartstone - " + obj])
+	var j: Array = mika.knowledge.get("journal", [])
+	if not j.is_empty():
+		cands.append(["journal", "what she wrote in her journal last: \"%s\"" % String(j.back().get("heading", ""))])
+	var read: Array = []
+	for k in mika.knowledge.keys():
+		if String(k).begins_with("lore:") or String(k).begins_with("clue:"):
+			read.append(String(k).get_slice(":", 1).replace("_", " "))
+	if not read.is_empty():
+		cands.append(["lore", "something she learned from her reading: %s" % read[randi() % read.size()]])
+	var b = main.mage_brains.get("luna") if main.get("mage_brains") else null
+	if b and b.get("current") is Dictionary and not (b.current as Dictionary).is_empty():
+		cands.append(["luna", "what Luna is up to right now: %s" % String(b.current.get("label", ""))])
+	if main.get("weather"):
+		cands.append(["sky", "the sky and the weather: %s, %s" % [main.weather.kind(), WorldState.time_phrase()]])
+	var area := String(main.streaming.current_id) if main.get("streaming") else ""
+	if area != "":
+		var locs: Array = WorldState.locations_in_area(area)
+		var pname := String(WorldState.locations[locs[0]].get("name", area)) if not locs.is_empty() else area.replace("_", " ")
+		cands.append(["place", "this place, the %s, and what she likes about it" % pname])
+	var learning: Array = []
+	if main.get("magic"):
+		for sp in main.magic.known_spells("mika"):
+			if not sp.castable:
+				learning.append(sp.name)
+	if not learning.is_empty():
+		cands.append(["spell", "a spell she is still trying to learn: %s" % learning[randi() % learning.size()]])
+	if mika.knowledge.keys().any(func(k): return String(k).begins_with("visited_unix:")):
+		cands.append(["outing", "a walk they took lately around the home region (the library, the woods, the tower)"])
+	cands.shuffle()
+	cands.sort_custom(func(a, c): return _topic_kinds.find(a[0]) < _topic_kinds.find(c[0]))     # least recently used first
+	var pick: Array = cands[0] if not cands.is_empty() else ["none", ""]
+	_topic_kinds.erase(pick[0])
+	_topic_kinds.append(pick[0])
+	_topic = String(pick[1])
+	_topic_at = Time.get_ticks_msec()
+	return _topic
 
 
 func _report(_force := false) -> void:

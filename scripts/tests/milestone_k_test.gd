@@ -158,6 +158,18 @@ func _run() -> void:
 		"walkaudit": await _walkaudit()
 		"livefixes": await _livefixes()
 		"sparwatch": await _sparwatch()
+		"day2story": await _day2story()
+		"day2crash": await _day2crash()
+		"daynight": await _daynight()
+		"day2stargaze": await _day2stargaze()
+		"day2topics": await _day2topics()
+		"libnav": await _libnav()
+		"gateprobe": await _gateprobe()
+		"lakenight": await _lakenight()
+		"day2soak": await _day2soak()
+		"towervisit": await _towervisit()
+		"readtravel": await _readtravel()
+		"lakehome": await _lakehome()
 		"benchwalk": await _benchwalk()
 		"sunflash": await _sunflash()
 		"standstill": await _standstill()
@@ -6084,3 +6096,500 @@ class LateTick extends Node:
 	func _process(_delta: float) -> void:
 		if cb.is_valid():
 			cb.call()
+
+
+# ================================================================== Day 2 update checks (2026-10-17)
+## 1+3: the story's library book is reachable at Levels 1-9; the followed mage walks to the library and reads it,
+## and Luna walks along (she no longer vanishes when Mika changes area).
+func _day2story() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var m := WorldState.mind("mika")
+	m.progress.level = 5
+	for k in ["clue:sign_of_return_location", "lore:heartstone", "clue:heartbeat_should_be_three", "noticed:keepers_daybook"]:
+		m.knowledge[k] = 1
+	m.knowledge["read:keepers_daybook"] = [0, 1, 2, 3]
+	m.knowledge.erase("incantation:rune_activation")
+	main.story.evaluate(true)
+	var leads: Array = main.story.next_leads()
+	print("[mktest] day2story leads: %s" % str(leads.map(func(l): return l.lead)))
+	_check(leads.any(func(l): return String(l.get("book", "")) == "signs_and_wakings"), "the story's next lead is the library book Signs and Wakings")
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var opts: Array = mb.options()
+	var ro: Array = opts.filter(func(o): return o.kind == "research" and String(o.get("book", "")) == "signs_and_wakings")
+	_check(not ro.is_empty(), "Level 5: the library book is an option (it used to be filtered out below Level 10)", opts.map(func(o): return o.key).slice(0, 30))
+	var visits: Array = opts.filter(func(o): return o.kind == "visit").map(func(o): return o.area)
+	print("[mktest] day2story visit options: %s" % str(visits))
+	_check(visits.size() >= 2, "home-region outings are offered (%s)" % str(visits))
+	# run it: luna beside her; Mika's brain does exactly that option
+	var map: RID = mika.get_world_3d().navigation_map
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, mika.global_position + Vector3(2.0, 0, 1.0)) + Vector3(0, 0.05, 0)
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	var res := {}
+	var job := func(): res["r"] = await mb.run_activity(ro[0])
+	job.call()
+	var t0 := _game_t
+	var luna_in_lib := false
+	var logged := false
+	while not res.has("r") and _game_t - t0 < 240.0:
+		await get_tree().process_frame
+		if main.streaming.current_id == "arcane_library" and luna.visible:
+			luna_in_lib = true
+		if main.streaming.current_id == "arcane_library" and main.streaming.state == "idle":
+			if not logged:
+				logged = true
+				var mp := mika.global_position
+				var tgt: Vector3 = main.world.points_of_interest["ancient_spell_library"].position
+				var path := NavigationServer3D.map_get_path(mika.get_world_3d().navigation_map, mp, tgt, true)
+				print("[mktest] day2story arrival: luna visible %s mika action %s/%s, mika %s luna %s marker %s path %s" % [luna.visible, mika.current_action, mika.is_physics_processing(), str(mp.snapped(Vector3.ONE * 0.1)), str(luna.global_position.snapped(Vector3.ONE * 0.1)), str(tgt), str(Array(path).map(func(v): return v.snapped(Vector3.ONE * 0.1)))])
+	print("[mktest] day2story: %s after %.0f s, area %s" % [str(res.get("r", {})).left(200), _game_t - t0, main.streaming.current_id])
+	_check(res.has("r") and bool(res.r.get("ok", false)), "she went and read it", res.get("r", "timeout"))
+	_check(not BookLibrary.pages_read("signs_and_wakings", "mika").is_empty(), "pages of Signs and Wakings are read")
+	_check(main.streaming.current_id == "arcane_library", "she is in the Ancient Spell Library (%s)" % main.streaming.current_id)
+	_check(luna_in_lib, "Luna walked along and is there with her")
+	_shot("library")
+	report["day2story"] = {"result": str(res.get("r", {})).left(300), "area": main.streaming.current_id, "luna_along": luna_in_lib}
+
+
+## 6: the crash fix repeats: while Luna walks to an interactable, the area unloads under her (a journey) - six times.
+## Before the fix this touched the freed interactable (Godot crashed at the journey's arrival).
+func _day2crash() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var lb: SanctuaryBrain = main.mage_brains["mika"]       # her own walk, cut off by a journey (the crash path)
+	var mika: WorldCharacter = main.characters["mika"]
+	var results := []
+	var dests := ["whispering_woods", "ritual_sanctuary", "ancient_spell_library", "ritual_sanctuary", "mentors_tower", "ritual_sanctuary"]
+	for i in dests.size():
+		var here: String = main.streaming.current_id
+		var ids: Array = main.world.interactables.keys()
+		var luna: WorldCharacter = main.characters["mika"]
+		var box := {}
+		if luna.visible and not ids.is_empty():
+			var far := ""
+			var best := 0.0
+			for id in ids:
+				var d: float = (main.world.interactables[id] as Node3D).global_position.distance_to(luna.global_position)
+				if d > best:
+					best = d
+					far = String(id)
+			var job := func(): box["r"] = await lb._use(far)
+			job.call()
+			await _wait(1.0)
+		var r: Dictionary = main.travel.travel_to(dests[i], "walk")
+		var t0 := _game_t
+		while main.travel.active() and _game_t - t0 < 200.0:
+			await get_tree().process_frame
+		await _wait(2.0)
+		var t1 := _game_t
+		while not box.is_empty() and not box.has("r") and _game_t - t1 < 30.0:
+			await get_tree().process_frame
+		results.append({"from": here, "to": main.streaming.current_id, "travel": r.get("ok", false), "luna_use": box.get("r", {}).get("detail", "none")})
+		print("[mktest] day2crash %d: %s" % [i, str(results.back())])
+	report["day2crash"] = results
+	_check(results.size() == dests.size(), "six journeys with an interactable walk cut short, no crash (%d)" % results.size())
+	_check(results.all(func(x): return x.travel), "every journey started")
+	var guarded := results.filter(func(x): return String(x.luna_use).contains("no longer here") or String(x.luna_use).contains("could not reach"))
+	_check(guarded.size() >= 4, "the cut-off walks ended safely (%d of %d returned 'no longer here' / 'could not reach')" % [guarded.size(), results.size()])
+
+
+## 4: a full dusk and dawn on the clock (17:20 -> 07:30 at 12 world minutes a second, ~70 s), a wide shot of the
+## sanctuary toward Starfall Hill; the night look follows the clock: k rises to 1 by 20:00 and falls to 0 by 07:00.
+func _daynight() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	_check(main.day_night != null, "the day/night cycle runs")
+	main.day_night.clear_override()
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 17.33 * 60.0
+	if main.get("weather") and main.weather:
+		main.weather.set_weather("clear", 24.0)
+	await _wait(4.0)
+	# a fixed wide lens of its own for the clip: the dais, the ruins and a big piece of sky toward Starfall Hill
+	main.director.enabled = false
+	var cam := Camera3D.new()
+	cam.fov = 64.0
+	main.add_child(cam)
+	var g: float = main.world.ground_at(6.0, -8.0) if main.world.has_method("ground_at") else 0.0
+	cam.global_position = Vector3(6.0, g + 3.2, -8.0)
+	cam.look_at(Vector3(-20.0, g + 7.0, 16.0), Vector3.UP)
+	cam.make_current()
+	WorldState.clock_rate = float(RenderProfile.options.get("dn-rate", "12"))
+	var samples := []
+	var max_k := 0.0
+	var flips := []
+	var was := WorldState.night
+	var t0 := _game_t
+	var next_s := 0.0
+	while WorldState.hour_f() < 7.5 or WorldState.hour_f() > 17.0:
+		await get_tree().process_frame
+		if _game_t - t0 > 900.0 / maxf(WorldState.clock_rate, 1.0) + 30.0:
+			break
+		max_k = maxf(max_k, main.day_night.k)
+		if WorldState.night != was:
+			flips.append([WorldState.clock_text(), WorldState.night])
+			was = WorldState.night
+		if _game_t - t0 >= next_s:
+			next_s += 3.0
+			samples.append([WorldState.clock_text().right(5), snappedf(main.day_night.k, 0.02)])
+	WorldState.clock_rate = 0.5
+	await _wait(2.0)
+	cam.queue_free()
+	main.director.enabled = true
+	print("[mktest] daynight samples %s" % str(samples))
+	print("[mktest] daynight flips %s" % str(flips))
+	report["daynight"] = {"samples": samples, "flips": flips, "max_k": max_k}
+	_check(max_k > 0.98, "full night reached by the clock (k %.2f)" % max_k)
+	_check(main.day_night.k < 0.02, "full day again after dawn (k %.2f)" % main.day_night.k)
+	_check(flips.size() == 2, "the night flag turned at dusk and back at dawn (%s)" % str(flips))
+
+
+## 4: stargazing on any open grassy spot (not only the registry's one), with a cooldown.
+func _day2stargaze() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	main.day_night.set_override(true)
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 22.0 * 60.0
+	await _wait(5.0)
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	luna.global_position = NavigationServer3D.map_get_closest_point(mika.get_world_3d().navigation_map, mika.global_position + Vector3(2.0, 0, 1.0)) + Vector3(0, 0.05, 0)
+	var cells: Dictionary = mb._grass_cells()
+	var thick := cells.values().filter(func(v): return int(v) >= 6).size()
+	print("[mktest] day2stargaze grass cells %d (thick %d), mika at %s" % [cells.size(), thick, str(mika.global_position)])
+	var spots := []
+	for i in 6:
+		spots.append(mb._grass_stargaze_spot())
+	var found := spots.filter(func(p): return p != Vector3.INF)
+	print("[mktest] day2stargaze grass spots %s" % str(found))
+	_check(found.size() >= 4, "open grassy spots found under the sky (%d of 6)" % found.size())
+	var o: Array = mb.options().filter(func(x): return String(x.key).begins_with("together:stargaze"))
+	_check(not o.is_empty(), "stargazing is offered at night")
+	WorldState.note_activity("together:stargaze:luna", "mika")
+	var o2: Array = mb.options().filter(func(x): return String(x.key).begins_with("together:stargaze"))
+	_check(o2.is_empty(), "and not again within the cooldown (saved in her mind)")
+	main.day_night.clear_override()
+
+
+## 5: the show's facts no longer carry the level in every line; the fresh topic rotates.
+func _day2topics() -> void:
+	var ll = main.get("live_link")
+	if ll == null:
+		for n in main.get_children():
+			if n.has_method("_mage_progress"):
+				ll = n
+	_check(ll != null, "the live link is there")
+	if ll == null:
+		return
+	WorldState.mind("mika").progress["leveled_unix"] = 0.0
+	ll._progress_at = -100000
+	var p: Dictionary = ll._mage_progress()
+	print("[mktest] day2topics mika: %s" % JSON.stringify(p.get("mika", {})).left(400))
+	_check(not (p.get("mika", {}) as Dictionary).has("level") and not (p.get("mika", {}) as Dictionary).has("toNextLevel"), "no level number / percent pushed while it is old news")
+	var kinds := []
+	for i in 5:
+		ll._topic_at = -1000000
+		var tp := String(ll._rotating_topic())
+		kinds.append(tp.left(40))
+	print("[mktest] day2topics rotation: %s" % str(kinds))
+	var distinct := {}
+	for k in kinds:
+		distinct[k] = true
+	_check(distinct.size() >= 4, "topics rotate (%d distinct of 5)" % distinct.size())
+	WorldState.mind("mika").progress["leveled_unix"] = Time.get_unix_time_from_system()
+	ll._progress_at = -100000
+	_check((ll._mage_progress().get("mika", {}) as Dictionary).has("levelNews"), "a fresh level-up is news")
+
+
+func _libnav() -> void:
+	await _hold_all()
+	var mika: WorldCharacter = main.characters["mika"]
+	var r: Dictionary = await main.streaming.travel("arcane_library", mika)
+	await _wait(2.0)
+	var map: RID = mika.get_world_3d().navigation_map
+	print("[mktest] libnav regions %d iteration %d" % [NavigationServer3D.map_get_regions(map).size(), NavigationServer3D.map_get_iteration_id(map)])
+	for p in [Vector3(0, 0, 12), Vector3(0, 0, 8), Vector3(0, 0, 4), Vector3(0, 0, 0), Vector3(0, 0, -2), Vector3(-2.6, 0, 2.95), Vector3(0, 0, -8)]:
+		var cp := NavigationServer3D.map_get_closest_point(map, p)
+		var path := NavigationServer3D.map_get_path(map, NavigationServer3D.map_get_closest_point(map, Vector3(0, 0, 12)), cp, true)
+		print("[mktest] libnav %s -> closest %s, path from entry %d pts" % [str(p), str(cp.snapped(Vector3.ONE * 0.01)), path.size()])
+	var nr: NavigationRegion3D = main.world.nav_region
+	if nr and nr.navigation_mesh:
+		var nm: NavigationMesh = nr.navigation_mesh
+		print("[mktest] libnav navmesh polys %d verts %d cell %.2f agent r %.2f" % [nm.get_polygon_count(), nm.get_vertices().size(), nm.cell_size, nm.agent_radius])
+	for y in [0.0, 0.1, 0.25, 0.4, 0.5, 0.8]:
+		print("[mktest] libnav from y=%.2f: %d pts; closest %s" % [y, NavigationServer3D.map_get_path(map, Vector3(0, y, 12), Vector3(0, 0.5, -2), true).size(), str(NavigationServer3D.map_get_closest_point(map, Vector3(0, y, 12)))])
+	for y in [0.0, 0.25, 0.5]:
+		print("[mktest] libnav from (0,%.2f,6): %d pts" % [y, NavigationServer3D.map_get_path(map, Vector3(0, y, 6), Vector3(0, 0.5, -2), true).size()])
+	print("[mktest] libnav mika at %s path-from-her %d" % [str(mika.global_position), NavigationServer3D.map_get_path(map, mika.global_position, Vector3(0, 0.5, -2), true).size()])
+	mika.navigate_to(Vector3(0, 0, -2), false)
+	var t0 := _game_t
+	while mika.current_action == "navigate_to" and _game_t - t0 < 20.0:
+		await get_tree().process_frame
+	print("[mktest] libnav walk: now %s, %s, last %s" % [str(mika.global_position.snapped(Vector3.ONE * 0.1)), mika.current_action, str(mika.get("last_rejection"))])
+
+
+func _gateprobe() -> void:
+	await _wait(3.0)
+	var map: RID = main.characters["mika"].get_world_3d().navigation_map
+	var from := NavigationServer3D.map_get_closest_point(map, Vector3(0, 0, 0))
+	for c in [Vector2(-34, 30), Vector2(-30, 36), Vector2(-35, 40), Vector2(-25, 42), Vector2(-33, 34), Vector2(-28, 30), Vector2(-20, 44)]:
+		var p := Vector3(c.x, main.world.ground_at(c.x, c.y), c.y)
+		var cp := NavigationServer3D.map_get_closest_point(map, p)
+		var path := NavigationServer3D.map_get_path(map, from, cp, true)
+		print("[mktest] gateprobe %s -> closest %s (off %.2f) path %d" % [str(c), str(cp.snapped(Vector3.ONE * 0.1)), Vector2(cp.x - c.x, cp.z - c.y).length(), path.size()])
+
+
+## 7: Lantern Lake, their second night spot: at night they walk down past Starfall Hill together, sit at the end of the
+## pier, watch the lanterns and let one go, then walk home.
+func _lakenight() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	main.day_night.clear_override()
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 21.5 * 60.0
+	if main.get("weather") and main.weather:
+		main.weather.set_weather("clear", 12.0)
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var map: RID = mika.get_world_3d().navigation_map
+	for c in [mika, luna]:
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(-30, 0, 30)) + Vector3(0, 0.05, 0)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(-28, 0, 31)) + Vector3(0, 0.05, 0)
+	await _wait(5.0)
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var opts: Array = mb.options()
+	var lake_opt: Array = opts.filter(func(o): return o.kind == "visit" and String(o.area) == "lantern_lake")
+	_check(not lake_opt.is_empty(), "at night the walk down to Lantern Lake is offered", opts.map(func(o): return o.key).slice(0, 20))
+	if lake_opt.is_empty():
+		return
+	var sc: Dictionary = mb.score(lake_opt[0])
+	print("[mktest] lakenight visit score %s" % str(sc))
+	var res := {}
+	var job := func(): res["r"] = await mb.run_activity(lake_opt[0])
+	job.call()
+	var t0 := _game_t
+	while not res.has("r") and _game_t - t0 < 200.0:
+		await get_tree().process_frame
+	print("[mktest] lakenight arrive: %s area %s luna visible %s" % [str(res.get("r", {})).left(160), main.streaming.current_id, luna.visible])
+	_check(main.streaming.current_id == "lantern_lake", "they reached Lantern Lake (%s)" % main.streaming.current_id)
+	_check(luna.visible and String(WorldState.mind("luna").location.get("area", "")) == "lantern_lake", "Luna walked down with her")
+	_shot("lake_arrival")
+	await _wait(2.0)
+	var lw: Array = mb.options().filter(func(o): return o.kind == "lakewatch")
+	_check(not lw.is_empty(), "sitting on the pier to watch the lanterns is offered")
+	if lw.is_empty():
+		return
+	var res2 := {}
+	var job2 := func(): res2["r"] = await mb.run_activity(lw[0])
+	job2.call()
+	var t1 := _game_t
+	var sat := {"mika": false, "luna": false}
+	var logged_at := 0.0
+	while not res2.has("r") and _game_t - t1 < 180.0:
+		await get_tree().process_frame
+		if _game_t - t1 > logged_at + 15.0:
+			logged_at = _game_t - t1
+			var cam := get_viewport().get_camera_3d()
+			print("[mktest] lakenight t=%.0f mika %s %s luna %s %s | director mode %s scene %s cam %s" % [logged_at, str(mika.global_position.snapped(Vector3.ONE * 0.1)), mika.ground_pose,
+				str(luna.global_position.snapped(Vector3.ONE * 0.1)), luna.ground_pose, str(main.director.get("mode")), str(main.director.get("_scene") != null and (main.director.get("_scene") as Callable).is_valid()), str(cam.global_position.snapped(Vector3.ONE * 0.1)) if cam else "-"])
+		var sp_now: Array = main.world.sit_spots() if main.world.has_method("sit_spots") else []
+		for i in 2:
+			var c: WorldCharacter = [mika, luna][i]
+			if c.ground_pose == "sit" and not sp_now.is_empty() and c.global_position.distance_to(sp_now[i]) < 1.2:
+				sat[c.character_id] = true
+	print("[mktest] lakenight watch: %s sat %s" % [str(res2.get("r", {})).left(200), str(sat)])
+	_check(res2.has("r") and bool(res2.r.get("ok", false)), "they watched the lanterns", res2.get("r", "timeout"))
+	_check(sat.mika and sat.luna, "both sat on the pier deck (%s)" % str(sat))
+	_check(mb.options().filter(func(o): return o.kind == "lakewatch").is_empty(), "not again tonight")
+	report["lakenight"] = {"visit": str(res.get("r", {})).left(200), "watch": str(res2.get("r", {})).left(200), "sat": sat}
+
+
+## Day 2 soak: 30 real minutes of their own life from Day 1's save (a copy), afternoon -> dusk -> night -> dawn
+## (15:30 -> ~06:30 at the normal clock). Everything is their own choice; this only watches and reports.
+func _day2soak() -> void:
+	var mins := float(RenderProfile.options.get("soak-min", "30"))
+	main.day_night.clear_override()
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + float(RenderProfile.options.get("soak-start", "15.5")) * 60.0
+	WorldState.clock_rate = 0.5
+	main.director.enabled = true
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var mm := WorldState.mind("mika")
+	var j0: int = (mm.knowledge.get("journal", []) as Array).size()
+	var seq0 := mm.activity_seq
+	var areas := {}
+	var together := 0
+	var samples := 0
+	var max_k := 0.0
+	var topics := []
+	var kinds := {}
+	var decisions := []
+	var cb := func(d): decisions.append([snappedf(_game_t, 1.0), WorldState.clock_text().right(5), main.streaming.current_id, String(d.get("kind", "")), String(d.get("label", "")).left(60)])
+	main.mage_brains["mika"].decided.connect(cb)
+	var lcb := func(d): kinds["luna:" + String(d.get("kind", ""))] = int(kinds.get("luna:" + String(d.get("kind", "")), 0)) + 1
+	main.mage_brains["luna"].decided.connect(lcb)
+	var t0 := _game_t
+	var next_s := 0.0
+	var next_tp := 0.0
+	while _game_t - t0 < mins * 60.0:
+		await get_tree().process_frame
+		if _game_t - t0 >= next_s:
+			next_s += 20.0
+			samples += 1
+			areas[main.streaming.current_id] = int(areas.get(main.streaming.current_id, 0)) + 1
+			if luna.visible and mika.visible and luna.global_position.distance_to(mika.global_position) < 40.0:
+				together += 1
+			max_k = maxf(max_k, main.day_night.k)
+			if RenderProfile.options.has("soak-diag"):
+				var b0: SanctuaryBrain = main.mage_brains.mika
+				print("[mktest] soakdiag mika enabled %s hold %s busy %s current %s last %s focus %s sim %s" % [b0.enabled, b0.hold, b0.busy, str(b0.current).left(80), str(b0.last_decision.get("key", "")), main.focus, main.sim_mode("mika")])
+			if int(_game_t - t0) % 120 < 20:
+				print("[mktest] soak %4.0fs %s %s k=%.2f mika: %s | luna: %s" % [_game_t - t0, WorldState.clock_text().right(5), main.streaming.current_id, main.day_night.k,
+					String(main.mage_brains.mika.current.get("label", "-")).left(50), String(main.mage_brains.luna.current.get("label", "-")).left(50)])
+		if main.live_link and _game_t - t0 >= next_tp:
+			next_tp += 120.0
+			main.live_link._topic_at = -1000000
+			topics.append(String(main.live_link._rotating_topic()).left(70))
+	for d in decisions:
+		kinds[d[3]] = int(kinds.get(d[3], 0)) + 1
+	var journal_n: int = (mm.knowledge.get("journal", []) as Array).size() - j0
+	print("[mktest] soak decisions (%d): %s" % [decisions.size(), JSON.stringify(decisions)])
+	print("[mktest] soak kinds %s" % JSON.stringify(kinds))
+	print("[mktest] soak areas %s together %d/%d max_k %.2f journal +%d activities +%d" % [JSON.stringify(areas), together, samples, max_k, journal_n, mm.activity_seq - seq0])
+	print("[mktest] soak topics %s" % JSON.stringify(topics))
+	report["day2soak"] = {"decisions": decisions, "kinds": kinds, "areas": areas, "together": [together, samples], "max_k": max_k,
+		"journal_new": journal_n, "topics": topics, "lake_night": mm.knowledge.get("lake_night", -1),
+		"stargazed": mm.activity_counts.get("together:stargaze:luna", {}), "level": [mm.level(), WorldState.mind("luna").level()]}
+	var mk: Array = kinds.keys().filter(func(k): return not String(k).begins_with("luna:"))
+	_check(journal_n <= int(mins / 15.0) + 1, "the journal is not every 2 minutes (%d entries in %.0f min)" % [journal_n, mins])
+	_check(mk.size() >= 8, "variety: %d different kinds of activity (%s)" % [mk.size(), str(mk)])
+	_check(areas.keys().size() >= 3, "they lived in more of the home region than the sanctuary (%s)" % str(areas.keys()))
+	_check(together >= samples * 0.85, "Luna stayed with Mika in the same place (%d/%d samples)" % [together, samples])
+	_check(max_k > 0.98, "night fell by the clock (k %.2f)" % max_k)
+	var distinct := {}
+	for tp in topics:
+		distinct[String(tp).left(25)] = true
+	_check(topics.size() < 3 or distinct.size() >= mini(4, topics.size()), "the show's topics rotate (%d distinct of %d)" % [distinct.size(), topics.size()])
+
+
+
+## The Mentor's Tower outing: by day she walks over with Luna, arrives, and later walks home.
+func _towervisit() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 11.0 * 60.0
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	luna.global_position = NavigationServer3D.map_get_closest_point(mika.get_world_3d().navigation_map, Vector3(-30, 0, 25)) + Vector3(0, 0.05, 0)
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var o: Array = mb.options().filter(func(x): return x.kind == "visit" and String(x.area) == "mentor_tower")
+	_check(not o.is_empty(), "the walk to the Mentor's Tower is offered by day")
+	if o.is_empty():
+		return
+	print("[mktest] towervisit score %s (luna %.0f m away)" % [str(mb.score(o[0])), luna.global_position.distance_to(mika.global_position)])
+	var res := {}
+	var job := func(): res["r"] = await mb.run_activity(o[0])
+	job.call()
+	var t0 := _game_t
+	while not res.has("r") and _game_t - t0 < 200.0:
+		await get_tree().process_frame
+	_check(bool(res.get("r", {}).get("ok", false)) and main.streaming.current_id == "mentor_tower", "she arrived at the Mentor's Tower (%s, %s)" % [main.streaming.current_id, str(res.get("r", {})).left(120)])
+	_check(luna.visible and String(WorldState.mind("luna").location.get("area", "")) == "mentor_tower", "Luna came along from 40+ m away")
+	await _wait(4.0)
+	_shot("tower")
+	var home: Array = mb.options().filter(func(x): return x.kind == "visit" and String(x.area) == "sanctuary")
+	_check(not home.is_empty(), "the way home is offered there")
+
+
+## Luna is reading in the library when Mika walks home: Luna stops, walks along, her brain is free again, and the
+## one-reader lock is released (Day 2 soak: her read hung for the rest of the run).
+func _readtravel() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	var r: Dictionary = await main.streaming.travel("arcane_library", mika)
+	await _wait(1.0)
+	await main.world.bake_navigation()          # (as a journey's arrival does: the first bake answers no paths)
+	await _wait(1.0)
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	var map: RID = mika.get_world_3d().navigation_map
+	luna.world = main.world
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(1.5, 0, 6)) + Vector3(0, 0.05, 0)
+	luna.visible = true
+	luna.set_physics_process(true)
+	WorldState.mind("luna").set_location("arcane_library", luna.global_position)
+	lb.hold = false
+	var ljob := func(): lb.current = {"kind": "research", "label": "read Elementa Prima", "key": "research:elementa_prima"}; await lb._use("lectern_warding_glyph"); lb.current = {}
+	ljob.call()
+	var t0 := _game_t
+	while not main.book_reader.reading() and _game_t - t0 < 40.0:
+		await get_tree().process_frame
+	_check(main.book_reader.reading(), "Luna is reading Elementa Prima in the library")
+	await _wait(3.0)
+	var home: Array = mb.options().filter(func(o): return o.kind == "visit" and String(o.area) == "sanctuary")
+	var res := {}
+	var job := func(): res["r"] = await mb.run_activity(home[0])
+	job.call()
+	var t1 := _game_t
+	while not res.has("r") and _game_t - t1 < 200.0:
+		await get_tree().process_frame
+	await _wait(3.0)
+	print("[mktest] readtravel: %s area %s, reading %s, luna current %s visible %s" % [str(res.get("r", {})).left(100), main.streaming.current_id, main.book_reader.reading(), str(lb.current), luna.visible])
+	_check(main.streaming.current_id == "sanctuary", "Mika walked home")
+	_check(not main.book_reader.reading(), "the reading ended (the one-reader lock is free)")
+	_check(lb.current.is_empty() or String(lb.current.get("label", "")) != "read Elementa Prima", "Luna's brain is free again (%s)" % str(lb.current.get("label", "-")))
+	_check(luna.visible and String(WorldState.mind("luna").location.get("area", "")) == "sanctuary", "Luna walked home with her")
+
+
+## Walking home from Lantern Lake with Luna there (the Day 2 soak's slow-frame burst): per-second frame and process time.
+func _lakehome() -> void:
+	await _lakenight()
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	main.mage_brains["luna"].hold = false
+	await _wait(3.0)
+	var home: Array = mb.options().filter(func(o): return o.kind == "visit" and String(o.area) == "sanctuary")
+	_check(not home.is_empty(), "the way home is offered at the lake")
+	if home.is_empty():
+		return
+	var res := {}
+	var job := func(): res["r"] = await mb.run_activity(home[0])
+	job.call()
+	var t0 := _game_t
+	var acc := {"n": 0, "slow": 0, "proc": 0.0, "worst": 0.0}
+	var last := Time.get_ticks_usec()
+	var next_p := 1.0
+	while not res.has("r") and _game_t - t0 < 150.0:
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		var ms := (now - last) / 1000.0
+		last = now
+		acc.n += 1
+		acc.proc += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		acc.worst = maxf(acc.worst, ms)
+		if ms > 50.0:
+			acc.slow += 1
+		if _game_t - t0 >= next_p:
+			next_p += 1.0
+			var lb: SanctuaryBrain = main.mage_brains["luna"]
+			print("[mktest] lakehome t=%3.0f frames %d slow %d proc avg %.1f worst %.0f | area %s state %s | mika %s | luna %s (hold %s)" % [_game_t - t0, acc.n, acc.slow, acc.proc / maxf(acc.n, 1), acc.worst,
+				main.streaming.current_id, main.streaming.state, String(mb.current.get("stage", "-")).left(30), String(lb.current.get("label", "-")).left(30), lb.hold])
+			acc = {"n": 0, "slow": 0, "proc": 0.0, "worst": 0.0}
+	_check(res.has("r") and bool(res.r.get("ok", false)), "they walked home", res.get("r", "timeout"))

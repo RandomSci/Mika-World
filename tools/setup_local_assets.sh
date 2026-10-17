@@ -6,7 +6,15 @@
 set -eu
 cd "$(dirname "$0")/.."
 SRC="${MIXAMO_SRC:-$HOME/Downloads}"
-mkdir -p assets/animations/mixamo
+# an existing working copy that already has the clips (e.g. the main DEV checkout): copied from there first
+FROM="${MIXAMO_FROM:-$HOME/Downloads/Mika-Godot-Dev}"
+mkdir -p assets/animations/mixamo assets/animations/mixamo_sword
+if [ -d "$FROM/assets/animations/mixamo" ] && [ "$(cd "$FROM" && pwd)" != "$(pwd)" ]; then
+  cp -n "$FROM"/assets/animations/mixamo/*.fbx assets/animations/mixamo/ 2>/dev/null || true
+  cp -n "$FROM"/assets/animations/mixamo_sword/*.fbx assets/animations/mixamo_sword/ 2>/dev/null || true
+  echo "Mixamo clips copied from $FROM."
+  exit 0
+fi
 for f in "Standing Idle" "Walking" "Run Forward" "Jog Forward" "Prepare and cast" "Spell Casting" \
          "Wide Arm Spell Casting" "Standing 2H Magic Attack 01" "Standing 1H Magic Attack 03" \
          "Look Around" "Waving" "Standing React Death Forward" "Sitting Idle" \

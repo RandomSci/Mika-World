@@ -25,6 +25,17 @@ var _hands := false
 func setup(m: Node) -> void:
 	main = m
 	instance = self
+	# the open book lives in the area: if the area unloads mid-read (a journey), stop at once - every wait below is
+	# a timed one, so the reading returns and frees the one-reader lock (Day 2: Luna's read hung for the rest of a run)
+	if main.get("streaming"):
+		main.streaming.transition_started.connect(func(_f, _t): if reading(): stop())
+
+
+## A wait that cannot hang on a freed book (its tweens die with it and never signal).
+func _hold(secs: float) -> void:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < int(secs * 1000.0):
+		await get_tree().process_frame
 
 
 func stop() -> void:
@@ -33,17 +44,22 @@ func stop() -> void:
 
 ## Page turn with her hand: reach the outer corner, lift it over with the leaf, return to rest.
 func _turn_page(c: WorldCharacter, first_page: int) -> void:
+	if not is_instance_valid(_book):
+		return
 	var corner := _book.turn_corner()
 	var rest: Vector3 = c.handler.target.global_position
 	if _hands:
 		c.gaze_to(corner, 0.25)
 		await c.handler.move_right(corner, 0.4)
+	if not is_instance_valid(_book):
+		return
 	_book.turn_to.call(first_page, 0.9)   # runs alongside the hand motion
-	if _hands:
+	if _hands and is_instance_valid(_book):
 		var over: Vector3 = _book.global_transform * Vector3(0.0, 0.16, OpenBook.H * 0.3)
 		await c.handler.move_right(over, 0.45)
 		await c.handler.move_right(rest, 0.45)
-	while _book.turning:
+	var tt := Time.get_ticks_msec()
+	while is_instance_valid(_book) and _book.turning and Time.get_ticks_msec() - tt < 4000:
 		await get_tree().process_frame
 
 
@@ -87,7 +103,8 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 		_book.reader = who
 		_book.build(book_id)
 		MagicEvents.emit_phase(c, "book", "book_open", style, look_at)
-		await _book.open_book(0.9)
+		_book.open_book(0.9)
+		await _hold(0.95)
 		# rest both hands lightly on the lower corners of the book (only when she can comfortably reach)
 		var lh: Vector3 = _book.global_transform * Vector3(-OpenBook.W * 0.82, 0.02, OpenBook.H * 0.42)
 		var rh: Vector3 = _book.global_transform * Vector3(OpenBook.W * 0.82, 0.02, OpenBook.H * 0.42)
@@ -104,6 +121,12 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 			break
 		var p: Dictionary = pages[i]
 		current.page = i
+		if not is_instance_valid(_book) and anchor != null and style != "inscription":
+			_book = null
+			_stop = true                    # (its area is gone)
+		if _stop:
+			res.interrupted = true
+			break
 		if _book and i > 0 and i % 2 == 0:
 			MagicEvents.emit_phase(c, "book", "page_turn", style, look_at)
 			await _turn_page(c, i)
@@ -133,7 +156,7 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 			if now >= next_glance:
 				var prog := clampf((now - t_start) / maxf(t_end - t_start, 0.1), 0.0, 1.0)
 				var gp: Vector3
-				if _book:
+				if _book and is_instance_valid(_book):
 					gp = _book.read_point(side, prog) + Vector3(randf_range(-0.03, 0.03), 0, 0)
 				else:
 					gp = look_at + Vector3(randf_range(-0.25, 0.25), 0.3 - prog * 0.6, 0)
@@ -156,13 +179,16 @@ func read(c: WorldCharacter, book_id: String, anchor, opts := {}) -> Dictionary:
 	if show_card:
 		overlay.hide_page()
 	if _hands:
-		await c.handler.release_hands(0.5)
+		c.handler.release_hands(0.5)
+		await _hold(0.52)
 		_hands = false
-	if _book:
+	if _book and is_instance_valid(_book):
 		MagicEvents.emit_phase(c, "book", "book_close", style, look_at)
-		await _book.close_book(0.6)
-		_book.queue_free()
-		_book = null
+		_book.close_book(0.6)
+		await _hold(0.62)
+		if is_instance_valid(_book):
+			_book.queue_free()
+	_book = null
 	c.look_head_at(null)
 	current = {}
 	res["complete"] = res.pages_read.size() == pages.size()

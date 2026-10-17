@@ -52,6 +52,7 @@ var teleport_guard: TeleportGuard  # the no-teleport rule, watched every physics
 var journeys: JourneyDirector      # multi-day journeys across the overland world (persistent)
 var ambush: AmbushDirector         # road ambushes by human rivals (data/ambush.json)
 var companionship: Companionship
+var day_night: DayNightCycle
 var duel: TrainingDuel
 var performance: PerformanceController
 var live_link: LiveLink                    # --live-link: Mika-Live's Stage (null otherwise)
@@ -89,6 +90,7 @@ func _ready() -> void:
 	streaming.before_reveal.append(func(): await Discoveries.populate(world))
 	# Starfall Hill: the great tree and its grass a short walk from where they first wake (sanctuary only)
 	streaming.before_reveal.append(func(): StarfallPlace.populate(self, world))
+	streaming.before_reveal.append(func(): _place_companions())     # behind the travel card (no pop-in)
 	if not RenderProfile.options.has("no-grade"):
 		var grade := StreamGrade.new()
 		grade.name = "StreamGrade"
@@ -335,6 +337,11 @@ func _ready() -> void:
 	companionship.name = "Companionship"
 	add_child(companionship)
 	companionship.setup(self)
+	day_night = DayNightCycle.new()                   # the night look follows the game clock (Day 2)
+	day_night.setup(self)
+	add_child(day_night)
+	if RenderProfile.night:
+		day_night.set_override(true)                  # (--night: a test override)
 	duel = TrainingDuel.new()
 	duel.name = "TrainingDuel"
 	add_child(duel)
@@ -624,6 +631,48 @@ func _park_mages() -> void:
 
 ## After an area is built: the focus mage is placed by the streaming manager; every other mage whose saved
 ## location is this area reappears where she was (or at her spawn), the rest stay in the background.
+## Mages walking along with the followed one to another area (Day 2): who -> leader. Set before the journey; on
+## arrival she is placed beside the leader while the travel card still covers the change.
+var travel_companions := {}
+
+
+func bring_along(who: String, leader: String) -> void:
+	travel_companions[who] = leader
+	var b = mage_brains.get(who)
+	if b:
+		b.interrupt("walking along with %s" % leader)
+
+
+## The mages walking along with the followed one: placed beside her at the entrance, while the card still covers it.
+func _place_companions() -> void:
+	if world == null or not characters.has(focus):
+		return
+	for who in travel_companions.keys():
+		if travel_companions[who] != focus or not characters.has(who):
+			continue
+		var c: WorldCharacter = characters[who]
+		var lead: WorldCharacter = characters[focus]
+		var way := -lead.global_transform.basis.z
+		if travel and not travel.journey.is_empty() and world.points_of_interest.has(String(travel.journey.get("destination", ""))):
+			way = Vector3(world.points_of_interest[travel.journey.destination].position) - lead.global_position
+		way.y = 0.0
+		way = way.normalized() if way.length() > 0.1 else Vector3.FORWARD
+		var side := Vector3(-way.z, 0, way.x)
+		var at: Vector3 = await snap_to_nav(lead.global_position - way * 1.2 + side * 1.1)
+		if at.distance_to(lead.global_position) < 0.9:
+			at = await snap_to_nav(lead.global_position + side * 1.3)
+		if teleport_guard:
+			teleport_guard.allow(c)       # (walking along: she arrives with her, behind the travel card)
+		c.global_position = at + Vector3(0, 0.05, 0)
+		c.world = world
+		c.velocity = Vector3.ZERO
+		c.visible = true
+		c.set_physics_process(true)
+		c.look_at_point(lead.global_position + way * 3.0)
+		WorldState.mind(who).set_location(streaming.current_id, c.global_position)
+		travel_companions.erase(who)
+
+
 func _on_area_for_mages(area_id: String) -> void:
 	for who in mages:
 		var c: WorldCharacter = characters[who]
@@ -632,6 +681,20 @@ func _on_area_for_mages(area_id: String) -> void:
 			c.visible = true
 			m.set_location(area_id, c.global_position)
 			continue
+		if String(WorldState.mind(who).location.get("area", "")) == area_id and c.visible:
+			continue                       # (already placed beside the leader behind the travel card)
+		if travel_companions.get(who, "") == focus and characters.has(focus):
+			# she came with her: a step behind the leader on the side she came from - never on the leader's way in (in
+			# the library doorway she had stood in the corridor and blocked it)
+			var lead: WorldCharacter = characters[focus]
+			var way := -lead.global_transform.basis.z
+			if travel and not travel.journey.is_empty() and world.points_of_interest.has(String(travel.journey.get("destination", ""))):
+				way = Vector3(world.points_of_interest[travel.journey.destination].position) - lead.global_position
+			way.y = 0.0
+			way = way.normalized() if way.length() > 0.1 else Vector3.FORWARD
+			var side := Vector3(-way.z, 0, way.x)
+			m.set_location(area_id, lead.global_position - way * 1.5 + side * 0.7)
+		travel_companions.erase(who)
 		var her_area := String(m.location.get("area", _home_area(who)))
 		if her_area != area_id or world == null:
 			c.visible = false
@@ -801,9 +864,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if brain == null:
 		return   # still starting up (the first area is loading): director/brain/HUD keys have nothing to act on yet
 	if event.is_action_pressed("toggle_night"):
-		WorldState.night = not WorldState.night
-		if world:
-			world.set_night(WorldState.night)
+		# a test override of the clock (Day 2): N cycles clock -> night -> day -> clock
+		if day_night:
+			day_night.override = {-1: 1, 1: 0, 0: -1}[day_night.override]
+			show_notice("Night look: %s" % {-1: "follows the clock", 0: "forced day (test)", 1: "forced night (test)"}[day_night.override])
+		else:
+			WorldState.night = not WorldState.night
+			if world:
+				world.set_night(WorldState.night)
 	elif event.is_action_pressed("cycle_profile"):
 		RenderProfile.cycle_profile()
 		if world:
