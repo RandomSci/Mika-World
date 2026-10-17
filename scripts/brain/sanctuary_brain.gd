@@ -57,6 +57,7 @@ var _speak_cd := 0.0
 var _talked_this_visit := {}
 var curiosity_bonus := {}      # option key -> bonus from the curiosity module (one decision only)
 var resume_key := ""            # relaunch: what she was doing when the game stopped (favoured once, if still on offer)
+var lost := false                   # Day 3: she took a wrong turn on a wander (the discovery rate rises while lost)
 var viewer_request := {}            # spell id -> {target, t}: a viewer suggestion, kept until chosen or 4 minutes old
 const VIEWER_REQUEST_S := 240.0
 
@@ -221,6 +222,21 @@ func options() -> Array:
 		if not main.magic.can_cast(String(l.get("spell", "")), agent_id).ok:
 			continue
 		out.append({"kind": "investigate", "key": "investigate:%s:%s" % [l.target, l.spell], "target": l.target, "spell": l.spell, "label": l.lead})
+	# Day 3 discoveries: the find she just noticed (hers), the one the other mage noticed (go and see), past finds here
+	var dd = main.get("discoveries")
+	if dd and not dd.live.is_empty() and String(dd.live.area) == here and is_instance_valid(dd.live.get("it")) and me.visible:
+		if String(dd.live.who) == agent_id:
+			out.append({"kind": "discover", "key": "discover:%d" % int(dd.live.seq), "interactable": (dd.live.it as Interactable).id,
+				"label": "look at %s" % String(dd.live.find.label)})
+		elif me.global_position.distance_to(dd.live.pos) < 35.0:
+			out.append({"kind": "join_find", "key": "join_find:%d" % int(dd.live.seq), "pos": dd.live.pos,
+				"label": "go and see what %s found" % MagicSystem.display_name(String(dd.live.who))})
+	if dd and me.visible:
+		for it in dd.revisits():
+			out.append({"kind": "revisit", "key": "revisit:" + (it as Interactable).id, "interactable": (it as Interactable).id, "label": (it as Interactable).label.to_lower()})
+	# wander off the paths (and now and then get a little lost): where finds are most likely
+	if main.world and me.visible and is_lead() and threat == null:
+		out.append({"kind": "wander", "key": "wander:" + here, "label": "wander off the path"})
 	# explore
 	for sid in WorldState.sanctuary.sub_areas:
 		if sid == "ancient_spell_library":
@@ -444,7 +460,7 @@ func options() -> Array:
 			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake"]))
 	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
-	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch"])
+	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "discover", "join_find", "revisit", "wander"])
 
 
 const MEET_COOLDOWN_S := 420.0
@@ -453,7 +469,7 @@ const STARGAZE_GAP_S := 1800.0
 const RECENT_KINDS := 12
 ## The same activity (same option key) again within this many seconds costs utility (fading to nothing); saved via
 ## mind.activity_counts, so a restart does not reset it.
-const KIND_COOLDOWN_S := {"journal": 900.0, "attune": 1200.0, "explore": 480.0, "roam": 120.0, "alchemy": 600.0, "rest": 480.0,
+const KIND_COOLDOWN_S := {"wander": 900.0, "revisit": 1800.0, "journal": 900.0, "attune": 1200.0, "explore": 480.0, "roam": 120.0, "alchemy": 600.0, "rest": 480.0,
 	"perform": 900.0, "magic": 300.0, "visit": 600.0, "together": 600.0, "meet": 420.0, "chat": 600.0, "gather": 240.0}
 ## Kinds that pull harder the longer she has not done them (up to this bonus after ~40 min).
 const RARE_PULL := {"research": 0.22, "investigate": 0.25, "gather": 0.22, "hunt": 0.18, "chat": 0.22, "lesson": 0.2,
@@ -619,6 +635,19 @@ func score(o: Dictionary) -> Dictionary:
 				var adj := -0.35 + 0.75 * rd
 				u += adj
 				why.append(("a rematch she has prepared for %+.2f" if rd >= 1.0 else "not ready for it yet (readiness %d%%) %+.2f") % ([adj] if rd >= 1.0 else [int(rd * 100), adj]))
+		"discover":
+			u = 2.2                     # she has just seen something: nothing ordinary outranks walking over to it
+			why.append("just noticed something")
+		"join_find":
+			u = 1.3
+			why.append("the other found something")
+		"revisit":
+			u = 0.08 + needs.curiosity * 0.18
+		"wander":
+			u = 0.14 + needs.curiosity * 0.3
+			if WorldState.visited_locations.get(String(main.streaming.current_id), 0) <= 2:
+				u += 0.12
+				why.append("a place she barely knows")
 		"roam":
 			var cs: Dictionary = o.cand
 			u = 0.12 + needs.curiosity * 0.45 + float(cs.score) * 0.3
@@ -871,6 +900,16 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"roam": return await _roam(o)
 		"gather": return await _gather(o)
 		"perform": return await _perform(o)
+		"discover":
+			var res := await _use(String(o.interactable))
+			if main.get("discoveries"):
+				var e: Dictionary = main.discoveries.on_found(agent_id, res)
+				if not e.is_empty():
+					res["find"] = e
+			return res
+		"join_find": return await _join_find(o)
+		"revisit": return await _use(String(o.interactable))
+		"wander": return await _wander(o)
 	return {"ok": false, "detail": "unknown activity"}
 
 
@@ -1060,6 +1099,63 @@ func _roam(o: Dictionary) -> Dictionary:
 			{"knowledge": {"place:%s:%s" % [main.streaming.current_id, ExplorationMap.cell_key(dest)]: 1}}, agent_id)
 	last_roam = res
 	return res
+
+
+## The other mage found something: walk over, stand beside it, look.
+func _join_find(o: Dictionary) -> Dictionary:
+	var p: Vector3 = o.pos
+	var side := (me.global_position - p)
+	side.y = 0.0
+	var stand := p + (side.normalized() if side.length() > 0.2 else Vector3.BACK) * 2.2
+	if not await _walk(NavigationServer3D.map_get_closest_point(me.get_world_3d().navigation_map, stand)):
+		return {"ok": false, "detail": "could not get over there"}
+	me.look_head_at(p + Vector3(0, 0.6, 0))
+	await get_tree().create_timer(4.0).timeout
+	me.look_head_at(null)
+	return {"ok": true, "detail": "went to see the find"}
+
+
+## Off the paths: a walk to somewhere she has not been, 18-35 m away. Now and then she takes a wrong turn and is a
+## little lost for a while (looks around, says so, works out the way back) - a real walk there and back, never a jump.
+func _wander(_o: Dictionary) -> Dictionary:
+	var map: RID = me.get_world_3d().navigation_map
+	var best = null
+	var best_s := -1e9
+	for i in 16:
+		var want := me.global_position + Vector3.FORWARD.rotated(Vector3.UP, rng.randf() * TAU) * rng.randf_range(18.0, 35.0)
+		var p := NavigationServer3D.map_get_closest_point(map, want)
+		if p.distance_to(Vector3(want.x, p.y, want.z)) > 3.0 or p.distance_to(me.global_position) < 12.0:
+			continue
+		var s := rng.randf() * 0.4
+		if explore_map and explore_map.off_path(p):
+			s += 1.0
+		if explore_map and not explore_map.grid().has(ExplorationMap.cell_key(p)):
+			s += 0.6
+		if s > best_s:
+			best_s = s
+			best = p
+	if best == null:
+		return {"ok": false, "detail": "nowhere new to wander"}
+	var start := me.global_position
+	current.stage = "wandering off the path"
+	if not await _walk(best):
+		return {"ok": false, "detail": "the way petered out"}
+	if explore_map:
+		explore_map.mark(me.global_position)
+	if rng.randf() < 0.3:
+		# a wrong turn: one more stretch further on, then she realises she doesn't know where she is
+		var on := NavigationServer3D.map_get_closest_point(map, me.global_position + (me.global_position - start).normalized() * rng.randf_range(10.0, 18.0))
+		await _walk(on)
+		lost = true
+		current.stage = "a little lost"
+		_maybe_say(_lines("lost", ["Hm. I don't think I've been this way before...", "Wait - which way did we come from?", "I may have taken a wrong turn. Just a small one."]), 1.0, "lost")
+		me.play_gesture("look_around")
+		await get_tree().create_timer(rng.randf_range(20.0, 40.0)).timeout
+		current.stage = "finding the way back"
+		await _walk(NavigationServer3D.map_get_closest_point(map, start))      # back the way she came, on foot
+		lost = false
+		return {"ok": true, "detail": "wandered off, got a little lost and found the way back", "lost": true}
+	return {"ok": true, "detail": "wandered off the path"}
 
 
 func _rest(o: Dictionary) -> Dictionary:
@@ -1856,7 +1952,7 @@ func _walk(target: Vector3, ignore_threat := false) -> bool:
 				return true
 			continue
 		while me.current_action == "navigate_to" and not _cancel:
-			if _interrupt in ["threat", "social", "transform"] and not ignore_threat:
+			if (_interrupt in ["threat", "social", "transform"] or (_interrupt == "discovery" and String(current.get("kind", "")) in ["roam", "wander", "explore", "visit", "gather"])) and not ignore_threat:
 				me.stop_action()
 				return false
 			await get_tree().process_frame

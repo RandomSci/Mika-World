@@ -40,6 +40,7 @@ var spawner: Spawner
 var mage_talk: MageTalk
 var transformer: TransformationDirector
 var overlay_ui: MageOverlay
+var discoveries: DiscoveryDirector                 # Day 3: dynamic finds (about one an hour, saved, revisitable)
 var attention: AttentionDirector
 var affect: Affect
 var impacts: ImpactDirector       # area impacts with consequences + the aftermath behaviours (V3 continuation)
@@ -88,6 +89,7 @@ func _ready() -> void:
 	add_child(streaming)
 	# places to find (data/discoveries.json): set into each area as it opens, behind the travel card
 	streaming.before_reveal.append(func(): await Discoveries.populate(world))
+	streaming.before_reveal.append(func(): if discoveries: discoveries.restore(world))   # past finds, to revisit
 	# Starfall Hill: the great tree and its grass a short walk from where they first wake (sanctuary only)
 	streaming.before_reveal.append(func(): StarfallPlace.populate(self, world))
 	streaming.before_reveal.append(func(): _place_companions())     # behind the travel card (no pop-in)
@@ -354,6 +356,11 @@ func _ready() -> void:
 	overlay_ui.name = "MageOverlay"
 	add_child(overlay_ui)
 	overlay_ui.setup(self)
+	discoveries = DiscoveryDirector.new()
+	add_child(discoveries)
+	discoveries.setup(self)
+	if RenderProfile.options.has("no-discoveries"):
+		discoveries.enabled = false
 	WorldState.interaction_finished.connect(func(_it, _c, r): if r.has("read") and not r.has("reading"): show_subtitle("%s: %s" % [r.read.title, r.read.text], 8.0))
 	chat = ViewerChat.new()
 	chat.name = "ViewerChat"

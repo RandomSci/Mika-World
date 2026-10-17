@@ -50,6 +50,7 @@ var inventory := {}              # item -> count
 var skills := {"arcane_orb": 1}  # known spells and their practice level
 var current_goal := ""
 var journey := {}                # the party's multi-day journey (JourneyDirector): persisted, resumed after restarts
+var finds := {}                  # Day 3: every discovery (DiscoveryDirector): log, memory, time since the last find
 var rivals := {}                 # human rivals met on the road (AmbushDirector): who, how often, how it ended, grudges
 var weather := {}              # WeatherSystem: {kind, intensity, until (world_min), next}
 var sanctuary := {}              # data/sanctuary.json: sub-areas, lore, trials, ranks, actions, thoughts
@@ -209,7 +210,7 @@ func save_data() -> Dictionary:
 		"progress": minds["mika"].progress, "agents": _agents_data(),
 		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred,
 		"mika_explored": minds["mika"].explored, "habitats": habitats, "play_s": play_s, "world_min": world_min, "real_day0": real_day0,
-		"journey": journey, "rivals": rivals, "weather": weather}
+		"journey": journey, "rivals": rivals, "weather": weather, "finds": finds}
 
 
 func _agents_data() -> Dictionary:
@@ -342,6 +343,7 @@ func _apply_save(d: Dictionary) -> void:
 	npc_state = d.get("npc_state", {})
 	story_state = d.get("story_state", {})
 	habitats = d.get("habitats", {})
+	finds = d.get("finds", {})
 	play_s = float(d.get("play_s", 0.0))
 	world_min = float(d.get("world_min", world_min))
 	real_day0 = float(d.get("real_day0", -1.0))
