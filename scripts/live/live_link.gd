@@ -39,6 +39,7 @@ var _h_frames := 0
 var _h_worst := 0.0
 var _h_hitches := 0
 var _h_pipes := 0
+var _h_cam := Vector3.ZERO      # the camera last frame (a hitch line says how far it jumped)
 
 
 func _pipelines() -> int:
@@ -55,6 +56,8 @@ var log: Array = []
 
 func setup(m: Node) -> void:
 	main = m
+	# the hitch lines carry the frame's GPU time (duel stutter, broadcast 2: what the frame was rendering)
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
 	var u := String(RenderProfile.options.get("live-link", ""))
 	if u != "" and u != "true":
 		url = u
@@ -72,13 +75,22 @@ func _health(delta: float) -> void:
 	_h_frames += 1
 	_h_worst = maxf(_h_worst, delta)
 	var pc := _pipelines()
+	var cam := get_viewport().get_camera_3d()
+	var cp: Vector3 = cam.global_position if cam else Vector3.ZERO
 	if delta > 0.05:
 		_h_hitches += 1
 		# what that frame did (operator log only): new GPU pipelines compiled, a voice line, a talk, each mage's activity
 		var dlg = main.mage_talk.dialogue if main.get("mage_talk") and main.mage_talk.get("dialogue") else null
 		print("[hitch] %d ms t=%.1f pipelines+%d talk=%s %s" % [int(delta * 1000.0), Time.get_ticks_msec() / 1000.0, pc - _h_pipes,
 			str(dlg != null and dlg.active), " ".join(main.mage_brains.keys().map(func(w): return "%s:%s" % [w, String(main.mage_brains[w].current.get("key", main.mage_brains[w].current.get("kind", "-")))]))])
+		var vp := get_viewport().get_viewport_rid()
+		print("[hitch]   gpu=%.0f ms render_cpu=%.1f ms proc=%.0f phys=%.0f draws=%d prims=%dk objects=%d cam=%s jump=%.1f m" % [
+			RenderingServer.viewport_get_measured_render_time_gpu(vp), RenderingServer.viewport_get_measured_render_time_cpu(vp),
+			Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+			int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0),
+			int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)), String(main.director.mode) if main.get("director") else "-", cp.distance_to(_h_cam)])
 	_h_pipes = pc
+	_h_cam = cp
 	if _h_t < 60.0:
 		return
 	print("[health] fps=%.1f worst_ms=%.1f hitches=%d mika_level=%d luna_level=%d mika_visible=%s luna_visible=%s connected=%s" % [
