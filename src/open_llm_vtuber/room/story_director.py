@@ -4,7 +4,7 @@ import random
 import time
 
 STORIES = {
-    'rhythm_break': {'title':'A NEON PULSE rhythm challenge', 'goal':'Complete one simulated challenge, report the measured result, and return to a quieter activity.',
+    'rhythm_break': {'title':'A rhythm challenge', 'goal':'Complete one simulated challenge, report the measured result, and return to a quieter activity.',
                      'beats':[('choose_a_fun_break','casual_phone_chat'),('try_the_neon_challenge','dance_challenge'),('review_the_actual_score','casual_phone_chat'),('read_and_recover','read_book')]},
     'dance_practice': {'title':'One routine, one deliberate practice break', 'goal':'Practice one validated routine, then return to the day; do not claim video recording or learned choreography.',
                       'beats':[('choose_the_practice','casual_phone_chat'),('practice_in_mika_motion','dance'),('reflect_on_the_actual_result','casual_phone_chat'),('read_and_settle','read_book')]},

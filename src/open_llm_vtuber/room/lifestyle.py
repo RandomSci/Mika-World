@@ -367,11 +367,11 @@ class LifestyleShowRunner:
 
     AREA_LABELS={'MAGIC_SANCTUARY':'her magic sanctuary at the south end of the garden','LANTERN_RETREAT':'the lantern pavilion by the koi pond',
                  'FLOWER_JOG_LOOP':'the flower jogging loop','POND_PROMENADE':'the koi pond path','GARDEN_PATH':'the garden path','GARDEN_LAWN':'the garden lawn',
-                 'GROUNDS':'the garden','HOME':'her bedroom','DANCE_HALL':'the hallway of her house','STUDIO':'her MIKA MOTION dance studio','ARCADE':'the NEON PULSE rhythm arcade'}
+                 'GROUNDS':'the garden','HOME':'her bedroom','DANCE_HALL':'the hallway of her house','STUDIO':'her dance spot','ARCADE':'her rhythm game'}
     ACTION_WORDS={'visit_gardens':'go out to the garden','explore':'wander to a new garden spot','visit_lantern_retreat':'walk to the lantern pavilion',
                   'visit_atelier':'visit her art studio','quiet_outside':'sit quietly outside','go_jogging':'go for a jog','sit_chair':'sit in her reading chair',
                   'tour_room':'show her room','show_window':'look out the window','show_desk':'show her desk monitor','magic_lesson':'practise magic',
-                  'dance_session':'do a dance session','dance_challenge':'try the NEON PULSE challenge','return_home':'go back into the house','change_outfit':'change clothes'}
+                  'dance_session':'do a dance session','dance_challenge':'try the rhythm challenge','return_home':'go back into the house','change_outfit':'change clothes'}
 
     def perception(self,sp):
         """What she can actually perceive now, from the Stage's geometry: landmarks

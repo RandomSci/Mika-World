@@ -68,13 +68,13 @@ THUMB_MAX_BYTES = 2_000_000  # YouTube's limit is 2 MB
 ACTIVITIES = {
     "fresh_air": "walking out into her garden",
     "stargaze": "watching the night sky from the garden",
-    "lantern_walk": "walking to the lantern pavilion by the koi pond",
+    "lantern_walk": "walking down to the lanterns by the water",
     "garden_jog": "jogging around the garden loop",
     "explore": "exploring corners of her garden",
-    "atelier": "visiting her glass art studio",
+    "atelier": "looking over her paintings",
     "relax": "relaxing in her reading chair",
-    "dance_practice": "practising dance routines in her dance studio",
-    "rhythm_challenge": "playing the NEON PULSE rhythm game in her arcade room",
+    "dance_practice": "dancing a few routines with Luna",
+    "rhythm_challenge": "playing a rhythm game",
     "room_tour": "showing viewers around her room",
     "window": "looking out of her window",
 }
