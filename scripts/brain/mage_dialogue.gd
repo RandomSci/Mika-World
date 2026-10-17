@@ -99,6 +99,8 @@ func _process(delta: float) -> void:
 	_acc = 0.0
 	if active or main.get("mage_talk") == null or main.mage_talk.busy() or not main.get("mages") or main.mages.size() < 2:
 		return
+	if main.get("performance") and main.performance.busy():
+		return                       # no ambient chat across a dance (it pulled Luna over mid-song, 2026-10-18)
 	if main.llm == null or main.llm.provider != "openai":
 		return                       # without a language model only planned meetings talk (authored lines)
 	var a := String(main.mages[0])
