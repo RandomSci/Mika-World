@@ -186,35 +186,81 @@ func _on_message(m: Dictionary) -> void:
 			pass
 
 
-# ------------------------------------------------------------------ Luna answers her own messages
-## The server's cast is Mika: a message that names only Luna is answered here, by Luna, in her own voice, at a
-## safe moment (not over Mika's speech, a cast or a dance; given up after 60 s). Mika's line, if any, comes first.
+# ------------------------------------------------------------------ Mika passes chat on to Luna
+## Luna cannot see chat (only Mika reads it). A message that names only Luna: Mika's own reply from the server
+## comes first (the viewer knows at once they were heard); then, at a safe moment, Mika calls Luna over (or turns
+## to her when she is near), passes the question on in her own words, and Luna answers HER - the viewer hears the
+## answer through their conversation. Given up after 60 s (busy, fighting, performing); never forced on a Luna who
+## is casting or resting on a seat.
 var _luna_busy := false
+const RELAY_NEAR_M := 3.0
 
 
 func _luna_answers(m: Dictionary) -> void:
-	if _luna_busy or not main.characters.has("luna") or not (main.characters["luna"] as Node3D).visible:
+	if _luna_busy or not main.characters.has("luna") or not (main.characters["luna"] as Node3D).visible or not main.characters.has("mika"):
 		return
 	_luna_busy = true
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var lb = main.mage_brains.get("luna")
+	var mb = main.mage_brains.get("mika")
+	var author := String(m.get("author", "a friend"))
 	var t0 := Time.get_ticks_msec()
 	await get_tree().create_timer(2.0).timeout          # Mika's reply (from the server) starts first
-	while Time.get_ticks_msec() - t0 < 60000 and (not main.chat._safe_point("luna") or _speaking or not _speech.is_empty()):
+	while Time.get_ticks_msec() - t0 < 60000 and (not main.chat._safe_point("mika") or _speaking or not _speech.is_empty()
+			or luna.casting or (lb and String(lb.current.get("kind", "")) not in MageTalk.INTERRUPTIBLE + ["together"]) or (lb and lb.current.get("kind", "") == "rest" and luna.seated)):
 		await get_tree().create_timer(0.5).timeout
-	if Time.get_ticks_msec() - t0 >= 60000:
+	if Time.get_ticks_msec() - t0 >= 60000 or not luna.visible:
+		print("[livelink] relay to luna given up (busy): %s" % String(m.get("message", "")).left(80))
 		_luna_busy = false
 		return
+	# the relay and Luna's answer are written together while she comes over (one call, no wait between them)
 	var ctx: Dictionary = main.chat._context("luna")
-	var sys := "You are Luna, a young mage, proud, confident and a little dry, living and studying with your friend Mika in a fantasy world that viewers watch on a livestream. Answer the viewer in one or two short, natural sentences using ONLY the facts provided. No em dashes. JSON {\"reply\": string}."
-	var fallback := "Thanks for asking, %s. I'm busy with my own studies, but I heard you." % String(m.get("author", "friend"))
-	var r: Dictionary = await main.llm.ask_json(sys, JSON.stringify({"viewer": String(m.get("author", "")), "comment": String(m.get("message", "")), "facts": ctx}), {"reply": fallback})
-	var reply := VoiceService.clean(String((r.get("json", {}) as Dictionary).get("reply", fallback)))
+	var sys := "Two young mages, Mika and Luna, live in a fantasy world that viewers watch on a livestream. Only Mika can read the chat; Luna cannot. A viewer's message was meant for Luna, so Mika passes it on. Write: mika_relay - Mika to Luna, one short natural sentence that names the viewer and puts their question or comment in her own words (never invent details); luna_reply - Luna's answer TO MIKA, one or two short sentences, Luna's voice: proud, confident, a little dry, warm underneath; she may send words back to the viewer through Mika ('tell them...'). Use ONLY the facts provided. No em dashes. JSON {\"mika_relay\": string, \"luna_reply\": string}."
+	var fb_relay := "Luna, %s in chat has a question for you." % author
+	var fb_reply := "Tell %s I heard them, and I'll give it proper thought." % author
+	var box := {}
+	var ask := func(): box["r"] = await main.llm.ask_json(sys, JSON.stringify({"viewer": author, "message": String(m.get("message", "")), "luna_facts": ctx}), {"mika_relay": fb_relay, "luna_reply": fb_reply})
+	ask.call()
+	var holds := []
+	for b in [lb, mb]:
+		if b:
+			b.hold = true
+			b.interrupt("social")
+			holds.append(b)
+	var tw := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - tw < 4000 and lb and not lb.current.is_empty():
+		await get_tree().process_frame
+	if luna.global_position.distance_to(mika.global_position) > RELAY_NEAR_M:
+		await _say_as("mika", "Luna! Come here a second, chat has something for you.")
+		if lb:
+			await Companionship.approach_for_talk(lb, mika, 1.8)
+	var tr := Time.get_ticks_msec()
+	while not box.has("r") and Time.get_ticks_msec() - tr < 15000:
+		await get_tree().process_frame
+	var r: Dictionary = box.get("r", {}) if box.get("r") is Dictionary else {}
+	var js: Dictionary = r.get("json", {}) if r.get("json") is Dictionary else {}
+	var relay := VoiceService.clean(String(js.get("mika_relay", fb_relay)))
+	var reply := VoiceService.clean(String(js.get("luna_reply", fb_reply)))
+	if relay.split(" ").size() > 35 or relay.length() < 2:
+		relay = fb_relay
 	if reply.split(" ").size() > 45 or reply.length() < 2:
-		reply = fallback
-	if main.attention:
-		main.attention.glance_camera("luna", clampf(reply.split(" ").size() / 2.6, 1.5, 6.0))
-	await main.voice.say(String(Progression.mages.get("luna", {}).get("voice", "luna")), reply)
-	print("[livelink] luna answered %s: %s" % [String(m.get("author", "")), reply.left(120)])
+		reply = fb_reply
+	if luna.global_position.distance_to(mika.global_position) <= RELAY_NEAR_M + 2.0:
+		mika.look_at_point(luna.global_position)
+		luna.look_at_point(mika.global_position)
+		await _say_as("mika", relay)
+		await _say_as("luna", reply)
+		print("[livelink] mika relayed %s to luna: %s | luna: %s" % [author, relay.left(100), reply.left(120)])
+	else:
+		print("[livelink] relay to luna: she could not come over")
+	for b in holds:
+		b.hold = false
 	_luna_busy = false
+
+
+func _say_as(who: String, text: String) -> void:
+	await main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), text)
 
 
 # ------------------------------------------------------------------ speech

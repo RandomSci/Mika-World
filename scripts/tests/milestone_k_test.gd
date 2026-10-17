@@ -161,6 +161,7 @@ func _run() -> void:
 		"benchwalk": await _benchwalk()
 		"sunflash": await _sunflash()
 		"standstill": await _standstill()
+		"lunarelay": await _lunarelay()
 		"benchrest": await _benchrest()
 		"showline": await _showline()
 		_: _check(false, "unknown mode " + mode)
@@ -5911,6 +5912,57 @@ func _benchrest() -> void:
 	_check(not samples.is_empty() and float(samples[-1].t) > 15.0, "a long rest on the bench (%.0f s)" % (samples[-1].t if not samples.is_empty() else 0.0))
 	_check(low >= seat_top + 0.04, "she stays on top of the seat the whole rest (lowest hips %.3f, seat top %.3f)" % [low, seat_top])
 	_check(off < 0.25, "she stays over the seat (root drifts up to %.2f m)" % off)
+
+
+
+# ------------------------------------------------------------------ Luna cannot read chat: Mika passes it on (Job 3)
+## A viewer writes to Luna while she is across the clearing: Mika calls her over, passes the message on in her own
+## words, and Luna answers Mika; nobody is left holding.
+func _lunarelay() -> void:
+	await _hold_all()
+	var ll = main.get("live_link")
+	_check(ll != null, "live link present (--live-link)")
+	if ll == null:
+		return
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var map: RID = mika.get_world_3d().navigation_map
+	for c in [mika, luna]:
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(4, 0, 10)) + Vector3(0, 0.05, 0)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(14, 0, 16)) + Vector3(0, 0.05, 0)
+	for w in main.mage_brains:
+		main.mage_brains[w].current = {}
+	await _wait(1.5)
+	var d0 := luna.global_position.distance_to(mika.global_position)
+	# a quiet moment (the test world starts with a show performance and a greeting; the brains stay held until the
+	# message - the relay holds and releases them itself)
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("test")
+	main.voice.stop()
+	await _wait(1.0)
+	print("[mktest] lunarelay pre: safe %s voice_busy %s streaming %s magic_busy %s perf %s reading %s mika_kind '%s' luna_kind '%s'" % [main.chat._safe_point("mika"), main.voice.busy(),
+		main.streaming.state, main.magic.busy, main.performance.busy() if main.performance else false, main.book_reader.reading(),
+		main.mage_brains.mika.current.get("kind", ""), main.mage_brains.luna.current.get("kind", "")])
+	var lines: Array = []
+	var on_line := func(sp: String, text: String): lines.append([sp, text])
+	main.voice.line_started.connect(on_line)
+	ll._on_message({"type": "youtube-live-selected-message", "active": true, "message": "Luna, what is your favourite spell?", "author": "@tester", "id": "r1", "to": ["mika"]})
+	var t0 := _game_t
+	while _game_t - t0 < 70.0 and ll._luna_busy:
+		await get_tree().process_frame
+	main.voice.line_started.disconnect(on_line)
+	var who: Array = lines.map(func(l): return String(l[0]))
+	print("[mktest] lunarelay: start %.1f m apart, end %.1f m, %.0f s, lines %s" % [d0, luna.global_position.distance_to(mika.global_position), _game_t - t0, str(lines).left(500)])
+	_check(not ll._luna_busy, "the relay finished")
+	_check(luna.global_position.distance_to(mika.global_position) < 4.5, "Luna came over to Mika (%.1f m -> %.1f m)" % [d0, luna.global_position.distance_to(mika.global_position)])
+	var mi := who.rfind("mika")
+	var lu := who.rfind("luna")
+	_check(mi >= 0 and lu > mi, "Mika passes it on, then Luna answers her", str(who))
+	_check(lines.size() >= 3, "she called Luna over first (%d lines)" % lines.size())
+	for b in main.mage_brains.values():
+		_check(not b.hold, "%s is not left on hold" % b.agent_id)
 
 
 ## Bodies shaking while they stand (talks, casts, spars; broadcast 2): standing still on several real floors, every
