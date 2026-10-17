@@ -56,24 +56,50 @@ static func fov_kick() -> float:
 
 
 func _clear(m: WorldCharacter, pos: Vector3, targets: Array) -> bool:
-	# never inside or brushing a body (a mage, a creature, a rival): the lens keeps 0.9 m from everyone
+	# never inside or brushing a body (a mage, a creature, a rival): the lens keeps 1.3 m from everyone (0.9 let a
+	# spar's moving bodies fill the frame - "pink, gold and dress", 2026-10-17)
 	for n in m.get_tree().get_nodes_in_group("avoid"):
 		var b := n as Node3D
 		if b and b.is_visible_in_tree():
 			var bp := b.global_position
-			if Vector2(pos.x - bp.x, pos.z - bp.z).length() < 0.9 and pos.y > bp.y - 0.2 and pos.y < bp.y + 2.4:
+			if Vector2(pos.x - bp.x, pos.z - bp.z).length() < 1.6 and pos.y > bp.y - 0.2 and pos.y < bp.y + 2.4:
 				return false
 	var space := m.get_world_3d().direct_space_state
 	if CombatFraming.inside_solid(space, pos):
 		return false
+	# every fighter seen head, chest AND hips: a rock or a training post in front of her legs and waist is a
+	# blocked shot too (one ray to the chest let them sit across the foreground)
 	for tp in targets:
-		var q := PhysicsRayQueryParameters3D.create(pos, tp)
-		q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3): the lens is never inside them
-		q.exclude = [m.get_rid()]
-		var hit := space.intersect_ray(q)
-		if not hit.is_empty() and (hit.position as Vector3).distance_to(tp) > 0.6:
+		var base: Vector3 = tp - Vector3(0, 1.1, 0)
+		var blocked := 0
+		for hgt in [1.55, 1.15, 0.8]:
+			var aim: Vector3 = base + Vector3(0, hgt, 0)
+			var q := PhysicsRayQueryParameters3D.create(pos, aim)
+			q.collision_mask = 1 | 4      # world + rocks, boulders, trunks (layer 3)
+			q.exclude = [m.get_rid()]
+			var hit := space.intersect_ray(q)
+			if not hit.is_empty() and (hit.position as Vector3).distance_to(aim) > 0.5:
+				blocked += 1
+		if blocked >= 1:                 # chest, hips or head behind something: not this angle
 			return false
 	return true
+
+
+## A shot that is clear for certain: a ring round the pair at a fight's distance, the first open side.
+func _fallback(m: WorldCharacter, foe: Node3D, targets: Array) -> Dictionary:
+	var c := m.global_position + Vector3(0, 1.1, 0)
+	if foe:
+		c = (c + foe.global_position + Vector3(0, 1.0, 0)) * 0.5
+	var gap := m.global_position.distance_to(foe.global_position) if foe else 0.0
+	var r := clampf(gap * 0.6 + 3.2, 3.8, 6.0)
+	var a0 := atan2(-m.global_transform.basis.z.x, -m.global_transform.basis.z.z) + PI
+	for i in 16:
+		var a := a0 + float(i) * TAU / 16.0 * (1.0 if i % 2 == 0 else -1.0)
+		for h in [1.5, 2.3]:
+			var p := c + Vector3(sin(a), 0, cos(a)) * r + Vector3(0, h - 1.0, 0)
+			if _clear(m, p, targets):
+				return {"pos": p, "look": c, "fov": 52.0, "rate": 3.5}
+	return {}
 
 
 func _candidate(kind: String, m: WorldCharacter, foe: Node3D, foes: Array, mate: WorldCharacter) -> Dictionary:
@@ -99,7 +125,7 @@ func _candidate(kind: String, m: WorldCharacter, foe: Node3D, foes: Array, mate:
 			return {"pos": mp + axis * 1.7 + perp * 1.25 + Vector3(0, 0.42, 0), "look": mc + Vector3(0, 0.25, 0) + axis * -0.2, "fov": 50.0, "rate": 5.0}
 		"orbit":
 			var cen := (mc + fc) * 0.5
-			var r := clampf(d * 0.75 + 3.0, 4.0, 9.0)
+			var r := clampf(d * 0.75 + 3.0, 4.0, 9.0 if foes.size() >= 3 else 6.5)     # a duel: never tiny
 			var dir := axis.rotated(Vector3.UP, _orbit_a + PI * 0.5)
 			return {"pos": cen + dir * r + Vector3(0, 1.4 + r * 0.12, 0), "look": cen, "fov": 52.0, "rate": 3.5}
 		"wide":
@@ -139,6 +165,9 @@ func frame(main: Node, m: WorldCharacter, s: Dictionary, delta: float) -> Dictio
 		want = "track"
 	elif since > hold or shot == "" or (shot == "track" and not dashing and since > 0.9):
 		var pool := ["ots", "foe_ots", "hero_low", "orbit", "ots", "orbit"]
+		if foes.size() < 3:
+			pool.erase("hero_low")       # a duel: the low angle stood beside the other fighter, and the "never below her
+			                             # waist" rule lifts it into the posts' line - dropped
 		if foes.size() >= 3:
 			pool += ["wide", "wide", "orbit"]
 		pool.erase(shot)
@@ -151,11 +180,18 @@ func frame(main: Node, m: WorldCharacter, s: Dictionary, delta: float) -> Dictio
 	var tries := 0
 	while tries < 5 and (cand.is_empty() or not _clear(m, cand.pos, targets)):
 		tries += 1
-		var alts := ["orbit", "ots", "foe_ots", "hero_low", "wide"]
+		var alts := ["orbit", "ots", "foe_ots", "hero_low", "wide"] if foes.size() >= 3 else ["orbit", "ots", "foe_ots", "orbit"]
 		want = alts[(tries + _rng.randi()) % alts.size()]
 		if tries > 2:
 			_side = -_side
 		cand = _candidate(want, m, foe, foes, mate)
+	if cand.is_empty() or not _clear(m, cand.pos, targets):
+		# nothing authored is clean here (the last try used to be taken anyway - a lens in a body, a post across the
+		# frame): a sure open side round the pair
+		var fb := _fallback(m, foe, targets)
+		if not fb.is_empty():
+			cand = fb
+			want = "safe"
 	var cut := want != shot
 	if cut:
 		shot = want

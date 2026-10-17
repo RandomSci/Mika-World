@@ -100,11 +100,12 @@ func planar_basis() -> Basis:
 func _process(delta: float) -> void:
 	if shot_active:
 		camera.top_level = true
-		var dir := _shot_look - _shot_pos
+		var at := _clear_of_bodies(_shot_pos, _shot_look)
+		var dir := _shot_look - at
 		if dir.length_squared() > 1e-6:
 			# straight up/down shots need another up vector (avoids a degenerate basis)
 			var up := Vector3.UP if absf(dir.normalized().y) < 0.995 else Vector3.FORWARD
-			camera.global_transform = Transform3D(Basis.looking_at(dir, up), _shot_pos)
+			camera.global_transform = Transform3D(Basis.looking_at(dir, up), at)
 		return
 	if target == null:
 		return
@@ -115,3 +116,28 @@ func _process(delta: float) -> void:
 	global_position = _focus
 	rotation = Vector3(pitch, yaw, 0)
 	arm.spring_length = lerpf(arm.spring_length, distance, 1.0 - exp(-10.0 * delta))
+
+
+## The very last word on where a directed lens stands: never inside or brushing a mage's body (1.15 m round her,
+## feet to above the head) - whichever system asked for the shot, in whatever frame order (2026-10-17: a spar's
+## lens ended in a fighter on frames the director's own checks never saw). Pushed straight out; between two bodies
+## standing close, lifted over their heads.
+func _clear_of_bodies(p: Vector3, look: Vector3) -> Vector3:
+	var bodies: Array = []
+	for n in get_tree().get_nodes_in_group("avoid"):
+		if n is WorldCharacter and (n as Node3D).is_visible_in_tree():
+			bodies.append(n)
+	var top := -INF
+	for _pass in 3:
+		var moved := false
+		for b in bodies:
+			var bp: Vector3 = (b as Node3D).global_position
+			top = maxf(top, bp.y)
+			var off := Vector2(p.x - bp.x, p.z - bp.z)
+			if off.length() < 1.15 and p.y > bp.y - 0.2 and p.y < bp.y + 2.1:
+				var d2 := off.normalized() if off.length() > 0.05 else Vector2(p.x - look.x, p.z - look.z).normalized()
+				p = Vector3(bp.x + d2.x * 1.15, p.y, bp.z + d2.y * 1.15)
+				moved = true
+		if not moved:
+			return p
+	return Vector3(p.x, top + 2.25, p.z)

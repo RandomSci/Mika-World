@@ -5623,6 +5623,60 @@ func _sparwatch() -> void:
 	var lastp := {}
 	var phase := ["pre"]
 	var pops: Array = []
+	var camm := {"frames": 0, "inside": 0, "near": 0, "empty": 0, "tiny": 0, "blocked": 0, "min_d": 99.0}
+	var csamp := func():
+		if not main.duel.busy():
+			return
+		var cam := get_viewport().get_camera_3d()
+		if cam == null:
+			return
+		camm.frames += 1
+		var vr := get_viewport().get_visible_rect()
+		var cp := cam.global_position
+		var any_in := false
+		var space := mika.get_world_3d().direct_space_state
+		for c in [mika, luna]:
+			var bp: Vector3 = c.global_position
+			var hd := Vector2(cp.x - bp.x, cp.z - bp.z).length()
+			if cp.y > bp.y - 0.2 and cp.y < bp.y + 2.1:
+				camm.min_d = minf(camm.min_d, hd)
+				if hd < 0.6:
+					camm.inside += 1
+					camm["inside_at"] = camm.get("inside_at", [])
+					if camm.inside_at.size() < 8:
+						camm.inside_at.append("%s %s:%s %.2fm cam_y %.2f body_y %.2f | rig cam %s, shot_active %s, shot_pos %.2fm away, director enabled %s, streaming %s" % [c.character_id, main.director.mode, String(main.director._trailer.shot), hd, cp.y, bp.y,
+							str(cam == main.camera_rig.camera), str(main.camera_rig.shot_active), cp.distance_to(main.camera_rig._shot_pos), str(main.director.enabled), String(main.streaming.state)])
+				elif hd < 1.2:
+					camm.near += 1
+			var head := bp + Vector3(0, 1.6, 0)
+			if not cam.is_position_behind(head) and not cam.is_position_behind(bp):
+				var a := cam.unproject_position(head)
+				var b := cam.unproject_position(bp)
+				if vr.has_point(a) or vr.has_point(b):
+					any_in = true
+					if absf(b.y - a.y) < vr.size.y * 0.12:
+						camm.tiny += 1
+			for hgt in [1.15, 0.8]:
+				var q := PhysicsRayQueryParameters3D.create(cp, bp + Vector3(0, hgt, 0), 1 | 4)
+				q.exclude = [mika.get_rid(), luna.get_rid()]
+				var hit := space.intersect_ray(q)
+				if not hit.is_empty() and (hit.position as Vector3).distance_to(bp + Vector3(0, hgt, 0)) > 0.5:
+					camm.blocked += 1
+					var bk := "%s:%s|%s@%s" % [String(main.director.mode), String(main.director._trailer.shot), String((hit.collider as Node).name) if hit.collider is Node else "?",
+						str(((hit.collider as Node3D).global_position if hit.collider is Node3D else Vector3.ZERO).snapped(Vector3.ONE * 0.5))]
+					camm["by"] = camm.get("by", {})
+					camm.by[bk] = int(camm.by.get(bk, 0)) + 1
+					break
+		if not any_in:
+			camm.empty += 1
+		camm["modes"] = camm.get("modes", {})
+		camm.modes[main.director.mode] = int(camm.modes.get(main.director.mode, 0)) + 1
+	# sampled LAST in the frame (after the director and the rig): what is drawn. process_frame fires before any
+	# _process - a fighter who dodged in physics met last frame's lens there, a position never rendered
+	var late := LateTick.new()
+	late.cb = csamp
+	late.process_priority = 100000
+	add_child(late)
 	var jsamp := func():
 		var ph: String = "spar" if main.duel.busy() else phase[0]
 		for c in [mika, luna]:
@@ -5653,6 +5707,8 @@ func _sparwatch() -> void:
 					lastd[key] = d
 				lastp[key] = p
 	get_tree().process_frame.connect(jsamp)
+	main.director.enabled = true          # (an interrupted dance restores the director's old state late: set again here)
+	main.director.set_subject(mika)
 	var res: Dictionary = await main.companionship.invite(main.mage_brains["mika"], "luna", "train_together", {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}})
 	phase[0] = "after"
 	await _wait(25.0)
@@ -5665,6 +5721,13 @@ func _sparwatch() -> void:
 	ks.sort()
 	for k in ks:
 		print("[mktest] sparwatch %s: %s" % [k, out[k]])
+	late.queue_free()
+	print("[mktest] sparwatch camera: %s" % JSON.stringify(camm))
+	_check(int(camm.get("modes", {}).get("combat", 0)) >= int(camm.frames) / 2, "the director framed the spar as a fight", camm.get("modes", {}))
+	# (<= 0.2 %: the one remaining case is the hand-over frame from the chase camera, whose spring arm can squash
+	# against what is behind her - a chase-camera fix still to do)
+	_check(int(camm.inside) <= int(camm.frames) / 500, "the combat camera is (almost) never inside a fighter (%d of %d frames; nearest %.2f m)" % [camm.inside, camm.frames, camm.min_d])
+	_check(int(camm.empty) <= int(camm.frames) / 50, "the combat camera keeps a fighter in view (%d empty of %d)" % [camm.empty, camm.frames])
 	for pp in pops:
 		print("[mktest] sparwatch pop: ", pp)
 	print("[mktest] sparwatch invite: %s" % str(res.get("entry", {}).get("accepted", "?")))
@@ -5959,3 +6022,13 @@ func _benchwalk() -> void:
 		_shot("bench_side")
 	print("[mktest] benchwalk: seat top %.3f, lowest seated hips %.3f, root y %.3f, gesture '%s', seated %s" % [seat_top, low, mika.global_position.y, mika.current_gesture, str(mika.seated)])
 	_check(low < 90.0 and low >= seat_top + 0.04, "seated on top of the watchpoint bench (hips %.3f, seat top %.3f)" % [low, seat_top])
+
+
+## Calls `cb` at the END of each frame's process step (after every other node's _process): a test's view of what
+## is actually drawn.
+class LateTick extends Node:
+	var cb: Callable
+
+	func _process(_delta: float) -> void:
+		if cb.is_valid():
+			cb.call()

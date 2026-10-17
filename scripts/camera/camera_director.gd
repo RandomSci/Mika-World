@@ -129,6 +129,9 @@ func _on_conv_line(speaker: String, text: String) -> void:
 func setup(m: Node) -> void:
 	main = m
 	rig = main.camera_rig
+	# the rig places the lens AFTER the director decides it (same frame): it ran first, so every cut showed one frame
+	# of the old angle - with a fighter already where it had been (2026-10-17)
+	rig.process_priority = maxi(rig.process_priority, process_priority + 10)
 	mika = main.characters["mika"]
 	WorldState.interaction_started.connect(func(it, c): if c == mika: _interaction = it)
 	WorldState.interaction_finished.connect(func(it, c, _r): if c == mika and _interaction == it: _interaction = null)
@@ -671,7 +674,8 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		pos = fr.pos
 		look = fr.look
 		fov = fr.fov
-	var cut := _since_change < 0.05 and (_pos.distance_to(pos) > 4.0 or not rig.shot_active)
+	# a fight's shot change is a CUT (eased, the lens swept between two angles - through a fighter, 2026-10-17)
+	var cut := _since_change < 0.05 and (_pos.distance_to(pos) > 4.0 or not rig.shot_active or mode == "combat")
 	if cut or not rig.shot_active:
 		_pos = pos
 		_look = look
@@ -681,6 +685,11 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		_pos = _pos.lerp(pos, k2)
 		_look = _look.lerp(look, k2)
 		_fov = lerpf(_fov, fov, k2)
+		# the eased lens itself never passes through (or brushes) a body: if it would, it takes the target at once
+		if main and main.get("characters") and _lens_in_body(_pos) and not _lens_in_body(pos):
+			_pos = pos
+			_look = look
+			_fov = fov
 	# the eased lens lags its target: in a frame that must hold her (an activity, a talk, a spell) she never drifts
 	# out of view while it catches up - if the lens actually used would lose her head, it cuts to the target shot
 	if mika and mode in ["conversation", "activity", "spell"]:
@@ -712,7 +721,69 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 			var away := (_pos - hd)
 			away = away.normalized() if away.length() > 0.01 else (_look - hd).normalized() * -1.0
 			_pos = hd + away * 0.95
+	# LAST, after every adjustment above (each of which can step the lens toward the look point - between two
+	# fighters, into one of them): never inside or brushing ANY mage's body - pushed straight out to 1.2 m
+	if main and main.get("characters"):
+		# (two bodies close together: out of one ring can be into the other - a few passes, then over their heads)
+		var top := -INF
+		for _pass in 3:
+			var moved := false
+			for c in main.characters.values():
+				var w := c as WorldCharacter
+				if w == null or not w.visible:
+					continue
+				var bp := w.global_position
+				top = maxf(top, bp.y)
+				var off := Vector2(_pos.x - bp.x, _pos.z - bp.z)
+				if off.length() < 1.2 and _pos.y > bp.y - 0.2 and _pos.y < bp.y + 2.1:
+					var dir2 := off.normalized() if off.length() > 0.05 else Vector2(_pos.x - _look.x, _pos.z - _look.z).normalized()
+					_pos = Vector3(bp.x + dir2.x * 1.2, _pos.y, bp.z + dir2.y * 1.2)
+					moved = true
+			if not moved:
+				break
+		if _lens_in_body(_pos):
+			_pos.y = top + 2.25
+	if mode == "combat" and mika:
+		_combat_guard(delta)
 	rig.set_shot(_pos, _look, _fov)
+
+
+var _blocked_t := 0.0
+
+## A fight's frame: the fighters must be in it and seen. Neither in view -> aimed back at them at once; one of them
+## behind something solid (a post, a rock) for more than a quarter second -> the fight camera picks a new angle.
+func _combat_guard(delta: float) -> void:
+	var fighters: Array = []
+	for c in main.characters.values():
+		if (c as WorldCharacter).visible and (c as WorldCharacter).global_position.distance_to(mika.global_position) < 14.0:
+			fighters.append(c)
+	var any_in := false
+	for c in fighters:
+		var hd := (c as Node3D).global_position + Vector3(0, 1.2, 0)
+		if rad_to_deg((_look - _pos).angle_to(hd - _pos)) < _fov * 0.5 * 0.9:
+			any_in = true
+	if not any_in:
+		var mid := Vector3.ZERO
+		for c in fighters:
+			mid += (c as Node3D).global_position + Vector3(0, 1.15, 0)
+		_look = mid / maxf(float(fighters.size()), 1.0)
+	var space := mika.get_world_3d().direct_space_state
+	var ex: Array = []
+	for c in fighters:
+		ex.append((c as CollisionObject3D).get_rid())
+	var blocked := false
+	for c in fighters:
+		for hgt in [1.15, 0.8]:
+			var aim := (c as Node3D).global_position + Vector3(0, hgt, 0)
+			var q := PhysicsRayQueryParameters3D.create(_pos, aim, 1 | 4)
+			q.exclude = ex
+			var hit := space.intersect_ray(q)
+			if not hit.is_empty() and (hit.position as Vector3).distance_to(aim) > 0.5:
+				blocked = true
+	_blocked_t = _blocked_t + delta if blocked else 0.0
+	if _blocked_t > 0.25:
+		_trailer.since = 99.0           # a new shot next frame (its own clearance test rejects this angle)
+		_blocked_t = 0.0
 
 
 func _view_ok(pos: Vector3, look: Vector3) -> bool:
@@ -878,3 +949,14 @@ func _solve_shot(p: Vector3, look: Vector3, fov: float, fwd: Vector3) -> Vector3
 
 static func _arr(a: Array) -> Vector3:
 	return Vector3(a[0], a[1], a[2])
+
+
+## Is a lens here inside or brushing a mage's body (1.0 m round her, feet to above the head)?
+func _lens_in_body(p: Vector3) -> bool:
+	for c in main.characters.values():
+		var w := c as WorldCharacter
+		if w and w.visible:
+			var bp := w.global_position
+			if Vector2(p.x - bp.x, p.z - bp.z).length() < 1.15 and p.y > bp.y - 0.2 and p.y < bp.y + 2.1:
+				return true
+	return false
