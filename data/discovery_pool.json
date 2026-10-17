@@ -1,0 +1,1340 @@
+{
+ "_note": "Day 3 dynamic discoveries (scripts/world/discovery_director.gd). Not placed in advance: when the director decides a find happens (about one an hour on average, more off the paths, in unexplored corners, in a new area, at night, in rain; less on the home dais), it picks a template for the region she is in and the rarity it rolled, and sets the real thing down a few metres from her, off the path, on walkable ground. Every find is saved (revisitable, on the overlay), gives its reward, and both mages react. regions: area regions from data/world.json, or '*'. repeatable: may come again (a different plant, another spirit) once out of the recent memory; otherwise once ever. requires: knowledge she must already hold (the Phoenix path's clues).",
+ "tiers": {
+  "common": 0.6,
+  "uncommon": 0.28,
+  "rare": 0.1,
+  "legendary": 0.02
+ },
+ "rate": {
+  "per_hour": 1.25,
+  "min_gap_min": 14.0,
+  "pity_after_min": 85.0,
+  "mult": {
+   "off_path": 1.5,
+   "unexplored": 1.4,
+   "new_area": 1.5,
+   "night": 1.25,
+   "rain": 1.2,
+   "home_core": 0.45,
+   "lost": 2.5
+  }
+ },
+ "kind_defaults": {
+  "hidden_place": {
+   "prop": "cleft",
+   "verb": "explore",
+   "gesture": "look_around",
+   "duration": 7,
+   "notice": {
+    "mika": [
+     "Wait - there's a gap in the rocks there. Was that always there?",
+     "Huh. A little hollow, tucked out of sight..."
+    ],
+    "luna": [
+     "There. Behind that - a hidden way. Look.",
+     "Someone meant this place not to be found."
+    ]
+   },
+   "react": {
+    "mika": [
+     "A hidden place! We have to remember this one.",
+     "Look how sheltered it is in here - like the world kept a secret."
+    ],
+    "luna": [
+     "Hidden for a reason, I think. Now it's ours.",
+     "Mark it. We're coming back."
+    ]
+   }
+  },
+  "scenery": {
+   "prop": "vista",
+   "verb": "observe",
+   "gesture": "",
+   "duration": 8,
+   "notice": {
+    "mika": [
+     "Oh - come look at this view.",
+     "Wait, wait. Look at the light over there."
+    ],
+    "luna": [
+     "Stop a moment. This is worth seeing.",
+     "Hm. Now that is a view."
+    ]
+   },
+   "react": {
+    "mika": [
+     "I want to remember it exactly like this.",
+     "It's so quiet up here. Just... beautiful."
+    ],
+    "luna": [
+     "Worth the walk.",
+     "Some places don't need a spell to be magic."
+    ]
+   }
+  },
+  "plant": {
+   "prop": "plant",
+   "verb": "collect",
+   "gesture": "pick_floor",
+   "duration": 5,
+   "notice": {
+    "mika": [
+     "Ooh, something's glowing in the grass!",
+     "Look, look - I've never seen a flower like that."
+    ],
+    "luna": [
+     "That bloom isn't in any herbal I've read.",
+     "Careful where you step - there's something growing there."
+    ]
+   },
+   "react": {
+    "mika": [
+     "Got it - and it's still glowing in my hand!",
+     "I'm pressing this one in my journal."
+    ],
+    "luna": [
+     "A good specimen. It'll keep.",
+     "The alchemists would pay well for this. We won't sell it."
+    ]
+   }
+  },
+  "spirit": {
+   "prop": "wisp",
+   "verb": "commune",
+   "gesture": "",
+   "duration": 8,
+   "notice": {
+    "mika": [
+     "Do you see that light? It's... moving on its own.",
+     "A spirit! A little one - don't scare it."
+    ],
+    "luna": [
+     "Quiet. There's a spirit here.",
+     "That light is watching us."
+    ]
+   },
+   "react": {
+    "mika": [
+     "It touched my hand. It was warm!",
+     "It showed me something - I think it trusts us now."
+    ],
+    "luna": [
+     "It remembers this place from long ago.",
+     "Gentle thing. It wanted to be seen."
+    ]
+   }
+  },
+  "lost_soul": {
+   "prop": "wisp",
+   "verb": "comfort",
+   "gesture": "",
+   "duration": 9,
+   "notice": {
+    "mika": [
+     "Someone's there... a lost soul, I think.",
+     "Oh no, it looks so sad. Hello?"
+    ],
+    "luna": [
+     "A lost one. It can't find its way.",
+     "That's not a wisp. That was a person, once."
+    ]
+   },
+   "react": {
+    "mika": [
+     "I think we helped it find the way home.",
+     "It's gone now... but it looked happier."
+    ],
+    "luna": [
+     "Rest now. You're not lost any more.",
+     "We did right by it."
+    ]
+   }
+  },
+  "monster": {
+   "prop": "lair",
+   "verb": "inspect",
+   "gesture": "look_around",
+   "duration": 7,
+   "notice": {
+    "mika": [
+     "Those tracks are huge. Something big lives here.",
+     "Shh - that's a nest. Or a den."
+    ],
+    "luna": [
+     "Fresh tracks. Stay close.",
+     "Something rare made this. I want to know what."
+    ]
+   },
+   "react": {
+    "mika": [
+     "Now we know what lives out here!",
+     "I'm glad it wasn't home. I think."
+    ],
+    "luna": [
+     "We'll know it when we meet it.",
+     "Rare beast. Worth recording."
+    ]
+   }
+  },
+  "rare_item": {
+   "prop": "glint",
+   "verb": "collect",
+   "gesture": "pick_floor",
+   "duration": 5,
+   "notice": {
+    "mika": [
+     "Something just glinted down there!",
+     "Wait - what's shining in the grass?"
+    ],
+    "luna": [
+     "There's something in the earth there. Catching the light.",
+     "Don't move. Look down - left of you."
+    ]
+   },
+   "react": {
+    "mika": [
+     "Look at it! This is ancient, isn't it?",
+     "I can't believe it was just lying there."
+    ],
+    "luna": [
+     "Old work. Very old.",
+     "Keep that safe. Things like this have stories."
+    ]
+   }
+  },
+  "lore": {
+   "prop": "stele",
+   "verb": "read",
+   "gesture": "",
+   "duration": 8,
+   "notice": {
+    "mika": [
+     "There's writing on that stone!",
+     "Someone carved something here, a long time ago."
+    ],
+    "luna": [
+     "An inscription. Half buried.",
+     "Let me see that stone."
+    ]
+   },
+   "react": {
+    "mika": [
+     "So that's what happened here...",
+     "Every stone in this world has a story, I swear."
+    ],
+    "luna": [
+     "History, written where no one would read it. Until now.",
+     "That explains a lot."
+    ]
+   }
+  },
+  "phoenix_clue": {
+   "prop": "shrine",
+   "verb": "inspect",
+   "gesture": "look_around",
+   "duration": 8,
+   "notice": {
+    "mika": [
+     "Is that... ash? Warm ash, out here?",
+     "Look - a feather. It's still glowing!"
+    ],
+    "luna": [
+     "Ember marks. Fire passed through here.",
+     "That's the old hearth sign. The Keepers' fire."
+    ]
+   },
+   "react": {
+    "mika": [
+     "The Ember Keeper was here. I just know it.",
+     "Another sign of her... we're getting closer."
+    ],
+    "luna": [
+     "The fire's trail goes on. We follow it.",
+     "She left this for someone. Maybe for us."
+    ]
+   }
+  }
+ },
+ "finds": [
+  {
+   "id": "sanc_moonfire_lily",
+   "kind": "plant",
+   "tier": "uncommon",
+   "regions": [
+    "arcane_sanctuary"
+   ],
+   "repeatable": true,
+   "label": "a moonfire lily, glowing silver-blue",
+   "color": [
+    0.62,
+    0.78,
+    1.0
+   ],
+   "reward": {
+    "items": {
+     "moonfire_lily": 1
+    },
+    "knowledge": {
+     "herb:moonfire_lily": 1
+    }
+   }
+  },
+  {
+   "id": "sanc_sleeping_hollow",
+   "kind": "hidden_place",
+   "tier": "uncommon",
+   "regions": [
+    "arcane_sanctuary"
+   ],
+   "label": "a moss-hung hollow under the old roots",
+   "reward": {
+    "knowledge": {
+     "place:sleeping_hollow": 1,
+     "lore:sanctuary_roots": 1
+    }
+   }
+  },
+  {
+   "id": "sanc_lantern_wisp",
+   "kind": "spirit",
+   "tier": "common",
+   "regions": [
+    "arcane_sanctuary"
+   ],
+   "repeatable": true,
+   "label": "a lantern wisp drifting among the stones",
+   "color": [
+    1.0,
+    0.82,
+    0.5
+   ],
+   "reward": {
+    "knowledge": {
+     "spirit:lantern_wisp": 1
+    },
+    "items": {
+     "wisp_ember": 1
+    }
+   }
+  },
+  {
+   "id": "sanc_keeper_rune",
+   "kind": "lore",
+   "tier": "rare",
+   "regions": [
+    "arcane_sanctuary"
+   ],
+   "label": "a Keeper's rune-stone, half sunk in the turf",
+   "reward": {
+    "knowledge": {
+     "lore:keeper_runes": 1,
+     "spellhint:arcane_orb": 1
+    }
+   }
+  },
+  {
+   "id": "sanc_star_view",
+   "kind": "scenery",
+   "tier": "common",
+   "regions": [
+    "arcane_sanctuary"
+   ],
+   "label": "a quiet ledge looking over the sanctuary",
+   "reward": {
+    "knowledge": {
+     "vista:sanctuary_ledge": 1
+    }
+   }
+  },
+  {
+   "id": "sanc_drowned_coin",
+   "kind": "rare_item",
+   "tier": "uncommon",
+   "regions": [
+    "arcane_sanctuary"
+   ],
+   "label": "an old Keeper's coin, green with age",
+   "reward": {
+    "items": {
+     "keeper_coin": 1
+    },
+    "knowledge": {
+     "relic:keeper_coin": 1
+    }
+   }
+  },
+  {
+   "id": "forest_dewcap",
+   "kind": "plant",
+   "tier": "common",
+   "regions": [
+    "enchanted_forest"
+   ],
+   "repeatable": true,
+   "label": "a ring of dewcap mushrooms, faintly glowing",
+   "color": [
+    0.55,
+    1.0,
+    0.7
+   ],
+   "reward": {
+    "items": {
+     "dewcap": 2
+    },
+    "knowledge": {
+     "herb:dewcap": 1
+    }
+   }
+  },
+  {
+   "id": "forest_fox_spirit",
+   "kind": "spirit",
+   "tier": "uncommon",
+   "regions": [
+    "enchanted_forest"
+   ],
+   "label": "a fox-shaped spirit of the old wood",
+   "color": [
+    1.0,
+    0.6,
+    0.3
+   ],
+   "reward": {
+    "knowledge": {
+     "spirit:wood_fox": 1,
+     "lore:forest_compact": 1
+    }
+   }
+  },
+  {
+   "id": "forest_lost_ranger",
+   "kind": "lost_soul",
+   "tier": "rare",
+   "regions": [
+    "enchanted_forest"
+   ],
+   "label": "the lost soul of a forest ranger",
+   "color": [
+    0.7,
+    0.85,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "soul:lost_ranger": 1,
+     "lore:ranger_road": 1
+    },
+    "items": {
+     "ranger_badge": 1
+    }
+   }
+  },
+  {
+   "id": "forest_waterfall_hollow",
+   "kind": "hidden_place",
+   "tier": "rare",
+   "regions": [
+    "enchanted_forest"
+   ],
+   "label": "a hollow hidden behind falling water",
+   "reward": {
+    "knowledge": {
+     "place:waterfall_hollow": 1
+    },
+    "items": {
+     "river_pearl": 1
+    }
+   }
+  },
+  {
+   "id": "forest_glade_view",
+   "kind": "scenery",
+   "tier": "common",
+   "regions": [
+    "enchanted_forest"
+   ],
+   "label": "a sunlit glade where the light comes down in columns",
+   "reward": {
+    "knowledge": {
+     "vista:sunlit_glade": 1
+    }
+   }
+  },
+  {
+   "id": "forest_mossback_den",
+   "kind": "monster",
+   "tier": "uncommon",
+   "regions": [
+    "enchanted_forest"
+   ],
+   "label": "a mossback's den, the earth still warm",
+   "reward": {
+    "knowledge": {
+     "beast:mossback_den": 1,
+     "bestiary:mossback": 1
+    }
+   }
+  },
+  {
+   "id": "forest_dryad_verse",
+   "kind": "lore",
+   "tier": "uncommon",
+   "regions": [
+    "enchanted_forest"
+   ],
+   "label": "a verse carved into a living tree",
+   "reward": {
+    "knowledge": {
+     "lore:dryad_verse": 1
+    }
+   }
+  },
+  {
+   "id": "village_cellar_door",
+   "kind": "hidden_place",
+   "tier": "uncommon",
+   "regions": [
+    "fantasy_village"
+   ],
+   "label": "a forgotten cellar door in the hillside",
+   "reward": {
+    "knowledge": {
+     "place:old_cellar": 1,
+     "lore:village_founding": 1
+    }
+   }
+  },
+  {
+   "id": "village_toy_soldier",
+   "kind": "rare_item",
+   "tier": "common",
+   "regions": [
+    "fantasy_village"
+   ],
+   "repeatable": true,
+   "label": "a carved wooden toy, lost in the grass",
+   "reward": {
+    "items": {
+     "carved_toy": 1
+    }
+   }
+  },
+  {
+   "id": "village_hearth_ghost",
+   "kind": "lost_soul",
+   "tier": "uncommon",
+   "regions": [
+    "fantasy_village"
+   ],
+   "label": "the soul of an old baker, still keeping her hearth",
+   "color": [
+    1.0,
+    0.75,
+    0.55
+   ],
+   "reward": {
+    "knowledge": {
+     "soul:old_baker": 1,
+     "recipe:hearth_bread": 1
+    }
+   }
+  },
+  {
+   "id": "village_rooftop_view",
+   "kind": "scenery",
+   "tier": "common",
+   "regions": [
+    "fantasy_village"
+   ],
+   "label": "a corner where the whole village roofs line up in the sun",
+   "reward": {
+    "knowledge": {
+     "vista:village_roofs": 1
+    }
+   }
+  },
+  {
+   "id": "village_founders_stone",
+   "kind": "lore",
+   "tier": "rare",
+   "regions": [
+    "fantasy_village"
+   ],
+   "label": "the founders' oath-stone, overgrown",
+   "reward": {
+    "knowledge": {
+     "lore:founders_oath": 1
+    }
+   }
+  },
+  {
+   "id": "village_marigold",
+   "kind": "plant",
+   "tier": "common",
+   "regions": [
+    "fantasy_village"
+   ],
+   "repeatable": true,
+   "label": "sun-marigolds that turn to face whoever walks by",
+   "color": [
+    1.0,
+    0.75,
+    0.25
+   ],
+   "reward": {
+    "items": {
+     "sun_marigold": 2
+    },
+    "knowledge": {
+     "herb:sun_marigold": 1
+    }
+   }
+  },
+  {
+   "id": "cave_singing_crystal",
+   "kind": "rare_item",
+   "tier": "rare",
+   "regions": [
+    "crystal_caverns"
+   ],
+   "label": "a crystal that hums a note when touched",
+   "reward": {
+    "items": {
+     "singing_crystal": 1
+    },
+    "knowledge": {
+     "relic:singing_crystal": 1,
+     "spellhint:frost": 1
+    }
+   }
+  },
+  {
+   "id": "cave_glowworm_grotto",
+   "kind": "hidden_place",
+   "tier": "uncommon",
+   "regions": [
+    "crystal_caverns"
+   ],
+   "label": "a grotto lit by glow-worms",
+   "reward": {
+    "knowledge": {
+     "place:glowworm_grotto": 1
+    }
+   }
+  },
+  {
+   "id": "cave_echo_spirit",
+   "kind": "spirit",
+   "tier": "common",
+   "regions": [
+    "crystal_caverns"
+   ],
+   "repeatable": true,
+   "label": "an echo spirit, repeating their words back",
+   "color": [
+    0.6,
+    0.9,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "spirit:echo": 1
+    }
+   }
+  },
+  {
+   "id": "cave_lost_miner",
+   "kind": "lost_soul",
+   "tier": "uncommon",
+   "regions": [
+    "crystal_caverns"
+   ],
+   "label": "a lost miner's soul, still holding his lamp",
+   "color": [
+    1.0,
+    0.85,
+    0.5
+   ],
+   "reward": {
+    "knowledge": {
+     "soul:lost_miner": 1,
+     "lore:deep_vein": 1
+    },
+    "items": {
+     "miner_lamp": 1
+    }
+   }
+  },
+  {
+   "id": "cave_sentinel_tracks",
+   "kind": "monster",
+   "tier": "rare",
+   "regions": [
+    "crystal_caverns"
+   ],
+   "label": "scored stone where a hollow sentinel passed",
+   "reward": {
+    "knowledge": {
+     "beast:sentinel_trail": 1,
+     "bestiary:hollow_sentinel": 1
+    }
+   }
+  },
+  {
+   "id": "cave_crystal_moss",
+   "kind": "plant",
+   "tier": "common",
+   "regions": [
+    "crystal_caverns"
+   ],
+   "repeatable": true,
+   "label": "crystal moss, growing in little prisms",
+   "color": [
+    0.7,
+    0.6,
+    1.0
+   ],
+   "reward": {
+    "items": {
+     "crystal_moss": 2
+    },
+    "knowledge": {
+     "herb:crystal_moss": 1
+    }
+   }
+  },
+  {
+   "id": "high_eagle_view",
+   "kind": "scenery",
+   "tier": "common",
+   "regions": [
+    "celestial_highlands"
+   ],
+   "label": "a high ledge where you can see three regions at once",
+   "reward": {
+    "knowledge": {
+     "vista:three_regions": 1
+    }
+   }
+  },
+  {
+   "id": "high_starbloom",
+   "kind": "plant",
+   "tier": "uncommon",
+   "regions": [
+    "celestial_highlands"
+   ],
+   "repeatable": true,
+   "label": "a starbloom, open only under the sky",
+   "color": [
+    0.85,
+    0.8,
+    1.0
+   ],
+   "reward": {
+    "items": {
+     "starbloom": 1
+    },
+    "knowledge": {
+     "herb:starbloom": 1
+    }
+   }
+  },
+  {
+   "id": "high_wind_shrine",
+   "kind": "hidden_place",
+   "tier": "rare",
+   "regions": [
+    "celestial_highlands"
+   ],
+   "label": "a wind shrine hidden in a fold of the mountain",
+   "reward": {
+    "knowledge": {
+     "place:wind_shrine": 1,
+     "spellhint:gust": 1
+    }
+   }
+  },
+  {
+   "id": "high_emberwing_nest",
+   "kind": "monster",
+   "tier": "uncommon",
+   "regions": [
+    "celestial_highlands"
+   ],
+   "label": "an emberwing nest on the rocks",
+   "reward": {
+    "knowledge": {
+     "beast:emberwing_nest": 1,
+     "bestiary:emberwing": 1
+    },
+    "items": {
+     "ember_scale": 1
+    }
+   }
+  },
+  {
+   "id": "high_sky_chart",
+   "kind": "lore",
+   "tier": "uncommon",
+   "regions": [
+    "celestial_highlands"
+   ],
+   "label": "a star chart cut into a flat rock",
+   "reward": {
+    "knowledge": {
+     "lore:sky_chart": 1
+    }
+   }
+  },
+  {
+   "id": "acad_hidden_study",
+   "kind": "hidden_place",
+   "tier": "rare",
+   "regions": [
+    "grand_academy"
+   ],
+   "label": "a sealed student's study behind a loose panel",
+   "reward": {
+    "knowledge": {
+     "place:hidden_study": 1,
+     "lore:old_curriculum": 1
+    }
+   }
+  },
+  {
+   "id": "acad_lost_scholar",
+   "kind": "lost_soul",
+   "tier": "uncommon",
+   "regions": [
+    "grand_academy"
+   ],
+   "label": "the soul of a scholar who never finished her thesis",
+   "color": [
+    0.75,
+    0.8,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "soul:lost_scholar": 1,
+     "spellhint:ward": 1
+    }
+   }
+  },
+  {
+   "id": "acad_margin_notes",
+   "kind": "lore",
+   "tier": "common",
+   "regions": [
+    "grand_academy"
+   ],
+   "repeatable": true,
+   "label": "a page of margin notes, dropped and forgotten",
+   "reward": {
+    "knowledge": {
+     "lore:margin_notes": 1
+    }
+   }
+  },
+  {
+   "id": "acad_ink_sprite",
+   "kind": "spirit",
+   "tier": "common",
+   "regions": [
+    "grand_academy"
+   ],
+   "repeatable": true,
+   "label": "an ink sprite hopping between the stones",
+   "color": [
+    0.5,
+    0.55,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "spirit:ink_sprite": 1
+    }
+   }
+  },
+  {
+   "id": "acad_quad_view",
+   "kind": "scenery",
+   "tier": "common",
+   "regions": [
+    "grand_academy"
+   ],
+   "label": "the quad seen from the old steps, bells ringing",
+   "reward": {
+    "knowledge": {
+     "vista:academy_quad": 1
+    }
+   }
+  },
+  {
+   "id": "any_shooting_star_shard",
+   "kind": "rare_item",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "label": "a shard of a fallen star, still warm",
+   "reward": {
+    "items": {
+     "star_shard": 1
+    },
+    "knowledge": {
+     "relic:star_shard": 1
+    }
+   }
+  },
+  {
+   "id": "any_wandering_wisp",
+   "kind": "spirit",
+   "tier": "common",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a wandering wisp",
+   "color": [
+    0.8,
+    0.9,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "spirit:wandering_wisp": 1
+    }
+   }
+  },
+  {
+   "id": "any_wildflowers",
+   "kind": "plant",
+   "tier": "common",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a patch of glowing wildflowers",
+   "color": [
+    1.0,
+    0.7,
+    0.9
+   ],
+   "reward": {
+    "items": {
+     "glow_petal": 2
+    }
+   }
+  },
+  {
+   "id": "any_old_milestone",
+   "kind": "lore",
+   "tier": "common",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "an old milestone with a worn name on it",
+   "reward": {
+    "knowledge": {
+     "lore:old_roads": 1
+    }
+   }
+  },
+  {
+   "id": "any_quiet_spot",
+   "kind": "scenery",
+   "tier": "common",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a quiet spot with a lovely view",
+   "reward": {
+    "knowledge": {
+     "vista:quiet_spot": 1
+    }
+   }
+  },
+  {
+   "id": "any_moon_well",
+   "kind": "hidden_place",
+   "tier": "legendary",
+   "regions": [
+    "*"
+   ],
+   "label": "a moon well, its water full of stars",
+   "color": [
+    0.7,
+    0.8,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "place:moon_well": 1,
+     "legend:moon_well": 1,
+     "spellhint:starlight": 1
+    },
+    "items": {
+     "moonwater": 1
+    }
+   }
+  },
+  {
+   "id": "any_first_circle_relic",
+   "kind": "rare_item",
+   "tier": "legendary",
+   "regions": [
+    "*"
+   ],
+   "label": "a ring of the First Circle, lost for a thousand years",
+   "reward": {
+    "items": {
+     "first_circle_ring": 1
+    },
+    "knowledge": {
+     "legend:first_circle_ring": 1
+    }
+   }
+  },
+  {
+   "id": "any_elder_spirit",
+   "kind": "spirit",
+   "tier": "legendary",
+   "regions": [
+    "enchanted_forest",
+    "celestial_highlands"
+   ],
+   "label": "an elder spirit, tall as the trees",
+   "color": [
+    0.85,
+    1.0,
+    0.8
+   ],
+   "reward": {
+    "knowledge": {
+     "spirit:elder": 1,
+     "legend:elder_spirit": 1
+    }
+   }
+  },
+  {
+   "id": "phoenix_warm_ash",
+   "kind": "phoenix_clue",
+   "tier": "uncommon",
+   "regions": [
+    "arcane_sanctuary",
+    "enchanted_forest"
+   ],
+   "label": "a scatter of ash that is still warm",
+   "reward": {
+    "knowledge": {
+     "clue:phoenix_ash": 1,
+     "phoenix:trail": 1
+    }
+   }
+  },
+  {
+   "id": "phoenix_feather",
+   "kind": "phoenix_clue",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "requires": {
+    "clue:phoenix_ash": 1
+   },
+   "label": "a fallen feather of living flame",
+   "reward": {
+    "items": {
+     "phoenix_feather": 1
+    },
+    "knowledge": {
+     "clue:phoenix_feather": 1,
+     "phoenix:trail": 1
+    }
+   }
+  },
+  {
+   "id": "phoenix_hearth_mark",
+   "kind": "phoenix_clue",
+   "tier": "rare",
+   "regions": [
+    "celestial_highlands",
+    "arcane_sanctuary"
+   ],
+   "requires": {
+    "clue:phoenix_feather": 1
+   },
+   "label": "the Keepers' hearth-mark, burned into stone",
+   "reward": {
+    "knowledge": {
+     "clue:phoenix_hearth": 1,
+     "phoenix:trail": 1,
+     "lore:keepers_fire": 1
+    }
+   }
+  },
+  {
+   "id": "any_spirit_moths",
+   "kind": "spirit",
+   "tier": "uncommon",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a pair of spirit-moths, wings like stained glass",
+   "color": [
+    0.9,
+    0.7,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "spirit:spirit_moths": 1
+    },
+    "items": {
+     "glass_wingscale": 1
+    }
+   }
+  },
+  {
+   "id": "any_traveller_cache",
+   "kind": "rare_item",
+   "tier": "uncommon",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a traveller's cache under a flat stone",
+   "reward": {
+    "items": {
+     "travel_rations": 2,
+     "old_map_scrap": 1
+    }
+   }
+  },
+  {
+   "id": "any_wayshrine",
+   "kind": "lore",
+   "tier": "uncommon",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a tiny wayshrine with fresh offerings",
+   "reward": {
+    "knowledge": {
+     "lore:wayshrines": 1
+    }
+   }
+  },
+  {
+   "id": "any_secret_path",
+   "kind": "hidden_place",
+   "tier": "uncommon",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a narrow secret path between the stones",
+   "reward": {
+    "knowledge": {
+     "place:secret_path": 1
+    }
+   }
+  },
+  {
+   "id": "any_lost_traveller",
+   "kind": "lost_soul",
+   "tier": "uncommon",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a lost traveller's soul, asking the way home",
+   "color": [
+    0.75,
+    0.85,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "soul:lost_traveller": 1
+    }
+   }
+  },
+  {
+   "id": "any_beast_tracks",
+   "kind": "monster",
+   "tier": "uncommon",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "tracks of a beast nobody has named yet",
+   "reward": {
+    "knowledge": {
+     "beast:unnamed_tracks": 1
+    }
+   }
+  },
+  {
+   "id": "any_golden_hour",
+   "kind": "scenery",
+   "tier": "uncommon",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a spot where the light turns everything gold",
+   "reward": {
+    "knowledge": {
+     "vista:golden_spot": 1
+    }
+   }
+  },
+  {
+   "id": "any_rainbow_root",
+   "kind": "plant",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a rainbow-root, shimmering through every colour",
+   "color": [
+    1.0,
+    0.6,
+    0.9
+   ],
+   "reward": {
+    "items": {
+     "rainbow_root": 1
+    },
+    "knowledge": {
+     "herb:rainbow_root": 1
+    }
+   }
+  },
+  {
+   "id": "any_dreaming_spirit",
+   "kind": "spirit",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a dreaming spirit, talking in its sleep",
+   "color": [
+    0.7,
+    0.75,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "spirit:dreamer": 1,
+     "lore:spirit_dreams": 1
+    }
+   }
+  },
+  {
+   "id": "any_meteor_glass",
+   "kind": "rare_item",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a bead of meteor glass, still faintly warm",
+   "reward": {
+    "items": {
+     "meteor_glass": 1
+    }
+   }
+  },
+  {
+   "id": "any_forgotten_grove",
+   "kind": "hidden_place",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a forgotten little grove, ringed by old stones",
+   "reward": {
+    "knowledge": {
+     "place:forgotten_grove": 1
+    }
+   }
+  },
+  {
+   "id": "any_old_prophecy",
+   "kind": "lore",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a scrap of an old prophecy, mostly worn away",
+   "reward": {
+    "knowledge": {
+     "lore:old_prophecy": 1
+    }
+   }
+  },
+  {
+   "id": "any_rare_beast_den",
+   "kind": "monster",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "the empty den of a rare beast",
+   "reward": {
+    "knowledge": {
+     "beast:rare_den": 1
+    }
+   }
+  },
+  {
+   "id": "any_kindly_ghost",
+   "kind": "lost_soul",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a kindly ghost who once guarded this road",
+   "color": [
+    0.85,
+    0.9,
+    1.0
+   ],
+   "reward": {
+    "knowledge": {
+     "soul:road_guardian": 1
+    }
+   }
+  },
+  {
+   "id": "any_aurora_view",
+   "kind": "scenery",
+   "tier": "rare",
+   "regions": [
+    "*"
+   ],
+   "repeatable": true,
+   "label": "a clearing where the sky shimmers like an aurora",
+   "reward": {
+    "knowledge": {
+     "vista:aurora": 1
+    }
+   }
+  }
+ ]
+}

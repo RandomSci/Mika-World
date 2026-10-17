@@ -170,6 +170,7 @@ func _run() -> void:
 		"towervisit": await _towervisit()
 		"readtravel": await _readtravel()
 		"lakehome": await _lakehome()
+		"discovery_live": await _discovery_live()
 		"benchwalk": await _benchwalk()
 		"sunflash": await _sunflash()
 		"standstill": await _standstill()
@@ -6593,3 +6594,75 @@ func _lakehome() -> void:
 				main.streaming.current_id, main.streaming.state, String(mb.current.get("stage", "-")).left(30), String(lb.current.get("label", "-")).left(30), lb.hold])
 			acc = {"n": 0, "slow": 0, "proc": 0.0, "worst": 0.0}
 	_check(res.has("r") and bool(res.r.get("ok", false)), "they walked home", res.get("r", "timeout"))
+
+
+func _discovery_live() -> void:
+	await _wait(6.0)
+	main.spawner.enabled = false
+	var dd: DiscoveryDirector = main.discoveries
+	_check(dd != null, "the discovery director is running")
+	if dd == null:
+		return
+	var who := dd.lead()
+	if who == "":
+		who = "mika"
+	var c: WorldCharacter = main.characters[who]
+	var other: WorldCharacter = main.characters["luna" if who == "mika" else "mika"]
+	print("[mktest] discovery_live lead %s at %s in %s, other %.1f m away" % [who, str(c.global_position.snapped(Vector3.ONE * 0.1)), main.streaming.current_id, other.global_position.distance_to(c.global_position)])
+	var target := String(RenderProfile.options.get("disc-force", "sanc_lantern_wisp"))
+	var got := {}
+	dd.found.connect(func(e): got.merge(e))
+	var live := {}
+	var t0 := _gms()
+	while live.is_empty() and _gms() - t0 < 30000:
+		dd.forced = target
+		live = dd.spawn(who)
+		if live.is_empty():
+			await _wait(1.0)
+	_check(not live.is_empty(), "a find was placed near %s (%s)" % [who, target])
+	if live.is_empty():
+		return
+	var d := c.global_position.distance_to(live.pos)
+	var map: RID = c.get_world_3d().navigation_map
+	_check(d >= 5.0 and d <= 17.0, "a few metres from her (%.1f m)" % d)
+	_check(NavigationServer3D.map_get_closest_point(map, live.pos).distance_to(live.pos) < 0.6, "on walkable ground")
+	_check(main.world.interactables.has((live.it as Interactable).id), "a real interactable in the area (%s)" % (live.it as Interactable).id)
+	await _wait(1.5)
+	if DisplayServer.get_name() != "headless":
+		get_viewport().get_texture().get_image().save_jpg(dir + "/disc_noticed.jpg", 0.85)
+	var tn := _gms()
+	while got.is_empty() and _gms() - tn < 150000:
+		await _wait(1.0)
+	var secs := (_gms() - tn) / 1000.0
+	_check(not got.is_empty(), "she walked over and examined it on her own (%.0f s, planner: %s)" % [secs, str(main.mage_brains[who].current.get("kind", "-"))])
+	if got.is_empty():
+		print("[mktest] discovery_live options: ", JSON.stringify((main.mage_brains[who] as SanctuaryBrain).ranked().slice(0, 5).map(func(o): return [o.key, o.utility])))
+		return
+	await _wait(2.5)
+	if DisplayServer.get_name() != "headless":
+		get_viewport().get_texture().get_image().save_jpg(dir + "/disc_found.jpg", 0.85)
+	var mind := WorldState.mind(who)
+	_check(mind.knowledge.has("find:" + target), "the reward is in %s's own mind (find:%s)" % [who, target])
+	var rew: Dictionary = got.get("reward", {})
+	var items_ok := true
+	for k in rew.get("items", {}):
+		items_ok = items_ok and int(mind.inventory.get(k, 0)) >= int(rew.items[k])
+	_check(items_ok, "and its items (%s)" % str(rew.get("items", {})))
+	var log_: Array = WorldState.finds.get("log", [])
+	_check(not log_.is_empty() and String(log_[-1].id) == target and String(log_[-1].area) == String(main.streaming.current_id), "saved in the finds log with where and when")
+	var overlay_hit := false
+	for ev in main.overlay_ui.events:
+		if String(ev.text).contains("found") and String(ev.text).to_lower().contains(String(got.label).split(" ")[-1].to_lower()):
+			overlay_hit = true
+	_check(overlay_hit, "the overlay notes it")
+	var reacted := false
+	if other.face:
+		for l in other.face.log:
+			if String(l.emotion) in ["surprised", "happy"] and float(l.t) > tn / 1000.0:
+				reacted = true
+	_check(reacted or other.global_position.distance_to(c.global_position) > 30.0, "the other mage reacts (%.1f m away)" % other.global_position.distance_to(c.global_position))
+	_check(dd.revisits().size() >= 1, "the place stays in the world, to revisit (%d)" % dd.revisits().size())
+	var save_txt := FileAccess.get_file_as_string(WorldState.save_path)
+	_check(save_txt.contains('"finds"') and save_txt.contains(target), "written to the save file")
+	report["find"] = got
+	report["seconds_to_find"] = secs
