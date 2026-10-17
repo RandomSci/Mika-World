@@ -30,8 +30,8 @@ const COMPONENTS := {
 ## Recipes (from the lab, extended with the states the world needs: concentrating, concerned, tired, listening).
 const EMOTIONS := {
 	"neutral": {"face": {}, "posture": {}},
-	"happy": {"face": {"brow_joy": .65, "eye_fun": .35, "eye_joy": .28, "mouth_up": .7, "mouth_fun": .3}, "posture": {"roll": .06}},
-	"excited": {"face": {"brow_surprised": .35, "brow_joy": .55, "eye_spread": .2, "eye_joy": .15, "mouth_joy": .8}, "posture": {"pitch": -.05}},
+	"happy": {"face": {"brow_joy": .65, "eye_fun": .35, "eye_joy": .28, "mouth_up": .7, "mouth_fun": .3, "blush": .3}, "posture": {"roll": .06}},
+	"excited": {"face": {"brow_surprised": .35, "brow_joy": .55, "eye_spread": .2, "eye_joy": .15, "mouth_joy": .8, "blush": .3}, "posture": {"pitch": -.05}},
 	"surprised": {"face": {"brow_surprised": 1.0, "eye_surprised": .7, "eye_spread": .35, "mouth_surprised": .7}, "posture": {"pitch": -.08}},
 	"curious": {"face": {"brow_surprised": .35, "brow_fun": .3, "eye_spread": .18, "mouth_small": .45}, "posture": {"roll": .16, "pitch": .03}},
 	"confused": {"face": {"brow_sorrow": .5, "brow_angry": .25, "eye_angry": .12, "mouth_sorrow": .25, "mouth_small": .35}, "posture": {"roll": -.18}},
@@ -39,18 +39,18 @@ const EMOTIONS := {
 	"concentrating": {"face": {"brow_angry": .35, "brow_sorrow": .15, "eye_angry": .22, "mouth_close": .35, "mouth_small": .2}, "posture": {"pitch": .05}},
 	"thoughtful": {"face": {"brow_sorrow": .25, "brow_angry": .15, "eye_fun": .2, "mouth_small": .4}, "posture": {"roll": .1, "gaze_up": .6}},
 	"listening": {"face": {"brow_fun": .25, "eye_natural": .2, "mouth_up": .2}, "posture": {"roll": .07}},
-	"shy": {"face": {"brow_sorrow": .45, "eye_fun": .4, "mouth_small": .55, "mouth_up": .3}, "posture": {"pitch": .14, "roll": .1, "gaze_down": .5}},
-	"sad": {"face": {"brow_sorrow": .9, "eye_sorrow": .55, "mouth_sorrow": .7}, "posture": {"pitch": .12}},
+	"shy": {"face": {"brow_sorrow": .55, "eye_fun": .5, "mouth_small": .6, "mouth_up": .3, "blush": 1.0}, "posture": {"pitch": .16, "roll": .12, "gaze_down": .6}},
+	"sad": {"face": {"brow_sorrow": 1.0, "eye_sorrow": .7, "mouth_sorrow": .8, "mouth_down": .2}, "posture": {"pitch": .14, "gaze_down": .3}},
 	"frustrated": {"face": {"brow_angry": .8, "eye_angry": .45, "mouth_angry": .6}, "posture": {"pitch": .06}},
 	"tired": {"face": {"brow_sorrow": .25, "eye_fun": .3, "blink": .32, "mouth_neutral": .3}, "posture": {"pitch": .1, "roll": .08}},
 	"relaxed": {"face": {"brow_fun": .4, "eye_fun": .4, "mouth_up": .5}, "posture": {"roll": .05}},
-	"playful": {"face": {"brow_fun": .5, "eye_joy_l": .9, "mouth_fang": .45, "mouth_up": .6}, "posture": {"roll": .15}},
+	"playful": {"face": {"brow_fun": .5, "eye_joy_l": .9, "mouth_fang": .45, "mouth_up": .6, "blush": .25}, "posture": {"roll": .15}},
 	"proud": {"face": {"brow_fun": .5, "eye_fun": .25, "mouth_up": .65}, "posture": {"pitch": -.1}},
-	"relieved": {"face": {"brow_sorrow": .3, "brow_joy": .3, "eye_fun": .45, "mouth_up": .45}, "posture": {"pitch": .03, "roll": .04}},
-	"laughing": {"face": {"brow_joy": .8, "eye_joy": 1.0, "mouth_joy": .9}, "posture": {"pitch": -.06}},
+	"relieved": {"face": {"brow_sorrow": .3, "brow_joy": .3, "eye_fun": .45, "mouth_up": .45, "blush": .15}, "posture": {"pitch": .03, "roll": .04}},
+	"laughing": {"face": {"brow_joy": .85, "eye_joy": 1.0, "mouth_joy": 1.0, "blush": .5}, "posture": {"pitch": -.08, "roll": .08}},
 	"hurt": {"face": {"brow_sorrow": .75, "brow_angry": .3, "eye_angry": .55, "mouth_angry": .35, "mouth_small": .2}, "posture": {"pitch": .08}},
 	"dazed": {"face": {"brow_sorrow": .45, "blink": .42, "eye_sorrow": .2, "mouth_small": .35, "mouth_down": .2}, "posture": {"roll": .12, "pitch": .1}},
-	"determined": {"face": {"brow_angry": .5, "eye_angry": .2, "mouth_close": .4, "mouth_up": .1}, "posture": {"pitch": -.03}},
+	"determined": {"face": {"brow_angry": .9, "eye_angry": .45, "eye_spread": .1, "mouth_close": .45, "mouth_angry": .25, "mouth_up": .1}, "posture": {"pitch": -.06}},
 }
 
 ## Legacy single-preset names (older callers) -> emotions.
@@ -79,6 +79,12 @@ var _double := false
 var _viseme := "v_a"
 var _viseme_t := 0.0
 var log: Array = []                 # recent emotion changes (tests / overlay)
+## Day 3: the model's own blush (a separate Face_Blush mesh with one "Blush" morph), driven by the recipes' "blush"
+var blush_mesh: MeshInstance3D
+var blush_idx := -1
+var _blush := 0.0
+## Day 3: while a close-up is live, expressions read a little stronger (CloseupLook sets it)
+var closeup_boost := 1.0
 var brow_overlay: MeshInstance3D    # brows drawn through the fringe (the lab's technique; VRoid bangs hide them)
 var _brow_mat: StandardMaterial3D
 var brow_alpha := 0.45
@@ -114,6 +120,13 @@ static func attach(character: Node3D, avatar: Node, cfg: Dictionary) -> FaceCont
 			fc.idx[k] = i
 			fc.springs[k] = [0.0, 0.0]
 	fc.expressiveness = float(cfg.get("expressiveness", 1.0))
+	for mi2 in avatar.find_children("Face_Blush*", "MeshInstance3D", true, false):
+		var bm := mi2 as MeshInstance3D
+		if bm.mesh and bm.mesh.get_blend_shape_count() > 0:
+			fc.blush_mesh = bm
+			fc.blush_idx = maxi(bm.find_blend_shape_by_name("Blush"), 0)
+			bm.set_blend_shape_value(fc.blush_idx, 0.0)
+			break
 	fc.bias = cfg.get("bias", {})
 	fc.blink_mean = float(cfg.get("blink_mean", 3.6))
 	fc._rng.seed = hash(String(character.get("character_id"))) + 17
@@ -260,7 +273,7 @@ func update(delta: float) -> void:
 	for e in _mix:
 		all[e] = true
 	for e in all:
-		var want := float(target.get(e, 0.0)) * expressiveness * float(bias.get(e, 1.0))
+		var want := float(target.get(e, 0.0)) * expressiveness * closeup_boost * float(bias.get(e, 1.0))
 		_mix[e] = lerpf(float(_mix.get(e, 0.0)), want, 1.0 - exp(-delta * 7.0))
 		if float(_mix[e]) < 0.002 and want == 0.0:
 			_mix.erase(e)
@@ -306,6 +319,11 @@ func update(delta: float) -> void:
 	# 7) blink (suppressed while a smile already closes the eyes)
 	var closed := clampf(float(comp.get("eye_joy", 0.0)) + float(comp.get("blink", 0.0)) * 0.8, 0.0, 1.0)
 	comp["blink"] = clampf(float(comp.get("blink", 0.0)) + _blink(delta) * (1.0 - closed), 0.0, 1.0)
+	# 7b) blush (its own mesh): slow in, slower out, like real colour
+	if blush_mesh and is_instance_valid(blush_mesh):
+		var bgoal := clampf(float(comp.get("blush", 0.0)), 0.0, 1.0)
+		_blush = lerpf(_blush, bgoal, 1.0 - pow(0.5, delta / (0.35 if bgoal > _blush else 0.9)))
+		blush_mesh.set_blend_shape_value(blush_idx, _blush)
 	# 8) springs per component -> blend shapes
 	var mirror := brow_overlay != null and is_instance_valid(brow_overlay)
 	for k in idx:

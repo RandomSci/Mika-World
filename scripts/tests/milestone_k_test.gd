@@ -170,6 +170,8 @@ func _run() -> void:
 		"towervisit": await _towervisit()
 		"readtravel": await _readtravel()
 		"lakehome": await _lakehome()
+		"facestills": await _facestills()
+		"faceprobe": await _faceprobe()
 		"benchwalk": await _benchwalk()
 		"sunflash": await _sunflash()
 		"standstill": await _standstill()
@@ -6593,3 +6595,133 @@ func _lakehome() -> void:
 				main.streaming.current_id, main.streaming.state, String(mb.current.get("stage", "-")).left(30), String(lb.current.get("label", "-")).left(30), lb.hold])
 			acc = {"n": 0, "slow": 0, "proc": 0.0, "worst": 0.0}
 	_check(res.has("r") and bool(res.r.get("ok", false)), "they walked home", res.get("r", "timeout"))
+
+
+## Day 3 (1): close-up stills of each girl's face - happy, surprised, sad, laughing, determined, shy - at a close-up
+## framing (face about a third of the frame), daylight in the sanctuary (--fs-night: at night). PNGs to --fs-out.
+func _facestills() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)              # nothing of theirs may lift an arm into the shot
+	main.spawner.enabled = false
+	main.director.enabled = false
+	var look_on := not RenderProfile.options.has("fs-before")
+	var night := RenderProfile.options.has("fs-night")
+	if main.get("day_night") and main.day_night:
+		main.day_night.set_override(night)
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + (22.0 if night else 10.5) * 60.0
+	if main.get("weather") and main.weather:
+		main.weather.set_weather("clear", 12.0)
+		if main.weather.get("rain") != null:
+			main.weather.set("rain", 0.0)
+		if main.weather.get("enabled") != null:
+			main.weather.set("enabled", false)          # (no rain may cross a still)
+	var out := String(RenderProfile.options.get("fs-out", "/home/selwyn/.cache/mika_qa/facestills"))
+	DirAccess.make_dir_recursive_absolute(out)
+	var emotions := ["happy", "surprised", "sad", "laughing", "determined", "shy"]
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).suspended = true          # (these stills are close-ups on purpose, for approval)
+	var cam := Camera3D.new()
+	cam.fov = 32.0
+	main.add_child(cam)
+	var pin := CameraPin.new()
+	main.add_child(pin)                                   # (not under the rig: its arm is disabled below)
+	# nothing else may move the lens while stills are taken: the rig, its spring arm and the director stand still
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var map: RID = main.characters["mika"].get_world_3d().navigation_map
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	for who in ["mika", "luna"]:
+		var c: WorldCharacter = main.characters[who]
+		var other: WorldCharacter = main.characters["luna" if who == "mika" else "mika"]
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+			main.teleport_guard.allow(other)
+		other.global_position = NavigationServer3D.map_get_closest_point(map, spot + Vector3(8, 0, 8)) + Vector3(0, 0.05, 0)
+		if main.performance and main.performance.busy():
+			main.performance.interrupt("close-up stills")      # (a dance had her arms through every shot)
+			await _wait(1.0)
+		c.stop_action()
+		c.end_gesture()
+		c.global_position = spot + Vector3(0, 0.05, 0)
+		c.rotation.y = 0.0                      # facing -Z
+		await _wait(1.5)
+		var head: Vector3 = c.skeleton.global_transform * c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Head")).origin
+		var eye := head + Vector3(0, 0.07, 0)
+		cam.global_position = eye + Vector3(0.18, 0.02, -0.95)
+		main.director.enabled = false                     # (stopping a dance turns the director back on)
+		main.camera_rig.set_shot(cam.global_position, eye + Vector3(0, -0.04, 0), 32.0)   # (the rig's camera draws the world)
+		c.look_head_at(cam.global_position)
+		if look_on:
+			CloseupLook.enable(c, cam.global_position)
+		print("[mktest] facestills %s at %s visible %s head %s cam %s current-cam %s" % [who, str(c.global_position.snapped(Vector3.ONE * 0.01)), c.visible, str(head.snapped(Vector3.ONE * 0.01)), str(cam.global_position.snapped(Vector3.ONE * 0.01)), str(get_viewport().get_camera_3d() == cam)])
+		for e in emotions:
+			if c.face:
+				c.face.set_hold(e, 1.0)
+			await _wait(1.4)
+			# frame her where her head IS now (a held emotion tilts it; a dance's end leaves her lower)
+			var hd: Vector3 = c.skeleton.global_transform * c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Head")).origin + Vector3(0, 0.07, 0)
+			var fwd := -c.global_transform.basis.z
+			fwd.y = 0.0
+			fwd = fwd.normalized()
+			var cp := hd + fwd * 0.95 + Vector3(-fwd.z, 0, fwd.x) * 0.18 + Vector3(0, 0.02, 0)
+			cam.global_position = cp
+			main.director.enabled = false
+			main.camera_rig.set_shot(cp, hd + Vector3(0, -0.04, 0), 32.0)
+			pin.pos = cp
+			pin.look = hd + Vector3(0, -0.04, 0)
+			pin.active = true
+			if look_on:
+				CloseupLook.enable(c, cp)
+			c.look_head_at(cp)
+			if c.face:
+				c.face.blink_now()
+			await _wait(0.6)
+			var lc := get_viewport().get_camera_3d()
+			var gs: Array = get_tree().root.find_children("FramingGuard", "", true, false)
+			print("[mktest] facestills guards %d suspended %s hits %s | live fov %.1f | pin %s" % [gs.size(), str(gs.map(func(g): return g.get("suspended"))), str(gs.map(func(g): return g.get("hits"))), lc.fov if lc else 0.0, str(pin.pos.snapped(Vector3.ONE * 0.01))])
+			print("[mktest] facestills shot %s %s hd %s cp %s live-cam %s %s fwd-y %.2f" % [who, e, str(hd.snapped(Vector3.ONE * 0.01)), str(cp.snapped(Vector3.ONE * 0.01)), String(lc.name) if lc else "-", str(lc.global_position.snapped(Vector3.ONE * 0.01)) if lc else "-", (-lc.global_transform.basis.z).y if lc else 0.0])
+			var img := get_viewport().get_texture().get_image()
+			img.save_png("%s/%s_%s%s.png" % [out, who, e, "_night" if night else ""])
+			print("[mktest] facestills %s %s (face dominant %s) action %s gesture-busy %s perf %s reaction %s brain %s/%s" % [who, e, c.face.dominant() if c.face else "-", c.current_action,
+				str(c.anim_tree.get("parameters/cast/active")), str(main.performance.busy() if main.performance else false), str(c.reaction.get("state") if c.reaction else "-"),
+				str(main.mage_brains[who].enabled), String(main.mage_brains[who].current.get("label", "-"))])
+		if c.face:
+			c.face.set_hold("", 0.0)
+		CloseupLook.disable(c)
+		c.look_head_at(null)
+	cam.queue_free()
+	pin.queue_free()
+	main.camera_rig.set_process(true)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_INHERIT
+	main.director.set_process(true)
+	if main.camera_rig.has_method("clear_shot"):
+		main.camera_rig.clear_shot()
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).suspended = false
+	main.director.enabled = true
+	_check(true, "stills rendered to %s" % out)
+
+
+func _faceprobe() -> void:
+	await _wait(2.0)
+	for who in ["mika", "luna"]:
+		var c: WorldCharacter = main.characters[who]
+		for mi in c.avatar.find_children("*", "MeshInstance3D", true, false):
+			var m := mi as MeshInstance3D
+			if m.mesh == null or not (m.mesh is ArrayMesh):
+				continue
+			var nm := String(m.name)
+			var shapes := []
+			for i in m.mesh.get_blend_shape_count():
+				var bn := String(m.mesh.get_blend_shape_name(i))
+				if bn.contains("Cheek") or bn.contains("HA_") or bn.contains("Blush") or bn.contains("ALL_") or bn.contains("Highlight") or bn.contains("EYE_Hide") or bn.contains("Iris"):
+					shapes.append(bn)
+			var mats := []
+			for si in m.mesh.get_surface_count():
+				var mat := m.get_active_material(si)
+				mats.append(String(mat.resource_name) if mat else "-")
+			if m.mesh.get_blend_shape_count() > 0 or nm.to_lower().contains("face") or nm.to_lower().contains("eye"):
+				print("[mktest] faceprobe %s mesh %s shapes %d %s mats %s" % [who, nm, m.mesh.get_blend_shape_count(), str(shapes), str(mats)])
+		print("[mktest] faceprobe %s face controller %s bound %d" % [who, c.face != null, c.face.bound_count() if c.face else 0])

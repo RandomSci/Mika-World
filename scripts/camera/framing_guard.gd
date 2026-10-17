@@ -13,6 +13,9 @@ var camera: Camera3D             # the camera to guard (default: whatever camera
 const EXEMPT_CAMERAS := ["TransformCamera"]
 var hits := 0
 var worst_frac := 0.0
+## Day 3: a test (the close-up stills for the developer's approval) may suspend the guard; nothing on stream does
+## until close-ups are approved.
+var suspended := false
 
 
 func _init() -> void:
@@ -21,7 +24,7 @@ func _init() -> void:
 
 func _process(_delta: float) -> void:
 	var cam := camera if camera and is_instance_valid(camera) else get_viewport().get_camera_3d()
-	if cam == null or String(cam.name) in EXEMPT_CAMERAS:
+	if suspended or cam == null or String(cam.name) in EXEMPT_CAMERAS:
 		return
 	if source and source.get("characters") is Dictionary:
 		characters = (source.characters as Dictionary).values()
