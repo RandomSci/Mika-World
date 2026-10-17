@@ -14,3 +14,10 @@ assets/audio/music/library/*/*.mp3
 assets/audio/music/library/*/*.wav
 # Local voice venv (edge-tts) for tools/voice/edge_service.py
 /.venv-voice/
+
+# Per-machine / generated (never committed)
+/override.cfg
+*.log
+*.avi
+*.mkv
+/recordings/
