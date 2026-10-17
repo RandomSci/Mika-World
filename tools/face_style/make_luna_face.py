@@ -125,8 +125,8 @@ thicken("Luna_FaceEyeline_00_FACE", 9, (0.07, 0.035, 0.035))
 b = load("Luna_FaceBrow_00_FACE")
 a = b[..., 3]
 full = ndimage.gaussian_filter(ndimage.grey_dilation(a, size=(5, 3)), 1.6)
-b[..., 3] = np.clip(np.maximum(a * 0.9, full * 0.8), 0, 1)
-b[..., :3] = (0.33, 0.17, 0.11)
+b[..., 3] = np.clip(np.maximum(a * 0.85, full * 0.6), 0, 1)
+b[..., :3] = (0.4, 0.22, 0.15)
 save(b, "Luna_FaceBrow_00_FACE")
 
 # ---------------------------------------------------------------- skin: the old lips out, a small soft glossy pink mouth in, a soft blush
