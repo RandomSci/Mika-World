@@ -431,7 +431,9 @@
     "profile": {
      "face": {
       "brows_through_fringe": false,
-      "brow_color": [0.111, 0.058, 0.056]
+      "brow_color": [0.111, 0.058, 0.056],
+      "style": "res://assets/characters/luna/face_style/l01_oracle_clean",
+      "outline_width": 0.056
      },
      "skin": {
       "_note": "Day 3: her VRoid original's soft pink shade and neutral rim (the rebuild's were orange-brown / orange)",
