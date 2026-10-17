@@ -146,15 +146,20 @@ func _on_message(m: Dictionary) -> void:
 		"backend-synth-complete":
 			_synth_complete = true
 			_maybe_playback_complete()
+			if not _speaking and _speech.is_empty() and main.voice:
+				main.voice.hold_world(0)
 		"control":
 			match String(m.get("text", "")):
 				"interrupt":
 					_speech.clear()
 					if main.voice:
 						main.voice.stop()
+						main.voice.hold_world(0)
 				"conversation-chain-start":
 					_synth_complete = false
 		"youtube-live-selected-message":
+			if bool(m.get("active", false)):
+				_viewer_turn_until = Time.get_ticks_msec() + 30000   # the next lines answer a viewer
 			_chat_card(m)
 			if bool(m.get("active", false)) and main.get("chat") and main.chat.addressee(String(m.get("message", ""))) == "luna":
 				_luna_answers(m)
@@ -201,6 +206,9 @@ func _luna_answers(m: Dictionary) -> void:
 
 
 # ------------------------------------------------------------------ speech
+var _viewer_turn_until := 0      # a viewer's message was just selected: its reply plays at once
+
+
 func _enqueue_audio(m: Dictionary) -> void:
 	var who := String(m.get("character")) if m.get("character") is String else "mika"
 	if not main.characters.has(who):
@@ -209,15 +217,19 @@ func _enqueue_audio(m: Dictionary) -> void:
 	var text := ""
 	if m.get("display_text") is Dictionary:
 		text = String((m.display_text as Dictionary).get("text", ""))
+	if main.voice and b64 != "" and not bool(m.get("monitor", false)):
+		main.voice.hold_world(15000)          # her in-world chatter pauses while the show speaks (refreshed per chunk)
 	_speech.append({"who": who, "wav": Marshalls.base64_to_raw(b64) if b64 != "" else PackedByteArray(), "text": text,
 		"trace": m.get("speech_trace") if m.get("speech_trace") is Dictionary else {}, "monitor": bool(m.get("monitor", false)), "received": int(Time.get_unix_time_from_system() * 1000.0)})
 
 
 func _play_next() -> void:
 	_speaking = true
-	# Mika and Luna are talking to each other: the show's line waits for the end of their exchange (at most 25 s)
+	# Mika and Luna are talking to each other: the show's own line waits for a pause in their exchange (at most
+	# 6 s: the server gives a line up after ~20 s), a REPLY TO A VIEWER never waits - their next line holds instead
 	var tw := Time.get_ticks_msec()
-	while main.get("mage_talk") and main.mage_talk.dialogue and main.mage_talk.dialogue.active and Time.get_ticks_msec() - tw < 25000:
+	while Time.get_ticks_msec() > _viewer_turn_until and main.get("mage_talk") and main.mage_talk.dialogue and main.mage_talk.dialogue.active \
+			and main.voice and main.voice._busy and Time.get_ticks_msec() - tw < 6000:
 		await get_tree().process_frame
 	var item: Dictionary = _speech.pop_front()
 	var tr: Dictionary = item.trace
@@ -225,6 +237,8 @@ func _play_next() -> void:
 		_send({"type": "audio-play-start", "display_text": {"text": item.text} if item.text != "" else null, "forwarded": true,
 			"trace_id": tr.get("trace_id"), "sequence": tr.get("sequence"), "received_at_ms": item.received, "at_ms": int(Time.get_unix_time_from_system() * 1000.0)})
 	var opts := {"wav": item.wav, "priority": 1}
+	var waited := int(Time.get_unix_time_from_system() * 1000.0) - int(item.received)
+	print("[livelink] show line %s after %d ms%s: %s" % [item.who, waited, " (viewer reply)" if Time.get_ticks_msec() < _viewer_turn_until else "", String(item.text).left(80)])
 	await main.voice.say(String(item.who), String(item.text), opts)
 	if not item.monitor and not tr.is_empty():
 		_send({"type": "audio-play-end", "sequence": tr.get("sequence"), "trace_id": tr.get("trace_id"), "at_ms": int(Time.get_unix_time_from_system() * 1000.0)})
@@ -235,6 +249,9 @@ func _play_next() -> void:
 func _maybe_playback_complete() -> void:
 	if _synth_complete and not _speaking and _speech.is_empty():
 		_synth_complete = false
+		_viewer_turn_until = 0
+		if main.voice:
+			main.voice.hold_world(0)
 		_send({"type": "frontend-playback-complete"})
 
 

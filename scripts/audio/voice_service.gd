@@ -71,6 +71,11 @@ var log: Array = []
 var pronunciations := {}
 var _queue: Array = []
 var _busy := false
+## The show is speaking (Mika-Live's lines over the live link, above all a reply to a viewer): her in-world
+## chatter waits until it is over, so a viewer is never kept waiting behind a talk (broadcast 2: "hi" waited
+## 18 s behind a conversation with Elowen and the server gave the reply up). Expires on its own.
+var show_hold_until := 0
+var _current_external := false
 var _player: AudioStreamPlayer
 var _pid := -1
 var _restarting := false       # a Kokoro restart is in progress (one at a time)
@@ -899,6 +904,9 @@ func say(speaker: String, text: String, opts := {}) -> Dictionary:
 		_queue.push_front(job)
 	else:
 		_queue.append(job)
+	if _is_external(opts) and _busy and not _current_external and _player and _player.playing \
+			and _player.stream and _player.stream.get_length() - _player.get_playback_position() > 4.0:
+		_player.stop()            # a long in-world line gives way to the show (a short one just finishes)
 	if not _busy:
 		_pump()
 	while not job.done:
@@ -927,6 +935,19 @@ func hearing(speaker: String) -> float:
 	return db_to_linear(-24.0 * (d - HEAR_FULL_M) / (HEAR_MAX_M - HEAR_FULL_M))
 
 
+## Hold her in-world speech for `ms` from now (0 releases it).
+func hold_world(ms: int) -> void:
+	show_hold_until = Time.get_ticks_msec() + ms if ms > 0 else 0
+
+
+func world_held() -> bool:
+	return Time.get_ticks_msec() < show_hold_until
+
+
+static func _is_external(opts: Dictionary) -> bool:
+	return opts.get("wav") is PackedByteArray and (opts.wav as PackedByteArray).size() > 44
+
+
 func busy() -> bool:
 	return _busy or not _queue.is_empty()
 
@@ -943,8 +964,21 @@ func stop() -> void:
 func _pump() -> void:
 	_busy = true
 	while not _queue.is_empty():
-		var job: Dictionary = _queue.pop_front()
+		var at := 0
+		if world_held():
+			# the show first; in-world lines wait (their callers simply await a little longer)
+			at = -1
+			for i in _queue.size():
+				if _is_external(_queue[i].opts):
+					at = i
+					break
+			if at < 0:
+				await get_tree().process_frame
+				continue
+		var job: Dictionary = _queue.pop_at(at)
+		_current_external = _is_external(job.opts)
 		job.result = await _speak(job.speaker, job.text, job.opts)
+		_current_external = false
 		job.done = true
 	_busy = false
 
@@ -991,6 +1025,9 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 	latency.samples.append({"tts_ms": res.tts_ms, "src": "prefetch" if res.get("prefetched", false) else String(res.get("cached", "budget_drop" if res.get("budget_drop", false) else "synth"))})
 	if latency.samples.size() > 400:
 		latency.samples.pop_front()
+	# synthesised while the show began to speak: the in-world line waits for it to finish
+	while not res.get("external", false) and world_held():
+		await get_tree().process_frame
 	var subtitle: bool = opts.get("subtitle", true)
 	# where she is: a mage far from the camera is heard faintly, or not at all (her incantation across the valley
 	# was as loud as one beside the lens). Mika-Live's own lines (the host talking to chat) always carry.

@@ -161,6 +161,7 @@ func _run() -> void:
 		"benchwalk": await _benchwalk()
 		"sunflash": await _sunflash()
 		"standstill": await _standstill()
+		"showline": await _showline()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -5688,6 +5689,82 @@ func _sunflash() -> void:
 	var hi: float = vals[vals.size() - 1]
 	print("[mktest] sunflash: %d frames, sun energy p5 %.2f max %.2f (daylight %.2f, cloud %.2f)" % [vals.size(), lo, hi, WorldState.daylight(), main.weather.cloud])
 	_check(vals.size() > 30 and hi <= lo * 1.15, "the sun under rain never flashes to full strength (p5 %.2f, max %.2f)" % [lo, hi])
+
+
+
+# ------------------------------------------------------------------ a viewer's reply is never kept waiting (broadcast 2, 15:07)
+## "hi" got no answer: the server's reply reached the stage in 2 s and then waited behind her in-world talk until
+## the server gave it up (~20 s). Here: a long in-world line is playing and another is queued; a viewer's message
+## is selected and its reply arrives - it must start at once, the queued in-world line waits for it, the playback
+## ack follows, and in-world speech resumes afterwards.
+func _silent_wav(secs: float) -> PackedByteArray:
+	var n := int(secs * 24000.0)
+	var pcm := PackedByteArray()
+	pcm.resize(n * 2)
+	var out := PackedByteArray()
+	out.append_array("RIFF".to_ascii_buffer())
+	out.resize(44)
+	out.encode_u32(4, 36 + pcm.size())
+	for i in 4:
+		out[8 + i] = "WAVE".to_ascii_buffer()[i]
+		out[12 + i] = "fmt ".to_ascii_buffer()[i]
+		out[36 + i] = "data".to_ascii_buffer()[i]
+	out.encode_u32(16, 16)
+	out.encode_u16(20, 1)
+	out.encode_u16(22, 1)
+	out.encode_u32(24, 24000)
+	out.encode_u32(28, 48000)
+	out.encode_u16(32, 2)
+	out.encode_u16(34, 16)
+	out.encode_u32(40, pcm.size())
+	out.append_array(pcm)
+	return out
+
+
+func _showline() -> void:
+	await _hold_all()
+	var ll = main.get("live_link")
+	_check(ll != null, "live link present (--live-link)")
+	if ll == null:
+		return
+	var v: VoiceService = main.voice
+	var starts := {}
+	var on_start := func(sp: String, text: String):
+		starts[text] = _game_t
+	v.line_started.connect(on_start)
+	var sent: Array = []
+	# (no server in a test: record what the stage would send)
+	var world1 := "This is a long line I am saying to Luna about the old stones by the gate, and it goes on for quite a while yet."
+	var world2 := "And this is what I wanted to say next to her."
+	v._cache[VoiceService._cache_key("mika", world1, {})] = _silent_wav(12.0)
+	v._cache[VoiceService._cache_key("mika", world2, {})] = _silent_wav(2.0)
+	v.say("mika", world1)
+	await _wait(1.0)
+	v.say("mika", world2)
+	await _wait(0.5)
+	_check(starts.has(world1) and v._player.playing, "an in-world line is playing", str(starts.keys()))
+	var t0 := _game_t
+	ll._on_message({"type": "control", "text": "conversation-chain-start"})
+	ll._on_message({"type": "youtube-live-selected-message", "active": true, "message": "hi", "author": "@tester", "id": "t1", "to": ["mika"]})
+	var reply := "Hi tester, welcome to the sanctuary!"
+	ll._on_message({"type": "audio", "character": "mika", "audio": Marshalls.raw_to_base64(_silent_wav(1.5)), "display_text": {"text": reply}})
+	ll._on_message({"type": "backend-synth-complete"})
+	while not starts.has(reply) and _game_t - t0 < 25.0:
+		await get_tree().process_frame
+	var wait_s: float = (starts[reply] - t0) if starts.has(reply) else 99.0
+	print("[mktest] showline: reply started after %.2f s (world line was %s)" % [wait_s, "cut" if not starts.has(world2) or starts.get(world2, 0.0) > starts.get(reply, 0.0) else "?"])
+	_check(wait_s < 1.0, "a viewer's reply starts at once, over in-world talk", "%.2f s" % wait_s)
+	_check(not starts.has(world2) or float(starts[world2]) > float(starts.get(reply, 0.0)), "the queued in-world line waits for the reply")
+	while (ll._speaking or not ll._speech.is_empty()) and _game_t - t0 < 25.0:
+		await get_tree().process_frame
+	_check(not ll._speaking and ll._speech.is_empty() and not ll._synth_complete, "the reply finished and the playback ack went out")
+	_check(not v.world_held(), "in-world speech is released after the reply")
+	var t1 := _game_t
+	while not starts.has(world2) and _game_t - t1 < 10.0:
+		await get_tree().process_frame
+	_check(starts.has(world2), "her in-world line follows the reply", "%.2f s later" % (float(starts.get(world2, 99.0)) - t1))
+	# an autonomous show line (no viewer) never waits more than a few seconds behind a talk either
+	v.line_started.disconnect(on_start)
 
 
 ## Bodies shaking while they stand (talks, casts, spars; broadcast 2): standing still on several real floors, every
