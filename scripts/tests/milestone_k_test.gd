@@ -171,6 +171,7 @@ func _run() -> void:
 		"readtravel": await _readtravel()
 		"lakehome": await _lakehome()
 		"discovery_live": await _discovery_live()
+		"danceguard": await _danceguard()
 		"facestills": await _facestills()
 		"faceprobe": await _faceprobe()
 		"facetex": await _facetex()
@@ -6834,6 +6835,52 @@ func _discovery_live() -> void:
 	_check(save_txt.contains('"finds"') and save_txt.contains(target), "written to the save file")
 	report["find"] = got
 	report["seconds_to_find"] = secs
+
+
+## Live bug 2026-10-18: a viewer asked Mika to dance; she said yes and the song began, but her planner (mid-choice
+## during an LLM consult) went on to lead Luna off to spar at the training grounds, and an ambient chat pulled Luna
+## over - all during the song. Now: the show's dance holds her for real, no invitation or chat crosses a dance.
+func _danceguard() -> void:
+	await _wait(6.0)
+	main.spawner.enabled = false
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	_check(main.live_link != null, "the live link is there (the show's dance path)")
+	if main.live_link == null:
+		return
+	# the race: a choice in progress when the show holds her must not start
+	var starts := []
+	mb.decided.connect(func(d): if mb.hold: starts.append(d.key))
+	main.live_link._do("dance_routine", {"routine": "step"})          # not awaited: the show's request runs on
+	var t0 := _gms()
+	while not (main.performance.busy() and String(main.performance.active.get("who", "")) == "mika") and _gms() - t0 < 50000:
+		await _wait(0.5)
+	var dancing: bool = main.performance.busy() and String(main.performance.active.get("who", "")) == "mika"
+	_check(dancing, "the show's dance started (%.0f s)" % ((_gms() - t0) / 1000.0))
+	if not dancing:
+		return
+	var at := mika.global_position
+	# Luna tries to take her away mid-song
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	luna.global_position = NavigationServer3D.map_get_closest_point(mika.get_world_3d().navigation_map, at + Vector3(3.0, 0, 2.0)) + Vector3(0, 0.05, 0)
+	var inv: Dictionary = await main.companionship.invite(lb, "mika", "train_together", {})
+	_check(not inv.get("ok", false), "Luna's invitation is turned down while Mika dances (%s)" % String(inv.get("detail", "")))
+	var worst := 0.0
+	var chat_started := false
+	var t1 := _gms()
+	while main.performance.busy() and _gms() - t1 < 25000:
+		worst = maxf(worst, Vector2(mika.global_position.x - at.x, mika.global_position.z - at.z).length())
+		if main.mage_talk and (main.mage_talk.busy() or (main.mage_talk.dialogue and main.mage_talk.dialogue.active)):
+			chat_started = true
+		await _wait(0.5)
+	_check(worst < 3.0, "Mika stays where she dances (moved at most %.1f m)" % worst)
+	_check(starts.is_empty(), "her planner starts nothing while the show holds her (%s)" % str(starts))
+	_check(not chat_started, "no conversation starts across the dance")
+	main.performance.interrupt("test done")
+	report["moved_m"] = snappedf(worst, 0.01)
 
 
 func _faceprobe() -> void:

@@ -80,6 +80,12 @@ func meet(a: SanctuaryBrain, other_id: String) -> Dictionary:
 	a.mind.knowledge["met_last:" + other_id] = now
 	if _active or b == null or bc == null or not bc.visible:
 		return {"ok": false, "detail": "%s is not around" % MagicSystem.display_name(other_id)}
+	# never across a dance, and never over someone else's hold (the show's): releasing her afterwards undid the show's
+	# hold mid-song (2026-10-18 live)
+	if main.performance and main.performance.busy() and String(main.performance.active.get("who", "")) in [a.agent_id, other_id]:
+		return {"ok": false, "detail": "a dance is on"}
+	if b.hold:
+		return {"ok": false, "detail": "%s is held for something else" % MagicSystem.display_name(other_id)}
 	if String(b.current.get("kind", "")) not in INTERRUPTIBLE or bc.casting or (b.enabled and b.current.get("kind", "") == "rest" and bc.seated):
 		a.mind.knowledge["met_last:" + other_id] = now - SanctuaryBrain.MEET_COOLDOWN_S + 120.0
 		return {"ok": false, "detail": "%s was busy (%s)" % [MagicSystem.display_name(other_id), b.current.get("label", "busy")]}

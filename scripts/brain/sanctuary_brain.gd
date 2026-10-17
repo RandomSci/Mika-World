@@ -828,6 +828,11 @@ func _loop() -> void:
 		for k in viewer_request.keys():
 			if now_s - float(viewer_request[k].t) > VIEWER_REQUEST_S:
 				viewer_request.erase(k)
+		# the choice can take a moment (the curiosity consult is an LLM call): if the show or the other mage asked for her
+		# meanwhile, she starts nothing (2026-10-18 live: the show asked for a dance during the consult, she said yes, the
+		# music started - and her planner went on to lead Luna off to spar at the training grounds mid-song)
+		if hold or not enabled:
+			continue
 		last_decision = {"key": choice.key, "kind": choice.kind, "label": choice.label, "utility": choice.utility, "why": choice.why,
 			"alternatives": scored.slice(1, 4).map(func(x): return [x.label, x.utility])}
 		decided.emit(last_decision)
@@ -1943,6 +1948,8 @@ func _use(id: String) -> Dictionary:
 
 
 func _walk(target: Vector3, ignore_threat := false) -> bool:
+	if _interrupt.begins_with("the show") and not ignore_threat:
+		return false                 # the show asked for her: no new errand steps (each one used to start and stop at once)
 	for attempt in 2:
 		# she always walks (2026-10-17 live: trips over 45 m ran at 4.1 m/s - the altar to Starfall Hill is 44-50 m,
 		# so every crossing of the sanctuary looked like a dash). A run belongs to a fight, never to an errand.
@@ -1952,7 +1959,7 @@ func _walk(target: Vector3, ignore_threat := false) -> bool:
 				return true
 			continue
 		while me.current_action == "navigate_to" and not _cancel:
-			if (_interrupt in ["threat", "social", "transform"] or (_interrupt == "discovery" and String(current.get("kind", "")) in ["roam", "wander", "explore", "visit", "gather"])) and not ignore_threat:
+			if (_interrupt in ["threat", "social", "transform"] or _interrupt.begins_with("the show") or (_interrupt == "discovery" and String(current.get("kind", "")) in ["roam", "wander", "explore", "visit", "gather"])) and not ignore_threat:
 				me.stop_action()
 				return false
 			await get_tree().process_frame

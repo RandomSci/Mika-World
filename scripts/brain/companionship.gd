@@ -250,6 +250,11 @@ static func _temper_kind(kind: String) -> String:
 func invite(a: SanctuaryBrain, other: String, kind: String, target: Dictionary) -> Dictionary:
 	if busy() or (main.mage_talk and main.mage_talk.busy()):
 		return {"ok": false, "detail": "already doing something together"}
+	# never while either of them is dancing (or the show is holding her for one)
+	if main.performance and main.performance.busy() and String(main.performance.active.get("who", "")) in [a.agent_id, other]:
+		return {"ok": false, "detail": "a dance is on"}
+	if a.hold or (main.mage_brains.get(other) != null and main.mage_brains[other].hold):
+		return {"ok": false, "detail": "%s is held for something else" % MagicSystem.display_name(other)}
 	var b: SanctuaryBrain = main.mage_brains.get(other)
 	var bc: WorldCharacter = main.characters.get(other)
 	if b == null or bc == null or not bc.visible:
