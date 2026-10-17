@@ -88,7 +88,7 @@ func receive(msg: Dictionary) -> Dictionary:
 	return {"accepted": true, "score": entry.score, "dance": dance}
 
 
-## A request to dance, in the words viewers used on the Three.js stream ("go dancing", "can you dance", "let's
+## A request to dance, in the words viewers use on stream ("go dancing", "can you dance", "let's
 ## dance", "Mika, do the macarena", "you two dance!", "stop dancing"). Returns {} when it is not one, else
 ## {who, with?, together?, dance?} or {stop: true}. Talking ABOUT dancing ("I don't dance", "what dance was
 ## that?") is not a request.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch Mika World 2.0 (DEV). Independent of the production Three.js stream.
+# Launch Mika World 2.0 (DEV) on its own, outside the live stream.
 #   ./run.sh                  STREAM (default): Adaptive 30 - a stable 30 FPS (OBS output rate), quality managed
 #   ./run.sh adaptive         ADAPTIVE 60: 60 FPS held by measured quality steps, Forward+ (Vulkan)
 #   ./run.sh cinematic        CINEMATIC, fixed full quality (heavy scenes fall below 60)

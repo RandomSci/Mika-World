@@ -4359,7 +4359,7 @@ func _braziers() -> void:
 		_check(i > 0, "%s: %d braziers photographed" % [area, i])
 
 
-# ------------------------------------------------------------------ dancing (ported from the Three.js dance wing)
+# ------------------------------------------------------------------ dancing (the dance wing)
 ## --mktest=dance [--no-voice]: a viewer asks both mages to dance the Macarena; they dance it together, on the song's
 ## beat, and stop cleanly. The chat parser knows a request from talk about dancing. Poses of both mages during the
 ## dance are written (<dir>/<who>_dance_poses.json) for the outfit clip check.
