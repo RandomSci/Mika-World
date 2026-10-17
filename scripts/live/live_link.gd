@@ -1,8 +1,7 @@
 class_name LiveLink
 extends Node
 ## The Godot world as Mika-Live's Stage (--live-link[=ws://127.0.0.1:12393/client-ws]). It speaks the same room
-## protocol the Three.js world page spoke (Mika-Live frontend/vr-agent/teaching-dev-room.js + world/lifestyle-
-## executor.js), so the server's brain - YouTube chat, the conversational LLM, Kokoro speech, viewer intents, the
+## protocol Mika-Live's lifestyle runner speaks to its Stage (lifestyle actions, speech, state reports), so the server's brain - YouTube chat, the conversational LLM, Kokoro speech, viewer intents, the
 ## showrunner's goals and dance sessions, pre-live and the broadcast lifecycle - drives Mika and Luna here instead:
 ##   in : audio (her speech: base64 WAV + caption) -> spoken by her, mouth and body following; backend-synth-complete;
 ##        control interrupt; youtube-live-selected-message (the chat card); lifestyle-action (an activity) ->
@@ -313,7 +312,7 @@ func _maybe_playback_complete() -> void:
 		_send({"type": "frontend-playback-complete"})
 
 
-## The viewer comment she is answering, as a card on screen (what the Three.js page showed): @author, the message,
+## The viewer comment she is answering, as a card on screen (the comment card): @author, the message,
 ## a Super Chat amount, "to Mika & Luna". Hidden again when the server says the answer is over.
 var _card: PanelContainer
 var _card_id := ""
@@ -520,7 +519,7 @@ func _snapshot() -> Dictionary:
 
 
 ## Level, title, rank and the spells each mage can cast now: the one truth about her magic for every spoken
-## line (Mika-Live's own Three.js lesson ladder is not used with this world). Refreshed every ~25 s.
+## line (Mika-Live's own lesson ladder is not used with this world). Refreshed every ~25 s.
 func _mage_progress() -> Dictionary:
 	if Time.get_ticks_msec() - _progress_at < 25000 and not _progress.is_empty():
 		return _progress

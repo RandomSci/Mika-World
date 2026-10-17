@@ -6,7 +6,7 @@ extends Node
 ##        --bridge-port=47651 --no-bridge --mock-commands=res://tests/mock_commands.json
 ##
 ## CINEMATIC       : best quality this Intel iGPU handles interactively.
-## LIVE_OPTIMIZED  : attractive but light; meant to run beside OBS + the live Three.js stream.
+## LIVE_OPTIMIZED  : attractive but light; meant to run beside OBS on the stream machine.
 ## ULTRA           : CINEMATIC plus SDFGI / higher shadow + volumetric quality for stronger GPUs.
 
 signal profile_changed(profile: String)

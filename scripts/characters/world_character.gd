@@ -40,7 +40,7 @@ const CLIPS := {
 	"dance_snake": ["snake_hip_hop_dance.fbx", true, true],
 	"dance_booty": ["booty_hip_hop_dance.fbx", true, true],
 	"dance_belly": ["belly_dance.fbx", true, true],
-	# the dance wing's party routines from the Three.js world (the owner's Mixamo FBX, Mika-Live mixamo-source/dance)
+	# the dance wing's party routines (the owner's Mixamo FBX, Mika-Live assets/animations/mixamo-source/dance)
 	"dance_macarena": ["macarena_dance.fbx", true, true],
 	"dance_chicken": ["chicken_dance.fbx", true, true],
 	"dance_ymca": ["ymca_dance.fbx", true, true],

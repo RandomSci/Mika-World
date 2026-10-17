@@ -4,7 +4,7 @@ The real Mika (her VroidStudio VRM, MToon shading, expressions, spring bones) li
 13 areas and 24 playable locations**. Only the area she is in is loaded; neighbouring areas preload on worker threads as
 she approaches a route, and travel is a short masked transition. She walks, runs, casts the Arcane Orb, draws a magical
 great-sword, does real activities that change world state, and can be driven by an external AI over an isolated
-localhost bridge. Fully separate from the production Three.js stream, OBS, YouTube and production services.
+localhost bridge. On stream it runs inside Mika-Live as its Stage (see the live link); a DEV run is separate from OBS, YouTube and production services.
 
 ![village observatory](screenshots/world/live_optimized_village_observatory_view1.jpg)
 
