@@ -250,7 +250,9 @@ func options() -> Array:
 	# rest
 	var rest_labels := {"garden_meditate": "meditate on the Still Stone", "watchpoint_rest": "rest on the watchpoint bench", "pond_reflect": "watch the pond"}
 	for seat in rest_labels:
-		out.append({"kind": "rest", "key": "rest:" + seat, "interactable": seat, "label": rest_labels[seat]})
+		# only where the seat really is (2026-10-18 live: the show's "quiet outside" failed twice, "no garden_meditate here")
+		if main.world and main.world.interactables.has(seat):
+			out.append({"kind": "rest", "key": "rest:" + seat, "interactable": seat, "label": rest_labels[seat]})
 	# alchemy
 	if main.world is Sanctuary and main.world.alchemy and main.world.alchemy.bowl_state == "empty":
 		var knows: bool = mind.knowledge.has("recipe:luminous_draught")
