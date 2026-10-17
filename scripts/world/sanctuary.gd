@@ -40,6 +40,7 @@ var terrain: SanctuaryTerrain
 var areas := []                # [{id, center(Vector3), radius}]
 var fire_lights: Array[OmniLight3D] = []
 var _night_nodes: Array[Node3D] = []
+var _fire_mul := -1.0             # set by the clock's dusk / dawn blend (night_blend)
 var altar_crystal: Node3D
 var _scene_cache := {}
 var _shape_cache := {}
@@ -222,6 +223,17 @@ func set_night(v: bool) -> void:
 	RenderProfile.apply_to_environment(env)
 	if env.volumetric_fog_enabled and not night:
 		env.volumetric_fog_density = 0.0012  # daytime: just enough for sun shafts, no milky wash
+
+
+## The clock's dusk and dawn (DayNightCycle): the fires burn brighter into the night, the expansion's light shafts
+## fade with the day.
+func night_blend(k: float) -> void:
+	_fire_mul = 1.0 + 0.7 * k
+	for l in fire_lights:
+		l.light_energy = float(l.get_meta("base_energy")) * _fire_mul
+	if expansion and expansion.get("shafts") != null:
+		for m in expansion.shafts:
+			(m as ShaderMaterial).set_shader_parameter("day", 1.0 - k)
 
 
 # ------------------------------------------------------------------ terrain
@@ -835,7 +847,7 @@ func _process(_delta: float) -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	for i in fire_lights.size():
 		var l := fire_lights[i]
-		var base: float = l.get_meta("base_energy") * (1.7 if night else 1.0)
+		var base: float = l.get_meta("base_energy") * (_fire_mul if _fire_mul > 0.0 else (1.7 if night else 1.0))
 		l.light_energy = base * (0.86 + 0.1 * sin(t * 11.0 + i * 1.7) + 0.06 * sin(t * 23.0 + i))
 	if expansion:
 		expansion.process(t)
@@ -875,6 +887,11 @@ func _build_world_links() -> void:
 
 	# East: the trail past the training stones to the Mentor's Tower.
 	add_gate("mentor_tower", Vector3(45.0, h.call(45.0, 18.8), 18.8), Vector3(39.0, h.call(39.0, 16.2) + 0.05, 16.2), atan2(13.0, 12.0), 2.4)
+	# South-west past Starfall Hill: the path down to Lantern Lake (Day 2), a lantern-topped post marks it
+	add_gate("lantern_lake", Vector3(-35.0, h.call(-35.0, 40.0), 40.0), Vector3(-33.0, h.call(-33.0, 35.0) + 0.05, 35.0), atan2(-2.0, 5.0), 2.2)
+	Kit.block(self, Vector3(0.16, 1.9, 0.16), Kit.xf(Vector3(-36.6, h.call(-36.6, 38.6) + 0.95, 38.6)), Kit.uvmat("dark_wooden_planks"), true, 0.02)
+	var lp := Kit.omni(self, Vector3(-36.6, h.call(-36.6, 38.6) + 2.05, 38.6), Color(1.0, 0.62, 0.3), 0.9, 6.0)
+	night_only(lp)
 	Kit.block(self, Vector3(0.18, 1.7, 0.18), Kit.xf(Vector3(41.0, h.call(41.0, 15.2) + 0.85, 15.2)), Kit.uvmat("dark_wooden_planks"), true, 0.02)
 	Kit.block(self, Vector3(1.1, 0.28, 0.06), Kit.xf(Vector3(41.0, h.call(41.0, 15.2) + 1.45, 15.2), 0.4), Kit.uvmat("dark_wooden_planks"), false, 0.01)
 
@@ -909,11 +926,10 @@ func _build_world_links() -> void:
 	tome.kind = "study"
 	tome.book_id = "liber_orbis"
 	tome.effects = {"skills": {"arcane_orb": 0.05}}
-	var altar_top := DAIS_TOP + 0.44 + 0.74 + 0.19
-	tome.book_xf = Transform3D(Basis.IDENTITY, Vector3(0, altar_top + 0.03, -2.45))
-	tome.book_props = altar_books
-	tome.stand_point = Vector3(0, DAIS_TOP, -1.45)
-	tome.face_point = Vector3(0, altar_top, -2.45)
+	# The altar top (1.37 m above the dais) is at her eye level: the spellbook is read from a lectern
+	# beside it instead, sized for her (surface 1.02 m, tilted toward her). The altar books stay as decor.
+	tome.book_props = []
+	ReadingLectern.install(self, tome, Vector3(1.45, DAIS_TOP, -2.2), -0.52, "wood")
 	add_interactable(Interactable.make("ritual_circle_attune", "Attune to the ritual circle", "meditate", "ritual_sanctuary",
 		Vector3(0, DAIS_TOP, 0.5), {"skills": {"arcane_orb": 0.15}, "knowledge": {"attuned:ritual_circle": 1}}, "spell_casting", 4.2)).radius = 2.6
 	interactables.ritual_circle_attune.kind = "practice"

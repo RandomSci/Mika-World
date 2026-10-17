@@ -288,6 +288,7 @@ func check_level(who: String, silent := false) -> int:
 		m.progress.level = next
 		gained += 1
 		if not silent:
+			m.progress["leveled_unix"] = Time.get_unix_time_from_system()     # (the show mentions a new level for a while)
 			leveled.emit(who, next)
 		var form: Dictionary = mages.get(who, {}).get("forms", {}).get(str(next), {})
 		if not form.is_empty() and not (m.progress.forms_unlocked as Array).has(form.id):

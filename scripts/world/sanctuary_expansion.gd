@@ -84,25 +84,13 @@ func build_ritual_and_gate() -> void:
 	var top := Sanctuary.DAIS_TOP
 	# Scroll lectern on the west side of the dais
 	var lp := Vector3(-3.3, top, -0.9)
-	blk(Vector3(0.22, 1.0, 0.22), lp + Vector3(0, 0.5, 0), 0.0, wood, true)
-	blk(Vector3(0.62, 0.05, 0.46), lp + Vector3(0, 1.05, 0), PI * 0.5, wood, false, Vector3(0.0, 0.0, -0.35))
-	blk(Vector3(0.5, 0.06, 0.5), lp + Vector3(0, 0.03, 0), 0.0, wood, false)
-	var scroll := Kit.mesh_node(s, Kit.lathe([Vector2(0.035, -0.22), Vector2(0.035, 0.22)], 12, true, true),
-		Kit.emissive(Color(0.86, 0.78, 0.6), 0.0), Transform3D(Basis(Vector3.FORWARD, PI * 0.5).rotated(Vector3.UP, 0.1), lp + Vector3(0.02, 1.12, 0)))
-	scroll.add_to_group("cat_expansion")
-	var paper := Kit.mesh_node(s, Kit.box_mesh(Vector3(0.36, 0.006, 0.42), 0.0), Kit.emissive(Color(0.88, 0.8, 0.62), 0.05),
-		Transform3D(Basis(Vector3.UP, PI * 0.5) * Basis.from_euler(Vector3(0, 0, -0.35)), lp + Vector3(0.0, 1.09, 0)), false)
-	paper.add_to_group("cat_expansion")
 	var it := Interactable.make("scroll_first_circle", "Read the Scroll of the First Circle", "study", "ritual_sanctuary",
 		lp, {"skills": {"arcane_orb": 0.05}}, "", 4.0)
 	it.kind = "study"
 	it.book_id = "scroll_first_circle"
-	it.book_xf = Transform3D(Basis(Vector3.UP, PI * 0.5) * Basis(Vector3.RIGHT, 0.35), lp + Vector3(0.02, 1.13, 0))
-	it.book_props = [scroll, paper]
 	it.radius = 1.3
-	it.stand_point = lp + Vector3(0.75, 0, 0.0)
-	it.face_point = lp + Vector3(0, 1.0, 0)
 	s.add_interactable(it)
+	ReadingLectern.install(s, it, lp, PI * 0.5, "wood")   # reader on the east side, facing west
 
 	# Mika's journal: a small writing desk + stool on the east side of the dais
 	var dp := Vector3(3.4, top, 1.3)
@@ -441,19 +429,12 @@ func build_chamber() -> void:
 	s.add_interactable(it)
 	# Stone reading ledge with the Keeper's Daybook (south-east corner of the chamber, reader faces south)
 	var lg := Vector3(c.x + 2.2, cy, c.y + 2.3)
-	blk(Vector3(0.75, 0.95, 0.55), lg + Vector3(0, 0.5, 0), 0.0, stone, true)
-	blk(Vector3(0.85, 0.1, 0.62), lg + Vector3(0, 1.0, 0), 0.0, slab, false, Vector3(-0.3, 0, 0))
-	var closed := Kit.mesh_node(s, Kit.prop("book_encyclopedia_set_01", "book_encyclopedia_set_01_book05"), null,
-		Transform3D(Basis(Vector3.RIGHT, -0.3) * Basis(Vector3.FORWARD, PI * 0.5).scaled(Vector3.ONE * 1.3), lg + Vector3(-0.05, 1.07, 0.0)), false)
 	it = Interactable.make("keepers_daybook", "Read the Keeper's Daybook", "study", "ritual_sanctuary", lg + Vector3(0, 1.0, 0), {}, "", 4.0)
 	it.kind = "study"
 	it.book_id = "keepers_daybook"
 	it.radius = 1.4
-	it.book_xf = Transform3D(Basis(Vector3.UP, PI) * Basis(Vector3.RIGHT, 0.3), lg + Vector3(0, 1.07, -0.02))
-	it.book_props = [closed]
-	it.stand_point = lg + Vector3(0, 0, -0.85)
-	it.face_point = lg + Vector3(0, 1.0, 0)
 	s.add_interactable(it)
+	ReadingLectern.install(s, it, lg + Vector3(0, 0.09, 0), PI, "stone")   # on the floor slab; reader on the north side, facing south
 	# Fallen roof stones inside, rubble outside, a sun shaft through the open roof, drifting dust
 	blk(Vector3(1.0, 0.5, 0.7), Vector3(c.x + 2.2, cy + 0.32, c.y - 2.6), 0.7, stone, true, Vector3(0.2, 0, 0.15))
 	blk(Vector3(0.7, 0.4, 0.6), Vector3(c.x + 2.9, cy + 0.26, c.y + 2.8), 1.9, stone, true, Vector3(0, 0, 0.3))

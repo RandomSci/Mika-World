@@ -174,6 +174,8 @@ static func clear_collision_cache() -> void:
 
 
 func bake_navigation() -> void:
+	if nav_region and is_instance_valid(nav_region):
+		nav_region.queue_free()               # (a re-bake replaces the region; two overlapping ones confuse paths)
 	nav_region = NavigationRegion3D.new()
 	nav_region.name = "Navigation"
 	var nm := NavigationMesh.new()

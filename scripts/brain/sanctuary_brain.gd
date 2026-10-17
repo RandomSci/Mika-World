@@ -79,6 +79,13 @@ func setup(m: Node, who := "mika") -> void:
 	Progression.load_data()
 	profile = Progression.mages.get(who, {})
 	rng.seed = 2026 + hash(who) % 1000
+	if not RenderProfile.options.has("fixed-seed"):
+		rng.randomize()               # (Day 2: a fixed seed replayed the same day after every restart)
+	# her recent activities survive a restart (Day 2: the memory used to start empty every launch)
+	for k in mind.knowledge.get("recent_kinds", []):
+		_recent_kinds.append(String(k))
+	for k in mind.knowledge.get("recent_targets", []):
+		_recent_targets.append(String(k))
 	explore_map = ExplorationMap.new(main, me, mind, profile.get("explore_taste", {}))
 	if main.progression:
 		main.progression.leveled.connect(func(w, _l): if w == agent_id: _celebrate_until = Time.get_unix_time_from_system() + 900.0)
@@ -160,8 +167,11 @@ func options() -> Array:
 		var loc := _book_location(bid)
 		if loc.is_empty():
 			continue
-		# only books she has actually seen (or already started) - no knowledge of what she never noticed
-		if not mind.knowledge.has("noticed:" + String(loc.interactable)) and BookLibrary.pages_read(bid, agent_id).is_empty():
+		# only books she has actually seen (or already started) - no knowledge of what she never noticed - or one a
+		# story lead sends her to find (Day 2: the daybook says the sign "can only be woken": she goes to the library
+		# to find out how; without this the story stalled before Level 10, the library book never noticed)
+		var lead_book: bool = main.story.next_leads().any(func(l): return String(l.get("book", "")) == bid)
+		if not lead_book and not mind.knowledge.has("noticed:" + String(loc.interactable)) and BookLibrary.pages_read(bid, agent_id).is_empty():
 			continue
 		if not is_foreground() and loc.area != here:
 			continue          # only the followed mage may cause an area change
@@ -299,6 +309,18 @@ func options() -> Array:
 				continue
 			out.append({"kind": "expedition", "key": "expedition:" + eid, "area": String(e.area), "purpose": String(e.purpose),
 				"curiosity": float(e.get("curiosity", 0.25)), "label": "set out for the %s (%s)" % [String(e.area).replace("_", " "), String(e.purpose)]})
+	# at the lake at night: sit at the end of the pier and watch the lanterns (once a night)
+	if here == "lantern_lake" and main.world and main.world.has_method("sit_spots") and int(mind.knowledge.get("lake_night", -1)) != night_id():
+		out.append({"kind": "lakewatch", "key": "lakewatch", "area": "lantern_lake", "label": "sit at the end of the pier and watch the lanterns"})
+	# a walk to another part of the home region (Day 2): the library, the woods' trails and clearings, the tower -
+	# and home to the sanctuary again (always at dusk). Only the followed mage changes area; the other comes along.
+	if is_foreground() and main.travel and not main.travel.active() and threat == null:
+		for loc in HOME_VISITS:
+			var va: String = WorldState.area_of(loc)
+			if va == here or WorldState.route(here, va).size() < 2:
+				continue
+			out.append({"kind": "visit", "key": "visit:" + va, "area": va, "location": loc,
+				"label": String(HOME_VISITS[loc])})
 	# getting ready for an unfinished fight: drill her family's ward (a real cast each time; mastery grows)
 	if not unfinished().is_empty() and mind.vigor > 0.5:
 		for wid in MagicSystem.load_catalog().spells:
@@ -371,16 +393,31 @@ func options() -> Array:
 				out.append({"kind": "together", "key": "together:spar:" + other_id, "other": other_id, "sub": "train_together",
 					"target": {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}}, "label": "ask %s to spar at the training grounds" % MagicSystem.display_name(other_id)})
 			var area_info: Dictionary = WorldState.areas.get(main.streaming.current_id, {})
-			if WorldState.night and (float(needs.energy) > 0.25 or _night_home()) and area_info.has("stargaze_spot"):
-				var sp: Array = area_info.stargaze_spot
-				out.append({"kind": "together", "key": "together:stargaze:" + other_id, "other": other_id, "sub": "stargaze_together",
-					"target": {"pos": Vector3(sp[0], 0, sp[1]), "fill": {"place": String(area_info.get("stargaze_place", "the grass"))}},
-					"label": "ask %s to lie in the grass and watch the stars" % MagicSystem.display_name(other_id)})
+			# stargazing (Day 2): any open grassy spot under the sky, not only the registry's one spot - with a saved
+			# cooldown so it stays special (STARGAZE_GAP_S between two)
+			var sg_last := float(mind.activity_counts.get("together:stargaze:" + other_id, {}).get("last_unix", 0))
+			var sg_ok := Time.get_unix_time_from_system() - sg_last >= STARGAZE_GAP_S
+			if sg_ok and WorldState.night and (float(needs.energy) > 0.25 or _night_home()):
+				var sg_pos := Vector3.INF
+				var sg_place := "the grass"
+				if area_info.has("stargaze_spot") and (rng.randf() < 0.5 or _night_home()):
+					var sp: Array = area_info.stargaze_spot
+					sg_pos = Vector3(sp[0], 0, sp[1])
+					sg_place = String(area_info.get("stargaze_place", "the grass"))
+				else:
+					sg_pos = _grass_stargaze_spot()
+					sg_place = "an open patch of grass"
+				if sg_pos != Vector3.INF:
+					out.append({"kind": "together", "key": "together:stargaze:" + other_id, "other": other_id, "sub": "stargaze_together",
+						"target": {"pos": sg_pos, "fill": {"place": sg_place}},
+						"label": "ask %s to lie in the grass and watch the stars" % MagicSystem.display_name(other_id)})
 			if (mind.vigor < 0.7 or float(needs.energy) < 0.55) and main.world and main.world.interactables.has("watchpoint_rest"):
 				out.append({"kind": "together", "key": "together:rest:" + other_id, "other": other_id, "sub": "rest_together",
 					"target": {"pos": main.world.interactables.watchpoint_rest.global_position, "fill": {}}, "label": "ask %s to rest together at the watchpoint" % MagicSystem.display_name(other_id)})
-	# journal
-	if not Journal.compose(mind).is_empty():
+	# journal: after a real stretch of things done, and never again within JOURNAL_GAP_S (Day 2: it was every ~2 min)
+	var last_j := float(mind.activity_counts.get("journal", {}).get("last_unix", 0))
+	var unwritten_j := mind.activity_seq - int(mind.knowledge.get("journal_cursor", 0))
+	if unwritten_j >= 6 and Time.get_unix_time_from_system() - last_j >= JOURNAL_GAP_S and not Journal.compose(mind).is_empty():
 		out.append({"kind": "journal", "key": "journal", "label": "write in my journal"})
 	# Starfall Hill at night: its spots to wander to (the old tree, the glowing flowers, the view, the roots)
 	if _night_home():
@@ -392,16 +429,35 @@ func options() -> Array:
 			if (s3.pos as Vector3).distance_to(me.global_position) > 2.0:
 				out.append({"kind": "roam", "key": "starfall:" + sid, "pos": s3.pos, "cand": {"describe": String(s3.label), "pos": s3.pos, "score": 0.5, "novelty": 0.3, "off_path": false, "features": {"props": 2, "relief": 0.2, "water": false}},
 					"label": "wander over to %s" % String(s3.label)})
-	# Levels 1-9 live at home: by day in the sanctuary, at night on Starfall Hill - no expeditions, nothing that
-	# would take her to another area (the developer: "by day they stay in the sanctuary")
+	# Levels 1-9 live in their HOME REGION (Day 2, the developer: "living home region, forests, trails, clearings and
+	# the library reachable at levels 1 to 9"): by day the sanctuary, the Ancient Spell Library, the Whispering Woods'
+	# trails and clearings, the Mentor's Tower; at night home to Starfall Hill. No expeditions beyond it.
 	if mind.level() <= 9:
-		out = out.filter(func(o): return o.kind != "expedition" and String(o.get("area", "sanctuary")) in ["sanctuary", ""])
+		var home: Array = home_areas()
+		var night_now := _night_home() or (WorldState.daylight() < 0.2 and mind.level() <= 9)
+		out = out.filter(func(o):
+			var a := String(o.get("area", ""))
+			if o.kind == "expedition":
+				return false
+			if a == "" or a == main.streaming.current_id:
+				return true
+			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake"]))
 	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
-	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together"])
+	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch"])
 
 
 const MEET_COOLDOWN_S := 420.0
+const JOURNAL_GAP_S := 900.0
+const STARGAZE_GAP_S := 1800.0
+const RECENT_KINDS := 12
+## The same activity (same option key) again within this many seconds costs utility (fading to nothing); saved via
+## mind.activity_counts, so a restart does not reset it.
+const KIND_COOLDOWN_S := {"journal": 900.0, "attune": 1200.0, "explore": 480.0, "roam": 120.0, "alchemy": 600.0, "rest": 480.0,
+	"perform": 900.0, "magic": 300.0, "visit": 600.0, "together": 600.0, "meet": 420.0, "chat": 600.0, "gather": 240.0}
+## Kinds that pull harder the longer she has not done them (up to this bonus after ~40 min).
+const RARE_PULL := {"research": 0.22, "investigate": 0.25, "gather": 0.22, "hunt": 0.18, "chat": 0.22, "lesson": 0.2,
+	"ascend": 0.2, "drill": 0.15, "visit": 0.24, "together": 0.18, "perform": 0.12, "alchemy": 0.1, "converse": 0.12}
 const TOGETHER_COOLDOWN_S := 600.0
 
 
@@ -490,6 +546,34 @@ func score(o: Dictionary) -> Dictionary:
 		"chat":
 			u = 0.28 + needs.social * 0.5 + (0.12 if o.first else 0.0) - (1.0 - needs.energy) * 0.15
 			why.append("someone she %s" % ("has not met yet" if o.first else "likes talking to"))
+		"lakewatch":
+			u = 1.25
+			why.append("the lanterns are why she came")
+		"visit":
+			var last_v := float(mind.knowledge.get("visited_unix:" + String(o.area), 0.0))
+			var age_v := clampf((Time.get_unix_time_from_system() - last_v) / 1800.0, 0.0, 1.0) if last_v > 0.0 else 1.0
+			var here_since := float(mind.knowledge.get("arrived_unix", Time.get_unix_time_from_system()))
+			var stayed_min := (Time.get_unix_time_from_system() - here_since) / 60.0
+			if String(o.area) == "lantern_lake":
+				# their second night spot (next to Starfall Hill): some nights, never by day, once a night
+				if not WorldState.night or int(mind.knowledge.get("lake_night", -1)) == night_id():
+					u = -1.0
+				else:
+					u = 0.42 + needs.social * 0.25 + (0.35 if main.characters.size() > 1 else 0.0) * rng.randf()
+					why.append("a night for the lanterns")
+			elif String(o.area) == "sanctuary":
+				# home: after a good stretch away, when tired, and always as the day ends
+				u = 0.1 + clampf(stayed_min / 12.0, 0.0, 0.55) + (1.0 - needs.energy) * 0.35
+				if WorldState.hour_f() >= 17.5 or WorldState.daylight() < 0.35:
+					u += 0.9
+					why.append("the day is ending: home +0.90")
+			else:
+				u = 0.18 + needs.curiosity * 0.4 + 0.3 * age_v - (1.0 - needs.energy) * 0.3
+				u -= clampf(1.0 - stayed_min / 6.0, 0.0, 1.0) * 0.25        # just arrived somewhere: not straight off again
+				if WorldState.hour_f() >= 17.0 or WorldState.daylight() < 0.5:
+					u -= 0.6
+					why.append("too late to set off -0.60")
+				why.append("not been there for a while" if age_v > 0.7 else "been there lately")
 		"expedition":
 			# a journey of days: wanted when the clue pulls, never when tired or hurt, less at nightfall
 			u = 0.3 + needs.curiosity * 0.4 + float(o.get("curiosity", 0.25)) - (1.0 - needs.energy) * 0.5 - (1.0 - mind.vigor) * 0.6
@@ -612,6 +696,25 @@ func score(o: Dictionary) -> Dictionary:
 	if temper != 1.0 and u > 0.0:
 		u *= temper
 		why.append("temperament x%.2f" % temper)
+	# --- variety (Day 2): saved per-activity cooldowns, a longer memory of kinds, and a pull toward what she has
+	# not done for a long while (activities that had never been chosen on Day 1)
+	var now_v := Time.get_unix_time_from_system()
+	var cd := float(KIND_COOLDOWN_S.get(o.kind, 0.0))
+	var last_k := float(mind.activity_counts.get(o.key, {}).get("last_unix", 0))
+	if cd > 0.0 and last_k > 0.0 and now_v - last_k < cd:
+		var pen := 0.6 * (1.0 - (now_v - last_k) / cd)
+		u -= pen
+		why.append("did this %d min ago -%.2f" % [int((now_v - last_k) / 60.0), pen])
+	var long_reps := _recent_kinds.count(o.kind)
+	if long_reps >= 3 and not (o.kind in ["hunt", "collect", "recover"]):
+		u -= 0.06 * (long_reps - 2)
+		why.append("%d of the last %d were %s" % [long_reps, _recent_kinds.size(), o.kind])
+	if RARE_PULL.has(o.kind):
+		var last_kind := float(mind.activity_counts.get("kind:" + o.kind, {}).get("last_unix", 0))
+		var age_k := 1.0 if last_kind <= 0.0 else clampf((now_v - last_kind) / 2400.0, 0.0, 1.0)
+		if age_k > 0.3:
+			u += float(RARE_PULL[o.kind]) * age_k
+			why.append("not done in a while +%.2f" % (float(RARE_PULL[o.kind]) * age_k))
 	var kind_reps := _recent_kinds.slice(maxi(0, _recent_kinds.size() - 3)).count(o.kind)
 	if o.kind in ["hunt", "collect", "recover"]:
 		kind_reps = 0      # a fight is not "the same thing again" while creatures keep coming
@@ -710,10 +813,12 @@ func _loop() -> void:
 		WorldState.note_activity("kind:" + choice.kind, agent_id)
 		_recent_kinds.append(choice.kind)
 		_recent_targets.append(choice.key)
-		if _recent_kinds.size() > 6:
+		if _recent_kinds.size() > RECENT_KINDS:
 			_recent_kinds.pop_front()
-		if _recent_targets.size() > 5:
+		if _recent_targets.size() > 8:
 			_recent_targets.pop_front()
+		mind.knowledge["recent_kinds"] = _recent_kinds.duplicate()        # saved with her mind
+		mind.knowledge["recent_targets"] = _recent_targets.duplicate()
 		for k in _failures.keys():
 			_failures[k] -= 1
 			if _failures[k] <= 0:
@@ -747,6 +852,8 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"lesson": return await _use(String(o.interactable))
 		"drill": return await _drill(o)
 		"expedition": return await _expedition(o)
+		"visit": return await _visit(o)
+		"lakewatch": return await _lakewatch(o)
 		"chat": return await _chat(o)
 		"shelter": return await _shelter(o)
 		"ascend": return await _ascend(o)
@@ -782,8 +889,8 @@ func _research(o: Dictionary) -> Dictionary:
 	if learned.any(func(k): return String(k).begins_with("incantation:")):
 		needs.mastery = clampf(needs.mastery + 0.25, 0.0, 1.0)   # a new incantation makes her want to try it
 		_maybe_say(["I want to try that incantation for real.", "Reading it is one thing. Now I should practise it."], 0.6)
-	if o.area == "arcane_library":
-		await _travel("ritual_sanctuary")
+	# (Day 2: she stays a while in the library - more to read, a look round - and walks home with the day's end or
+	# when she has had enough; the "visit" option home takes her back)
 	return r
 
 
@@ -998,6 +1105,8 @@ func _journal() -> Dictionary:
 		return {"ok": false, "detail": "the journal is in the sanctuary"}
 	if it:
 		await _walk(_stand_at(it))
+		if not is_instance_valid(it):
+			return {"ok": false, "detail": "the journal is in the sanctuary"}      # (a journey unloaded it mid-walk)
 	var entry := Journal.compose(mind)
 	if entry.is_empty():
 		return {"ok": false, "detail": "nothing new to write"}
@@ -1720,11 +1829,20 @@ func _use(id: String) -> Dictionary:
 	var it: Interactable = main.world.interactables.get(id)
 	if it == null:
 		return {"ok": false, "detail": "no '%s' in %s" % [id, main.streaming.current_id]}
+	var label := it.label
+	var area := String(main.streaming.current_id)
 	if not await _walk(_stand_at(it)):
-		return {"ok": false, "detail": "could not reach %s" % it.label}
+		return {"ok": false, "detail": "could not reach %s" % label}
+	# the walk can outlive the place: a journey unloads the area and frees its interactables while she walks (after a
+	# permanent transformation she resumes her interrupted activity; touching the freed one crashed Godot at the
+	# journey's last "arrived" - 6 of 11 runs, GDScript backtrace _use -> it.in_reach, 2026-10-16/17)
+	if not is_instance_valid(it) or String(main.streaming.current_id) != area:
+		return {"ok": false, "detail": "%s is no longer here" % label}
 	if not it.in_reach(me.global_position):
 		# the walk tolerance is looser than the interaction reach: close the last metre
 		await _walk(_stand_at(it))
+		if not is_instance_valid(it) or String(main.streaming.current_id) != area:
+			return {"ok": false, "detail": "%s is no longer here" % label}
 	return await it.perform(me)
 
 
@@ -1784,7 +1902,209 @@ func _stand_for_cast(spell_id: String, target_id: String) -> bool:
 	return false
 
 
+## Grass, per area: 2 m cells -> blade-clump count, from the area's grass MultiMeshes (built once per area).
+static var _grass_cache := {}
+
+
+static func _is_grass(n: Node, root: Node) -> bool:
+	var x := n
+	while x and x != root:
+		if x.is_in_group("cat_grass") or String(x.name).to_lower().contains("grass"):
+			return true
+		x = x.get_parent()
+	return false
+
+
+func _grass_cells() -> Dictionary:
+	var w: Node = main.world
+	var key := w.get_instance_id()
+	if _grass_cache.has(key):
+		return _grass_cache[key]
+	var cells := {}
+	for mmi in w.find_children("*", "MultiMeshInstance3D", true, false):
+		if not _is_grass(mmi, w) or (mmi as MultiMeshInstance3D).multimesh == null:
+			continue
+		var mm: MultiMesh = (mmi as MultiMeshInstance3D).multimesh
+		var xf: Transform3D = (mmi as Node3D).global_transform
+		var step := maxi(1, mm.instance_count / 3000)
+		for i in range(0, mm.instance_count, step):
+			var p: Vector3 = xf * mm.get_instance_transform(i).origin
+			var c := Vector2i(floori(p.x / 2.0), floori(p.z / 2.0))
+			cells[c] = int(cells.get(c, 0)) + step
+	_grass_cache = {key: cells}
+	return cells
+
+
+## An open grassy spot 6-30 m away: thick grass, open sky straight above (no canopy), on the navmesh. INF if none.
+func _grass_stargaze_spot() -> Vector3:
+	var cells := _grass_cells()
+	if cells.is_empty():
+		return Vector3.INF
+	var here := me.global_position
+	var cands := []
+	for c in cells:
+		if int(cells[c]) < 6:
+			continue
+		var p := Vector3(c.x * 2.0 + 1.0, here.y, c.y * 2.0 + 1.0)
+		var d := Vector2(p.x - here.x, p.z - here.z).length()
+		if d < 6.0 or d > 30.0:
+			continue
+		cands.append([int(cells[c]) + rng.randi_range(0, 6), p])
+	cands.sort_custom(func(a, b): return a[0] > b[0])
+	var map := me.get_world_3d().navigation_map
+	var space := me.get_world_3d().direct_space_state
+	for cd in cands.slice(0, 24):
+		var p: Vector3 = NavigationServer3D.map_get_closest_point(map, cd[1])
+		if p == Vector3.ZERO or Vector2(p.x - cd[1].x, p.z - cd[1].z).length() > 1.5:
+			continue
+		var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.6, 0), p + Vector3(0, 30.0, 0))
+		q.exclude = [me.get_rid()]
+		if space.intersect_ray(q).is_empty():
+			return p
+	return Vector3.INF
+
+
+## The home region's places to walk to (location id -> what she says she is doing).
+const HOME_VISITS := {"ancient_spell_library": "go down to the Ancient Spell Library", "whispering_woods": "walk the trails of the Whispering Woods",
+	"mentors_tower": "walk over to the Mentor's Tower", "ritual_sanctuary": "head back to the sanctuary",
+	"lantern_lake": "walk down to Lantern Lake to watch the lanterns"}
+const LAKE_LINES := {
+	"mika": ["Look at them all... it's like the sky came down to sit on the water.", "Make a wish, Luna. I'll make one too.",
+		"Every one of those is somebody's wish, I think.", "I could stay here until the last one is gone."],
+	"luna": ["...They drift so slowly. Like they're not in any hurry at all.", "Mine's already made. Don't ask what it is.",
+		"The lake holds all of them. Even the ones that fly away.", "Stay a little longer. Just a little."]}
+
+
+## The night a moment belongs to (the evening's date, also after midnight).
+static func night_id() -> int:
+	return WorldState.day() - (1 if WorldState.hour_f() < 12.0 else 0)
+
+
+static func home_areas() -> Array:
+	var out := []
+	for a in WorldState.areas:
+		if String(WorldState.areas[a].get("region", "")) == REGION:
+			out.append(a)
+	return out
+
+
+## Lantern Lake: both walk out to the end of the pier, sit on the planks facing the lake, watch the lanterns, say a
+## few quiet words and let one or two lanterns go; then they get up (and later walk home).
+func _lakewatch(_o: Dictionary) -> Dictionary:
+	var w: Node = main.world
+	var spots: Array = w.sit_spots()
+	var face: Vector3 = w.lake_facing()
+	var other: WorldCharacter = null
+	var ob: SanctuaryBrain = null
+	for wid in main.mage_brains:
+		if wid != agent_id:
+			var oc: WorldCharacter = main.characters.get(wid)
+			if oc and oc.visible and oc.global_position.distance_to(me.global_position) < 40.0:
+				other = oc
+				ob = main.mage_brains[wid]
+	if ob:
+		ob.hold = true
+		ob.interrupt("watching the lanterns together")
+		await get_tree().create_timer(0.4).timeout
+	current.stage = "walking out along the pier"
+	var ob_box := {}
+	if ob:
+		var ojob := func(): ob_box["ok"] = await ob._walk(spots[1])        # (her own walk, with its retries)
+		ojob.call()
+	if not await _walk(spots[0]):
+		if ob:
+			ob.hold = false
+		return {"ok": false, "detail": "could not get out onto the pier"}
+	var tw := Time.get_ticks_msec()
+	while ob and not ob_box.has("ok") and Time.get_ticks_msec() - tw < 90000:
+		await get_tree().process_frame
+	if other and other.global_position.distance_to(spots[1]) > 1.5:
+		other = null                                  # she could not get out there: Mika watches alone (no sitting on the bank)
+	current.stage = "sitting at the end of the pier"
+	var sitters: Array = [me] + ([other] if other else [])
+	for c in sitters:
+		(c as WorldCharacter).look_at_point(Vector3(face.x, (c as WorldCharacter).global_position.y, face.z))
+	await get_tree().create_timer(0.8).timeout
+	for c in sitters:
+		var wc: WorldCharacter = c
+		wc.play_gesture("sit_ground_enter", 0.25, 0.3)
+		wc.set_ground_pose("sit", wc.animation_length("sit_ground_enter") * 0.9)
+	await get_tree().create_timer(me.animation_length("sit_ground_enter") * 0.85).timeout
+	for c in sitters:
+		(c as WorldCharacter).play_gesture("sit_ground_loop", 0.3, 0.6)
+	var cam_on: bool = is_foreground() and main.get("director") != null and w.has_method("watch_shot")
+	if cam_on:
+		main.director.enabled = true
+		var tt := {"t": 0.0}
+		main.director.begin_scene(func(d: float) -> Dictionary:
+			tt.t += d
+			return w.watch_shot(float(tt.t)))
+	var oid := other.character_id if other else ""
+	var ml: Array = LAKE_LINES.get(agent_id, LAKE_LINES.mika)
+	var ol: Array = LAKE_LINES.get(oid, [])
+	var pick := rng.randi() % ml.size()
+	await get_tree().create_timer(4.0).timeout
+	if main.get("voice"):
+		await main.voice.say(_voice(), String(ml[pick]))
+	if w.has_method("release_lantern"):
+		w.release_lantern()                           # they let one go
+	await get_tree().create_timer(6.0).timeout
+	if other and not ol.is_empty() and main.get("voice"):
+		await main.voice.say(String(ob.profile.get("voice", oid)), String(ol[pick % ol.size()]))
+	await get_tree().create_timer(rng.randf_range(18.0, 30.0)).timeout
+	if w.has_method("release_lantern"):
+		w.release_lantern()
+	if main.get("voice"):
+		await main.voice.say(_voice(), String(ml[(pick + 1) % ml.size()]))
+	await get_tree().create_timer(rng.randf_range(20.0, 35.0)).timeout
+	current.stage = "getting up"
+	if cam_on:
+		main.director.end_scene()
+	for c in sitters:
+		var wc2: WorldCharacter = c
+		wc2.play_gesture("sit_ground_exit", 0.2, 0.4)
+		wc2.set_ground_pose("", wc2.animation_length("sit_ground_exit") * 0.9)
+	await get_tree().create_timer(me.animation_length("sit_ground_exit") + 0.6).timeout
+	var nid := night_id()
+	mind.knowledge["lake_night"] = nid
+	if other:
+		WorldState.mind(oid).knowledge["lake_night"] = nid
+	if ob:
+		ob.hold = false
+	needs.social = clampf(needs.social - 0.3, 0.0, 1.0)
+	needs.energy = clampf(needs.energy + 0.1, 0.0, 1.0)
+	return {"ok": true, "detail": "watched the lanterns at the end of the pier%s" % (" with " + MagicSystem.display_name(oid) if other else "")}
+
+
+func _visit(o: Dictionary) -> Dictionary:
+	current.stage = "walking to the %s" % String(o.area).replace("_", " ")
+	var j := await _travel(String(o.location))
+	if not j.get("ok", false):
+		return {"ok": false, "detail": "could not reach %s: %s" % [o.area, j.get("detail", j.get("reason", "?"))]}
+	mind.knowledge["visited_unix:" + String(o.area)] = Time.get_unix_time_from_system()
+	needs.curiosity = clampf(needs.curiosity - 0.1, 0.0, 1.0)
+	return {"ok": true, "detail": "arrived at %s" % o.area}
+
+
 func _travel(location: String) -> Dictionary:
+	# the other mage, here with her and free, walks along (Day 2: Luna had vanished whenever Mika changed area)
+	var dest_area := WorldState.area_of(location)
+	if is_foreground() and dest_area != main.streaming.current_id and main.has_method("bring_along"):
+		for w in main.mage_brains:
+			if w == agent_id:
+				continue
+			var oc: WorldCharacter = main.characters.get(w)
+			# (anywhere in this area: they are a pair - Day 2 soak: from Starfall Hill she was 40+ m off and stayed behind)
+			if oc and oc.visible and not oc.has_meta("transforming"):
+				# she finishes (or stops) what she is doing first: nothing of hers may be mid-way when the area unloads
+				if main.book_reader.reading() and String(main.book_reader.current.get("reader", "")) == w:
+					main.book_reader.stop()
+				var ob2: SanctuaryBrain = main.mage_brains[w]
+				ob2.interrupt("walking along with %s" % agent_id)
+				var tw2 := Time.get_ticks_msec()
+				while not ob2.current.is_empty() and Time.get_ticks_msec() - tw2 < 20000:
+					await get_tree().process_frame
+				main.bring_along(w, agent_id)
 	var r: Dictionary = main.travel.travel_to(location, "walk")
 	if not r.get("ok", false):
 		return {"ok": false, "detail": r.get("error", "?")}
@@ -1798,6 +2118,7 @@ func _travel(location: String) -> Dictionary:
 	if res[0] == null:
 		main.travel.cancel("brain timeout")
 		return {"ok": false, "detail": "timeout"}
+	mind.knowledge["arrived_unix"] = Time.get_unix_time_from_system()
 	return res[0]
 
 

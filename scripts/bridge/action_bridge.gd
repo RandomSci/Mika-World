@@ -369,9 +369,17 @@ func handle(req: Dictionary) -> Dictionary:
 				director.enabled = true
 			reply.merge({"ok": true, "status": "done", "camera": director.status()})
 		"set_time":
-			WorldState.night = bool(req.get("night", false))
-			world.set_night(WorldState.night)
-			reply.merge({"ok": true, "status": "done", "night": WorldState.night})
+			# a test override of the clock-driven night look (Day 2); {"clock": true} hands it back to the clock
+			if main.get("day_night") and main.day_night:
+				if bool(req.get("clock", false)):
+					main.day_night.clear_override()
+				else:
+					main.day_night.set_override(bool(req.get("night", false)))
+				reply.merge({"ok": true, "status": "done", "night": WorldState.night, "day_night": main.day_night.describe()})
+			else:
+				WorldState.night = bool(req.get("night", false))
+				world.set_night(WorldState.night)
+				reply.merge({"ok": true, "status": "done", "night": WorldState.night})
 		_:
 			reply.merge({"ok": false, "status": "error", "error": "unknown cmd"})
 	command_processed.emit(req, reply)

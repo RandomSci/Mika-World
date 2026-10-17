@@ -82,6 +82,27 @@ func _advance() -> void:
 		return
 	if here == journey.destination_area:
 		var target: Vector3 = streaming.current.points_of_interest[journey.destination].position
+		# a freshly built area's navmesh answers an empty path for a few physics frames after its bake (Day 2: the
+		# walk from the library stairs to its centre started on that and was "stuck" at once - wait for a real path)
+		var map := character.get_world_3d().navigation_map
+		var has_path := func() -> bool:
+			return not NavigationServer3D.map_get_path(map, character.global_position, NavigationServer3D.map_get_closest_point(map, target), true).is_empty()
+		for i in 90:
+			if has_path.call():
+				break
+			await get_tree().physics_frame
+		if not has_path.call() and streaming.current and streaming.current.has_method("bake_navigation"):
+			# still no path on a freshly loaded area's navmesh (seen in the Ancient Spell Library: every query empty for
+			# the whole visit in some loads): bake it once more and wait for it to answer
+			print("[travel] %s: no path from the arrival to %s - re-baking its navigation" % [here, journey.destination])
+			await streaming.current.bake_navigation()
+			for i in 90:
+				if has_path.call():
+					break
+				await get_tree().physics_frame
+			print("[travel] %s: after the re-bake a path %s" % [here, "exists" if has_path.call() else "STILL missing"])
+		if not active():
+			return
 		character.navigate_to(target, false)      # a journey is walked (never a dash)
 		journey.phase = "final_approach"
 		if character.current_action != "navigate_to":

@@ -177,6 +177,15 @@
     116.0
    ],
    "stargaze_place": "the glade by the old arch"
+  },
+  "lantern_lake": {
+   "region": "arcane_sanctuary",
+   "scene": "res://scenes/areas/lantern_lake_area.tscn",
+   "global_pos": [
+    -120,
+    -8,
+    90
+   ]
   }
  },
  "locations": {
@@ -361,6 +370,13 @@
    "name": "Whispering Woods",
    "description": "The Sanctuary's wild hinterland: a winding forest trail, a hidden lotus pond, an old stone bridge over the river below a waterfall, forgotten ruins on the high ground, a creature den across the river and the frontier road north-west.",
    "status": "playable"
+  },
+  "lantern_lake": {
+   "area": "lantern_lake",
+   "region": "arcane_sanctuary",
+   "name": "Lantern Lake",
+   "description": "A calm lake below Starfall Hill: an old wooden pier, reeds and pines, and at night hundreds of paper lanterns rising over the water and floating on it.",
+   "status": "playable"
   }
  },
  "connections": [
@@ -442,6 +458,11 @@
    "whispering_woods",
    "highland_path",
    "the frontier road over the north-west ridge"
+  ],
+  [
+   "sanctuary",
+   "lantern_lake",
+   "the path down past Starfall Hill to the lake"
   ]
  ],
  "landmarks": {
