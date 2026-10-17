@@ -10,9 +10,7 @@ extends Node3D
 
 const RIM := {"mika": Color(0.74, 0.8, 1.0), "luna": Color(1.0, 0.9, 0.74)}
 ## white hair blooms under a strong rim: per character (key, rim) energies
-const ENERGY := {"mika": [0.55, 0.45], "luna": [0.2, 0.26]}   # (Luna: her forehead and cheeks blew out orange at 0.55)
-## per character face-skin shade shift (Luna: a little more soft shading, so her face keeps its shape)
-const SHADE := {"luna": -0.32}
+const ENERGY := {"mika": [0.55, 0.45], "luna": [0.55, 0.45]}   # (Luna lit exactly as Mika)
 const FACE_SHADE := -0.5          # (the medium-shot conversion uses about -0.80: flat at close range)
 const HIGHLIGHT_EMISSION := 0.55
 
@@ -74,8 +72,7 @@ func _build() -> void:
 				continue
 			var rn := String(mat.resource_name)
 			if rn.contains("_Face_00_SKIN"):
-				_tweak(mat, "_ShadeShift", float(SHADE.get(c.character_id, FACE_SHADE)))
-				_tweak(mat, "_ShadeToony", 0.55)
+				_tweak(mat, "_ShadeShift", FACE_SHADE)
 				_tweak(mat, "_ReceiveShadowRate", 0.25)      # (hair and leaf shadows broke the face into patches)
 			elif rn.contains("EyeHighlight"):
 				_tweak(mat, "_EmissionColor", Color(1, 1, 1, 1))
