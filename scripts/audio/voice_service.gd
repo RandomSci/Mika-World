@@ -1028,6 +1028,7 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 			if stream.get_length() > 3.2 and who.has_method("play_gesture") and not who.seated and who.ground_pose == "" and not who.combat_stance \
 					and Vector2(who.velocity.x, who.velocity.z).length() < 0.3 and randf() < 0.55:
 				who.play_gesture("idle_talk", 0.5, 0.7)
+		var talk_seq: int = int(who.get("gesture_seq")) if who and is_instance_valid(who) and who.get("gesture_seq") != null else -1
 		while _player.playing:
 			await get_tree().process_frame
 			# the mouth follows the audio's own clock (a Movie Maker recording runs slower than real time)
@@ -1037,6 +1038,10 @@ func _speak(speaker: String, text: String, opts: Dictionary) -> Dictionary:
 		_mouth(who, 0.0)
 		if who and is_instance_valid(who) and who.get("body_language") and is_instance_valid(who.body_language):
 			who.body_language.speaking = false
+		# the talking idle LOOPS: ended with the line (left on, it held her whole body - she slid away from a talk with
+		# no walk cycle, 2026-10-17 stream), unless another gesture took over meanwhile
+		if talk_seq >= 0 and is_instance_valid(who) and int(who.get("gesture_seq")) == talk_seq and String(who.get("current_gesture")) == "idle_talk":
+			who.end_gesture()
 	else:
 		var secs := clampf(text.split(" ").size() / 2.6, 1.5, 9.0)
 		res["seconds"] = snappedf(secs, 0.01)

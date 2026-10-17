@@ -22,7 +22,7 @@ static func attach(m: Node, w: Node) -> SanctuaryDayCycle:
 
 
 func _ready() -> void:
-	process_priority = 900        # before the stream grade (1000), after the weather
+	process_priority = 900        # before the weather (950: it dims what this writes) and the stream grade (1000)
 	_night = not (WorldState.daylight() >= 0.15)
 	WorldState.night = _night
 	if world.has_method("set_night"):

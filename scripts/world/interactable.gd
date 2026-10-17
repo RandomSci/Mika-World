@@ -122,6 +122,7 @@ func perform(c: WorldCharacter) -> Dictionary:
 			c.set_seated(true, down * 0.7)
 			await get_tree().create_timer(down * 0.82).timeout
 			c.play_gesture("sit_loop", 0.35, 0.7)
+			_seat_springs(c)
 		else:
 			c.play_gesture("sit_loop", 0.7, 0.7)
 			c.set_seated(true, 0.8)
@@ -148,6 +149,7 @@ func perform(c: WorldCharacter) -> Dictionary:
 	if seat_body:
 		# stand up: rise forward off the seat, clear of it, before it becomes solid for her again
 		if sitting:
+			LyingSprings.restore(c)
 			var up := c.animation_length("sit_to_stand") if c.has_clip("sit_to_stand") else 0.0
 			if up > 0.0:
 				c.play_gesture("sit_to_stand", 0.3, 0.4)     # a real stand-up, then she steps off the seat
@@ -187,3 +189,13 @@ func perform(c: WorldCharacter) -> Dictionary:
 	WorldState.interaction_finished.emit(self, c, result)
 	performed.emit(result)
 	return result
+
+
+## The dress rests on the seat instead of hanging through it (spring colliders filling the seat while she sits).
+func _seat_springs(c: WorldCharacter) -> void:
+	if seat_body == null or RenderProfile.options.has("no-seat-springs"):
+		return
+	for ch in seat_body.get_children():
+		if ch is CollisionShape3D and (ch as CollisionShape3D).shape is BoxShape3D:
+			LyingSprings.apply_seat(c, ch)
+			return

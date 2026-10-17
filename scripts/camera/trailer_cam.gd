@@ -45,8 +45,10 @@ static func tick_global(delta_real: float) -> void:
 
 
 static func shake_offset(t: float) -> Vector2:
-	var s := _shake * _shake * 0.09
-	return Vector2(sin(t * 47.0) + 0.5 * sin(t * 91.0 + 1.3), cos(t * 53.0) + 0.5 * sin(t * 77.0)) * s
+	# slow enough to read as a sway at the stream's 30 FPS (7.5-14.5 Hz aliased into a judder: the mages looked
+	# like they were trembling in every spar, 2026-10-17), and smaller
+	var s := _shake * _shake * 0.055
+	return Vector2(sin(t * 17.0) + 0.5 * sin(t * 27.0 + 1.3), cos(t * 19.0) + 0.5 * sin(t * 13.0)) * s
 
 
 static func fov_kick() -> float:

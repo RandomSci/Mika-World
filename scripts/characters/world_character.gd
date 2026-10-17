@@ -1429,6 +1429,8 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 
 
 ## Play a one-off body gesture (study, practice, look around...) through the same one-shot slot as casting.
+var current_gesture := ""      # the clip of the last gesture started ("" after end_gesture)
+var gesture_seq := 0          # counts gestures started (who started what last, cheaply, also on stream)
 var gesture_trace := {}         # the last gesture asked for {clip, by, t} (QA: who started what she is doing)
 
 
@@ -1448,12 +1450,15 @@ func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
 	shot.fadeout_time = fade_out
 	bt.get_node("cast_anim").animation = "mx/" + clip
 	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	gesture_seq += 1
+	current_gesture = clip
 	return true
 
 
 ## Ends a looping gesture (seated loop) with the one-shot's fade-out.
 func end_gesture() -> void:
 	anim_tree.set("parameters/cast/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
+	current_gesture = ""
 
 
 ## Combat stance (Milestone J): her idle becomes a ready, hands-up stance while a fight is on.
@@ -1461,8 +1466,20 @@ func set_combat_stance(on: bool) -> void:
 	if on == combat_stance or anim_tree == null:
 		return
 	combat_stance = on and has_clip("combat_idle")
+	var want := "combat_idle" if combat_stance else "idle"
+	# the idle under her is swapped in ONE frame: covered by the same clip played over it first (faded in), swapped
+	# underneath, then the cover fades out onto the identical pose - no pop. (Swapped bare, both mages' bodies jumped
+	# ~12 cm at the start and the end of every spar, 2026-10-17.)
+	var covered := not casting and ground_pose == "" and play_gesture(want, 0.3, 0.35)
+	var my_seq := gesture_seq
+	if covered:
+		await get_tree().create_timer(0.33).timeout
+		if combat_stance != (want == "combat_idle"):
+			return                                  # changed again meanwhile: that call does the swap
 	var loco := (anim_tree.tree_root as AnimationNodeBlendTree).get_node("loco") as AnimationNodeBlendSpace1D
-	(loco.get_blend_point_node(0) as AnimationNodeAnimation).animation = "mx/combat_idle" if combat_stance else "mx/idle"
+	(loco.get_blend_point_node(0) as AnimationNodeAnimation).animation = "mx/" + want
+	if covered and gesture_seq == my_seq:            # nothing else started meanwhile (a cast keeps its clip)
+		end_gesture()
 
 
 ## A real evasive move (Milestone J): she turns into the escape direction and rolls/steps there - the
@@ -1477,12 +1494,13 @@ func dodge(to: Vector3, dur := 0.6) -> float:
 	_finish_action(false, "superseded by dodge")
 	_nav_active = false
 	var from := global_position
-	dur *= 0.75                               # fights are fast: a sharper burst of speed
+	# (the old "fights are fast" x0.75 made every spar dodge a blur at 30 FPS: the full duration now)
 	_dash = {"dir": d.normalized(), "dist": d.length(), "t": 0.0, "dur": dur, "from": from}
-	rotation.y = atan2(-d.x, -d.z)            # commit to the direction: a burst of speed, upright
+	# (no instant turn: the dash eases her round within ~0.1 s - snapped in one frame, the body jumped 13-45 cm on
+	# screen at every dodge of a spar, 2026-10-17)
 	_dash_fx(d.normalized(), dur)
 	set_gesture_speed(1.35)
-	play_gesture("dodge_dash", 0.08, 0.25)
+	play_gesture("dodge_dash", 0.14, 0.3)
 	_begin_action("dodge", {"to": [to.x, to.y, to.z]})
 	while not _dash.is_empty():
 		await get_tree().physics_frame
@@ -1607,7 +1625,9 @@ func _physics_process(delta: float) -> void:
 		# a dodge / knock-back: ease-out travel along the chosen line, through collision and floor
 		_dash.t = float(_dash.t) + delta
 		var k := clampf(float(_dash.t) / float(_dash.dur), 0.0, 1.0)
-		var v := float(_dash.dist) / float(_dash.dur) * 2.0 * (1.0 - k)      # integral of 2(1-k) over [0,1] = 1
+		# ease in AND out (pi/2 sin(pi k), integral 1): starting at twice the mean speed (2(1-k)) she shot off at
+		# ~6.7 m/s in the first frame - a zip, not a dodge (spars, 2026-10-17)
+		var v := float(_dash.dist) / float(_dash.dur) * (PI * 0.5) * sin(PI * k)
 		velocity.x = (_dash.dir as Vector3).x * v
 		velocity.z = (_dash.dir as Vector3).z * v
 		if not is_on_floor():
@@ -1669,18 +1689,25 @@ func _physics_process(delta: float) -> void:
 		var target_yaw := atan2(-face_dir.x, -face_dir.z)
 		rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-turn_speed * delta))
 
+	# a held LOOPING gesture (a talking idle, folded arms ...) never rides on a moving body: it overrides the whole
+	# skeleton, so she would slide along with no walk cycle (2026-10-17 stream). The dodge's sprint is the exception.
+	if hv.length() > 0.6 and current_gesture != "" and current_gesture != "dodge_dash" and ground_pose == "" and not lifted \
+			and CLIPS.has(current_gesture) and bool(CLIPS[current_gesture][1]) and bool(anim_tree.get("parameters/cast/active")):
+		end_gesture()
 	# locomotion blend: 0 idle, 1 walk, 2 run; time scale keeps feet planted
 	var spd := hv.length()
 	_speed_smoothed = lerpf(_speed_smoothed, spd, 1.0 - exp(-8.0 * delta))
 	var blend := 0.0
 	if _speed_smoothed < walk_speed:
-		blend = _speed_smoothed / walk_speed
+		# the full walk clip from 85 % of walk speed up (a blend of 7 % idle into it shortened her stride while she
+		# travelled at full speed: planted feet slid 0.22 m/s, the walk read as a glide - 2026-10-17)
+		blend = clampf(_speed_smoothed / (walk_speed * 0.85), 0.0, 1.0)
 	else:
 		blend = 1.0 + clampf((_speed_smoothed - walk_speed) / (run_speed - walk_speed), 0.0, 1.0)
 	anim_tree.set("parameters/loco/blend_position", blend)
 	var ref := 1.0
 	if blend > 0.05 and blend <= 1.0:
-		ref = clampf(_speed_smoothed / walk_speed, 0.6, 1.3)
+		ref = clampf(_speed_smoothed / walk_speed, 0.6, 1.3) if blend >= 0.999 else 1.0
 	elif blend > 1.0:
 		ref = clampf(_speed_smoothed / lerpf(walk_speed, run_speed, blend - 1.0), 0.7, 1.25)
 	anim_tree.set("parameters/loco_speed/scale", ref * float(motion.get("loco_tempo", 1.0)))
@@ -1691,7 +1718,7 @@ func _physics_process(delta: float) -> void:
 ## alone so she can step back on.
 func _keep_on_walkable(d: Vector3) -> Vector3:
 	var map := get_world_3d().navigation_map
-	if NavigationServer3D.map_get_iteration_id(map) == 0:
+	if NavigationServer3D.map_get_iteration_id(map) == 0 or RenderProfile.options.has("no-nav-bound"):
 		return d
 	var here := NavigationServer3D.map_get_closest_point(map, global_position)
 	if Vector2(here.x - global_position.x, here.z - global_position.z).length() > 0.6:

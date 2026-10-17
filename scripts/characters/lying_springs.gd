@@ -75,6 +75,53 @@ static func apply(c: WorldCharacter) -> void:
 		sec._on_recreate_collider()
 
 
+## Seated on a solid seat (a stone bench): the skirt's / cape's chains hung straight down through the seat (the dress
+## "spread through the stone", 2026-10-17). Spheres filling the seat's own volume (tops at the seat's top), only
+## colliders - the springs keep their standing tuning. Undone by restore().
+static func apply_seat(c: WorldCharacter, seat: CollisionShape3D) -> void:
+	if c == null or c.avatar == null or seat == null or not (seat.shape is BoxShape3D) or c.has_meta("lying_springs"):
+		return
+	var sec := c.avatar.find_child("secondary", true, false)
+	if sec == null or sec.get("spring_bones") == null:
+		return
+	var size: Vector3 = (seat.shape as BoxShape3D).size
+	var xf := seat.global_transform
+	var r := clampf(minf(size.y, size.z) * 0.5, 0.08, 0.3)
+	var pts: Array[Vector3] = []
+	var count := maxi(2, ceili(size.x / (r * 1.4)))
+	for i in count:
+		var lx := lerpf(-size.x * 0.5 + r * 0.7, size.x * 0.5 - r * 0.7, float(i) / float(count - 1))
+		pts.append(xf * Vector3(lx, size.y * 0.5 - r - 0.01, 0.0))
+	var original = sec.spring_bones
+	var kept = original.duplicate()
+	kept.clear()
+	var balls: Array = []
+	var s_inv := c.skeleton.global_transform.affine_inverse()
+	for sb in original:
+		var d: Resource = (sb as Resource).duplicate()
+		d.set("collider_groups", (sb.collider_groups as Array).duplicate())
+		var cm := String(sb.comment)
+		if cm.begins_with("Skirt") or cm.begins_with("Cape") or cm.begins_with("Sash") or cm.begins_with("Hair"):
+			var grp = load("res://addons/vrm/vrm_collider_group.gd").new()
+			for p in pts:
+				var ball := Node3D.new()
+				ball.name = "SeatCollider_%d" % balls.size()
+				c.add_child(ball)
+				ball.global_transform = s_inv * s_inv * Transform3D(Basis.IDENTITY, p)     # (see apply: the addon's transform)
+				var col = load("res://addons/vrm/vrm_collider.gd").new()
+				col.radius = r
+				col.node_path = ball.get_path()
+				grp.colliders.append(col)
+				balls.append(ball)
+			d.collider_groups.append(grp)
+		kept.append(d)
+	c.set_meta("lying_springs", original)
+	c.set_meta("lying_balls", balls)
+	sec.spring_bones = kept
+	if sec.has_method("_on_recreate_collider"):
+		sec._on_recreate_collider()
+
+
 static func restore(c: WorldCharacter) -> void:
 	if c == null or not c.has_meta("lying_springs"):
 		return

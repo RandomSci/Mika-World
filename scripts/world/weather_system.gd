@@ -40,6 +40,10 @@ var log: Array = []
 
 func setup(m: Node) -> void:
 	main = m
+	# AFTER the day cycle (900), before the stream grade (1000): the day cycle writes the hour's full sun every 0.5 s;
+	# run before it, the weather dimmed the sun and the day cycle then put it back at full strength for that frame -
+	# the picture flashed twice a second on every cloudy / rainy day (broadcast 2, morning rain, 2026-10-17)
+	process_priority = 950
 	if RenderProfile.options.has("no-weather"):
 		enabled = false
 	if WorldState.weather.is_empty():

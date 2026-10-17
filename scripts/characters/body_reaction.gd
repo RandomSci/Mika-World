@@ -127,7 +127,7 @@ func receive(from: Vector3, severity: float, ctx := {}) -> Dictionary:
 	tier = t
 	info = res
 	active = true
-	TrailerCam.punch({"flinch": 0.3, "stagger": 0.5, "down": 0.8}.get(t, 0.2))
+	TrailerCam.punch({"flinch": 0.0, "stagger": 0.5, "down": 0.8}.get(t, 0.2))     # (a flinch never shakes the lens)
 	reacted.emit(res)
 	var strength := clampf(severity, 0.0, 1.4)
 	match t:

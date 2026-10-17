@@ -227,7 +227,7 @@ func _duelist(me_b: SanctuaryBrain, opp_b: SanctuaryBrain, box: Dictionary) -> v
 				continue
 			# no time / no breath / no ward ready: a brace halves nothing — it just reads as defence; the bolt decides
 			active.braced[who] = int(active.braced[who]) + 1
-			me.play_gesture("brace", 0.06, 0.3)
+			me.play_gesture("brace", 0.15, 0.35)
 			await get_tree().create_timer(0.45).timeout
 			continue
 		# 2) cast when ready
@@ -276,7 +276,7 @@ func _cast_bolt(me_b: SanctuaryBrain, opp: WorldCharacter) -> void:
 	var gesture := String(st.get("gesture", "cast_quick"))
 	var gs := float(st.get("gesture_speed", 1.0))
 	me.set_gesture_speed(gs)
-	me.play_gesture(gesture, 0.12, 0.3)
+	me.play_gesture(gesture, 0.22, 0.4)          # (0.12: the cast clips' hips jumped 2-4 cm in their first frames)
 	MagicEvents.emit_phase(me, "spar_bolt", "gather", String(st.element), me.right_hand.global_position if me.right_hand else me.global_position)
 	var release_s := float(st.get("release_at", 0.3)) * me.animation_length(gesture) / maxf(gs, 0.1)
 	await get_tree().create_timer(clampf(release_s, 0.15, 1.2)).timeout

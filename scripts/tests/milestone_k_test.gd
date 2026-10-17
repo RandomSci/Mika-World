@@ -157,6 +157,10 @@ func _run() -> void:
 		"braziers": await _braziers()
 		"walkaudit": await _walkaudit()
 		"livefixes": await _livefixes()
+		"sparwatch": await _sparwatch()
+		"benchwalk": await _benchwalk()
+		"sunflash": await _sunflash()
+		"standstill": await _standstill()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -506,6 +510,29 @@ func _duel() -> void:
 	_check(not tired.accept and tired.reason == "tired", "a tired Luna declines to spar", tired)
 	WorldState.mind("luna").vigor = 1.0
 	var tr := {"frames": 0, "both_in": 0, "modes": {}}
+	# body jitter while they spar: stop-start flips (moving one frame, stopped the next and back) and direction
+	# reversals of the root at walking speeds - what reads as trembling at 30 FPS
+	var jit := {"mika": {"flips": 0, "reversals": 0, "frames": 0}, "luna": {"flips": 0, "reversals": 0, "frames": 0}}
+	var lastp := {}
+	var lastv := {}
+	var jsampler := func():
+		if not main.duel.busy():
+			return
+		for w in ["mika", "luna"]:
+			var ch: WorldCharacter = main.characters[w]
+			var p := ch.global_position
+			if lastp.has(w):
+				var v := Vector2(p.x - (lastp[w] as Vector3).x, p.z - (lastp[w] as Vector3).z)
+				if lastv.has(w):
+					var pv: Vector2 = lastv[w]
+					if (pv.length() > 0.012) != (v.length() > 0.012) and maxf(pv.length(), v.length()) > 0.02:
+						jit[w].flips += 1
+					if pv.length() > 0.01 and v.length() > 0.01 and pv.dot(v) < 0.0:
+						jit[w].reversals += 1
+				lastv[w] = v
+				jit[w].frames += 1
+			lastp[w] = p
+	get_tree().physics_frame.connect(jsampler)
 	var vp := get_viewport()
 	var tracker := func():
 		var n := 0
@@ -550,6 +577,8 @@ func _duel() -> void:
 	_check(WorldState.mind("mika").knowledge.has("sparred:luna") and WorldState.mind("luna").knowledge.has("sparred:mika"), "each remembers the bout")
 	_check(both_in >= frames * 0.8, "the camera kept both duelists in frame (%d/%d)" % [both_in, frames])
 	_check(main.focus == "mika", "Mika stayed the camera's subject")
+	get_tree().physics_frame.disconnect(jsampler)
+	print("[mktest] duel body jitter%s: %s" % [" (no nav-bound)" if RenderProfile.options.has("no-nav-bound") else "", JSON.stringify(jit)])
 
 
 # ------------------------------------------------------------------ environment (Whispering Woods)
@@ -5514,3 +5543,259 @@ func _livefixes() -> void:
 		await get_tree().process_frame
 	await _wait(1.0)
 	_check(main.director.mika == mika, "the camera is Mika's again after Luna's dance (subject: %s)" % main.director.mika.character_id)
+
+
+# ------------------------------------------------------------------ walk look + spar jitter (broadcast 2)
+## Broadcast 2 reports: "she dashes instead of walking" and "bodies tremble in the spar and the talk after it".
+## 1. foot sliding on a real walk: a planted foot (lowest part of its step) should stand still; its horizontal speed
+##    against the body's says whether the steps keep up with the travel (sliding = gliding = looks like a dash).
+## 2. the real spar invite and the 25 s after it: per rendered frame, for both mages, hips / head / right hand -
+##    direction reversals at mm scale (a smooth motion has none; a tremble many) per second, by phase.
+func _sparwatch() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+		main.mage_brains[w].current = {}
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("test")
+	main.spawner.enabled = false
+	main.director.enabled = true
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var map: RID = mika.get_world_3d().navigation_map
+	await _wait(1.5)
+	# --- 1. foot sliding on a 20 m walk
+	if main.teleport_guard:
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(-2, 0, 12)) + Vector3(0, 0.05, 0)
+	await _wait(1.0)
+	var sk := mika.skeleton
+	var feet := {"L": sk.find_bone("LeftFoot"), "R": sk.find_bone("RightFoot")}
+	var hist := {"L": [], "R": []}
+	var body: Array = []
+	var fsamp := func():
+		var gt := sk.global_transform
+		for k in feet:
+			hist[k].append(gt * sk.get_bone_global_pose(feet[k]).origin)
+		body.append(mika.global_position)
+	get_tree().process_frame.connect(fsamp)
+	mika.navigate_to(NavigationServer3D.map_get_closest_point(map, Vector3(-2, 0, -8)), false)
+	var tw0 := _game_t
+	while mika.current_action == "navigate_to" and _game_t - tw0 < 25.0:
+		await get_tree().process_frame
+	get_tree().process_frame.disconnect(fsamp)
+	var dt := 1.0 / 30.0
+	var contact_sp := []
+	for k in feet:
+		var h: Array = hist[k]
+		for i in range(3, h.size() - 3):
+			var y: float = (h[i] as Vector3).y
+			var lo := y
+			for j in range(i - 3, i + 4):
+				lo = minf(lo, (h[j] as Vector3).y)
+			if y <= lo + 0.004:          # the planted moment of this step
+				var a: Vector3 = h[i - 1]
+				var b: Vector3 = h[i + 1]
+				contact_sp.append(Vector2(b.x - a.x, b.z - a.z).length() / (2.0 * dt))
+	var bsp := []
+	for i in range(1, body.size()):
+		bsp.append(Vector2((body[i] as Vector3).x - (body[i - 1] as Vector3).x, (body[i] as Vector3).z - (body[i - 1] as Vector3).z).length() / dt)
+	contact_sp.sort()
+	bsp.sort()
+	var foot_med: float = contact_sp[contact_sp.size() / 2] if not contact_sp.is_empty() else -1.0
+	var body_med: float = bsp[bsp.size() / 2] if not bsp.is_empty() else -1.0
+	print("[mktest] sparwatch walk: body %.2f m/s, planted foot %.2f m/s (%d contacts), loco scale %.2f, blend %.2f" % [body_med, foot_med, contact_sp.size(),
+		float(mika.anim_tree.get("parameters/loco_speed/scale")), float(mika.anim_tree.get("parameters/loco/blend_position"))])
+	_check(foot_med >= 0.0 and foot_med <= body_med * 0.25, "planted feet do not slide on a walk (foot %.2f vs body %.2f m/s)" % [foot_med, body_med])
+	# --- 2. spar + after
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(18, 0, 2)) + Vector3(0, 0.1, 0)
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(19.5, 0, 3.5)) + Vector3(0, 0.1, 0)
+	for w in ["mika", "luna"]:
+		WorldState.mind(w).vigor = 1.0
+		main.mage_brains[w].needs.energy = 0.9
+	var bones := ["Hips", "Head", "RightHand"]
+	var J := {}
+	var lastd := {}
+	var lastp := {}
+	var phase := ["pre"]
+	var pops: Array = []
+	var jsamp := func():
+		var ph: String = "spar" if main.duel.busy() else phase[0]
+		for c in [mika, luna]:
+			var cs: Skeleton3D = c.skeleton
+			for bn in bones:
+				var bi := cs.find_bone(bn)
+				if bi < 0:
+					continue
+				var key := "%s:%s" % [c.character_id, bn]
+				var p := cs.global_transform * cs.get_bone_global_pose(bi).origin
+				var jk := "%s|%s" % [ph, key]
+				if not J.has(jk):
+					J[jk] = {"frames": 0, "rev": 0, "spike": 0}
+				J[jk].frames += 1
+				if lastp.has(key):
+					var d: Vector3 = p - (lastp[key] as Vector3)
+					if lastd.has(key):
+						var pd: Vector3 = lastd[key]
+						if d.length() > 0.002 and pd.length() > 0.002 and d.normalized().dot(pd.normalized()) < -0.5:
+							J[jk].rev += 1
+						if d.length() > 0.02 and d.length() > pd.length() * 4.0:
+							J[jk].spike += 1
+							if bn == "Hips" and pops.size() < 40:
+								var gt: Dictionary = c.gesture_trace if c.get("gesture_trace") is Dictionary else {}
+								pops.append("%s %.2fs %.0fmm act=%s gest=%s(%s, %d ms ago) react=%s dash=%s" % [c.character_id, _game_t, d.length() * 1000.0,
+									c.current_action, gt.get("clip", "-"), gt.get("by", "-"), Time.get_ticks_msec() - int(gt.get("t", 0)),
+									(c.reaction.tier + ":" + str(c.reaction.phase)) if c.reaction and c.reaction.active else "-", str(not c._dash.is_empty())])
+					lastd[key] = d
+				lastp[key] = p
+	get_tree().process_frame.connect(jsamp)
+	var res: Dictionary = await main.companionship.invite(main.mage_brains["mika"], "luna", "train_together", {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}})
+	phase[0] = "after"
+	await _wait(25.0)
+	get_tree().process_frame.disconnect(jsamp)
+	var out := {}
+	for jk in J:
+		var e: Dictionary = J[jk]
+		out[jk] = "%d rev/s, %d spikes (%d fr)" % [roundi(float(e.rev) / maxf(float(e.frames) / 30.0, 0.1)), int(e.spike), int(e.frames)]
+	var ks := out.keys()
+	ks.sort()
+	for k in ks:
+		print("[mktest] sparwatch %s: %s" % [k, out[k]])
+	for pp in pops:
+		print("[mktest] sparwatch pop: ", pp)
+	print("[mktest] sparwatch invite: %s" % str(res.get("entry", {}).get("accepted", "?")))
+	_check(not main.duel.log.is_empty(), "a spar took place")
+
+
+## Broadcast 2, morning in the rain: the whole picture flashed about every second. The day cycle (every 0.5 s) wrote
+## the sun at full strength AFTER the weather had dimmed it for that frame: the frame rendered undimmed. --clock-hour=8
+## (daylight); the weather is set to rain and the sun sampled before each frame's processing (what the last frame drew).
+func _sunflash() -> void:
+	await _hold_all()
+	main.weather.set_weather("rain", 2.0)
+	main.weather.cloud = 0.75
+	await _wait(3.0)
+	var sun: DirectionalLight3D = main.world.get("sun")
+	var vals: Array = []
+	var grab := func(): vals.append(sun.light_energy)
+	get_tree().process_frame.connect(grab)          # (emitted before any _process: the value the last frame drew)
+	await _wait(6.0)
+	get_tree().process_frame.disconnect(grab)
+	vals.sort()
+	var lo: float = vals[int(vals.size() * 0.05)]
+	var hi: float = vals[vals.size() - 1]
+	print("[mktest] sunflash: %d frames, sun energy p5 %.2f max %.2f (daylight %.2f, cloud %.2f)" % [vals.size(), lo, hi, WorldState.daylight(), main.weather.cloud])
+	_check(vals.size() > 30 and hi <= lo * 1.15, "the sun under rain never flashes to full strength (p5 %.2f, max %.2f)" % [lo, hi])
+
+
+## Bodies shaking while they stand (talks, casts, spars; broadcast 2): standing still on several real floors, every
+## physics frame: is_on_floor() flips, the foot guard's hip lift and the hips' height jumps (mm). Still = none.
+func _standstill() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = mika.get_world_3d().navigation_map
+	var spots := {"training": Vector3(20, 0, 8), "beyond_training": Vector3(48, 0, 13), "starfall": Vector3(-26.9, 0, 21.7), "circle": Vector3(0.5, 0, 2.5), "garden": Vector3(-8, 0, 6)}
+	var all_ok := true
+	for k in spots:
+		if main.teleport_guard:
+			main.teleport_guard.allow(mika)
+		mika.global_position = NavigationServer3D.map_get_closest_point(map, spots[k]) + Vector3(0, 0.05, 0)
+		mika.velocity = Vector3.ZERO
+		await _wait(2.0)
+		var st := {"frames": 0, "floor_flips": 0, "lift_jumps": 0, "hip_jumps": 0, "max_lift": 0.0}
+		var last_floor := mika.is_on_floor()
+		var last_lift: float = mika.foot_guard.lift if mika.foot_guard else 0.0
+		var hb := mika.skeleton.find_bone("Hips")
+		var last_hy := (mika.skeleton.global_transform * mika.skeleton.get_bone_global_pose(hb).origin).y
+		var t0 := _game_t
+		while _game_t - t0 < 4.0:
+			await get_tree().process_frame
+			st.frames += 1
+			var f := mika.is_on_floor()
+			if f != last_floor:
+				st.floor_flips += 1
+			last_floor = f
+			var l: float = mika.foot_guard.lift if mika.foot_guard else 0.0
+			if absf(l - last_lift) > 0.004:
+				st.lift_jumps += 1
+			st.max_lift = maxf(st.max_lift, l)
+			last_lift = l
+			var hy := (mika.skeleton.global_transform * mika.skeleton.get_bone_global_pose(hb).origin).y
+			if absf(hy - last_hy) > 0.004:
+				st.hip_jumps += 1
+			last_hy = hy
+		print("[mktest] standstill %s: %s" % [k, JSON.stringify(st)])
+		if int(st.floor_flips) > 2 or int(st.lift_jumps) > 4:
+			all_ok = false
+	_check(all_ok, "standing still: no floor flicker, no hip lift jumping")
+
+
+## Broadcast 2: "she doesn't walk anymore" (legs still, body sliding) and "sits sunk into the watchpoint bench".
+## 1. a talking idle (a looping gesture) left on after a line, then a walk: the walk cycle must take over.
+## 2. the real watchpoint rest: her hips against the seat's top while seated.
+func _benchwalk() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+		main.mage_brains[w].current = {}
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = mika.get_world_3d().navigation_map
+	if main.teleport_guard:
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(-2, 0, 12)) + Vector3(0, 0.05, 0)
+	await _wait(1.0)
+	mika.play_gesture("idle_talk", 0.5, 0.7)
+	await _wait(1.5)
+	mika.navigate_to(NavigationServer3D.map_get_closest_point(map, Vector3(-2, 0, 2)), false)
+	await _wait(2.5)
+	var active := bool(mika.anim_tree.get("parameters/cast/active"))
+	var blend := float(mika.anim_tree.get("parameters/loco/blend_position"))
+	_check(not active and blend > 0.8, "walking after a talk: the walk cycle plays (held gesture %s, loco blend %.2f, gesture '%s')" % [str(active), blend, mika.current_gesture])
+	mika.stop_action()
+	await _wait(1.0)
+	var it: Interactable = main.world.interactables.get("watchpoint_rest")
+	if it == null:
+		_check(false, "watchpoint bench exists")
+		return
+	var seat_top: float = it.get_parent().to_global(it.sit_point).y + float(main.world.get("SEAT_H") if main.world.get("SEAT_H") != null else 0.45)
+	if it.seat_body:
+		var sb := it.seat_body as Node3D
+		for cs in sb.get_children():
+			if cs is CollisionShape3D and (cs as CollisionShape3D).shape is BoxShape3D:
+				seat_top = (cs as CollisionShape3D).global_position.y + ((cs as CollisionShape3D).shape as BoxShape3D).size.y * 0.5
+	mika.navigate_to(it.approach_point(), false)
+	var tn := _game_t
+	while mika.current_action == "navigate_to" and _game_t - tn < 80.0:
+		await get_tree().process_frame
+	var job := func(): await it.perform(mika)
+	job.call()
+	var hb := mika.skeleton.find_bone("Hips")
+	var low := 99.0
+	var t0 := _game_t
+	var sat_at := -1.0
+	while _game_t - t0 < 70.0 and (sat_at < 0.0 or _game_t - sat_at < 6.0):
+		await get_tree().process_frame
+		if mika.seated and sat_at < 0.0:
+			sat_at = _game_t
+		if mika.seated and sat_at >= 0.0 and _game_t - sat_at > 2.5:
+			var hy := (mika.skeleton.global_transform * mika.skeleton.get_bone_global_pose(hb).origin).y
+			low = minf(low, hy)
+	if mika.seated and DisplayServer.get_name() != "headless":
+		var hip := mika.skeleton.global_transform * mika.skeleton.get_bone_global_pose(hb).origin
+		var fwd := -mika.global_transform.basis.z
+		fwd.y = 0.0
+		fwd = fwd.normalized()
+		var side := Vector3(-fwd.z, 0, fwd.x)
+		main.director.enabled = false
+		main.camera_rig.set_shot(hip + fwd * 3.0 + side * 1.6 + Vector3(0, 0.5, 0), hip + Vector3(0, -0.1, 0), 50.0)
+		await _wait(1.5)
+		_shot("bench_front")
+		main.camera_rig.set_shot(hip + side * 3.2 + Vector3(0, 0.3, 0) + fwd * 0.4, hip + Vector3(0, -0.15, 0), 50.0)
+		await _wait(1.5)
+		_shot("bench_side")
+	print("[mktest] benchwalk: seat top %.3f, lowest seated hips %.3f, root y %.3f, gesture '%s', seated %s" % [seat_top, low, mika.global_position.y, mika.current_gesture, str(mika.seated)])
+	_check(low < 90.0 and low >= seat_top + 0.04, "seated on top of the watchpoint bench (hips %.3f, seat top %.3f)" % [low, seat_top])

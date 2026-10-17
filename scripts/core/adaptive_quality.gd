@@ -258,7 +258,9 @@ func _evaluate() -> void:
 	# what limits the frame
 	# SUSTAINED lateness only (the average over budget, or more than 5 % of frames late). An isolated spike - a
 	# script hiccup, a streaming read, the OS - is counted but never answered with lower graphics: it would not help
-	var over: bool = float(w3.avg_ms) > BUDGET_MS + 0.3 or float(w3.p95_ms) > BUDGET_MS * 1.12
+	# (at the 30 FPS cap frames average 33.7-33.8 ms however light the GPU is - timer jitter at the cap: "+0.3 ms" took
+	# that for lateness and stepped 9 <-> 13 with the GPU at 16 ms, 2026-10-17. The margin grows with the budget.)
+	var over: bool = float(w3.avg_ms) > BUDGET_MS + maxf(0.3, BUDGET_MS * 0.03) or float(w3.p95_ms) > BUDGET_MS * 1.12
 	stats["spikes"] = int(w3.get("spikes", 0))
 	if float(w3.cpu_ms) > BUDGET_MS * 0.85 and float(w3.gpu_ms) < GPU_HEAVY:
 		bottleneck = "cpu"
