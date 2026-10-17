@@ -1247,12 +1247,17 @@ func animation_length(clip: String) -> float:
 
 
 # ------------------------------------------------------------------ expressions (VRM blend shapes)
+## Day 3: how many face materials took the character's reworked face style (FaceStyle; 0 = the model's own)
+var face_style_parts := 0
+
+
 func _setup_expressions() -> void:
 	_expr.clear()
 	_expr_weight.clear()
 	_expr_target.clear()
 	var cfg: Dictionary = (Progression.mages.get(character_id, {}).get("face", {}) if Progression.mages else {}).duplicate()
 	cfg.merge(stage_profile().get("face", {}), true)          # this appearance stage's own face settings
+	face_style_parts = FaceStyle.apply(avatar, String(cfg.get("style", "")))
 	face = FaceController.attach(self, avatar, cfg)
 	if face:
 		head_posture = HeadPosture.new()

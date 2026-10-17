@@ -55,6 +55,10 @@ const EMOTIONS := {
 
 ## Legacy single-preset names (older callers) -> emotions.
 const LEGACY := {"happy": "happy", "relaxed": "relaxed", "surprised": "surprised", "angry": "frustrated", "sad": "sad"}
+## Day 3: components a model lacks (Luna's VRoid face has no EYE_Fun / EYE_Spread / MTH_Small / MTH_Close / MTH_Large /
+## SkinFung) borrow the nearest shape it has, scaled, instead of silently doing nothing
+const FALLBACK := {"eye_fun": ["eye_joy", 0.45], "eye_spread": ["eye_surprised", 0.5], "mouth_small": ["v_u", 0.3],
+	"mouth_close": ["mouth_neutral", 0.6], "mouth_large": ["v_a", 0.3], "mouth_fang": ["mouth_up", 0.3]}
 const HALFLIFE := {"brow": 0.07, "eye": 0.09, "mouth": 0.11, "other": 0.09}
 
 var c: Node3D                       # the WorldCharacter
@@ -89,6 +93,11 @@ var brow_overlay: MeshInstance3D    # brows drawn through the fringe (the lab's 
 var _brow_mat: StandardMaterial3D
 var brow_alpha := 0.45
 var debug_brow := []
+## Day 3 (per character, from the face config): a resting shape (Luna's lids sit wider open), the fallbacks in use,
+## and how far the mouth opens while she talks
+var rest := {}
+var alias := {}
+var mouth_scale := 1.0
 
 
 ## A blend shape by its VRoid component name. Models rebuilt in Blender (the level 1-10 Celestial stages) keep the
@@ -127,6 +136,11 @@ static func attach(character: Node3D, avatar: Node, cfg: Dictionary) -> FaceCont
 			fc.blush_idx = maxi(bm.find_blend_shape_by_name("Blush"), 0)
 			bm.set_blend_shape_value(fc.blush_idx, 0.0)
 			break
+	for k in (FALLBACK if bool(cfg.get("fallbacks", false)) else {}):      # (opt-in: Mika's approved face is unchanged)
+		if not fc.idx.has(k) and fc.idx.has(FALLBACK[k][0]):
+			fc.alias[k] = FALLBACK[k]
+	fc.rest = cfg.get("rest", {})
+	fc.mouth_scale = float(cfg.get("mouth_scale", 1.0))
 	fc.bias = cfg.get("bias", {})
 	fc.blink_mean = float(cfg.get("blink_mean", 3.6))
 	fc._rng.seed = hash(String(character.get("character_id"))) + 17
@@ -289,6 +303,10 @@ func update(delta: float) -> void:
 			posture[k] = float(posture.get(k, 0.0)) + float(r.posture[k]) * w
 	for k in overrides:
 		comp[k] = float(overrides[k])
+	for k in alias:
+		if comp.has(k):
+			comp[alias[k][0]] = float(comp.get(alias[k][0], 0.0)) + float(comp[k]) * float(alias[k][1])
+			comp.erase(k)
 	# 4) per-region normalisation (a region never shows more than reads cleanly)
 	var sums := {}
 	for k in comp:
@@ -300,6 +318,13 @@ func update(delta: float) -> void:
 		var lim := 1.15 if rg2 == "mouth" else 1.4
 		if float(sums.get(rg2, 0.0)) > lim:
 			comp[k] = float(comp[k]) * lim / float(sums[rg2])
+	# 4b) the resting shape, yielding to whatever the region is already doing
+	for k in rest:
+		var busy := 0.0
+		for k2 in comp:
+			if k2 != k and _region(k2) == _region(k):
+				busy += float(comp[k2])
+		comp[k] = float(comp.get(k, 0.0)) + float(rest[k]) * (1.0 - clampf(busy * 1.5, 0.0, 1.0))
 	# 5) speech: visemes from the envelope take the mouth over, smile shapes yield
 	if mouth_amp > 0.02:
 		_viseme_t -= delta
@@ -307,7 +332,7 @@ func update(delta: float) -> void:
 			_viseme_t = _rng.randf_range(0.07, 0.14)
 			var pool := ["v_a", "v_a", "v_o", "v_e", "v_i", "v_u"]
 			_viseme = pool[_rng.randi() % pool.size()]
-		var a := clampf(mouth_amp * 1.4, 0.0, 0.9)
+		var a := clampf(mouth_amp * 1.4 * mouth_scale, 0.0, 0.9)
 		comp[_viseme] = a
 		comp["v_a"] = maxf(float(comp.get("v_a", 0.0)), a * 0.35)
 		var y := clampf(1.0 - a * 0.8, 0.25, 1.0)
@@ -319,6 +344,9 @@ func update(delta: float) -> void:
 	# 7) blink (suppressed while a smile already closes the eyes)
 	var closed := clampf(float(comp.get("eye_joy", 0.0)) + float(comp.get("blink", 0.0)) * 0.8, 0.0, 1.0)
 	comp["blink"] = clampf(float(comp.get("blink", 0.0)) + _blink(delta) * (1.0 - closed), 0.0, 1.0)
+	for k in rest:                    # a blink closes over the resting lids too
+		if _region(k) == "eye":
+			comp[k] = float(comp.get(k, 0.0)) * (1.0 - float(comp["blink"]))
 	# 7b) blush (its own mesh): slow in, slower out, like real colour
 	if blush_mesh and is_instance_valid(blush_mesh):
 		var bgoal := clampf(float(comp.get("blush", 0.0)), 0.0, 1.0)

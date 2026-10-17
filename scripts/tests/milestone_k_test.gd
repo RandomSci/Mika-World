@@ -172,6 +172,7 @@ func _run() -> void:
 		"lakehome": await _lakehome()
 		"facestills": await _facestills()
 		"faceprobe": await _faceprobe()
+		"facetex": await _facetex()
 		"benchwalk": await _benchwalk()
 		"sunflash": await _sunflash()
 		"standstill": await _standstill()
@@ -6632,8 +6633,11 @@ func _facestills() -> void:
 	main.director.set_process(false)
 	var map: RID = main.characters["mika"].get_world_3d().navigation_map
 	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
-	for who in ["mika", "luna"]:
+	for who in String(RenderProfile.options.get("fs-who", "mika,luna")).split(","):
 		var c: WorldCharacter = main.characters[who]
+		print("[mktest] facestills %s face style parts %d" % [who, c.face_style_parts])
+		if who == "luna" and RenderProfile.options.has("fs-style"):
+			_check(c.face_style_parts == 6, "Luna's reworked face is on (%d of 6 face materials)" % c.face_style_parts)
 		var other: WorldCharacter = main.characters["luna" if who == "mika" else "mika"]
 		if main.teleport_guard:
 			main.teleport_guard.allow(c)
@@ -6702,6 +6706,54 @@ func _facestills() -> void:
 		(g as FramingGuard).suspended = false
 	main.director.enabled = true
 	_check(true, "stills rendered to %s" % out)
+
+
+## Day 3: dump one girl's face materials (texture, size, UV transform, colours) and every morph on the face mesh.
+func _facetex() -> void:
+	await _wait(2.0)
+	var who := String(RenderProfile.options.get("ft-who", "luna"))
+	var out := String(RenderProfile.options.get("ft-out", "/home/selwyn/.cache/mika_qa/facetex_" + who))
+	DirAccess.make_dir_recursive_absolute(out)
+	var c: WorldCharacter = main.characters[who]
+	var seen := {}
+	for mi in c.avatar.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		if m.mesh is ArrayMesh and m.mesh.get_blend_shape_count() > 0:
+			var names := []
+			for i in m.mesh.get_blend_shape_count():
+				names.append(String(m.mesh.get_blend_shape_name(i)))
+			print("[mktest] facetex mesh %s morphs %s" % [m.name, ",".join(names)])
+		for si in m.mesh.get_surface_count():
+			var mat := m.get_active_material(si) as ShaderMaterial
+			if mat == null:
+				continue
+			var rn := String(mat.resource_name)
+			if not (rn.contains("FACE") or rn.contains("EYE") or rn.contains("SKIN") and rn.contains("Face")):
+				continue
+			var tex = mat.get_shader_parameter("_MainTex")
+			var tinfo := "-"
+			if tex is Texture2D:
+				tinfo = "%dx%d %s" % [tex.get_width(), tex.get_height(), tex.resource_path]
+				if not seen.has(tex):
+					seen[tex] = true
+					var img: Image = tex.get_image()
+					if img:
+						if img.is_compressed():
+							img.decompress()
+						img.save_png("%s/%s.png" % [out, rn.validate_filename()])
+			var aabb := m.mesh.surface_get_arrays(si)[Mesh.ARRAY_TEX_UV] as PackedVector2Array
+			var umin := Vector2(9, 9)
+			var umax := Vector2(-9, -9)
+			for uv in aabb:
+				umin = umin.min(uv)
+				umax = umax.max(uv)
+			print("[mktest] facetex %s mesh %s surf %d shader %s tex %s ST %s color %s shade %s outline %s uv %s..%s" % [rn, m.name, si,
+				mat.shader.resource_path.get_file() if mat.shader else "-", tinfo, str(mat.get_shader_parameter("_MainTex_ST")),
+				str(mat.get_shader_parameter("_Color")), str(mat.get_shader_parameter("_ShadeColor")),
+				str(mat.get_shader_parameter("_OutlineWidth")), str(umin), str(umax)])
+	_check(true, "facetex dumped to " + out)
 
 
 func _faceprobe() -> void:

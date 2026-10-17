@@ -10,7 +10,9 @@ extends Node3D
 
 const RIM := {"mika": Color(0.74, 0.8, 1.0), "luna": Color(1.0, 0.9, 0.74)}
 ## white hair blooms under a strong rim: per character (key, rim) energies
-const ENERGY := {"mika": [0.55, 0.45], "luna": [0.55, 0.55]}
+const ENERGY := {"mika": [0.55, 0.45], "luna": [0.2, 0.26]}   # (Luna: her forehead and cheeks blew out orange at 0.55)
+## per character face-skin shade shift (Luna: a little more soft shading, so her face keeps its shape)
+const SHADE := {"luna": -0.32}
 const FACE_SHADE := -0.5          # (the medium-shot conversion uses about -0.80: flat at close range)
 const HIGHLIGHT_EMISSION := 0.55
 
@@ -20,6 +22,7 @@ var rim: OmniLight3D
 var lens := Vector3.ZERO           # where the camera is (the key sits beside it)
 var _saved: Array = []             # [material, param, value]
 var _head := -1
+var _eyes_saved: Array = []        # [modifier, primary limit, secondary limit, index]
 
 
 static func enable(ch: WorldCharacter, camera_pos: Vector3) -> CloseupLook:
@@ -71,13 +74,25 @@ func _build() -> void:
 				continue
 			var rn := String(mat.resource_name)
 			if rn.contains("_Face_00_SKIN"):
-				_tweak(mat, "_ShadeShift", FACE_SHADE)
+				_tweak(mat, "_ShadeShift", float(SHADE.get(c.character_id, FACE_SHADE)))
+				_tweak(mat, "_ShadeToony", 0.55)
 				_tweak(mat, "_ReceiveShadowRate", 0.25)      # (hair and leaf shadows broke the face into patches)
 			elif rn.contains("EyeHighlight"):
 				_tweak(mat, "_EmissionColor", Color(1, 1, 1, 1))
 				_tweak(mat, "_EmissionMultiplier", HIGHLIGHT_EMISSION)
 	if c.face:
 		c.face.closeup_boost = 1.22
+	# the eyes hold the lens: re-aimed AFTER the emotional head tilt (which otherwise carried them up / aside in sad
+	# and shy), and clamped tight so the irises never roll toward the lids or the corners
+	for el in c.eye_looks:
+		if not is_instance_valid(el):
+			continue
+		_eyes_saved.append([el, el.primary_limit_angle, el.secondary_limit_angle, el.get_index()])
+		el.primary_limit_angle = deg_to_rad(9.0)
+		el.secondary_limit_angle = deg_to_rad(6.0)
+		el.duration = 0.12
+		el.get_parent().move_child(el, -1)
+		el.influence = 1.0
 
 
 func _tweak(mat: ShaderMaterial, param: String, v) -> void:
@@ -86,6 +101,14 @@ func _tweak(mat: ShaderMaterial, param: String, v) -> void:
 
 
 func _restore() -> void:
+	for e in _eyes_saved:
+		var el: LookAtModifier3D = e[0]
+		if is_instance_valid(el):
+			el.primary_limit_angle = e[1]
+			el.secondary_limit_angle = e[2]
+			el.duration = 0.18
+			el.get_parent().move_child(el, int(e[3]))
+	_eyes_saved.clear()
 	for s in _saved:
 		if is_instance_valid(s[0]):
 			(s[0] as ShaderMaterial).set_shader_parameter(String(s[1]), s[2])
@@ -107,3 +130,9 @@ func _process(_delta: float) -> void:
 	key.global_position = kp
 	key.look_at(head, Vector3.UP)
 	rim.global_position = head - to_lens * 0.42 + side * -0.12 + Vector3(0, 0.22, 0)
+	var ht = c.get("_head_target")
+	if ht and is_instance_valid(ht):
+		(ht as Node3D).global_position = lens           # her eyes stay on the camera
+	for e in _eyes_saved:
+		if is_instance_valid(e[0]):
+			(e[0] as LookAtModifier3D).influence = 1.0
