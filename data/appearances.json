@@ -427,13 +427,19 @@
     },
     "status": "ready",
     "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle_L1Outfit.vrm",
+    "avatar_variants": ["res://assets/characters/luna/stages/l01_oracle/LunaOracle_L1Outfit_face3.vrm", "res://assets/characters/luna/stages/l01_oracle/LunaOracle_L1Outfit_face4.vrm", "res://assets/characters/luna/stages/l01_oracle/LunaOracle_L1Outfit_face5.vrm"],
     "source": "~/Downloads/Mika-Transformation-Lab/luna_l1_outfit (tools/luna_o10_place.py + tools/luna_o12_rig.py) from LUNA_L1_Outfit_3D.zip (sha256 80da67b5...); vrm sha256 39b09d1b812e83c5... (corrected build, transformation-outfits 4d7c319; provisional 24f8afb5... replaced)",
     "profile": {
      "face": {
       "brows_through_fringe": false,
       "style": "res://assets/characters/luna/face_style/l01_oracle",
-      "rest": {"eye_surprised": 0.32},
+      "rest": {"eye_surprised": 0.15},
       "fallbacks": true,
+      "joy_floor": 0.6,
+      "recipes": {
+       "happy": {"face": {"brow_joy": 0.7, "eye_natural": 0.55, "mouth_up": 0.55, "mouth_fun": 0.45, "blush": 0.45}, "posture": {"roll": 0.06}},
+       "shy": {"face": {"brow_sorrow": 0.45, "eye_natural": 0.45, "mouth_up": 0.3, "mouth_small": 0.5, "blush": 1.0}, "posture": {"pitch": 0.14, "roll": 0.12, "gaze_down": 0.5}}
+      },
       "mouth_scale": 0.8
      },
      "motion": "luna",

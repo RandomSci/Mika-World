@@ -90,7 +90,7 @@ static func profile(who: String) -> Dictionary:
 ## The stage that holds a given avatar file (so a swap - e.g. the transformation - knows its profile).
 static func stage_for_avatar(who: String, path: String) -> Dictionary:
 	for s in stages(who):
-		if String(s.get("avatar", "")) == path:
+		if String(s.get("avatar", "")) == path or path in s.get("avatar_variants", []):    # (variants: candidate rebuilds under review)
 			return s
 	for s in data().get(who, {}).get("archive", []):
 		if String(s.get("avatar", "")) == path:

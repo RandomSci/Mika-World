@@ -6633,6 +6633,10 @@ func _facestills() -> void:
 	main.director.set_process(false)
 	var map: RID = main.characters["mika"].get_world_3d().navigation_map
 	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	if RenderProfile.options.has("fs-luna-avatar"):       # a candidate model under review (test only)
+		var lp := String(RenderProfile.options["fs-luna-avatar"])
+		_check(main.characters["luna"].swap_avatar(lp), "Luna wears the candidate " + lp.get_file())
+		await _wait(2.0)
 	for who in String(RenderProfile.options.get("fs-who", "mika,luna")).split(","):
 		var c: WorldCharacter = main.characters[who]
 		print("[mktest] facestills %s face style parts %d" % [who, c.face_style_parts])

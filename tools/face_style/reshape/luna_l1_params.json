@@ -1,0 +1,55 @@
+{
+ "seam_fade": 0.018,
+ "front_y": [
+  0.02,
+  0.05
+ ],
+ "shorten": 0.12,
+ "chin_round": 0.42,
+ "chin_round_max": 1.4,
+ "chin_lift": 0.0045,
+ "cheek": [
+  0.045,
+  -0.07,
+  1.515
+ ],
+ "cheek_r": [
+  0.024,
+  0.03,
+  0.022
+ ],
+ "cheek_out": 0.006,
+ "cheek_fwd": 0.003,
+ "mouth_r": [
+  0.025,
+  0.03,
+  0.012
+ ],
+ "mouth_up": 0.003,
+ "mouth_scale": 0.8,
+ "eye_r": [
+  0.032,
+  0.04,
+  0.024
+ ],
+ "eye_core": 0.35,
+ "eye_sx": 1.2,
+ "eye_sz": 1.42,
+ "eye_in": 0.0015,
+ "eye_down": 0.004,
+ "nose_r": [
+  0.012,
+  0.03,
+  0.014
+ ],
+ "nose_base_y": 0.012,
+ "nose_scale": 0.7,
+ "lash_grow": 0.35,
+ "bangs": 0.7,
+ "bang_front": 0.065,
+ "bang_z": 1.635,
+ "bang_zr": 0.042,
+ "bang_xmax": 0.06,
+ "bang_down": 0.008,
+ "brow_up": 0.005
+}

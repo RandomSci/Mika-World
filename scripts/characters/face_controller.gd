@@ -98,6 +98,11 @@ var debug_brow := []
 var rest := {}
 var alias := {}
 var mouth_scale := 1.0
+## below this, the eye "joy" (smiling arcs) is softened: half-way joy droops a VRoid lid flat over the iris and reads
+## as sullen, so a smile keeps the eyes open until it is a real laugh (0 = off)
+var joy_floor := 0.0
+## per-character recipes that replace the shared ones (Luna's softer smile)
+var recipes := {}
 
 
 ## A blend shape by its VRoid component name. Models rebuilt in Blender (the level 1-10 Celestial stages) keep the
@@ -141,6 +146,8 @@ static func attach(character: Node3D, avatar: Node, cfg: Dictionary) -> FaceCont
 			fc.alias[k] = FALLBACK[k]
 	fc.rest = cfg.get("rest", {})
 	fc.mouth_scale = float(cfg.get("mouth_scale", 1.0))
+	fc.joy_floor = float(cfg.get("joy_floor", 0.0))
+	fc.recipes = cfg.get("recipes", {})
 	fc.bias = cfg.get("bias", {})
 	fc.blink_mean = float(cfg.get("blink_mean", 3.6))
 	fc._rng.seed = hash(String(character.get("character_id"))) + 17
@@ -296,7 +303,7 @@ func update(delta: float) -> void:
 	posture = {}
 	for e in _mix:
 		var w := clampf(float(_mix[e]), 0.0, 1.5)
-		var r: Dictionary = EMOTIONS.get(e, {})
+		var r: Dictionary = recipes.get(e, EMOTIONS.get(e, {}))
 		for k in r.get("face", {}):
 			comp[k] = float(comp.get(k, 0.0)) + float(r.face[k]) * w
 		for k in r.get("posture", {}):
@@ -318,6 +325,11 @@ func update(delta: float) -> void:
 		var lim := 1.15 if rg2 == "mouth" else 1.4
 		if float(sums.get(rg2, 0.0)) > lim:
 			comp[k] = float(comp[k]) * lim / float(sums[rg2])
+	if joy_floor > 0.0:
+		for jk in ["eye_joy", "eye_joy_l", "eye_joy_r"]:
+			if comp.has(jk):
+				var jv := float(comp[jk])
+				comp[jk] = jv * 0.25 if jv < joy_floor else lerpf(joy_floor * 0.25, 1.0, (jv - joy_floor) / maxf(1.0 - joy_floor, 0.01))
 	# 4b) the resting shape, yielding to whatever the region is already doing
 	for k in rest:
 		var busy := 0.0
