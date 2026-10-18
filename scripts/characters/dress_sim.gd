@@ -259,8 +259,8 @@ func _process(delta: float) -> void:
 		_clear_seat()
 	if c.seated != _was_seated:
 		# seated: the skirt holds its shape on the seat (stiffer, lighter) instead of sliding off it as a flat sheet
-		var k := _f("seated_stiffness", 3.0) if c.seated else 1.0
-		var g := _f("seated_gravity", 0.4) if c.seated else 1.0
+		var k := _f("seated_stiffness", 0.5) if c.seated else 1.0
+		var g := _f("seated_gravity", 2.0) if c.seated else 1.0
 		for i in _chains.size():
 			sim.set_stiffness(i, _f("stiffness", 16.0) * _ck(i, "stiffness") * k)
 			sim.set_gravity(i, _f("gravity", 0.5) * _ck(i, "gravity") * g)

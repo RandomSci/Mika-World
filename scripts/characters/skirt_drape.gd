@@ -67,7 +67,10 @@ func _sitting_kind() -> String:
 	return ""
 
 
-## Sample the surfaces under her (everything solid except her own body): a height map around her hips.
+## Sample the surfaces under her: a height map around her hips. Props and seats are sampled on their VISIBLE shape
+## (their meshes - a rock's collision is often a box wider and flatter than the rock, and cloth on that box sticks out
+## like a board); the ground under them comes from physics with those small prop bodies left out. Plants and anything
+## with transparency are ignored (the skirt does not sit on leaves).
 func _sample() -> void:
 	var space := c.get_world_3d().direct_space_state
 	var sk := c.skeleton
@@ -76,18 +79,50 @@ func _sample() -> void:
 	_origin = Vector2(hp.x - HALF, hp.z - HALF)
 	_hf.resize(_n * _n)
 	var floor_y := c.global_position.y - 0.4
-	var excl: Array[RID] = [c.get_rid()]
+	var top_y := hp.y - 0.06
+	var region := AABB(Vector3(hp.x - HALF - 0.2, hp.y - 3.0, hp.z - HALF - 0.2), Vector3(HALF * 2.0 + 0.4, 3.0, HALF * 2.0 + 0.4))
+	# 1. physics, minus small bodies (seats, rocks, logs: their visible meshes are used instead)
+	var excl: Array[RID] = []
 	for cw in c.get_tree().root.find_children("*", "WorldCharacter", true, false):
 		excl.append((cw as CollisionObject3D).get_rid())
+	var qp := PhysicsShapeQueryParameters3D.new()
+	var bx := BoxShape3D.new()
+	bx.size = region.size
+	qp.shape = bx
+	qp.transform = Transform3D(Basis.IDENTITY, region.get_center())
+	for hit in space.intersect_shape(qp, 64):
+		var col = hit.get("collider")
+		if col is StaticBody3D and _small_body(col as StaticBody3D):
+			excl.append((col as StaticBody3D).get_rid())
+	# 2. the visible props in the region
+	var props: Array = []
+	for mi in c.get_tree().root.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.is_visible_in_tree() or String(m.get_path()).contains("Avatar"):
+			continue
+		var bb: AABB = m.global_transform * m.get_aabb()
+		if not bb.intersects(region) or bb.size.length() > 6.0 or _see_through(m):
+			continue
+		var tm := m.mesh.generate_triangle_mesh()
+		if tm:
+			props.append([tm, m.global_transform.affine_inverse(), m.global_transform])
 	for j in _n:
 		for i in _n:
 			var x := _origin.x + i * CELL
 			var z := _origin.y + j * CELL
-			# (from just under her pelvis: only what she sits on and the floor count - not a wall or log beside her)
-			var q := PhysicsRayQueryParameters3D.create(Vector3(x, hp.y - 0.06, z), Vector3(x, hp.y - 3.0, z))
+			var from := Vector3(x, top_y, z)
+			var q := PhysicsRayQueryParameters3D.create(from, Vector3(x, hp.y - 3.0, z))
 			q.exclude = excl
 			var hit := space.intersect_ray(q)
-			_hf[j * _n + i] = float((hit.position as Vector3).y) if not hit.is_empty() else floor_y
+			var h := float((hit.position as Vector3).y) if not hit.is_empty() else floor_y
+			for pr in props:
+				var inv: Transform3D = pr[1]
+				var lf: Vector3 = inv * from
+				var lt: Vector3 = inv * Vector3(x, hp.y - 3.0, z)
+				var r: Dictionary = (pr[0] as TriangleMesh).intersect_segment(lf, lt)
+				if not r.is_empty():
+					h = maxf(h, ((pr[2] as Transform3D) * (r.position as Vector3)).y)
+			_hf[j * _n + i] = h
 	# max filter (one cell): the fabric clears a seat's edge instead of cutting its corner
 	var src := _hf.duplicate()
 	for j in _n:
@@ -104,7 +139,26 @@ func _sample() -> void:
 	for v in _hf:
 		lo = minf(lo, v)
 		hi = maxf(hi, v)
-	print("[drape] %s sampled %dx%d around hips y %.2f (feet %.2f): surface %.2f .. %.2f" % [c.character_id, _n, _n, hp.y, c.global_position.y, lo, hi])
+	print("[drape] %s sampled %dx%d (%d visible props) around hips y %.2f: surface %.2f .. %.2f" % [c.character_id, _n, _n, props.size(), hp.y, lo, hi])
+
+
+static func _small_body(b: StaticBody3D) -> bool:
+	for sh in b.get_children():
+		if sh is CollisionShape3D and (sh as CollisionShape3D).shape:
+			var s = (sh as CollisionShape3D).shape
+			if s is BoxShape3D and (s as BoxShape3D).size.length() < 3.5:
+				return true
+	return false
+
+
+static func _see_through(m: MeshInstance3D) -> bool:
+	var mats: Array = [m.material_override]
+	for si in m.mesh.get_surface_count():
+		mats.append(m.get_active_material(si))
+	for mt in mats:
+		if mt is BaseMaterial3D and (mt as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+			return true
+	return false
 
 
 func _height(p: Vector3) -> float:
@@ -150,7 +204,7 @@ func _process_modification() -> void:
 		_legs.append([b, f, 0.06 + LEG_MARGIN])
 	for ci in chains.size():
 		var ids: Array = chains[ci]
-		var pull := 0.25 if front[ci] else 1.6          # how hard the panel hangs (front: rests on the lap)
+		var pull := 0.3 if front[ci] else 4.0          # how hard the panel hangs (front: rests on the lap; the rest hang limp)
 		# current (simulated) joint positions, world
 		var P: Array = []
 		for b in ids:
