@@ -18,7 +18,27 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 from open_llm_vtuber.room import runtime as rt  # noqa: E402
-from tests.test_code_in_public import Stage  # noqa: E402
+from open_llm_vtuber.room.profiles import load_room  # noqa: E402
+from open_llm_vtuber.room.runtime import RoomRuntimes  # noqa: E402
+from open_llm_vtuber.room.session import RoomSession  # noqa: E402
+
+
+class Stage:
+    """A room with a scripted agent: just enough to run one character turn."""
+
+    def __init__(self):
+        self.session = RoomSession(load_room(ROOT / "room", ROOT))
+        agent = type("Agent", (), {"_llm": None})()
+        self.runtimes = RoomRuntimes(self.session, None, "test", self._send)
+        self.runtimes.agent = lambda character_id: agent
+
+        async def push(ops):
+            pass
+
+        self.session.push = push
+
+    async def _send(self, payload: str) -> None:
+        pass
 
 ERROR = "Error calling the chat endpoint: Error occurred while generating response. See the logs for details."
 

@@ -62,7 +62,7 @@ def test_luna_gets_the_same_edge_engine_as_mika_with_her_own_voice(tmp_path):
     # Mika has her own Kokoro voice in mika.yaml (Edge fallback), not conf.yaml's TTS.
     mika = voices.engine("mika")
     assert mika is not mika_engine and isinstance(mika, FallbackTTS)
-    assert built["kokoro_tts"]["voice"] == "af_bella:0.6,jf_alpha:0.4"
+    assert built["kokoro_tts"]["voice"] == "af_heart:0.6,jf_alpha:0.4"
     luna = voices.engine("luna")
     assert not isinstance(luna, FallbackTTS)
     assert built["edge_tts"] == {

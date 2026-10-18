@@ -19,7 +19,7 @@ def test_bundled_room_loads_mika_and_luna():
     assert mika.primary and not luna.primary
     assert mika.model == "mao_pro" and luna.model == "hiyori"
     assert mika.voice.tts_model == "kokoro_tts"  # her own local voice (Edge fallback)
-    assert mika.voice.settings["voice"] == "af_bella:0.6,jf_alpha:0.4"
+    assert mika.voice.settings["voice"] == "af_heart:0.6,jf_alpha:0.4"
     assert luna.voice.tts_model == "edge_tts"
     assert luna.voice.settings["voice"] == "en-GB-MaisieNeural"
     assert mika.mouth == "ParamA" and luna.mouth == "ParamMouthOpenY"

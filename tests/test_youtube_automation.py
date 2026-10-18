@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 
 import httpx
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -29,7 +28,6 @@ from open_llm_vtuber.publishing.settings import (  # noqa: E402
     save_refresh_token,
 )
 from open_llm_vtuber.publishing.youtube import YouTubeClient  # noqa: E402
-from tests.test_publishing import GAME, passed_job  # noqa: E402
 
 REFRESH = "1//refresh-SECRET-abc"
 ENV_NAMES = (
@@ -138,23 +136,10 @@ def live_settings(tmp_path, **extra) -> PublishSettings:
     return PublishSettings(**base)
 
 
-def published(service: PublicationService):
-    # Publishing itself goes to a dry-run folder; only YouTube is "real" here.
-    service.settings.dry_run = True
-    job = passed_job(service)
-    assert service.publish_project(job.job_id, GAME)["ok"]
-    service.settings.dry_run = False
-    return job
-
-
-def test_chat_finds_the_live_stream_without_a_video_id(tmp_path):
+def test_finds_the_live_stream_without_a_video_id(tmp_path):
     google = FakeGoogle(live=["LIVE1"])
-    google.chat_for["LIVE1"] = "chat-1"
     service = PublicationService(live_settings(tmp_path), youtube_factory=google.client)
-    job = published(service)
-    result = service.announce_published_project(job.job_id)
-    assert result["ok"], result
-    assert google.posted[0]["snippet"]["liveChatId"] == "chat-1"
+    assert service._video_id(google.client()) == "LIVE1"
     assert "search" not in google.calls  # the cheap lookup was enough
     # Cached: a second lookup within ten minutes costs nothing.
     before = google.calls.count("liveBroadcasts")
@@ -164,62 +149,36 @@ def test_chat_finds_the_live_stream_without_a_video_id(tmp_path):
 
 def test_a_new_stream_is_picked_up_when_the_old_one_ends(tmp_path):
     google = FakeGoogle(live=["NEW"])
-    google.chat_for["NEW"] = "chat-new"  # OLD has ended: no chat
     service = PublicationService(live_settings(tmp_path), youtube_factory=google.client)
     service._found_video_id, service._found_at = "OLD", 10**12
-    job = published(service)
-    assert service.announce_published_project(job.job_id)["ok"]
-    assert google.posted[0]["snippet"]["liveChatId"] == "chat-new"
+    assert service._video_id(google.client(), fresh=True) == "NEW"
 
 
 def test_channel_search_is_only_the_fallback(tmp_path):
     google = FakeGoogle(live=[""], search="FOUND")
-    google.chat_for["FOUND"] = "chat-f"
     service = PublicationService(
         live_settings(tmp_path, youtube_channel_id="UCchan"),
         youtube_factory=google.client,
     )
-    job = published(service)
-    assert service.announce_published_project(job.job_id)["ok"]
+    assert service._video_id(google.client()) == "FOUND"
     assert google.calls.index("liveBroadcasts") < google.calls.index("search")
 
 
 def test_not_live_is_a_calm_no(tmp_path):
     google = FakeGoogle(live=[""])
     service = PublicationService(live_settings(tmp_path), youtube_factory=google.client)
-    job = published(service)
-    result = service.announce_published_project(job.job_id)
-    assert not result["ok"] and "not live" in result["reason"]
+    assert service._video_id(google.client()) == ""
     assert "search" not in google.calls  # no channel id, no 100-unit search
 
 
 def test_a_set_video_id_still_wins(tmp_path):
     google = FakeGoogle(live=["OTHER"])
-    google.chat_for["PINNED"] = "chat-p"
     service = PublicationService(
         live_settings(tmp_path, youtube_video_id="PINNED"),
         youtube_factory=google.client,
     )
-    job = published(service)
-    assert service.announce_published_project(job.job_id)["ok"]
+    assert service._video_id(google.client()) == "PINNED"
     assert "liveBroadcasts" not in google.calls
-
-
-def test_dry_run_needs_no_video_id_or_credentials(tmp_path):
-    s = live_settings(
-        tmp_path,
-        dry_run=True,
-        youtube_client_id="",
-        youtube_client_secret="",
-        youtube_refresh_token="",
-    )
-    service = PublicationService(
-        s, youtube_factory=lambda: pytest.fail("no YouTube call in a dry run")
-    )
-    job = passed_job(service)
-    service.publish_project(job.job_id, GAME)
-    result = service.announce_published_project(job.job_id)
-    assert result["ok"] and result["dry_run"]
 
 
 def test_a_rotated_refresh_token_is_saved(tmp_path):
@@ -234,8 +193,7 @@ def test_a_rotated_refresh_token_is_saved(tmp_path):
         client=httpx.Client(transport=httpx.MockTransport(google.handler)),
         on_refresh_token=service._default_youtube()._on_refresh_token,
     )
-    job = published(service)
-    assert service.announce_published_project(job.job_id)["ok"]
+    assert service._video_id(service._youtube_factory()) == "LIVE1"
     assert read_saved_refresh_token(s.youtube_token_file) == "1//rotated-NEW"
     assert s.youtube_refresh_token == "1//rotated-NEW"
 

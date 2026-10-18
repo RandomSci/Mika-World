@@ -676,7 +676,7 @@ def load_room(
 
     cast_spec = cast or spec.get("cast") or []
     override = os.environ.get("VR_ROOM_CAST", "").strip()
-    if override:  # e.g. VR_ROOM_CAST=mika,luna for Minecraft mode
+    if override:  # e.g. VR_ROOM_CAST=mika,luna
         cast_spec = [c for c in override.split(",") if c.strip()]
     cast = [str(c).strip().lower() for c in cast_spec if str(c).strip()]
     if not cast:

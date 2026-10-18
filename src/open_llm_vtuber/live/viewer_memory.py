@@ -1,4 +1,4 @@
-"""Per-viewer memory for live chat (Day 3, ported from the Minecraft-era ViewerMemory and extended).
+"""Per-viewer memory for live chat (Day 3).
 
 What a viewer said, how they write (tone, emoji, language), which streams they came to - so Mika can greet a returning
 viewer by name and naturally pick up something they said before. Entries older than RETENTION_DAYS (default 20) are

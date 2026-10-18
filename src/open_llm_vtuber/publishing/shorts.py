@@ -44,7 +44,7 @@ def make_short(
 ) -> tuple[Path, Path]:
     """Render a 1080x1920 MP4 Short and a JSON sidecar.
 
-    The horizontal clip is letterboxed inside the central frame so Minecraft,
+    The horizontal clip is letterboxed inside the central frame so the world,
     Mika and Luna are preserved instead of cropped away.
     """
     require_binary("ffmpeg")

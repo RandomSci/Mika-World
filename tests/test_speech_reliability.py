@@ -68,7 +68,7 @@ def test_latency_uses_first_audible_chunk_and_reports_playback_errors():
 
 def test_runtime_selects_reconnected_stage_instead_of_bootstrap_socket(monkeypatch):
     from types import SimpleNamespace
-    from tests.test_code_in_public import Stage
+    from tests.test_llm_errors_stay_off_stream import Stage
     import open_llm_vtuber.conversations.single_conversation as sc
     stage=Stage();seen=[];sent=[]
     async def old(payload):raise RuntimeError('closed bootstrap socket')

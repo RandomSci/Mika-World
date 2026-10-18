@@ -94,19 +94,13 @@ class WebSocketServer:
             allow_headers=["*"],
         )
 
-        # Code in Public: the Stage's sandboxed preview may load /stage-libs
-        # and /stage-assets, and the Stage page is never served stale.
-        from .room.capabilities import install_stage_headers
-
-        install_stage_headers(self.app)
-        self.ws_handler.stage_base_url = (
-            f"http://127.0.0.1:{config.system_config.port}"
-        )
-
-        # Gallery admin (local only): list and take down published games.
-        from .publishing.admin import init_admin_routes
-
-        self.app.include_router(init_admin_routes())
+        # The stage pages change with every update: never serve a stale copy.
+        @self.app.middleware("http")
+        async def no_stale_stage_pages(request, call_next):  # pragma: no cover - thin glue
+            response = await call_next(request)
+            if request.url.path.startswith("/vr-agent/"):
+                response.headers["Cache-Control"] = "no-cache"
+            return response
 
         # Pre-live barrier of the world show (local only, see prelive.py).
         from .publishing.prelive_routes import init_prelive_routes

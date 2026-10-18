@@ -42,10 +42,6 @@ OP_KINDS = (
     "board",
     "line",
     "chat_seen",
-    "teaching",
-    "coding",
-    "class",
-    "minecraft",
 )
 
 
@@ -102,16 +98,7 @@ class RoomSession:
 
         self.director = ConversationDirector(self, rng=self.rng, clock=clock)
 
-        from .teaching import TeachingDirector
-
-        self.teaching = TeachingDirector(
-            [profile.id for profile in room.characters]
-        )
-
         self.traces: deque[dict[str, Any]] = deque(maxlen=300)
-        # Optional show engines (none in the Godot world; kept None-safe for the handlers).
-        self.class_engine: Any = None
-        self.mode_engine: Any = None
         from .lifestyle import LifestyleShowRunner
         self.lifestyle = LifestyleShowRunner(self, clock=clock, rng=self.rng)
 
@@ -296,10 +283,6 @@ class RoomSession:
         if self.lifestyle.enabled:
             self.lifestyle.notice_chat(message)
             return False  # the 3D world: Mika notices chat in her own time
-        if (self.class_engine is not None and self.class_engine.active) or (
-            self.mode_engine is not None and self.mode_engine.active
-        ):
-            return False  # class mode: no games or camera commands, chat goes to the class
         camera_ops = self._camera_request(message)
         if camera_ops is not None:
             from ..vr_agent.usage import usage
@@ -477,10 +460,6 @@ class RoomSession:
             "snapshot": self.state.snapshot(),
             # A page that reconnects mid game redraws the board from this.
             "board": self.show.engine.view(),
-            "teaching": self.teaching.session.snapshot(),
-            # Class mode: the slide, the notebook cells and an open quiz.
-            "class": self.class_engine.snapshot() if self.class_engine else None,
-            "minecraft": self.mode_engine.snapshot() if self.mode_engine else None,
         }
 
     async def _send(self, client_uid: str, payload: dict[str, Any]) -> None:

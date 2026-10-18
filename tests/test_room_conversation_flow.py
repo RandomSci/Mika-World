@@ -71,11 +71,12 @@ def test_second_character_answers_the_question_mika_asked_her():
             "Wanda is strong, but my vote goes to Doctor Strange.",
         ]
     )
-    plan = run(session, "Who is the most powerful hero in avengers", runner)
+    plan = run(session, "Mika, who is the most powerful hero in avengers", runner)
     assert len(runner.calls) == 2
+    assert runner.calls[0][0] == "mika"
     luna_prompt = runner.calls[1][2]
     assert "asked you" in luna_prompt and "Answer" in luna_prompt
-    assert "Who is the most powerful hero in avengers" in luna_prompt
+    assert "who is the most powerful hero in avengers" in luna_prompt
     assert all(t.text for t in plan.turns)
 
 

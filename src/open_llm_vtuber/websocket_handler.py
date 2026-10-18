@@ -2,7 +2,6 @@ from typing import Dict, List, Optional, Callable, TypedDict
 from fastapi import WebSocket, WebSocketDisconnect
 import asyncio
 import json
-import os
 import time
 from enum import Enum
 import numpy as np
@@ -332,46 +331,14 @@ class WebSocketHandler:
             return self.room_session.conversation_slot_available()
         return idle
 
-    def side_chat_ready(self) -> bool:
-        """A build is running in the room and nobody is answering chat yet."""
-        runtimes = getattr(self, "_room_runtimes", None)
-        task = getattr(self, "_side_task", None)
-        return bool(
-            runtimes is not None
-            and self._room_is_primary()
-            and runtimes.building
-            and (task is None or task.done())
-        )
-
-    def side_chat(self, message, wants_build: bool) -> None:
-        """Answer one chat message while the build keeps going (background)."""
-        runtimes = getattr(self, "_room_runtimes", None)
-        if runtimes is None:
-            return
-        self.room_session.note_viewer_activity()
-
-        async def go() -> None:
-            try:
-                await runtimes.side_reply(
-                    message.author_display_name, message.text, wants_build
-                )
-            except Exception as exc:
-                logger.warning(f"Side reply failed: {exc}")
-
-        self._side_task = asyncio.create_task(go())
-
-    def _maybe_start_class(self, client_uid: str, websocket: WebSocket) -> None:
-        """(The class and Minecraft shows were removed: the stream is the Godot world.)"""
-        return
-
-    def _start_autopilot(self, runtimes) -> None:
+    def _start_autopilot(self, publisher) -> None:
         """Title, description, channel page and the 11h55m limit (YouTube)."""
-        if getattr(self, "autopilot", None) is not None or runtimes.publisher is None:
+        if getattr(self, "autopilot", None) is not None or publisher is None:
             return
         try:
             from .publishing.stream_autopilot import StreamAutopilot
 
-            self.autopilot = StreamAutopilot(runtimes.publisher)
+            self.autopilot = StreamAutopilot(publisher)
             self.autopilot.goodbye = self.say_goodbye
             from .room.world_mode import world_mode_enabled
 
@@ -401,20 +368,13 @@ class WebSocketHandler:
         from .room.speech import INSIDE_INTERACTION
 
         session = self.room_session
-        mode = getattr(session, "mode_engine", None)
-        if mode is not None:
-            await self._mode_goodbye(mode, reason)
-            return
         if not session.active or not session.speech_target():
             return
-        engine = session.class_engine
-        if engine is not None and engine.task and not engine.task.done():
-            engine.task.cancel()  # stop teaching mid line; progress is kept
-        # Only the voice: a build may still hold the interaction lock.
+        # Only the voice: a reply may still hold the interaction lock.
         INSIDE_INTERACTION.set(True)
         cast = [c.id for c in session.room.characters]
-        teacher = (engine.teacher if engine else None) or (cast[0] if cast else "mika")
-        sidekick = next((c for c in cast if c != teacher), None)
+        first_speaker = cast[0] if cast else "mika"
+        sidekick = next((c for c in cast if c != first_speaker), None)
         if reason == "limit":
             first = (
                 "Whoa, we've been live for almost twelve hours! That's all for today. "
@@ -423,90 +383,9 @@ class WebSocketHandler:
         else:
             first = "That's all for today, everyone! Goodbye for now, and see you in the next session!"
         logger.info("Saying goodbye on stream")
-        await session.speech.say(teacher, first)
+        await session.speech.say(first_speaker, first)
         if sidekick:
-            await session.speech.say(
-                sidekick, "Bye bye! Keep practicing, and your projects are in the description!"
-            )
-
-    async def _mode_goodbye(self, mode, reason: str) -> None:
-        """Minecraft and other modes: the goodbye lines, then their processes stop."""
-        from .room.speech import INSIDE_INTERACTION
-
-        session = self.room_session
-        INSIDE_INTERACTION.set(True)
-        hush = getattr(mode, "hush", None)
-        if hush:
-            hush()  # no new chat answers: the goodbye is next, not stuck behind them
-
-        async def speak() -> None:
-            cast = [c.id for c in session.room.characters] or ["mika"]
-            for _ in range(16):  # the line being spoken right now finishes first (up to 8 s)
-                if not session.speech.talking:
-                    break
-                await asyncio.sleep(0.5)
-            logger.info("Saying goodbye on stream")
-            for i, line in enumerate(mode.goodbye_lines(reason)):
-                await session.speech.say(cast[i % len(cast)], line)
-
-        try:
-            if session.active and session.speech_target():
-                # A stage that never confirms playback made this take 30 s,
-                # and the stream was never ended: speech gets 25 s at most.
-                try:
-                    await asyncio.wait_for(speak(), timeout=25)
-                except asyncio.TimeoutError:
-                    logger.warning("Goodbye speech took too long, moving on")
-            else:
-                logger.warning("Goodbye not spoken: the stage page is not connected")
-        finally:
-            try:
-                await asyncio.wait_for(mode.stop(), timeout=50)  # world saved, then the server stops
-            except Exception as exc:
-                logger.warning(f"Mode stop failed: {exc}")
-
-    def _chat_engine(self):
-        session = self.room_session
-        for name in ("mode_engine", "class_engine"):
-            engine = getattr(session, name, None)
-            if engine is not None and engine.active:
-                return engine
-        return None
-
-    def class_active(self) -> bool:
-        return self._chat_engine() is not None
-
-    def class_message(self, message, received_at: float | None = None) -> None:
-        """Chat during class or a mode: a quiz answer, a question, or a message for the bots."""
-        engine = self._chat_engine()
-        if engine is None:
-            return
-        self.room_session.note_viewer_activity()
-        usage.record_viewer_interaction()
-        if getattr(engine, "accepts_paid", False):  # Super Chats first, members known
-            kind = getattr(message, "kind", "")
-            paid = str(getattr(message, "amount", "") or "") if kind == "paid" else ""
-            if kind == "paid" and not paid:
-                paid = "a Super Sticker"
-            if kind == "member":
-                paid = "a new membership"
-            member = str(getattr(message, "author_type", "") or "") in ("member", "moderator", "owner")
-            engine.enqueue(
-                message.author_display_name,
-                message.text or "",
-                paid=paid,
-                member=member,
-                received_at=received_at,
-                author_id=getattr(message, "author_channel_id", ""),
-                author_handle=getattr(message, "author_handle", ""),
-            )
-            return
-        logger.info(
-            "VIEWER_ROUTE "
-            f"channel_id={getattr(message, 'author_channel_id', '') or '-'} "
-            f"handle={getattr(message, 'author_handle', '') or '-'} target=class"
-        )
-        engine.enqueue(message.author_display_name, message.text)
+            await session.speech.say(sidekick, "Bye bye! See you next time!")
 
     def _room_is_primary(self) -> bool:
         primary = self._get_primary_client()
@@ -534,55 +413,23 @@ class WebSocketHandler:
             self._room_runtimes = runtimes
             self.room_session.director.turn_runner = runtimes.run_turn
             self.room_session.lifestyle.planner = runtimes.plan_lifestyle
-            from .room.world_mode import world_mode_enabled
-
-            if not world_mode_enabled():  # the world show has no teaching/coding tools
-                self.room_session.director.teaching_intent_classifier = (
-                    runtimes.classify_teaching_intent
-                )
-                self.room_session.director.coding_action_runner = (
-                    runtimes.run_coding_action
-                )
             self.room_session.director.pending_probe = self.pending_viewer_messages
-            self._wire_code_in_public(runtimes)
+            self._wire_publishing()
         else:
             runtimes.retarget(client_uid, websocket.send_text)
         return self.room_session.director.ready
 
-    def _wire_code_in_public(self, runtimes) -> None:
-        """Browser check, one repair and publishing, exactly like the DEV Stage.
-
-        Everything here is optional: if a piece cannot start, coding still
-        works without it and the stream never stops.
-        """
+    def _wire_publishing(self) -> None:
+        """The YouTube publisher (title, description, ending the broadcast) and its autopilot.
+        Optional: if it cannot start, the stream still runs."""
+        publisher = None
         try:
             from .publishing import PublicationService, PublishSettings
 
-            settings = PublishSettings.from_env()
-            runtimes.publisher = PublicationService(settings)
-            logger.info(
-                "Code in Public publishing: "
-                + (
-                    "off"
-                    if not settings.enabled
-                    else ("dry run" if settings.dry_run else "LIVE to GitHub")
-                )
-            )
+            publisher = PublicationService(PublishSettings.from_env())
         except Exception as exc:
-            logger.warning(f"Code in Public: publishing unavailable: {exc}")
-        self._start_autopilot(runtimes)
-        if os.environ.get("VR_BROWSER_CHECK", "1").strip() in ("0", "false", "off"):
-            logger.info("Code in Public: browser check off (VR_BROWSER_CHECK=0)")
-            return
-        base = getattr(self, "stage_base_url", "") or "http://127.0.0.1:12393"
-        try:
-            from .room.browser_qa import BrowserQA
-
-            self._browser_qa = BrowserQA(base)
-            runtimes.browser_check = self._browser_qa.check
-            logger.info("Code in Public: web programs are checked in a real browser")
-        except Exception as exc:
-            logger.warning(f"Code in Public: browser check unavailable: {exc}")
+            logger.warning(f"Publishing unavailable: {exc}")
+        self._start_autopilot(publisher)
 
     async def _process_room_message(
         self,
@@ -795,7 +642,6 @@ class WebSocketHandler:
                     self._room_director_ready(client_uid, websocket)
                 except Exception as exc:
                     logger.warning(f"VR Room: runtimes not ready yet: {exc}")
-                self._maybe_start_class(client_uid, websocket)
                 try:
                     # Which engine and voice each character really uses (no keys).
                     self.room_session.voices.log_report()

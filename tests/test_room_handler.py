@@ -65,7 +65,7 @@ def room_handler(monkeypatch):
     prompts: list[str] = []
 
     async def fake_conversation(
-        context, websocket_send, client_uid, user_input, images, metadata
+        context, websocket_send, client_uid, user_input, images, metadata, latency=None
     ):
         usage.record_llm("fake")
         prompts.append(user_input)

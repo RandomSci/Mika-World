@@ -165,11 +165,3 @@ def test_godot_world_drops_home_only_objectives(monkeypatch):
     reality = {'scene': 'GROUNDS', 'availableActions': ['sit_chair', 'dance_session', 'magic_lesson']}
     monkeypatch.setenv('VR_WORLD_RENDERER', '')
     assert 'relax' not in verified_ids(reality)          # no bedroom in the Godot world, whatever the environment says
-
-
-def test_gallery_promo_is_off_in_the_godot_world(monkeypatch):
-    from open_llm_vtuber.publishing.promo import GalleryPromoter as P
-    monkeypatch.delenv('VR_GALLERY_PROMO', raising=False)
-    assert not P.enabled()                               # off unless asked for
-    monkeypatch.setenv('VR_GALLERY_PROMO', '1')
-    assert P.enabled()

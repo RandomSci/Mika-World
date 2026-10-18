@@ -5,14 +5,10 @@ The same presentation profile the DEV server used for the world:
   - no 2D ambient walking moves, no automatic camera focus (the world camera
     and her phone decide what viewers see)
   - her session (goals, story, greeted) persists across restarts of a stream
-  - no teaching / coding tools (that is class mode)
 
     VR_MODE=world          turn it on (mika-live.sh does)
     VR_WORLD_HOLD_SPEECH=1 her first words wait until YouTube says "live"
                            (mika-live.sh sets it when OBS is managed)
-
-Minecraft and class mode are separate (VR_MODE=minecraft / VR_CLASS_MODE=1)
-and are not affected by anything here.
 """
 
 from __future__ import annotations

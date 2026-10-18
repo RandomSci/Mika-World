@@ -4,7 +4,6 @@ from collections import deque
 import json
 import random
 import re
-import os
 import time
 from types import SimpleNamespace
 import uuid
@@ -19,7 +18,7 @@ from .autonomy import Autonomy, GOALS, is_boredom_feedback, STARTUP_ACTIVITY_SEC
 
 ACTIONS={'casual_phone_chat','look_out_window','read_book','sit_chair','place_phone_for_full_body','place_phone_for_reading','place_phone_for_bed','place_phone_for_room_view','pick_up_phone','show_room','switch_selfie_profile','flip_rear_camera','walk_to_anchor','throw_phone','stand_relaxed','tour_room','show_desk','show_window','show_outfit','change_outfit','go_jogging','listen_to_viewer','presentation_beat','set_monitor','stabilize_camera'}
 ACTIONS.update({'visit_gardens','visit_lantern_retreat','garden_jog','quiet_outside','visit_atelier','return_book','explore','pick_flower','place_flower'})
-ACTIONS.update({'magic_prepare','magic_cast','magic_finish','magic_lesson','dance_session','dance_session_start','dance_routine','dance_session_end','sit_bench','go_to','coding_session','dance','visit_dance_studio','visit_rhythm_arcade','show_dance_tv','return_home','record_dance_content','dance_challenge','repeat_dance','stop_dancing'})
+ACTIONS.update({'magic_prepare','magic_cast','magic_finish','magic_lesson','dance_session','dance_session_start','dance_routine','dance_session_end','sit_bench','go_to','dance','visit_dance_studio','visit_rhythm_arcade','show_dance_tv','return_home','record_dance_content','dance_challenge','repeat_dance','stop_dancing'})
 # Comfortable medium selfie framings only: the close profile filled the screen
 # with her face, so autonomy never picks it (it stays a valid explicit profile).
 PROFILES=['selfie_normal','selfie_high','selfie_low','selfie_side']
@@ -60,7 +59,7 @@ ACTION_TIMEOUTS={'visit_gardens':330,'visit_lantern_retreat':330,'garden_jog':33
  'go_jogging':490,'dance':250,'dance_challenge':250,'repeat_dance':250,'record_dance_content':250,'change_outfit':120,'visit_dance_studio':120,
  'visit_rhythm_arcade':120,'show_dance_tv':120,'return_home':120,'read_book':160,'return_book':130,'tour_room':90,
  'magic_prepare':250,'magic_cast':45,'magic_finish':100,'magic_lesson':430,'dance_session':910,'dance_session_start':210,
- 'dance_routine':210,'dance_session_end':130,'sit_bench':200,'go_to':260,'coding_session':600}
+ 'dance_routine':210,'dance_session_end':130,'sit_bench':200,'go_to':260}
 
 
 def action_timeout(action):
@@ -414,7 +413,7 @@ class LifestyleShowRunner:
 
     def idle_seeds(self):
         seeds=['a quick thought about what you are doing or just did (recentlyDoneNewestFirst)','your actual magic progress or the next lesson',
-               'a small coding or game idea you are curious about (as an idea, not something already built)','a playful opinion about something in your world you can see right now',
+               'a small spell or game idea you are curious about (as an idea, not something already tried)','a playful opinion about something in your world you can see right now',
                'a light joke about yourself or about doing something again if recentlyDoneNewestFirst shows a repeat']
         if self.danced_recently():
             seeds.append('how the dance you just did went (your real scores)')   # only right after a real dance

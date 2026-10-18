@@ -43,7 +43,6 @@ GODOT_SEEDS = {
 
 
 def _seeds() -> dict:
-    import os
     return {**SEEDS, **GODOT_SEEDS}          # the stream is the Godot world
 
 

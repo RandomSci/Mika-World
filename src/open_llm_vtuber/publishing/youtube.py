@@ -31,9 +31,8 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 API = "https://www.googleapis.com/youtube/v3"
 UPLOAD_API = "https://www.googleapis.com/upload/youtube/v3"
 SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"
-# Class mode also uses the same Google account for lesson material:
-# Slides (the lesson deck), Docs (notes), Sheets (leaderboard), Calendar
-# (the schedule). One sign-in covers all. Google refuses drive.file in the
+# The sign-in also covers Slides, Docs, Sheets and Calendar (kept so the
+# existing token stays valid). One sign-in covers all. Google refuses drive.file in the
 # same request as YouTube ("scopes that cannot be requested together"), and
 # the Slides, Docs and Sheets APIs can create their own files without it.
 CLASS_SCOPES = (

@@ -78,9 +78,6 @@ REGISTRY: dict[str, Activity] = {a.id: a for a in [
     Activity("room_tour", "indoor", ("tour_room",), "HOME", "in the bedroom", COMPLETE_STEPS, REST, home_only=True),
     Activity("window", "indoor", ("show_window",), "HOME", "in the bedroom", COMPLETE_STEPS, REST, home_only=True),
     Activity("desk", "indoor", ("show_desk",), "HOME", "in the bedroom", COMPLETE_STEPS, REST, home_only=True),
-    Activity("coding_session", "coding", ("coding_session",), "HOME desk",
-             "coding feature on, sandboxed runner available", "code run in the sandbox with its real output shown",
-             REST, home_only=True, feature_flag="VR_FEATURE_CODING", flag_default="0"),
 ]}
 # Never chosen by herself as an objective (still possible on a viewer request).
 NOT_OBJECTIVES = {"head_home", "read", "flower"}
