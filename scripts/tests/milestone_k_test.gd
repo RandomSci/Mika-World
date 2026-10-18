@@ -189,6 +189,7 @@ func _run() -> void:
 		"sittest": await _sittest()
 		"motionshots": await _motionshots()
 		"daylapse": await _daylapse()
+		"lakedance": await _lakedance()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7622,15 +7623,16 @@ func _starlitharp() -> void:
 	luna.skeleton.add_child(fp)
 	for f in fp.curl:
 		fp.curl[f] = 0.25
-	luna.play_gesture("hold_wide_a", 0.2, 0.2)
+	var gok := luna.play_gesture("hold_wide_a", 0.2, 0.2)
+	print("[mktest] harp gesture ok=%s has=%s casting=%s reaction=%s ground=%s" % [str(gok), str(luna.has_clip("hold_wide_a")), str(luna.casting), str(luna.reaction.blocks_actions() if luna.reaction else false), luna.ground_pose])
 	await _wait(1.2)
 	var sk := luna.skeleton
 	var bone := func(n: String) -> Vector3:
 		return sk.global_transform * sk.get_bone_global_pose(sk.find_bone(n)).origin
 	# ---- A: the hand and the harp
-	var hp: Vector3 = bone.call("RightHand")
+	var hp: Vector3 = (bone.call("RightIndexProximal") as Vector3).lerp(bone.call("RightMiddleIntermediate"), 0.5)   # the fingers
 	print("[mktest] harp hand %s head %s chest %s luna %s gesture %s" % [str((hp - H).snapped(Vector3.ONE * 0.01)), str((bone.call("Head") - H).snapped(Vector3.ONE * 0.01)), str((bone.call("Chest") - H).snapped(Vector3.ONE * 0.01)), str((luna.global_position - H).snapped(Vector3.ONE * 0.01)), str(luna.get("gesture_clip"))])
-	var camA := hp + Vector3(0.28, -0.12, -0.62)
+	var camA := hp + Vector3(0.18, -0.16, -0.44)
 	var to_cam := (camA - hp).normalized()
 	set.build_harp(hp - to_cam * 0.22 + Vector3(-0.08, 0.1, 0), to_cam, 48.0)
 	var key := OmniLight3D.new()                                # her key light from the orb side / the lens side
@@ -7660,8 +7662,8 @@ func _starlitharp() -> void:
 		if t < 5.5:
 			# A: an extreme close-up of the hand, rolled 30 deg, a slow push
 			var u := t / 5.5
-			pin.pos = camA.lerp(hp + to_cam * 0.42 + Vector3(0.0, -0.05, 0.0), u)
-			pin.look = hp + Vector3(-0.04, 0.06, 0)
+			pin.pos = camA.lerp(hp + to_cam * 0.3 + Vector3(0.0, -0.03, 0.0), u)
+			pin.look = hp
 			pin.roll = deg_to_rad(lerpf(32.0, 18.0, u))
 			for pt in [[0.5, 4], [1.5, 2], [3.6, 3], [4.25, 5]]:
 				if t > float(pt[0]) - 0.18 and t < float(pt[0]) + 0.25:
@@ -7691,6 +7693,11 @@ func _starlitharp() -> void:
 		elif t < 14.3:
 			# C: the reach to the lens: crash zoom, a fast roll, a 2-frame white flash, zoom blur
 			if once.call("C"):
+				lance_dir = (ground + Vector3(0, 0.6, 0) - (H + Vector3(0, -3.0, 0))).normalized()
+				lance_start = H + Vector3(0, -1.5, 0) + lance_dir * 4.5
+				set.build_lance(9.0, 0.55)
+				set.lance.global_transform = Transform3D(Basis(Quaternion(Vector3.UP, lance_dir)), lance_start)
+				create_tween().tween_method(func(v): set.lance_form(v), 0.0, 1.0, 1.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 				luna.end_gesture()
 				luna.play_gesture("hold_point_b", 0.15, 0.2)
 				fx.zoom_blur(1.0, 0.8)
@@ -7703,11 +7710,6 @@ func _starlitharp() -> void:
 		elif t < 18.0:
 			# D: the lance forms under her, pointing down at the ground; the camera tracks along it
 			if once.call("D"):
-				lance_dir = (ground + Vector3(0, 0.6, 0) - (H + Vector3(0, -3.0, 0))).normalized()
-				lance_start = H + Vector3(0, -1.5, 0) + lance_dir * 4.5
-				set.build_lance(9.0, 0.55)
-				set.lance.global_transform = Transform3D(Basis(Quaternion(Vector3.UP, lance_dir)), lance_start)
-				create_tween().tween_method(func(v): set.lance_form(v), 0.0, 1.0, 1.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 				fx.flash("white", 1)
 			var u := (t - 14.3) / 3.7
 			var side := lance_dir.cross(Vector3.UP).normalized()
@@ -7994,4 +7996,150 @@ func _daylapse() -> void:
 		if hh != last_h:
 			last_h = hh
 			print("[mktest] lapse %02d:00 night_k %.2f sun_el %.1f energy %.2f" % [hh, main.day_night.k if main.day_night else -1.0, -rad_to_deg(sun.global_rotation.x), sun.light_energy if sun.visible else 0.0])
+	pin.active = false
+
+
+## Luna dances on the Lantern Lake water at night (Selwyn's targets T1 spin, T2 pose, T3 finale, 2026-10-19): a
+## moonlit navy sky, golden lanterns on the water and in the air (DanceStage), real 3D effects on her body (DanceFX)
+## and held poses (PoseAim). A straight camera, her whole figure in frame, no screen wash, no blur. ~21 s; record
+## with --write-movie and run with --no-scene-light (her own neutral key instead of the scene tint).
+func _lakedance() -> void:
+	await _hold_all()
+	await _force_luna_l1()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	var tr: Dictionary = await main.streaming.travel("lantern_lake", luna, false)
+	_check(main.streaming.current_id == "lantern_lake", "at Lantern Lake (%s)" % str(tr).left(120))
+	if main.day_night:
+		main.day_night.set_override(true)
+	await _wait(2.0)
+	if main.day_night:
+		main.day_night.set_process(false)
+		main.day_night.set_physics_process(false)
+	var lake: Node3D = null
+	for n in main.world.find_children("*", "Node3D", true, false) + [main.world]:
+		if n.get("water_mat") != null:
+			lake = n
+			break
+	_check(lake != null, "the lake node")
+	if lake == null:
+		return
+	mika.visible = false
+	var water_y: float = lake.global_position.y
+	var spot: Vector3 = lake.to_global(Vector3(-1.5, 0.0, -9.0))      # the clear lane in the floating lanterns
+	spot.y = water_y
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	luna.stop_action()
+	luna.set_physics_process(false)
+	luna.visible = true                              # (the area change parks every mage but the focus)
+	luna.global_position = spot
+	luna.swap_avatar(luna.avatar_path)              # (springs start where she stands)
+	await _wait(0.5)
+	# face the lens: her forward (foot -> toes in the rest pose) turned toward +Z, where the camera stands
+	var cam_dir := Vector3(0, 0, 1)
+	var sk := luna.skeleton
+	var toe := sk.global_basis * (sk.get_bone_global_rest(sk.find_bone("LeftToes")).origin - sk.get_bone_global_rest(sk.find_bone("LeftFoot")).origin)
+	toe.y = 0.0
+	luna.rotation.y += toe.normalized().signed_angle_to(cam_dir, Vector3.UP)
+	var yaw0 := luna.rotation.y
+	await _wait(1.0)
+	if main.get("subtitle") and main.subtitle:
+		main.subtitle.visible = false
+	var cams := []
+	for k in 5:
+		var ang := deg_to_rad(lerpf(-12.0, 12.0, k / 4.0))
+		cams.append(spot + Vector3(sin(ang), 0, cos(ang)) * 3.7 + Vector3(0, 0.9, 0))
+	var stage := DanceStage.build(lake, spot, water_y, cams, luna)
+	var fx := DanceFX.attach(luna, water_y, stage)
+	var poses := {}
+	for pn in ["spin", "reach", "open"]:
+		poses[pn] = PoseAim.make(luna.skeleton, pn)
+	var blend := func(pn: String, to: float, dur: float) -> void:
+		var tw := luna.create_tween()
+		tw.tween_property(poses[pn], "influence", to, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.fov = 40.0
+	pin.roll = 0.0
+	pin.active = true
+	fx.ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
+	fx.ripple_every = 0.9
+	var t0 := _game_t
+	var done := {}
+	var at := func(k: String, t: float) -> bool:
+		if done.has(k) or _game_t - t0 < t:
+			return false
+		done[k] = true
+		return true
+	var sway := 0.0
+	while _game_t - t0 < 22.0:
+		await get_tree().process_frame
+		var t := _game_t - t0
+		if main.get("subtitle") and main.subtitle:
+			main.subtitle.visible = false
+		# the camera: straight (no roll), low near the water, her whole figure; a slow drift across, easing back
+		# a little before the finale so the burst fits
+		var ang := deg_to_rad(lerpf(-10.0, 10.0, t / 22.0))
+		var dist := lerpf(3.35, 4.0, smoothstep(12.5, 15.2, t))
+		var look_y := lerpf(0.98, 1.2, smoothstep(12.5, 15.2, t))
+		pin.pos = spot + Vector3(sin(ang), 0, cos(ang)) * dist + Vector3(0, 0.9, 0)
+		pin.look = spot + Vector3(0, look_y, 0)
+		# T1: the double spin with the ribbons coiling round her
+		if at.call("spin_pose", 1.2):
+			blend.call("spin", 1.0, 0.6)
+		if at.call("spin", 1.6):
+			var tw := luna.create_tween()
+			tw.tween_property(luna, "rotation:y", yaw0 + TAU * 2.0, 4.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			fx.spin_dir = 1.0
+			fx.spiral(4.6, 3)
+			fx.ring_colors = [DanceFX.GOLD, DanceFX.VIOLET]
+			fx.ripple_every = 0.7
+		if at.call("spin_end", 6.0):
+			fx.burst(1.0)
+			fx.ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
+			fx.ripple_every = 0.85
+		# T2: the arm sweeps up (one gold arc), the leg draws up, she holds and sways a little
+		if at.call("reach", 6.4):
+			blend.call("spin", 0.0, 0.8)
+			blend.call("reach", 1.0, 1.1)
+			fx.arc("RightHand", 1.6)
+		if t > 7.5 and t < 12.4:
+			sway = deg_to_rad(6.0) * sin((t - 7.5) * 1.1)
+			luna.rotation.y = yaw0 + TAU * 2.0 + sway
+		if at.call("tw1", 9.6):
+			fx.twinkle("RightHand")
+		if at.call("tw2", 11.4):
+			fx.twinkle("RightHand")
+		# the turn back: a single spin into the finale
+		if at.call("turn", 12.6):
+			blend.call("reach", 0.0, 0.7)
+			blend.call("spin", 1.0, 0.7)
+			var tw2 := luna.create_tween()
+			tw2.tween_property(luna, "rotation:y", yaw0 + TAU * 3.0, 2.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			fx.spiral(2.5, 2)
+			fx.ring_colors = [DanceFX.GOLD, DanceFX.VIOLET]
+			fx.ripple_every = 0.7
+		# T3: arms open wide, the burst ring, the splash crown, the lanterns lift
+		if at.call("open", 15.0):
+			blend.call("spin", 0.0, 0.5)
+			blend.call("open", 1.0, 0.6)
+			fx.ripple_every = 0.0
+		if at.call("finale", 15.6):
+			fx.finale()
+			fx.ring_colors = [DanceFX.GOLD, DanceFX.ICE]
+		if at.call("ripples_late", 17.0):
+			fx.ripple_every = 0.75
+		for k in [["s1", 3.6], ["s2", 9.0], ["s3", 16.2]]:
+			if at.call(String(k[0]), float(k[1])):
+				_shot(String(k[0]))
 	pin.active = false
