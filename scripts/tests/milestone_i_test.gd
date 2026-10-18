@@ -110,7 +110,7 @@ func _form1() -> void:
 		(lm.progress.forms_unlocked as Array).append("eclipse")
 		await main.focus_mage("luna", true)
 		var lr: Dictionary = await main.transformer.play("luna", "full", false)
-		_check(lr.get("permanent", false) and TransformationDirector.appearance("luna") == "eclipse" and luna.avatar_path.ends_with("Luna_Level10.vrm"), "Luna's unlock makes Gilded Eclipse Form her appearance", lr)
+		_check(lr.get("permanent", false) and TransformationDirector.appearance("luna") == "eclipse" and luna.avatar_path.ends_with("Luna_Level10_faceV2.vrm"), "Luna's unlock makes Gilded Eclipse Form her appearance", lr)
 		_check(TransformationDirector.appearance("mika") == "bloom", "Mika's appearance is untouched by Luna's awakening")
 	_check(WorldState.save_game(), "saved")
 
@@ -119,7 +119,7 @@ func _form2() -> void:
 	var mika: WorldCharacter = main.characters["mika"]
 	_check(WorldState.load_report.get("result", "") == "loaded", "restart loaded the save", WorldState.load_report)
 	_check(TransformationDirector.appearance("mika") == "bloom" and mika.avatar_path.ends_with("Mika_Level10.vrm"), "after the restart she is still in Bloom Form", mika.avatar_path)
-	_check(main.characters.has("luna") and TransformationDirector.appearance("luna") == "eclipse" and main.characters["luna"].avatar_path.ends_with("Luna_Level10.vrm"), "after the restart Luna is still in Gilded Eclipse Form", main.characters["luna"].avatar_path if main.characters.has("luna") else "")
+	_check(main.characters.has("luna") and TransformationDirector.appearance("luna") == "eclipse" and main.characters["luna"].avatar_path.ends_with("Luna_Level10_faceV2.vrm"), "after the restart Luna is still in Gilded Eclipse Form", main.characters["luna"].avatar_path if main.characters.has("luna") else "")
 	var res: Dictionary = await main.transformer.surge("mika")
 	_check(res.get("surge", false) and mika.avatar_path.ends_with("Mika_Level10.vrm") and mika.has_meta("form_power"), "Orbit Surge: power, no costume change", res)
 	main.transformer.surges["mika"].until = 0.0

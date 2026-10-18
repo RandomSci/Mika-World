@@ -6685,7 +6685,14 @@ func _luna_r12() -> void:
 		main.weather.set_weather("clear", 12.0)
 	var mika: WorldCharacter = main.characters["mika"]
 	var luna: WorldCharacter = main.characters["luna"]
-	_check(luna.avatar_path.ends_with("LunaOracle_L1Outfit_faceV2.vrm"), "Luna wears the round 12 face", luna.avatar_path)
+	if RenderProfile.options.has("r12-avatar"):          # another form with the round 12 face (oracle, eclipse, ...)
+		var ap := String(RenderProfile.options["r12-avatar"])
+		if main.teleport_guard:
+			main.teleport_guard.allow(luna)
+		_check(luna.swap_avatar(ap), "Luna wears " + ap.get_file())
+		await _wait(2.0)
+	else:
+		_check(luna.avatar_path.ends_with("LunaOracle_L1Outfit_faceV2.vrm"), "Luna wears the round 12 face", luna.avatar_path)
 	_check(luna.face != null and luna.face.bound_count() >= 25, "her expressive face is bound", luna.face.bound_count() if luna.face else 0)
 	_check(int(luna.get("face_shading_restored")) >= 1, "her face gets VRoid's face shading", luna.get("face_shading_restored"))
 	var tinted := 0
