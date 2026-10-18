@@ -177,6 +177,7 @@ func _run() -> void:
 		"lunarelay": await _lunarelay()
 		"benchrest": await _benchrest()
 		"showline": await _showline()
+		"luna_r12": await _luna_r12()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -6666,3 +6667,91 @@ func _discovery_live() -> void:
 	_check(save_txt.contains('"finds"') and save_txt.contains(target), "written to the save file")
 	report["find"] = got
 	report["seconds_to_find"] = secs
+
+
+# ------------------------------------------------------------------ Luna round 12 face (2026-10-18)
+## Luna's base face V2 (Mika's face, her gold eyes, violet hair and brows): the right model, the shading fix applied,
+## the skin tint, then stills next to Mika by day, at dusk and at night: wide, gameplay medium and close-ups.
+## (Close-ups of Luna are approved for review stills; the framing guard is suspended for this test only.)
+func _luna_r12() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.spawner.enabled = false
+	main.director.enabled = false
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("look stills")
+	if main.weather:
+		main.weather.set_weather("clear", 12.0)
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	_check(luna.avatar_path.ends_with("LunaOracle_L1Outfit_faceV2.vrm"), "Luna wears the round 12 face", luna.avatar_path)
+	_check(luna.face != null and luna.face.bound_count() >= 25, "her expressive face is bound", luna.face.bound_count() if luna.face else 0)
+	_check(int(luna.get("face_shading_restored")) >= 1, "her face gets VRoid's face shading", luna.get("face_shading_restored"))
+	var tinted := 0
+	for mi in luna.avatar.find_children("*", "MeshInstance3D", true, false):
+		for si in (mi as MeshInstance3D).mesh.get_surface_count():
+			var mat := (mi as MeshInstance3D).get_active_material(si)
+			if mat is ShaderMaterial and mat.has_meta("skin_base"):
+				tinted += 1
+	_check(tinted >= 1, "her skin tint is applied", tinted)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var map: RID = mika.get_world_3d().navigation_map
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	var front := Vector3(0, 0, -1)                      # both face -Z, the camera stands at -Z looking back
+	for c in [mika, luna]:
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+		c.stop_action()
+		c.end_gesture()
+	mika.global_position = spot + Vector3(0.55, 0.05, 0)
+	luna.global_position = spot + Vector3(-0.55, 0.05, 0)
+	for hh in [10.5, 18.4, 22.0]:
+		WorldState.world_min = (WorldState.day() - 1) * 1440.0 + hh * 60.0
+		if main.day_night:
+			main.day_night.set_override(hh >= 21.0)
+		for c in [mika, luna]:
+			c.rotation.y = 0.0
+		await _wait(2.0)
+		var tag := "%02d" % int(hh)
+		var mid := spot + Vector3(0, 1.0, 0)
+		for sh in [["wide", Vector3(0.0, 0.3, -4.4), 40.0, Vector3.ZERO], ["medium", Vector3(0.0, 0.35, -2.5), 38.0, Vector3(0, 0.2, 0)]]:
+			pin.pos = mid + (sh[1] as Vector3)
+			pin.look = mid + (sh[3] as Vector3)
+			pin.fov = float(sh[2])
+			pin.active = true
+			for c in [mika, luna]:
+				c.look_head_at(pin.pos)
+			await _wait(1.4)
+			_shot("%s_%s" % [sh[0], tag])
+		for who in [["luna", luna], ["mika", mika]]:
+			var c: WorldCharacter = who[1]
+			for ang in [["front", 0.0], ["three_q", 0.6], ["profile", 1.35]]:
+				var hd: Vector3 = c.skeleton.global_transform * c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Head")).origin + Vector3(0, 0.07, 0)
+				var vd := front.rotated(Vector3.UP, float(ang[1]) * (1.0 if who[0] == "luna" else -1.0))
+				pin.pos = hd + vd * 0.95 + Vector3(0, 0.02, 0)
+				pin.look = hd + Vector3(0, -0.04, 0)
+				pin.fov = 32.0
+				c.look_head_at(pin.pos if ang[0] != "profile" else null)
+				await _wait(1.2)
+				_shot("%s_%s_%s" % [who[0], ang[0], tag])
+			if c.face:
+				var hd2: Vector3 = c.skeleton.global_transform * c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Head")).origin + Vector3(0, 0.07, 0)
+				pin.pos = hd2 + front * 0.95 + Vector3(0, 0.02, 0)
+				pin.look = hd2 + Vector3(0, -0.04, 0)
+				c.look_head_at(pin.pos)
+				c.face.set_hold("happy", 0.8)
+				await _wait(1.4)
+				_shot("%s_happy_%s" % [who[0], tag])
+				c.face.set_hold("", 0.0)
+			c.look_head_at(null)
+	pin.active = false
+	pin.queue_free()
+	main.camera_rig.set_process(true)
+	main.director.set_process(true)

@@ -384,6 +384,9 @@ func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = nul
 ##   MToon0: lit = clamp((N·L - S0) / ((1 - S0) * (1 - T0)))                  (positive shift = MORE shaded)
 ## Matching the ramp centre and width gives  S0 = -shift - (1 - toony),  T0 = 1 - 2(1 - toony) / (1 - S0).
 ## Mika's face (0.71, 0.91) becomes (-0.80, 0.90): lit almost everywhere, as VRoid intends.
+const VROID_FACE_SHADING := Vector2(0.71, 0.91)
+var face_shading_restored := 0
+
 func _fix_vrm1_mtoon_shading() -> void:
 	var meta = avatar.get("vrm_meta")
 	var spec: String = str(meta.get("spec_version")) if meta else ""
@@ -399,6 +402,13 @@ func _fix_vrm1_mtoon_shading() -> void:
 				if not sm.has_meta("vrm1_shading_converted") and sm.get_shader_parameter("_ShadeShift") != null:
 					var s1: float = sm.get_shader_parameter("_ShadeShift")
 					var t1: float = sm.get_shader_parameter("_ShadeToony")
+					# Day 3: the Blender outfit rebuilds gave the face skin the body's toon values (-0.1, 0.88), which
+					# put a hard light/shade line down the middle of the face. Faces get VRoid's own face shading back
+					# (0.71, 0.91 -> lit almost everywhere, as both girls' VRoid originals are).
+					if String(sm.resource_name).ends_with("_Face_00_SKIN") and s1 < VROID_FACE_SHADING.x - 0.2:
+						s1 = VROID_FACE_SHADING.x
+						t1 = VROID_FACE_SHADING.y
+						face_shading_restored += 1
 					var s0 := clampf(-s1 - (1.0 - t1), -1.0, 1.0)
 					var t0 := clampf(1.0 - 2.0 * (1.0 - t1) / maxf(1.0 - s0, 0.001), 0.0, 1.0)
 					sm.set_shader_parameter("_ShadeShift", s0)
@@ -407,7 +417,7 @@ func _fix_vrm1_mtoon_shading() -> void:
 					sm.set_meta("vrm1_shading_converted", [s1, t1, s0, t0])
 					fixed += 1
 				mat = sm.next_pass
-	print("[character] %s: converted VRM1 MToon shading on %d materials" % [character_id, fixed])
+	print("[character] %s: converted VRM1 MToon shading on %d materials (VRoid face shading restored on %d)" % [character_id, fixed, face_shading_restored])
 
 
 ## Natural hair shading for appearance stages that ask for it (profile.hair.natural): the model's own strand texture
@@ -845,6 +855,38 @@ func _skin_tone() -> void:
 				sm.set_meta("skin_base", sm.get_shader_parameter("_Color"))
 			var base: Color = sm.get_meta("skin_base")
 			sm.set_shader_parameter("_Color", Color(base.r * tint.r, base.g * tint.g, base.b * tint.b, base.a))
+			# Day 3: the skin's shade and rim colours (Luna's rebuild had an orange-brown shade and an orange rim)
+			if cfg.has("shade"):
+				var sh: Array = cfg.shade
+				sm.set_shader_parameter("_ShadeColor", Color(float(sh[0]), float(sh[1]), float(sh[2]), 1.0))
+			if cfg.has("rim"):
+				var rc: Array = cfg.rim
+				sm.set_shader_parameter("_RimColor", Color(float(rc[0]), float(rc[1]), float(rc[2]), 1.0))
+	_face_colors()
+
+
+## Day 3, per stage (profile.face): the brows' colour (Luna's rebuild tinted them navy) and the face outline's width
+## (profile.face.outline_width, the material's own units: Mika's face is 0.056).
+func _face_colors() -> void:
+	var fc: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("face", {})
+	if not (fc.has("brow_color") or fc.has("outline_width")):
+		return
+	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var mat := m.get_active_material(si)
+			var nm := String(mat.resource_name) if mat else ""
+			if fc.has("brow_color") and nm.ends_with("_FaceBrow_00_FACE") and mat is ShaderMaterial:
+				var bc: Array = fc.brow_color
+				(mat as ShaderMaterial).set_shader_parameter("_Color", Color(float(bc[0]), float(bc[1]), float(bc[2]), 1.0))
+				(mat as ShaderMaterial).set_shader_parameter("_ShadeColor", Color(float(bc[0]), float(bc[1]), float(bc[2]), 1.0))
+			if fc.has("outline_width") and nm.ends_with("_Face_00_SKIN"):
+				while mat is ShaderMaterial:
+					if (mat as ShaderMaterial).get_shader_parameter("_OutlineWidth") != null:
+						(mat as ShaderMaterial).set_shader_parameter("_OutlineWidth", float(fc.outline_width))
+					mat = (mat as ShaderMaterial).next_pass
 
 
 ## Cast shadows on the face (anime convention): the face, eyes, brows and mouth take only a trace of the shadows other
