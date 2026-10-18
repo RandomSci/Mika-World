@@ -8273,6 +8273,13 @@ const MV_SHOTS := [                # [song t, kind, who, tween s (0 = cut, > 0 =
 	[61.86, "orbit", "both", 0.0],
 	[65.76, "face_cu", "mika", 0.0],
 	[67.08, "push_both", "both", 0.2],
+	[70.98, "feet", "mika", 0.0],
+	[73.61, "orbit", "both", 0.0],
+	[77.51, "face_cu", "luna", 0.0],
+	[80.13, "crane_up", "both", 0.0],
+	[84.03, "ots", "luna", 0.0],
+	[86.63, "hero_low", "both", 0.0],
+	[89.26, "crane", "both", 0.0],
 ]
 const MV_ROUTINE := [              # [song t, who, clip, start s, speed, fade s]
 	[38.33, "both", "dancing_a", 9.2, 0.9, 0.6],
@@ -8285,10 +8292,18 @@ const MV_ROUTINE := [              # [song t, who, clip, start s, speed, fade s]
 	[63.81, "luna", "rumba", 0.0, 0.9, 1.0],
 	[64.46, "mika", "samba", 6.0, 0.9, 1.0],
 	[67.08, "both", "dancing_b", 0.0, 0.85, 0.8],
+	[72.31, "both", "bellydancing", 18.0, 0.95, 0.9],
+	[74.91, "luna", "dancing_a", 7.0, 1.0, 0.7],
+	[75.56, "mika", "dancing_a", 7.0, 1.0, 0.7],
+	[78.81, "both", "belly_dance", 1.0, 0.9, 0.9],
+	[84.03, "luna", "samba", 1.0, 0.9, 0.9],
+	[84.03, "mika", "rumba", 0.0, 0.9, 0.9],
+	[86.63, "both", "belly_dance", 12.0, 0.9, 0.9],
 ]
-const MV_SLOW := [[54.35, 55.95], [62.45, 63.75]]
+const MV_SLOW := [[54.35, 55.95], [62.45, 63.75], [75.2, 76.5], [88.0, 89.2]]
 const MV_DROP := 59.26
-const MV_CHORUS_DOWNBEATS := [59.26, 61.86, 64.46, 67.08, 69.68]
+const MV_CHORUS_DOWNBEATS := [59.26, 61.86, 64.46, 67.08, 69.68, 72.31, 74.91, 77.51, 80.13, 82.73, 85.33, 87.91]
+const MV_FINALE := 87.91
 
 
 func _mv_expected(id: String, song_t: float) -> Array:
@@ -8357,8 +8372,10 @@ func _lakemv() -> void:
 	var smooth := {}
 	var frame := 0
 	var song_t := MV_FROM
-	print("[lakemv] song %.2f-%.2f, t0 frame %d" % [MV_FROM, MV_TO, Engine.get_frames_drawn()])
-	while song_t < MV_TO:
+	var mv_to := float(RenderProfile.options.get("mv-to", str(MV_TO)))
+	var finale_done := false
+	print("[lakemv] song %.2f-%.2f, t0 frame %d" % [MV_FROM, mv_to, Engine.get_frames_drawn()])
+	while song_t < mv_to:
 		await get_tree().process_frame
 		frame += 1
 		song_t = MV_FROM + frame / 30.0
@@ -8404,6 +8421,12 @@ func _lakemv() -> void:
 				if float(db) > MV_DROP:
 					lens.shake = maxf(float(lens.shake), 0.55)
 					stage.flare(0.7)
+		if not finale_done and song_t >= MV_FINALE:
+			finale_done = true
+			for id in fxs:
+				fxs[id].finale(0.6)
+			lens.shake = 1.0
+			stage.flare(1.2)
 		lens.shake = maxf(float(lens.shake) - (1.0 / 30.0) / 0.3, 0.0)
 		lens.seed = float(lens.seed) + 1.0 / 30.0
 		# effects that follow their own motion: a spiral on each fast turn, a gold arc when a hand sweeps up high
@@ -8451,10 +8474,12 @@ func _lakemv() -> void:
 			if pcs.size() > 3:
 				(pcs.pop_front() as Node).queue_free()
 			fxs.luna.ring_scale = 1.0 if shot[1] == "feet" else 0.75
+			for id in fxs:
+				fxs[id].catchlights(shot[1] == "face_cu" and shot[2] == id)
 			if shot[1] == "hand_ecu":
 				(fxs[String(shot[2])] as DanceFX).arc("RightHand", (float(MV_SHOTS[ni + 1][0]) - song_t) / maxf(Engine.time_scale, 0.3))
 			print("[lakemv] %.2f shot %d %s %s" % [song_t, ni, shot[1], shot[2]])
-		var u := (song_t - shot_t0) / maxf((float(MV_SHOTS[shot_i + 1][0]) if shot_i + 1 < MV_SHOTS.size() else MV_TO) - shot_t0, 0.1)
+		var u := (song_t - shot_t0) / maxf((float(MV_SHOTS[shot_i + 1][0]) if shot_i + 1 < MV_SHOTS.size() else mv_to) - shot_t0, 0.1)
 		var cp := _mv_camera(String(shot[1]), String(shot[2]), u, chars, fxs, spot, smooth)
 		var pcam: PhantomCamera3D = pcs[pcs.size() - 1]
 		var pos: Vector3 = cp.pos
@@ -8510,6 +8535,11 @@ func _mv_camera(kind: String, who: String, u: float, chars: Dictionary, fxs: Dic
 			var look := (spot + Vector3(0, 0.95, 0)).lerp(spot + Vector3(0, 0.4, -3.0), ec)
 			e = ec
 			return {"pos": pos, "look": look, "fov": lerpf(42.0, 54.0, e), "focus": spot + Vector3(0, 1, 0), "far": lerpf(1.5, 30.0, e), "near": 0.0, "amount": lerpf(0.06, 0.02, e)}
+		"crane_up":
+			# from their feet up past them into the lantern sky
+			var pos := spot + Vector3(0.3, lerpf(0.3, 2.6, e), lerpf(2.4, 3.4, e))
+			var look := spot + Vector3(0, lerpf(0.8, 4.5, e), lerpf(0.0, -4.0, e))
+			return {"pos": pos, "look": look, "fov": 46.0, "focus": both, "far": lerpf(1.5, 20.0, e), "near": 0.0, "amount": 0.05}
 		"hand_ecu":
 			var h: Vector3 = follow.call("hand", fx.bone("RightHand"), 0.25)
 			var pos := h + Vector3(0.28 + 0.1 * u, 0.06, 0.62 - 0.08 * u)

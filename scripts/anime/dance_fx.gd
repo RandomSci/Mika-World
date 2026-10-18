@@ -171,7 +171,7 @@ func _build() -> void:
 	var sk := c.skeleton
 	_probe = DanceProbe.new()
 	_probe.name = "DanceProbe"
-	_probe.names = ["Hips", "Chest", "Head", "RightHand", "LeftHand", "LeftToes", "RightToes", "LeftFoot", "RightFoot",
+	_probe.names = ["Hips", "Chest", "Head", "LeftEye", "RightEye", "RightHand", "LeftHand", "LeftToes", "RightToes", "LeftFoot", "RightFoot",
 		"J_Sec_Skirt06_7", "J_Sec_Skirt09_7"]
 	sk.add_child(_probe)                  # last: after the poses, the dress sim and the drape
 	# hands: a ribbon and its dust each
@@ -451,7 +451,7 @@ func _flash(p: Vector3, col: Color, energy: float, dur: float) -> void:
 
 ## The finale (T3): star dust and light rays burst outward in a ring round her, a glowing water splash crown rises
 ## round her feet in two waves, rings race out over the lake, and every lantern lifts and brightens.
-func finale() -> void:
+func finale(k := 1.0) -> void:            # k < 1: a smaller one (two dancers side by side)
 	var cam := get_viewport().get_camera_3d()
 	var p := bone("Chest") + Vector3(0, 0.15, 0)
 	var fwd := (cam.global_position - p) if cam else Vector3.BACK
@@ -496,17 +496,17 @@ func finale() -> void:
 	hp.scale_min = 0.4
 	hp.scale_max = 1.2
 	hp.color_ramp = _fade_ramp(0.06, 0.65)
-	var halo := _particles(400, 2.8, hp, _quad(Vector2(0.035, 0.035), _tex_mat("flare_01_a.png", GOLD.lerp(Color.WHITE, 0.2), 3.5)), true)
+	var halo := _particles(int(400 * k), 2.8, hp, _quad(Vector2(0.035, 0.035), _tex_mat("flare_01_a.png", GOLD.lerp(Color.WHITE, 0.2), 3.5)), true)
 	halo.explosiveness = 0.7
 	halo.global_position = p
 	# the splash crown at her feet, two waves
 	var feet := (bone("LeftToes") + bone("RightToes")) * 0.5
 	feet.y = water_y if water_y != -INF else feet.y
-	_splash(feet, 1.0)
-	get_tree().create_timer(0.35).timeout.connect(_splash.bind(feet, 0.75))
-	rings(feet, 2.4, 3, [GOLD, ICE, VIOLET])
+	_splash(feet, 1.0 * k)
+	get_tree().create_timer(0.35).timeout.connect(_splash.bind(feet, 0.75 * k))
+	rings(feet, 2.4 * ring_scale, 3, [GOLD, ICE, VIOLET])
 	get_tree().create_timer(0.6).timeout.connect(rings.bind(feet, 3.4, 2, [ICE, GOLD]))
-	_flash(p, GOLD, 2.6, 1.4)
+	_flash(p, GOLD, 2.6 * k, 1.4)
 	_flash(feet + Vector3(0, 0.4, 0), ICE, 1.0, 1.2)
 	if stage:
 		stage.lift()
@@ -547,6 +547,12 @@ func _process(delta: float) -> void:
 	for n in get_children():
 		if n.has_meta("follow"):
 			(n as Node3D).global_position = hips + Vector3(0, 0.55, 0)
+		elif n.has_meta("catch") and cam:
+			var cd: Array = n.get_meta("catch")
+			var ep := bone(String(cd[0]))
+			var tc := (cam.global_position - ep).normalized()
+			var rt := tc.cross(Vector3.UP).normalized()
+			(n as Node3D).global_position = ep + tc * 0.014 + Vector3.UP * (0.004 if int(cd[1]) == 0 else -0.002) + rt * (0.003 if int(cd[1]) == 0 else -0.002)
 		elif n.has_meta("follow_cam") and cam:
 			(n as Node3D).global_position = cam.global_position - cam.global_basis.z * 1.6
 	# hands: dust in proportion to how fast the hand moves
@@ -671,3 +677,22 @@ func camera_petals() -> GPUParticles3D:
 	p.set_meta("follow_cam", true)
 	p.name = "CameraPetals"
 	return p
+
+
+## Lantern catchlights in her eyes for the close-ups: two tiny warm points on each eye, toward the lens, a little up
+## and to one side (where the lanterns would reflect). on = false removes them.
+func catchlights(on := true) -> void:
+	for n in get_children():
+		if n.has_meta("catch"):
+			n.queue_free()
+	if not on:
+		return
+	for eye in ["LeftEye", "RightEye"]:
+		if c.skeleton.find_bone(eye) < 0:
+			continue
+		for k in 2:
+			var mi := MeshInstance3D.new()
+			mi.mesh = _quad(Vector2(0.006, 0.006) * (1.0 if k == 0 else 0.55), _tex_mat("flare_01_a.png", Color(1.0, 0.82, 0.55), 6.0))
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.set_meta("catch", [eye, k])
+			add_child(mi)
