@@ -114,6 +114,16 @@ func seat_xform(seat: String) -> Transform3D:
 	return Transform3D(t.basis.orthonormalized(), t.origin)
 
 
+## The seat for a posed drape: her seat (origin on the cushion, z her forward, x her left), the cushion's edges, the
+## floor and her feet.
+func seat_drape(seat_name: String) -> Dictionary:
+	var st := seat_xform(seat_name)
+	var e: Dictionary = {"bow": {"front": 0.13, "back": 0.4, "side": 0.4}, "stern": {"front": 0.2, "back": 0.17, "side": 0.34}}[seat_name]
+	var floor_w := (global_transform * Vector3(0, -0.03, 0)).y
+	var ft := _feet_targets(seat_name)
+	return {"xf": st, "front": e.front, "back": e.back, "side": e.side, "floor": floor_w, "feet": ft}
+
+
 ## A world point kept inside the hull (for the seated drape).
 func contain_point(p: Vector3) -> Vector3:
 	var lp := global_transform.affine_inverse() * p
@@ -186,6 +196,9 @@ func seat(c: WorldCharacter, seat_name: String) -> void:
 	sk.move_child(pose, at - 3)
 	sk.move_child(life, at - 2)
 	sk.move_child(soft, at - 1)
+	for n in sk.get_children():
+		if n is HandGuard:
+			(n as HandGuard).settle()
 	var order := []
 	for n in sk.get_children():
 		order.append(String(n.name))
@@ -199,6 +212,30 @@ func seat(c: WorldCharacter, seat_name: String) -> void:
 		if n is SkirtDrape:
 			(n as SkirtDrape).frame = self
 			(n as SkirtDrape).contain = contain_point
+			(n as SkirtDrape).posed = seat_drape.bind(seat_name)
+	# cloth spring chains (not the hair) rest while she sits: no flapping through the hull
+	var sec = c.avatar.find_child("secondary", true, false) if c.avatar else null
+	if sec and sec.get("spring_bones_internal") != null:
+		var keep := []
+		var keep_c := []
+		var parked := []
+		var centers = sec.get("springs_centers")
+		for i in sec.spring_bones_internal.size():
+			var sb = sec.spring_bones_internal[i]
+			var hair := false
+			for j in sb.joint_nodes:
+				if String(j).contains("Hair") or String(j).contains("Earring"):
+					hair = true
+			if hair:
+				keep.append(sb)
+				if centers != null and i < centers.size():
+					keep_c.append(centers[i])
+			else:
+				parked.append(sb)
+		sec.spring_bones_internal.assign(keep)
+		if centers != null:
+			sec.springs_centers = PackedInt32Array(keep_c)
+		print("[boat] %s: %d cloth spring chains rest while seated" % [c.character_id, parked.size()])
 	life.look = _auto_look.bind(seat_name)
 	var st0 := seat_xform(seat_name)
 	c.global_transform = Transform3D(st0.basis * face_fix, st0.origin + st0.basis.y * -0.25)
@@ -254,7 +291,7 @@ func rider(seat_name: String) -> Dictionary:
 func _feet_targets(seat_name: String) -> Array:
 	var s: Dictionary = SEATS[seat_name]
 	var sb := Basis(Vector3.UP, float(s.yaw))
-	var f: Vector3 = s.pos + sb.z * 0.42
+	var f: Vector3 = s.pos + sb.z * (0.62 if seat_name == "bow" else 0.48)    # (the rower's legs reach out to the stretcher: her knees stay low)
 	f.y = -0.02
 	return [global_transform * (f + sb.x * 0.13), global_transform * (f - sb.x * 0.13)]    # [left, right]
 
@@ -646,7 +683,8 @@ func _animate_oars(_delta: float) -> void:
 			if _row_phase < 0.05 and not _caught:
 				var blade: Vector3 = n.global_transform * (-(o.axis_in as Vector3) * 1.0)
 				ring(Vector3(blade.x, water_y, blade.z), 0.45, Color(0.66, 0.72, 0.86), 0.22)
-		var q := Quaternion(Vector3.UP, yaw * sgn) * Quaternion(Vector3.RIGHT, pitch * sgn)
+		var lift := deg_to_rad(16.0) if rowing else 0.0            # (grips above her lap, blades lower)
+		var q := Quaternion(Vector3.UP, yaw * sgn) * Quaternion(Vector3.RIGHT, (pitch + lift) * sgn)
 		if rowing and side == "R":
 			_caught = _row_phase < 0.05
 		n.basis = n.basis.slerp(Basis(q) * (o.rest as Basis), 0.25)
@@ -680,3 +718,196 @@ func debug_rider(seat_name: String) -> String:
 	return "calls %d active %s infl %.2f | %s mode %s roll %.2f lean %.2f armL w %.2f goal %.2f target dist %.2f  idx %d/%d ok %s" % [pose.calls, str(pose.active), pose.influence, seat_name, r.mode, pose.roll,
 		pose.lean, float(pose.arm.Left.w), float(pose.arm.Left.goal), (tg.distance_to(sh) if tg != Vector3.INF else -1.0),
 		pose.get_index(), sk.get_child_count(), str(pose.get("_ok"))]
+
+
+# ------------------------------------------------------------------------------------------------ persistence
+## (ScenePersist contract, 2026-10-19: group "persistent_activity", persist_key / snapshot / restore.) A restart puts
+## the boat back where it floated, with the same heading, speed and stroke, the same girls on the same seats doing
+## the same thing (rowing, a hand in the water, stargazing...), the lanterns lit as they were and the floating
+## lanterns where they drifted. restore() also builds a boat made with MoonBoat.new() (ScenePersist rebuilds it).
+func _enter_tree() -> void:
+	add_to_group("persistent_activity")
+
+
+func persist_key() -> String:
+	return "moon_boat:" + String(name)
+
+
+## Changes when the activity changes step (a save follows at once).
+func persist_step() -> String:
+	var parts := ["rowing" if rowing else "drifting"]
+	for s in riders:
+		var c = riders[s].get("c")
+		parts.append("%s=%s:%s" % [s, String(c.character_id) if is_instance_valid(c) else "?", String(riders[s].get("mode", ""))])
+	for w in lanterns:
+		if float(lanterns[w].lit) > 0.5:
+			parts.append("lit:" + w)
+	parts.append("floating:%d" % _floaters.size())
+	return ",".join(parts)
+
+
+func snapshot() -> Dictionary:
+	if hull == null:
+		return {}
+	var rs := {}
+	var who := []
+	for s in riders:
+		var c = riders[s].get("c")
+		if not is_instance_valid(c):
+			continue
+		rs[s] = {"who": String(c.character_id), "mode": String(riders[s].get("mode", "sit")), "gaze": String(riders[s].get("gaze", "partner"))}
+		who.append(String(c.character_id))
+	var lit := {}
+	for w in lanterns:
+		lit[w] = snappedf(float(lanterns[w].lit), 0.001)
+	var fl := []
+	for f in _floaters:
+		var n: Node3D = f.get("node")
+		if n == null or not is_instance_valid(n):
+			continue
+		var v: Vector3 = f.vel
+		fl.append({"p": [n.global_position.x, n.global_position.y, n.global_position.z], "v": [v.x, v.y, v.z], "seed": float(f.get("seed", 0.0)),
+			"ry": n.rotation.y})
+	return {"kind": "moon_boat", "step": persist_step(), "name": String(name), "base": [_base.x, _base.y, _base.z], "yaw": _yaw,
+		"water_y": water_y, "speed": speed, "turn": turn, "rowing": rowing, "row_phase": _row_phase, "t": _t, "riders": rs,
+		"lit": lit, "floaters": fl, "participants": who}
+
+
+func restore(d: Dictionary) -> void:
+	if d.has("name") and String(d.name) != "":
+		name = String(d.name)
+	water_y = float(d.get("water_y", water_y))
+	var b: Array = d.get("base", [])
+	if b.size() == 3:
+		_base = Vector3(float(b[0]), water_y, float(b[2]))
+	_yaw = float(d.get("yaw", _yaw))
+	_t = float(d.get("t", _t))
+	turn = float(d.get("turn", 0.0))
+	if hull == null:                     # a boat made by ScenePersist: built as spawn() builds it
+		scale = Vector3.ONE * SCALE
+		_build()
+	_place()
+	set_meta("persist_restored_at", [_base.x, _base.y, _base.z])     # (QA: where the restore put it, before it rows on)
+	var m := get_tree().current_scene
+	if lake == null:
+		for n in get_parent().find_children("*", "Node3D", true, false) + [get_parent()]:
+			if n.get("water_mat") != null:
+				lake = n
+				break
+	if day_night == null and m and m.get("day_night"):
+		day_night = m.day_night
+	# the lanterns as they were (lit, no spark: they were already burning)
+	var lit: Dictionary = d.get("lit", {})
+	for w in lit:
+		if lanterns.has(w):
+			var L: Dictionary = lanterns[w]
+			L.lit = float(lit[w])
+			for mm in L.mats:
+				(mm as StandardMaterial3D).emission_energy_multiplier = float(lit[w]) * 1.3
+			(L.light as OmniLight3D).light_energy = float(lit[w]) * 0.7
+	# the floating lanterns where they drifted
+	for f in (d.get("floaters", []) as Array):
+		if lake == null:
+			break
+		var mi := MeshInstance3D.new()
+		mi.mesh = lake.get("lantern_mesh")
+		var sm := lake.call("_lantern_material", 0) as ShaderMaterial
+		sm.set_shader_parameter("tint", Color(1.0, 0.56, 0.17))
+		sm.set_shader_parameter("hot", Color(1.0, 0.9, 0.64))
+		sm.set_shader_parameter("energy", 1.6)
+		mi.material_override = sm
+		mi.scale = Vector3.ONE * 0.3
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		get_parent().add_child(mi)
+		var p: Array = f.get("p", [0, 0, 0])
+		var v: Array = f.get("v", [0, 0, 0])
+		mi.global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
+		mi.rotation.y = float(f.get("ry", 0.0))
+		_floaters.append({"node": mi, "vel": Vector3(float(v[0]), float(v[1]), float(v[2])), "seed": float(f.get("seed", 0.0))})
+	# the girls back on their seats (both at once), doing what they were doing
+	var guard = m.get("teleport_guard") if m else null
+	var chars := {}
+	for c in get_tree().get_nodes_in_group("mage"):
+		chars[String(c.get("character_id"))] = c
+	var rs: Dictionary = d.get("riders", {})
+	for s in rs:
+		var c: WorldCharacter = chars.get(String(rs[s].get("who", "")))
+		if c == null or not SEATS.has(s):
+			continue
+		if riders.has(s) and riders[s].c == c:
+			continue
+		if guard:
+			guard.allow(c)
+		c.stop_action()
+		c.visible = true
+		c.set_physics_process(false)
+		c.velocity = Vector3.ZERO
+		seat(c, s)                       # (placed on the seat at once; the hips settle on the cushion in 0.6 s)
+	speed = float(d.get("speed", 0.0))
+	_row_phase = float(d.get("row_phase", 0.0))
+	if bool(d.get("rowing", false)):
+		row(true)
+	for s in rs:
+		if not riders.has(s):
+			continue
+		riders[s].gaze = String(rs[s].get("gaze", "partner"))
+		var mode := String(rs[s].get("mode", "sit"))
+		if mode.begins_with("trail_"):
+			trail_hand(s, mode.trim_prefix("trail_"), true)
+		elif mode == "stargaze":
+			stargaze(s, true)
+		elif mode.begins_with("chin_"):
+			chin_rest(s, true, mode.trim_prefix("chin_"))
+		elif mode.begins_with("water_"):
+			look_water(s, true, mode.trim_prefix("water_"))
+	await get_tree().create_timer(0.75).timeout
+	print("[boat] resumed: %s at %s, speed %.2f, %s" % [name, str(_base.snappedf(0.01)), speed, persist_step()])
+
+
+# ------------------------------------------------------------------------------------------------ leaving the boat
+# (LakeRitual, 2026-10-19 - appended only) the living world's boat ritual needs her OUT of the boat again and the boat
+# brought in to the pier / pushed off from it.
+
+## She gets up: the seated stack (SeatPose, BodyLife, SoftArms) is removed, the drape lets go of the boat, seated off.
+## The caller moves her (an arc onto the pier) and turns her physics back on. Returns her (or null).
+func unseat(seat_name: String) -> WorldCharacter:
+	var r: Dictionary = riders.get(seat_name, {})
+	if r.is_empty():
+		return null
+	riders.erase(seat_name)
+	var c: WorldCharacter = r.c
+	if seat_name == "bow" and rowing:
+		row(false)
+	for k in ["pose", "life", "soft"]:
+		var n = r.get(k)
+		if n != null and is_instance_valid(n):
+			(n as Node).queue_free()
+	if c and is_instance_valid(c):
+		for n in c.skeleton.get_children():
+			if n is SkirtDrape:
+				(n as SkirtDrape).frame = null
+				(n as SkirtDrape).contain = Callable()
+				if n.get("posed") != null:
+					n.set("posed", Callable())
+				(n as SkirtDrape).resample()
+		c.end_gesture()
+		c.set_seated(false, 0.5)
+	return c
+
+
+## Glide (no strokes: pushed off, or coasting in) to a waterline point and heading over `seconds`; awaitable.
+func glide_to(at: Vector3, yaw: float, seconds: float) -> void:
+	var b0 := _base
+	var y0 := _yaw
+	var b1 := Vector3(at.x, water_y, at.z)
+	speed = 0.0
+	var tw := create_tween()
+	tw.tween_method(func(k: float):
+		_base = b0.lerp(b1, k)
+		_yaw = lerp_angle(y0, yaw, k), 0.0, 1.0, maxf(seconds, 0.05)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+
+
+## The heading the boat has now (the bow's way is -(Basis(UP, yaw) * X)).
+func heading() -> float:
+	return _yaw

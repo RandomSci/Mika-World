@@ -212,6 +212,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_repair_colliders()
 	_shoulder_colliders()
 	_tune_springs()
+	AvatarLook.calm_springs(avatar)                # (hair and cloth chains move together: no torn mesh between them)
 	var dress_mode := DressSim.mode_for(self)
 	var dress_chains := DressSim.take_chains(avatar) if dress_mode == "sbs" else 0
 	if not RenderProfile.options.has("no-hem-floor"):
@@ -228,6 +229,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_lab_hair_fix()
 	_skin_tone()
 	_face_shadows()
+	AvatarLook.apply(self)                         # no body outline shards; hair and cloth opaque with alpha scissor
 	_light_balance = Vector2(-1, -1)          # a new avatar's materials need the balance again
 	_setup_animation()
 	_setup_expressions()
@@ -244,6 +246,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	skeleton.add_child(foot_guard)
 	foot_guard.enabled = not RenderProfile.options.has("no-foot-guard")
 	dress_sim = DressSim.attach(self, dress_mode) if (dress_chains > 0 or dress_mode == "guard") else null     # after the pose corrections
+	HandGuard.attach(skeleton)                     # hands never inside a face or a body (self and the other girl)
 	if _head_target == null:
 		_head_target = Node3D.new()
 		_head_target.name = "HeadLookTarget"
@@ -1917,9 +1920,22 @@ func _physics_process(delta: float) -> void:
 	if hv.length() > 0.6 and current_gesture != "" and current_gesture != "dodge_dash" and ground_pose == "" and not lifted \
 			and CLIPS.has(current_gesture) and bool(CLIPS[current_gesture][1]) and bool(anim_tree.get("parameters/cast/active")):
 		end_gesture()
-	# locomotion blend: 0 idle, 1 walk, 2 run; time scale keeps feet planted
-	var spd := hv.length()
-	_speed_smoothed = lerpf(_speed_smoothed, spd, 1.0 - exp(-8.0 * delta))
+	# locomotion from the ground she REALLY covers: pressed against a wall, a rail or a friend, velocity can stay up
+	# while she does not move - the walk cycle then treads in place (moving platforms carry her: not her own steps)
+	var real := get_real_velocity() - get_platform_velocity()
+	_update_loco(delta, minf(hv.length(), Vector2(real.x, real.z).length()))
+
+
+## Locomotion blend (0 idle, 1 walk, 2 run) and the time scale that keeps planted feet planted, from her ground speed.
+## Settles into idle quicker than it leaves it: a girl who stops is standing within ~0.3 s, not treading on.
+func _update_loco(delta: float, spd: float) -> void:
+	if anim_tree == null:
+		return
+	if spd < 0.05:
+		spd = 0.0
+	_speed_smoothed = lerpf(_speed_smoothed, spd, 1.0 - exp(-(8.0 if spd > _speed_smoothed else 14.0) * delta))
+	if spd == 0.0 and _speed_smoothed < 0.03:
+		_speed_smoothed = 0.0
 	var blend := 0.0
 	if _speed_smoothed < walk_speed:
 		# the full walk clip from 85 % of walk speed up (a blend of 7 % idle into it shortened her stride while she
@@ -1930,7 +1946,9 @@ func _physics_process(delta: float) -> void:
 	anim_tree.set("parameters/loco/blend_position", blend)
 	var ref := 1.0
 	if blend > 0.05 and blend <= 1.0:
-		ref = clampf(_speed_smoothed / walk_speed, 0.6, 1.3) if blend >= 0.999 else 1.0
+		# the stride shrinks with the walk's weight in the idle mix: the tempo follows the speed per unit of stride (a slow
+		# walk beside a friend at the full tempo slid her planted feet 0.18-0.20 m/s; at this one 0.13 - foot_slide sweep)
+		ref = clampf(_speed_smoothed / (blend * walk_speed), 0.6, 1.3)
 	elif blend > 1.0:
 		ref = clampf(_speed_smoothed / lerpf(walk_speed, run_speed, blend - 1.0), 0.7, 1.25)
 	anim_tree.set("parameters/loco_speed/scale", ref * float(motion.get("loco_tempo", 1.0)))
@@ -1980,6 +1998,13 @@ func _try_step_up(dir: Vector3) -> void:
 func _process(delta: float) -> void:
 	_update_expressions(delta)
 	_idle_glance(delta)
+	if not is_physics_processing():
+		# placed, not simulated (a scene stood her there and turned her physics off): she is not walking under her own
+		# power, so the locomotion settles into idle - the blend used to freeze on whatever the last physics frame left
+		# (Luna treading a walk cycle in place on the pier, 2026-10-19)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_update_loco(delta, 0.0)
 
 
 # ------------------------------------------------------------------ observation

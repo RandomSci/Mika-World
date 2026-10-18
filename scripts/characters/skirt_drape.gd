@@ -28,6 +28,12 @@ var _q_store: Array = []              # the last draped joint positions per chai
 var frame: Node3D                     # sitting on something that moves (a boat): the surfaces are sampled in its frame
 var contain: Callable                 # (Vector3 world) -> Vector3: keeps a draped joint inside (a boat's hull walls)
 var _frame_xf := Transform3D.IDENTITY # the frame's transform when the surfaces were sampled
+## A hand-posed seated drape instead of the physics (Selwyn, 2026-10-19: "stop tuning physics ... snap them into a
+## hand-posed seated drape: panels folded down over the seat and gathered on the boat floor, close to the legs").
+## Returns {xf: the seat (origin on the seat top, z her forward, x her left), front/back/side: seat edges (m),
+## floor: the floor height (world), feet: [left, right] (world)}. While it is set and she sits, the skirt simulation is
+## off and every chain is laid along a fixed path.
+var posed: Callable
 var _dbg := 0                 # [a, b, r] per leg segment (world), refreshed every frame
 
 
@@ -211,6 +217,13 @@ func _process_modification() -> void:
 		# drape lets go over about a second - no snap from the seated drape to the standing skirt
 		c.dress_sim.sim.reset()
 	_active_kind = kind
+	# the posed drape replaces the skirt simulation while she sits
+	if c.dress_sim and c.dress_sim.sim:
+		var want_sim := not (posed.is_valid() and kind != "")
+		if c.dress_sim.sim.active != want_sim:
+			c.dress_sim.sim.active = want_sim
+			if want_sim:
+				c.dress_sim.sim.reset()
 	# the drape follows the sit: her pose correction blends in while she lowers onto the seat
 	var target := clampf(c.pose_adjust.influence, 0.0, 1.0) if kind != "" else 0.0
 	weight = move_toward(weight, target, 0.08 if target > weight else 0.03)
@@ -239,6 +252,12 @@ func _process_modification() -> void:
 		if releasing:
 			# letting go: hold the last draped shape (in her hip frame, so it rises with her) and fade to the simulation
 			_apply(sk, ids, (_q_store[ci] as Array).map(func(v): return hips_g * v), gi)
+			continue
+		if posed.is_valid() and kind != "":
+			var PQ := _posed_chain(ids, bool(front[ci]), posed.call(), g, sk)
+			if contain.is_valid():
+				PQ = PQ.map(func(v): return contain.call(v))
+			_apply(sk, ids, PQ, gi)
 			continue
 		var pull := 0.3 if front[ci] else 4.0          # how hard the panel hangs (front: rests on the lap; the rest hang limp)
 		# current (simulated) joint positions, world
@@ -339,3 +358,74 @@ func _constrain(q: Vector3, parent: Vector3, seg: float) -> Vector3:
 	if contain.is_valid():
 		q = contain.call(q)
 	return q
+
+
+## One chain laid along a fixed path in the seat's frame (world joint positions, root first).
+func _posed_chain(ids: Array, is_front: bool, seat: Dictionary, g: Transform3D, sk: Skeleton3D) -> Array:
+	var S: Transform3D = seat.xf
+	var inv := S.affine_inverse()
+	var P: Array = []
+	for b in ids:
+		P.append(g * sk.get_bone_global_pose(b).origin)
+	var root: Vector3 = inv * (P[0] as Vector3)
+	var floor_y: float = (inv * Vector3(S.origin.x, float(seat.floor), S.origin.z)).y + 0.025
+	var top_y := 0.03
+	var feet: Array = [inv * (seat.feet[0] as Vector3), inv * (seat.feet[1] as Vector3)]
+	var th := atan2(root.x, root.z)                       # 0 = in front of her, + = her left
+	var path: Array = [root]
+	var fr: float = seat.front
+	var bk: float = seat.back
+	var sd: float = seat.side
+	if is_front or absf(th) < 0.9:
+		# over her lap to the knee, down in front of the shins, gathered on the floor by her feet
+		var leg: Vector3 = feet[0] if root.x > 0.0 else feet[1]
+		var knee_z := fr + 0.22
+		path.append(Vector3(root.x * 0.8, top_y + 0.13, knee_z))
+		path.append(Vector3(root.x * 0.8, floor_y + 0.03, knee_z + 0.08))
+		path.append(Vector3(leg.x * 0.7 + root.x * 0.3, floor_y, leg.z + 0.06))
+	else:
+		# across the seat to its edge, down the edge, gathered on the floor toward her nearest foot
+		var dx := sin(th)
+		var dz := cos(th)
+		if dz < -0.15:                                    # (behind her: swept round to the side, not off the back)
+			dx = signf(dx) if absf(dx) > 0.05 else 1.0
+			dz = -0.15
+		var t := INF
+		if absf(dx) > 0.001:
+			t = minf(t, sd / absf(dx))
+		if dz > 0.001:
+			t = minf(t, fr / dz)
+		elif dz < -0.001:
+			t = minf(t, bk / -dz)
+		var e := Vector3(dx * t, top_y, dz * t)
+		var out := Vector3(dx, 0, dz).normalized() * 0.04
+		path.append(e)
+		path.append(Vector3(e.x + out.x, floor_y + 0.02, e.z + out.z))
+		var leg2: Vector3 = feet[0] if dx > 0.0 else feet[1]
+		path.append(Vector3(lerpf(e.x, leg2.x, 0.6), floor_y, lerpf(maxf(e.z, fr), leg2.z, 0.6)))
+	# the joints along the path at their own segment lengths; what is left folds in place on the floor
+	var Q: Array = [P[0]]
+	var pi := 1
+	var cur: Vector3 = path[0]
+	var fold := 1.0
+	for k in range(1, P.size()):
+		var seg: float = (P[k] as Vector3).distance_to(P[k - 1])
+		var left := seg
+		while left > 0.0001:
+			if pi < path.size():
+				var to: Vector3 = path[pi]
+				var d := cur.distance_to(to)
+				if d <= left:
+					cur = to
+					left -= d
+					pi += 1
+				else:
+					cur = cur + (to - cur).normalized() * left
+					left = 0.0
+			else:
+				# folding: short back-and-forth on the floor
+				cur = cur + Vector3(0.0, 0.0, 0.05 * fold)
+				fold = -fold
+				left -= 0.05
+		Q.append(S * cur)
+	return Q
