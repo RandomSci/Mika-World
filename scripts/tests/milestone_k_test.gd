@@ -186,6 +186,7 @@ func _run() -> void:
 		"outfitaudit": await _outfitaudit()
 		"harpprobe": await _harpprobe()
 		"starlitharp": await _starlitharp()
+		"sittest": await _sittest()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7764,3 +7765,108 @@ func _starlitharp() -> void:
 				_shot(k)
 	pin.active = false
 	_check(Engine.time_scale > 0.9, "time back to normal", Engine.time_scale)
+
+
+## The seated skirt on different seats and on the grass (2026-10-19): for each spot she walks there and sits (the
+## seat's own sit), and while seated the ring front / side / 3q is shot (FOV 28, 1.0 m, aimed at the waist) and the
+## skirt's depth under the sampled surface is measured. --dt-who=luna|mika, --sit-spots=watchpoint_rest,garden_meditate,grass
+func _sittest() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 0.1)
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 10.5 * 60.0
+	var who := String(RenderProfile.options.get("dt-who", "luna"))
+	var c: WorldCharacter = main.characters[who]
+	var other: WorldCharacter = main.characters["mika" if who == "luna" else "luna"]
+	if main.teleport_guard:
+		main.teleport_guard.allow(c)
+		main.teleport_guard.allow(other)
+	var map: RID = c.get_world_3d().navigation_map
+	other.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(30, 0, -30)) + Vector3(0, 0.05, 0)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var results := {}
+	for spot in String(RenderProfile.options.get("sit-spots", "watchpoint_rest,garden_meditate,grass")).split(","):
+		c.stop_action()
+		var worst := Vector2.ZERO
+		if spot == "grass":
+			var gp := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 9.0))
+			if main.teleport_guard:
+				main.teleport_guard.allow(c)
+			c.global_position = gp + Vector3(0, 0.05, 0)
+			c.rotation.y = 0.0
+			await _wait(1.5)
+			c.play_gesture("sit_ground_enter", 0.3, 0.3)
+			c.set_ground_pose("sit", c.animation_length("sit_ground_enter") * 0.9)
+			await _wait(c.animation_length("sit_ground_enter") * 0.85)
+			c.play_gesture("sit_ground_loop", 0.3, 0.6)
+			await _wait(2.5)
+			for k in 45:
+				await get_tree().process_frame
+				if c.dress_sim and c.dress_sim.drape:
+					var pz := c.dress_sim.drape.penetration()
+					worst = Vector2(maxf(worst.x, pz.x), maxf(worst.y, pz.y))
+			await _sit_ring(c, pin, spot, 0.35, 1.7)
+			c.end_gesture()
+			c.set_ground_pose("", 0.6)
+			await _wait(1.0)
+		else:
+			var it: Interactable = main.world.interactables.get(spot)
+			if it == null:
+				_check(false, "seat %s exists" % spot)
+				continue
+			var ap: Vector3 = it.approach_point()
+			if main.teleport_guard:
+				main.teleport_guard.allow(c)
+			c.global_position = ap + Vector3(0, 0.05, 0)          # (at the seat's approach point: the walk is not under test)
+			await _wait(1.0)
+			it.duration_override = 14.0
+			var job := func():
+				var res: Dictionary = await it.perform(c)
+				print("[mktest] sit %s perform -> %s" % [spot, str(res).left(200)])
+			job.call()
+			var t0 := _game_t
+			while not c.seated and _game_t - t0 < 10.0:
+				await get_tree().process_frame
+			print("[mktest] sit %s seated=%s at %.1f m from the approach point" % [spot, str(c.seated), c.global_position.distance_to(ap)])
+			await _wait(2.5)
+			for k in 45:
+				await get_tree().process_frame
+				if c.dress_sim and c.dress_sim.drape:
+					var pz := c.dress_sim.drape.penetration()
+					worst = Vector2(maxf(worst.x, pz.x), maxf(worst.y, pz.y))
+			await _sit_ring(c, pin, spot, 0.62)
+			while (c.seated or it.busy) and _game_t - t0 < 40.0:
+				await get_tree().process_frame
+			await _wait(3.0)
+		results[spot] = {"deepest_cm": snappedf(worst.x, 0.1), "joints_under": int(worst.y)}
+		if c.dress_sim and c.dress_sim.drape:
+			print("[mktest] sit deepest at ", c.dress_sim.drape._deep_at, " weight ", c.dress_sim.drape.weight)
+		print("[mktest] sit %s %s" % [spot, JSON.stringify(results[spot])])
+	report["sit"] = results
+	pin.active = false
+
+
+func _sit_ring(c: WorldCharacter, pin: CameraPin, tag: String, waist_h: float, cam_h := 1.0) -> void:
+	var fwd := -c.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var waist := c.global_position + Vector3(0, waist_h, 0)
+	for a in [["front", 0.0], ["side", 90.0], ["3q", 40.0]]:
+		var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))
+		pin.fov = 28.0
+		pin.pos = Vector3(waist.x, c.global_position.y + cam_h, waist.z) + d * 3.6
+		pin.look = waist
+		pin.roll = 0.0
+		pin.active = true
+		await _wait(0.6)
+		_shot("%s_%s" % [tag, a[0]])

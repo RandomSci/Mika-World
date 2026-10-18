@@ -21,6 +21,7 @@ const CHAIN_PREFIX := "Skirt"
 var c: WorldCharacter
 var sim: SpringBoneSimulator3D
 var limit: LimitAngularVelocityModifier3D
+var drape: SkirtDrape
 var cfg: Dictionary = {}
 var floor_plane: SpringBoneCollisionPlane3D
 var _chains: Array = []                 # [root bone, end bone, joint count]
@@ -72,6 +73,15 @@ static func attach(ch: WorldCharacter, mode := "sbs") -> DressSim:
 	else:
 		d._build()
 	return d
+
+
+## Per-chain multiplier (profile.dress.chains {"Skirt00": {"stiffness": 2.5, ...}}), matched on the chain root's name.
+func _ck(i: int, key: String) -> float:
+	var ch: Dictionary = cfg.get("chains", {})
+	for pre in ch:
+		if String(_chains[i][0]).contains(String(pre)):
+			return float((ch[pre] as Dictionary).get(key, 1.0))
+	return 1.0
 
 
 func _f(key: String, def: float) -> float:
@@ -149,15 +159,16 @@ func _build() -> void:
 			_:
 				sim.set_center_from(i, SpringBoneSimulator3D.CENTER_FROM_WORLD_ORIGIN)
 		sim.set_radius(i, _f("joint_radius", 0.015))
-		sim.set_stiffness(i, _f("stiffness", 16.0))
-		sim.set_drag(i, _f("drag", 0.7))
-		sim.set_gravity(i, _f("gravity", 0.5))
+		sim.set_stiffness(i, _f("stiffness", 16.0) * _ck(i, "stiffness"))
+		sim.set_drag(i, clampf(_f("drag", 0.7) * _ck(i, "drag"), 0.0, 1.0))
+		sim.set_gravity(i, _f("gravity", 0.5) * _ck(i, "gravity"))
 		sim.set_gravity_direction(i, Vector3.DOWN)
 		sim.set_enable_all_child_collisions(i, true)
 	# leg colliders: thigh and shin capsules along the bones, starting below the hip joint
 	for side in ["Left", "Right"]:
-		_leg_capsule(side + "UpperLeg", _f("thigh_radius", 0.065), _f("thigh_start", 0.12))
-		_leg_capsule(side + "LowerLeg", _f("shin_radius", 0.05), 0.0)
+		# (+ leg_margin: the panels slide over the legs instead of into them - Selwyn 2026-10-19)
+		_leg_capsule(side + "UpperLeg", _f("thigh_radius", 0.065) + _f("leg_margin", 0.018), _f("thigh_start", 0.12))
+		_leg_capsule(side + "LowerLeg", _f("shin_radius", 0.05) + _f("leg_margin", 0.018), 0.0)
 	if RenderProfile.options.has("dress-debug-ball"):        # diagnostics: one big sphere on the hips
 		var ball := SpringBoneCollisionSphere3D.new()
 		ball.name = "DebugBall"
@@ -181,6 +192,12 @@ func _build() -> void:
 		limit.set_root_bone_name(i, _chains[i][0])
 		limit.set_end_bone_name(i, _chains[i][1])
 	limit.max_angular_velocity = deg_to_rad(_f("max_deg_s", 240.0))
+	# the seated drape: last, over the simulation and the speed limit (every seat, rock, step, log and the grass)
+	if not RenderProfile.options.has("no-drape"):
+		var roots := []
+		for ch in _chains:
+			roots.append(ch[0])
+		drape = SkirtDrape.attach(c, roots)
 	if RenderProfile.options.has("dress-debug"):
 		sim.modification_processed.connect(_debug_print)
 	# warm-up: from the rest pose, blended in
@@ -245,8 +262,8 @@ func _process(delta: float) -> void:
 		var k := _f("seated_stiffness", 3.0) if c.seated else 1.0
 		var g := _f("seated_gravity", 0.4) if c.seated else 1.0
 		for i in _chains.size():
-			sim.set_stiffness(i, _f("stiffness", 16.0) * k)
-			sim.set_gravity(i, _f("gravity", 0.5) * g)
+			sim.set_stiffness(i, _f("stiffness", 16.0) * _ck(i, "stiffness") * k)
+			sim.set_gravity(i, _f("gravity", 0.5) * _ck(i, "gravity") * g)
 	_was_seated = c.seated
 
 

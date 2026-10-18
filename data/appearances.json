@@ -426,10 +426,10 @@
      "level": 1
     },
     "status": "ready",
-    "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle_L1Outfit_faceV2.vrm",
-    "source": "Face V2 (round 12, approved by Selwyn 2026-10-18): Mika's face on Luna, gold eyes, violet hair and brows; built by ~/Downloads/Luna-Face-V2-Lab/work/frozen_round12 m01-m05, vrm sha256 5d3c8bda... Before: ~/Downloads/Mika-Transformation-Lab/luna_l1_outfit (tools/luna_o10_place.py + tools/luna_o12_rig.py) from LUNA_L1_Outfit_3D.zip (sha256 80da67b5...); vrm sha256 39b09d1b812e83c5... (corrected build, transformation-outfits 4d7c319; provisional 24f8afb5... replaced)",
+    "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle_L1B.vrm",
+    "source": "Design B (approved by Selwyn 2026-10-19): fitted bodice, gold medallion belt, short front with long violet / white side and back panels, fitted sleeves; round 12 face, hair, earrings and sandals unchanged; built by the face lab with Mika's L1 pipeline (luna_l1b_outfit/frozen_v1, sha256 84712cb4...). Rollback: LunaOracle_L1Outfit_faceV2.vrm. Before: Face V2 (round 12, approved by Selwyn 2026-10-18): Mika's face on Luna, gold eyes, violet hair and brows; built by ~/Downloads/Luna-Face-V2-Lab/work/frozen_round12 m01-m05, vrm sha256 5d3c8bda... Before: ~/Downloads/Mika-Transformation-Lab/luna_l1_outfit (tools/luna_o10_place.py + tools/luna_o12_rig.py) from LUNA_L1_Outfit_3D.zip (sha256 80da67b5...); vrm sha256 39b09d1b812e83c5... (corrected build, transformation-outfits 4d7c319; provisional 24f8afb5... replaced)",
     "profile": {
-     "dress": {"sim": "godot", "_note": "2026-10-18: the skirt on SpringBoneSimulator3D (scripts/characters/dress_sim.gd)"},
+     "dress": {"sim": "godot", "_note": "2026-10-18: the skirt on SpringBoneSimulator3D (scripts/characters/dress_sim.gd); design B: the short front panel stiffer, the long side panels a little stiffer and damped", "chains": {"Skirt00": {"stiffness": 2.5, "gravity": 0.5}, "Skirt01": {"stiffness": 2.5, "gravity": 0.5}, "Skirt14": {"stiffness": 2.5, "gravity": 0.5}, "Skirt15": {"stiffness": 2.5, "gravity": 0.5}, "Skirt04": {"stiffness": 1.3, "drag": 1.25}, "Skirt05": {"stiffness": 1.3, "drag": 1.25}, "Skirt10": {"stiffness": 1.3, "drag": 1.25}, "Skirt11": {"stiffness": 1.3, "drag": 1.25}}},
      "face": {
       "brows_through_fringe": false
      },
