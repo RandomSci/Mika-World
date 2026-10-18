@@ -1099,11 +1099,14 @@
      "form": "eclipse"
     },
     "status": "ready",
-    "avatar": "res://assets/characters/luna/stages/l10_umbral/LunaUmbral_L10Outfit.vrm",
+    "avatar": "res://assets/characters/luna/stages/l10_umbral/LunaUmbral_L10Outfit_faceV2.vrm",
     "transformation": "level 10 (data/transformations.json, full cinematic once, then permanent)",
     "profile": {
      "face": {
       "brows_through_fringe": false
+     },
+     "skin": {
+      "tint": [1.0, 1.05, 1.04]
      },
      "motion": "luna",
      "springs": {
@@ -1201,11 +1204,14 @@
      "form": "shadowblade"
     },
     "status": "ready",
-    "avatar": "res://assets/characters/luna/stages/l20_shadowblade/LunaShadowblade_L20Outfit.vrm",
+    "avatar": "res://assets/characters/luna/stages/l20_shadowblade/LunaShadowblade_L20Outfit_faceV2.vrm",
     "transformation": "level 20 (data/transformations.json, full cinematic once, then permanent)",
     "profile": {
      "face": {
       "brows_through_fringe": false
+     },
+     "skin": {
+      "tint": [1.0, 1.05, 1.04]
      },
      "motion": "luna",
      "springs": {
@@ -1307,11 +1313,14 @@
      "form": "eclipse_oracle"
     },
     "status": "ready",
-    "avatar": "res://assets/characters/luna/stages/l30_eclipse/LunaEclipse_L30Outfit.vrm",
+    "avatar": "res://assets/characters/luna/stages/l30_eclipse/LunaEclipse_L30Outfit_faceV2.vrm",
     "transformation": "level 30 (data/transformations.json, full cinematic once, then permanent)",
     "profile": {
      "face": {
       "brows_through_fringe": false
+     },
+     "skin": {
+      "tint": [1.0, 1.05, 1.04]
      },
      "motion": "luna",
      "springs": {
@@ -1413,11 +1422,14 @@
      "form": "gilded"
     },
     "status": "ready",
-    "avatar": "res://assets/characters/luna/stages/l40_gilded/LunaGildedNight_L40Outfit.vrm",
+    "avatar": "res://assets/characters/luna/stages/l40_gilded/LunaGildedNight_L40Outfit_faceV2.vrm",
     "transformation": "level 40 (data/transformations.json, full cinematic once, then permanent)",
     "profile": {
      "face": {
       "brows_through_fringe": false
+     },
+     "skin": {
+      "tint": [1.0, 1.05, 1.04]
      },
      "motion": "luna",
      "springs": {
