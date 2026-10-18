@@ -50,6 +50,32 @@ if curl -s -o /dev/null --max-time 2 "http://127.0.0.1:${PORT}/"; then
     exit 1
 fi
 
+# ---------------------------------------------------------------- CPU turbo off while live (Selwyn, 2026-10-18)
+# Turbo boost spiked the CPU to 97 C on stream (a hardware heat cut at 08:24 that day). It is turned off for the
+# stream and turned back on when the launcher exits, only if it was on before. Uses the root-owned helper
+# /usr/local/sbin/mika-turbo (on|off, nothing else) through the sudo rule /etc/sudoers.d/mika-turbo; without them the
+# stream runs as before, with a warning.
+NO_TURBO=/sys/devices/system/cpu/intel_pstate/no_turbo
+MIKA_TURBO=/usr/local/sbin/mika-turbo
+TURBO_RESTORE=""
+turbo_off() {
+    [ -e "$NO_TURBO" ] || return 0
+    [ "$(cat "$NO_TURBO" 2>/dev/null)" = 0 ] || return 0      # already off (or unknown): leave it as it is
+    if sudo -n "$MIKA_TURBO" off >/dev/null 2>&1; then
+        TURBO_RESTORE=1
+        echo "CPU turbo boost: off for the stream (back on when it stops)"
+    else
+        echo "WARNING: CPU turbo boost could not be turned off ($MIKA_TURBO / sudo rule mika-turbo missing); continuing"
+    fi
+}
+turbo_restore() {
+    [ -n "$TURBO_RESTORE" ] || return 0
+    sudo -n "$MIKA_TURBO" on >/dev/null 2>&1 && echo "CPU turbo boost: back on"
+    TURBO_RESTORE=""
+}
+trap turbo_restore EXIT
+turbo_off
+
 # ---------------------------------------------------------------- the world show
 export VR_MODE=world VR_CLASS_MODE=0 VR_MINECRAFT_MODE=0 VR_ROOM_CAST=mika
 export VR_PRELIVE=1 VR_WORLD_HOLD_SPEECH=1 OBS_STAGE_SCENE="${OBS_STAGE_SCENE:-Mika World}"
@@ -140,6 +166,7 @@ stop_all() {
     fi
     rm -f logs/mika-live-stop logs/mika-live-server.pid logs/mika-live-autogo
     kill "$LOGCAP" 2>/dev/null
+    turbo_restore
     echo "Stopped."
     exit 0
 }

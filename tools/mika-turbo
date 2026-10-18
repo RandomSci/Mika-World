@@ -1,0 +1,8 @@
+#!/bin/sh
+# mika-turbo on|off: CPU turbo boost on or off (intel_pstate). It does nothing else.
+# Installed root-owned at /usr/local/sbin/mika-turbo; mika-live.sh runs it through sudo (rule: /etc/sudoers.d/mika-turbo).
+case "$1" in
+    on)  echo 0 > /sys/devices/system/cpu/intel_pstate/no_turbo ;;
+    off) echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo ;;
+    *)   echo "usage: mika-turbo on|off" >&2; exit 2 ;;
+esac
