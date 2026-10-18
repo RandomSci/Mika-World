@@ -28,7 +28,7 @@ static func run(t) -> void:
 	for id in chars:
 		decks[id] = t._dance_stack(chars[id])
 	# the residual: after EVERY modifier (the springs included), how deep is any hand or fingertip still inside a body
-	var residual := {"worst": 0.0, "where": ""}
+	var residual := {"worst": 0.0, "where": "", "samples": 0}
 	var cur := {"pose": ""}
 	for id in chars:
 		var c: WorldCharacter = chars[id]
@@ -43,6 +43,7 @@ static func run(t) -> void:
 		if guard and last:
 			last.modification_processed.connect(func():
 				var sk := c.skeleton
+				residual.samples = int(residual.samples) + 1
 				for side in ["Left", "Right"]:
 					var shapes: Array = guard._shapes(sk, side) + guard._others_shapes(sk)
 					for b in [side + "Hand", side + "MiddleDistal", side + "IndexDistal", side + "ThumbDistal"]:
@@ -75,7 +76,8 @@ static func run(t) -> void:
 			print("[handcheck] %s %s at frame %d  guard push depth %s" % [p[0], v, Engine.get_frames_drawn(), str(depth)])
 			await t._wait(HOLD * 0.5)
 	pin.active = false
-	print("[handcheck] worst residual hand depth %.3f m (%s)" % [float(residual.worst), String(residual.where)])
+	print("[handcheck] worst residual hand depth %.3f m (%s) over %d final-pose samples" % [float(residual.worst), String(residual.where), int(residual.samples)])
+	t._check(int(residual.samples) > 100, "the residual was really measured (%d samples)" % int(residual.samples))
 	t._check(float(residual.worst) <= 0.005, "no hand inside a face or body after the full pose stack (worst %.1f mm, %s)" % [float(residual.worst) * 1000.0, String(residual.where)])
 
 

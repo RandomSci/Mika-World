@@ -100,6 +100,7 @@ static func run(t) -> void:
 		["top", Vector3(0.31, 5.2, 0.05), Vector3(0.3, 0.0, 0.0), 44.0], ["hands", Vector3(0.95, 1.05, 1.25), Vector3(-0.25, 0.55, 0.0), 34.0]]
 	var t0: float = t._game_t
 	var worst := {}
+	var contacts := {}
 	var checked := 0
 	print("[boatcloth] start frame %d" % Engine.get_frames_drawn())
 	while t._game_t - t0 < 6.0 + angles.size() * 2.0:
@@ -139,6 +140,12 @@ static func run(t) -> void:
 					w[key] = maxi(int(w[key]), int(r[key]))
 				w.total = int(r.total)
 				worst[c.character_id] = w
+			var ct := _contacts(boat, luna, grabs.luna.poses, mika, grabs.mika.poses)
+			for key in ct:
+				var prev = contacts.get(key, null)
+				var v = ct[key]
+				if typeof(v) == TYPE_FLOAT:
+					contacts[key] = v if prev == null else (maxf(prev, v) if not String(key).begins_with("min_") else minf(prev, v))
 	# Mika's chin on her hand: close from both sides (the hand rests on the face, never in it)
 	boat.trail_hand("stern", "Left", false)
 	boat.chin_rest("stern", true, "Right")
@@ -161,6 +168,12 @@ static func run(t) -> void:
 		var w: Dictionary = worst[id]
 		print("[boatcloth] %s: %d cloth vertices checked x %d samples - worst: %d outside the hull, %d below its floor, %d inside the other girl" % [id, w.total, checked, w.outside, w.below, w.in_other])
 		t._check(int(w.outside) == 0 and int(w.below) == 0 and int(w.in_other) == 0, "%s cloth inside the boat and clear of the other girl (%d / %d / %d)" % [id, w.outside, w.below, w.in_other])
+	print("[boatcloth] contacts (worst over the ride): %s" % str(contacts))
+	t._check(float(contacts.get("grip_L", 9.0)) <= 0.04 and float(contacts.get("grip_R", 9.0)) <= 0.04, "Luna's hands on the oar grips while rowing (%.3f / %.3f m)" % [float(contacts.get("grip_L", 9.0)), float(contacts.get("grip_R", 9.0))])
+	t._check(float(contacts.get("hips_luna", 9.0)) <= 0.03 and float(contacts.get("hips_mika", 9.0)) <= 0.03, "both sit on the cushions (hips %.3f / %.3f m off)" % [float(contacts.get("hips_luna", 9.0)), float(contacts.get("hips_mika", 9.0))])
+	t._check(float(contacts.get("feet_luna", 9.0)) <= 0.03 and float(contacts.get("feet_mika", 9.0)) <= 0.03, "feet on the floor (%.3f / %.3f m off)" % [float(contacts.get("feet_luna", 9.0)), float(contacts.get("feet_mika", 9.0))])
+	t._check(float(contacts.get("mika_hand_rest", 9.0)) <= 0.04, "Mika's free hand rests on something real (%.3f m)" % float(contacts.get("mika_hand_rest", 9.0)))
+	t._check(float(contacts.get("min_legs_gap", -9.0)) >= 0.0, "their legs never overlap (closest gap %.3f m)" % float(contacts.get("min_legs_gap", -9.0)))
 	for c in [luna, mika]:
 		for n in c.skeleton.get_children():
 			if n is HandGuard:
@@ -169,6 +182,10 @@ static func run(t) -> void:
 
 static func _count(c: WorldCharacter, poses: Array, boat: MoonBoat, prof: Dictionary, other: WorldCharacter, oposes: Array) -> Dictionary:
 	var out := {"outside": 0, "below": 0, "in_other": 0, "total": 0}
+	var trailing := ""
+	for sn in boat.riders:
+		if boat.riders[sn].c == c and String(boat.riders[sn].mode).begins_with("trail_"):
+			trailing = "Sleeve_" + String(boat.riders[sn].mode).trim_prefix("trail_").left(1)   # Sleeve_L / Sleeve_R
 	if poses.is_empty():
 		return out
 	var sk := c.skeleton
@@ -190,6 +207,8 @@ static func _count(c: WorldCharacter, poses: Array, boat: MoonBoat, prof: Dictio
 		var nm := String(m.name)
 		if not (nm.contains("Skirt") or nm.contains("BackBow") or nm.contains("Sleeve")):
 			continue
+		if trailing != "" and nm.ends_with(trailing):
+			continue                                     # (her arm reaches over the side to the water on purpose)
 		var skin := m.skin
 		if skin == null:
 			continue
@@ -237,4 +256,45 @@ static func _count(c: WorldCharacter, poses: Array, boat: MoonBoat, prof: Dictio
 					if wp.distance_to(q) < float(cp[2]) - 0.01:
 						out.in_other += 1
 						break
+	return out
+
+
+## The ride's contacts in the final pose (m): Luna's palms to the oar grips, hips above the cushions, soles above the
+## floor, Mika's free hand to the nearest real surface (her thigh, the gunwale, the water), the gap between their legs.
+static func _contacts(boat: MoonBoat, luna: WorldCharacter, lp: Array, mika: WorldCharacter, mp: Array) -> Dictionary:
+	var out := {}
+	if lp.is_empty() or mp.is_empty():
+		return out
+	var W := func(c: WorldCharacter, ps: Array, n: String) -> Vector3:
+		var bi := c.skeleton.find_bone(n)
+		return c.skeleton.global_transform * (ps[bi] as Transform3D).origin if bi >= 0 and bi < ps.size() else Vector3.INF
+	if boat.rowing:
+		for s in ["Left", "Right"]:
+			var palm: Vector3 = (W.call(luna, lp, s + "Hand") + W.call(luna, lp, s + "MiddleProximal")) * 0.5
+			out["grip_" + s.left(1)] = palm.distance_to(boat.grip(s.left(1)))
+	for pair in [["luna", luna, lp, "bow"], ["mika", mika, mp, "stern"]]:
+		var c: WorldCharacter = pair[1]
+		var ps: Array = pair[2]
+		var st := boat.seat_xform(String(pair[3]))
+		var hips: Vector3 = W.call(c, ps, "Hips")
+		out["hips_" + String(pair[0])] = absf((hips.y - st.origin.y) - MoonBoat.HIPS_ABOVE_SEAT)
+		var floor_y := (boat.global_transform * Vector3(0, -0.03, 0)).y
+		var fw := 0.0
+		for f in ["LeftFoot", "RightFoot"]:
+			fw = maxf(fw, absf((W.call(c, ps, f) as Vector3).y - 0.07 - floor_y))
+		out["feet_" + String(pair[0])] = fw
+	# Mika's free (right) hand: to her thigh, the gunwale line at her side, or the water
+	var hand: Vector3 = W.call(mika, mp, "RightHand")
+	var thigh_a: Vector3 = W.call(mika, mp, "RightUpperLeg")
+	var thigh_b: Vector3 = W.call(mika, mp, "RightLowerLeg")
+	var d_thigh := hand.distance_to(Geometry3D.get_closest_point_to_segment(hand, thigh_a, thigh_b)) - 0.09
+	var d_water := absf(hand.y - boat.water_y)
+	out["mika_hand_rest"] = maxf(minf(d_thigh, d_water), 0.0)
+	# the gap between their legs (shin and thigh capsules)
+	var gap := 9.0
+	for a in [["LeftUpperLeg", "LeftLowerLeg", 0.075], ["LeftLowerLeg", "LeftFoot", 0.05], ["RightUpperLeg", "RightLowerLeg", 0.075], ["RightLowerLeg", "RightFoot", 0.05]]:
+		for b in [["LeftUpperLeg", "LeftLowerLeg", 0.075], ["LeftLowerLeg", "LeftFoot", 0.05], ["RightUpperLeg", "RightLowerLeg", 0.075], ["RightLowerLeg", "RightFoot", 0.05]]:
+			var pq := Geometry3D.get_closest_points_between_segments(W.call(luna, lp, a[0]), W.call(luna, lp, a[1]), W.call(mika, mp, b[0]), W.call(mika, mp, b[1]))
+			gap = minf(gap, (pq[0] as Vector3).distance_to(pq[1]) - float(a[2]) - float(b[2]))
+	out["min_legs_gap"] = gap
 	return out
