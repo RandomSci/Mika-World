@@ -14,6 +14,7 @@ const CELL := 0.07
 const HALF := 1.05                    # the sampled square is 2.1 m across, centred on her hips
 const MARGIN := 0.018                 # fabric thickness over a surface
 const LEG_MARGIN := 0.018             # and over her legs
+const MAX_TURN := 0.22                # the most a draped segment turns in one frame (radians, in her hip frame)
 var c: WorldCharacter
 var chains: Array = []                # [bone ids], root first
 var front: Array = []                 # per chain: true for the front panel
@@ -23,6 +24,7 @@ var _n := 0
 var _origin := Vector2.ZERO
 var _active_kind := ""
 var _legs: Array = []
+var _q_store: Array = []              # the last draped joint positions per chain, in her hip frame
 var _dbg := 0                 # [a, b, r] per leg segment (world), refreshed every frame
 
 
@@ -183,14 +185,20 @@ func _process_modification() -> void:
 	var kind := _sitting_kind()
 	if kind != "" and kind != _active_kind:
 		_sample()
+	if kind == "" and _active_kind != "" and c.dress_sim and c.dress_sim.sim:
+		# standing up: the simulation (soft and wherever it drifted while she sat) restarts from her rest pose, and the
+		# drape lets go over about a second - no snap from the seated drape to the standing skirt
+		c.dress_sim.sim.reset()
 	_active_kind = kind
 	# the drape follows the sit: her pose correction blends in while she lowers onto the seat
 	var target := clampf(c.pose_adjust.influence, 0.0, 1.0) if kind != "" else 0.0
-	weight = move_toward(weight, target, 0.08)
+	weight = move_toward(weight, target, 0.08 if target > weight else 0.03)
 	_dbg += 1
 	if kind != "" and _dbg % 300 == 0 and RenderProfile.options.has("drape-debug"):
 		print("[drape] kind %s target %.2f weight %.2f n %d" % [kind, target, weight, _n])
 	if weight < 0.001 or _n == 0:
+		if kind == "":
+			_q_store.clear()
 		return
 	var g := sk.global_transform
 	var gi := g.affine_inverse()
@@ -202,8 +210,15 @@ func _process_modification() -> void:
 		var f: Vector3 = g * sk.get_bone_global_pose(sk.find_bone(side + "Foot")).origin
 		_legs.append([a.lerp(b, 0.12), b, 0.085 + LEG_MARGIN])
 		_legs.append([b, f, 0.06 + LEG_MARGIN])
+	var hips_g: Transform3D = g * sk.get_bone_global_pose(sk.find_bone("Hips"))
+	var hips_inv := hips_g.affine_inverse()
+	var releasing := kind == "" and _q_store.size() == chains.size()
 	for ci in chains.size():
 		var ids: Array = chains[ci]
+		if releasing:
+			# letting go: hold the last draped shape (in her hip frame, so it rises with her) and fade to the simulation
+			_apply(sk, ids, (_q_store[ci] as Array).map(func(v): return hips_g * v), gi)
+			continue
 		var pull := 0.3 if front[ci] else 4.0          # how hard the panel hangs (front: rests on the lap; the rest hang limp)
 		# current (simulated) joint positions, world
 		var P: Array = []
@@ -215,40 +230,31 @@ func _process_modification() -> void:
 			var d: Vector3 = ((P[k] as Vector3) - (P[k - 1] as Vector3)).normalized()
 			d = (d + Vector3.DOWN * pull).normalized()
 			var q: Vector3 = (Q[k - 1] as Vector3) + d * seg
-			for it in 2:
-				for L in _legs:
-					var cp := Geometry3D.get_closest_point_to_segment(q, L[0], L[1])
-					var off := q - cp
-					var r: float = L[2]
-					if off.length() < r:
-						q = cp + (off.normalized() if off.length() > 0.0001 else Vector3.UP) * r
-				var h := _height(q) + MARGIN
-				if q.y < h:
-					q.y = h
-				q = (Q[k - 1] as Vector3) + (q - (Q[k - 1] as Vector3)).normalized() * seg
-			var h2 := _height(q) + MARGIN
-			if q.y < h2:
-				q.y = h2                                     # (a hair longer than the segment, never through)
-			Q.append(q)
-		# aim each joint at its laid-out child, root first (blended by the drape weight)
-		for k in range(0, ids.size() - 1):
-			var b: int = ids[k]
-			var cur: Transform3D = sk.get_bone_global_pose(b)
-			var child_now: Vector3 = sk.get_bone_global_pose(ids[k + 1]).origin
-			var want: Vector3 = gi * (Q[k + 1] as Vector3)
-			var v0 := child_now - cur.origin
-			var v1 := want - cur.origin
-			if v0.length() < 1e-5 or v1.length() < 1e-5:
-				continue
-			var rot := Quaternion(v0.normalized(), v1.normalized())
-			rot = Quaternion.IDENTITY.slerp(rot, weight)
-			sk.set_bone_global_pose(b, Transform3D(Basis(rot) * cur.basis, cur.origin))
+			Q.append(_constrain(q, Q[k - 1], seg))
+		if _q_store.size() != chains.size():
+			_q_store.resize(chains.size())
+		# no joint snaps: in her hip frame each segment turns at most MAX_TURN per frame; the chain is then laid out
+		# again from those directions with the surface and the legs enforced (lengths kept, never through the seat)
+		var prev = _q_store[ci]
+		if prev is Array and (prev as Array).size() == Q.size():
+			var R: Array = [Q[0]]
+			for k in range(1, Q.size()):
+				var seg: float = (Q[k] as Vector3).distance_to(Q[k - 1])
+				var dn: Vector3 = hips_inv.basis * ((Q[k] as Vector3) - (Q[k - 1] as Vector3)).normalized()
+				var dp: Vector3 = ((prev[k] as Vector3) - (prev[k - 1] as Vector3)).normalized()
+				var ang := dp.angle_to(dn)
+				if ang > MAX_TURN and dp.cross(dn).length() > 1e-5:
+					dn = dp.rotated(dp.cross(dn).normalized(), MAX_TURN)
+				var q2: Vector3 = (R[k - 1] as Vector3) + (hips_g.basis * dn).normalized() * seg
+				q2 = _constrain(q2, R[k - 1], seg)
+				R.append(q2)
+			Q = R
+		_q_store[ci] = Q.map(func(v): return hips_inv * v)
+		_apply(sk, ids, Q, gi)
 		if RenderProfile.options.has("drape-debug") and ci == 4 and _dbg % 600 == 0:
 			var tip: Vector3 = g * sk.get_bone_global_pose(ids[ids.size() - 1]).origin
 			print("[drape] chain4 tip now %s want %s (h %.2f) w %.2f" % [str(tip.snapped(Vector3.ONE * 0.01)), str((Q[Q.size() - 1] as Vector3).snapped(Vector3.ONE * 0.01)), _height(Q[Q.size() - 1]), weight])
 
-
-## QA: skirt joints below the sampled surface (cm of the deepest one) and how many, now.
 	_measure(sk, g)
 
 
@@ -273,3 +279,38 @@ func _measure(sk: Skeleton3D, g: Transform3D) -> void:
 					deep = d
 					_deep_at = [p, _height(p), sk.get_bone_name(b)]
 	_pen = Vector2(deep * 100.0, cnt)
+
+
+## Aim each joint of a chain at its target child position (root first), blended by the drape weight.
+func _apply(sk: Skeleton3D, ids: Array, Q: Array, gi: Transform3D) -> void:
+	for k in range(0, ids.size() - 1):
+		var b: int = ids[k]
+		var cur: Transform3D = sk.get_bone_global_pose(b)
+		var child_now: Vector3 = sk.get_bone_global_pose(ids[k + 1]).origin
+		var want: Vector3 = gi * (Q[k + 1] as Vector3)
+		var v0 := child_now - cur.origin
+		var v1 := want - cur.origin
+		if v0.length() < 1e-5 or v1.length() < 1e-5:
+			continue
+		var rot := Quaternion(v0.normalized(), v1.normalized())
+		rot = Quaternion.IDENTITY.slerp(rot, weight)
+		sk.set_bone_global_pose(b, Transform3D(Basis(rot) * cur.basis, cur.origin))
+
+
+## A laid-out joint out of her legs and above the surface, at segment length from its parent where it can be.
+func _constrain(q: Vector3, parent: Vector3, seg: float) -> Vector3:
+	for it in 2:
+		for L in _legs:
+			var cp := Geometry3D.get_closest_point_to_segment(q, L[0], L[1])
+			var off := q - cp
+			var r: float = L[2]
+			if off.length() < r:
+				q = cp + (off.normalized() if off.length() > 0.0001 else Vector3.UP) * r
+		var h := _height(q) + MARGIN
+		if q.y < h:
+			q.y = h
+		q = parent + (q - parent).normalized() * seg
+	var h2 := _height(q) + MARGIN
+	if q.y < h2:
+		q.y = h2                                     # (a hair longer than the segment, never through)
+	return q

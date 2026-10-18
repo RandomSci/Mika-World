@@ -187,6 +187,7 @@ func _run() -> void:
 		"harpprobe": await _harpprobe()
 		"starlitharp": await _starlitharp()
 		"sittest": await _sittest()
+		"motionshots": await _motionshots()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7870,3 +7871,65 @@ func _sit_ring(c: WorldCharacter, pin: CameraPin, tag: String, waist_h: float, c
 		pin.active = true
 		await _wait(0.6)
 		_shot("%s_%s" % [tag, a[0]])
+
+
+## Walk, run and turn shots of one girl, front / side / 3q, the camera riding with her (FOV 30, 1.0 m, aimed at the
+## waist, 3.8 m away): for each motion and angle she moves on open ground and a still is taken mid-stride.
+func _motionshots() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 0.1)
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 10.5 * 60.0
+	var who := String(RenderProfile.options.get("dt-who", "luna"))
+	var c: WorldCharacter = main.characters[who]
+	var other: WorldCharacter = main.characters["mika" if who == "luna" else "luna"]
+	var map: RID = c.get_world_3d().navigation_map
+	if main.teleport_guard:
+		main.teleport_guard.allow(other)
+	other.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(30, 0, -30)) + Vector3(0, 0.05, 0)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var a0 := NavigationServer3D.map_get_closest_point(map, Vector3(-4.0, 0, 12.0))
+	var a1 := NavigationServer3D.map_get_closest_point(map, Vector3(-4.0, 0, 26.0))
+	for motion in ["walk", "run", "turn"]:
+		for ang in [["front", 0.0], ["side", 90.0], ["3q", 40.0]]:
+			if main.teleport_guard:
+				main.teleport_guard.allow(c)
+			c.stop_action()
+			c.global_position = a0 + Vector3(0, 0.05, 0)
+			c.look_at_point(a1)
+			await _wait(1.2)
+			if motion == "turn":
+				c.navigate_to(a0 + (a1 - a0).normalized() * 3.0, false)
+				await _wait(2.2)
+				c.navigate_to(a0 - (a1 - a0).normalized() * 0.5, false)   # a quick 180 back
+			else:
+				c.navigate_to(a1, motion == "run")
+			var t0 := _game_t
+			var shot_at := 0.45 if motion == "turn" else (1.6 if motion == "run" else 2.6)
+			var taken := false
+			while _game_t - t0 < shot_at + 0.3:
+				await get_tree().process_frame
+				var fwd := -c.global_transform.basis.z
+				fwd.y = 0.0
+				fwd = fwd.normalized()
+				var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(ang[1])))
+				var waist := c.global_position + Vector3(0, 0.9, 0)
+				pin.fov = 30.0
+				pin.pos = Vector3(waist.x, c.global_position.y + 1.0, waist.z) + d * 3.8
+				pin.look = waist
+				pin.active = true
+				if not taken and _game_t - t0 >= shot_at:
+					_shot("%s_%s" % [motion, ang[0]])
+					taken = true
+			c.stop_action()
+	pin.active = false
