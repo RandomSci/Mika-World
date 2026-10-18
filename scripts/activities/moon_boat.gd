@@ -288,8 +288,8 @@ func rider(seat_name: String) -> Dictionary:
 func _feet_targets(seat_name: String) -> Array:
 	var s: Dictionary = SEATS[seat_name]
 	var sb := Basis(Vector3.UP, float(s.yaw))
-	var f: Vector3 = s.pos + sb.z * (0.62 if seat_name == "bow" else 0.48)    # (the rower's legs reach out to the stretcher: her knees stay low)
-	f -= sb.x * 0.13               # each to her own right: facing each other, their legs pass side by side, never through
+	var f: Vector3 = s.pos + sb.z * (0.5 if seat_name == "bow" else 0.36)    # (their feet stay ~40 cm apart along the boat)
+	f -= sb.x * 0.15               # each to her own right: facing each other, their legs pass side by side, never through
 	f.y = -0.02
 	return [global_transform * (f + sb.x * 0.13), global_transform * (f - sb.x * 0.13)]    # [left, right]
 
@@ -622,6 +622,13 @@ func _process(delta: float) -> void:
 			r.gaze_t = randf_range(3.5, 7.0)
 		var st := seat_xform(seat_name)
 		c.global_transform = Transform3D(st.basis * (r.face_fix as Basis), st.origin + st.basis.y * float(r.root_dy))
+		# closed loop: her hips settle exactly on the cushion whatever the clip's timing (the clip's own hips, before
+		# any correction, read every frame)
+		var skh := c.skeleton
+		var hy := (skh.global_transform * skh.get_bone_global_pose(skh.find_bone("Hips")).origin).y
+		var err := HIPS_ABOVE_SEAT - (hy - st.origin.y)
+		if absf(err) > 0.002 and String(c.current_gesture) == "sit_loop":
+			r.root_dy = float(r.root_dy) + err * minf(1.0, delta * 6.0)
 		var pose: SeatPose = r.pose
 		var ft := _feet_targets(seat_name)
 		pose.plant("Left", ft[0] + Vector3(0, 0.07, 0), float(pose.leg.Left.goal))
@@ -638,6 +645,12 @@ func _process(delta: float) -> void:
 			var p := st.origin + side_vec(st, side) * (0.6 * SCALE) + st.basis.z * -0.05
 			p.y = water_y + 0.1
 			pose.reach(side, p, 1.0, Vector3(0.6 * sgn, -0.3, -0.5))
+			# the other hand rests on her thigh (never in the air)
+			var other := "Right" if side == "Left" else "Left"
+			var skc := c.skeleton
+			var ul := skc.global_transform * skc.get_bone_global_pose(skc.find_bone(other + "UpperLeg")).origin
+			var ll := skc.global_transform * skc.get_bone_global_pose(skc.find_bone(other + "LowerLeg")).origin
+			pose.reach(other, ul.lerp(ll, 0.6) + Vector3(0, 0.1, 0), 1.0, Vector3(0.4 * -sgn, -0.4, -0.4))
 			if speed > 0.05 and fmod(_t, 0.9) < delta:
 				ring(p, 0.3 + speed * 0.25, Color(0.66, 0.72, 0.86), 0.2)
 		elif mode.begins_with("chin_"):

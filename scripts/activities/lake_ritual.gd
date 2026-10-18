@@ -65,6 +65,7 @@ var _springs := {}                   # who -> [spring chains, centers] parked by
 var _mm_origin := {}                 # WaterLanterns instance -> pushed origin (floating lanterns parted by the hull)
 var _say_i := 0
 var _abort := false
+var _thank_due: Array = []            # [event, log record]: thanked once there is a moment for it
 var _part_frames := 0                 # (a freshly moored boat parts the floating lanterns round it once)
 
 
@@ -203,6 +204,9 @@ func boat_offer(b: SanctuaryBrain) -> String:
 		return ""
 	if main.travel and main.travel.active():
 		return ""
+	var wx = main.get("weather")
+	if wx and float(wx.rain) > 0.35:
+		return ""                                    # not out on the water in the rain (a ritual under way finishes)
 	if is_night():
 		if int(b.mind.knowledge.get("lake_boat_night", -1)) == SanctuaryBrain.night_id():
 			return ""
@@ -294,12 +298,24 @@ func _process(delta: float) -> void:
 		_part_lanterns()
 	if _busy_event:
 		return
+	if not _thank_due.is_empty() and _can_show():
+		var td: Array = _thank_due.pop_front()
+		_busy_event = true
+		_thank_now(td[0], td[1])
+		return
 	var at_lake: bool = main.streaming.current_id == "lantern_lake" and _lake() != null
 	if queue.is_empty():
 		# the waiting lanterns rise when they are at the lake at night (in the boat the ritual sends them up itself)
 		if at_lake and not pending.is_empty() and _night_now() and running == "" and _can_show() and Time.get_ticks_msec() / 1000.0 - _last_launch > 20.0:
 			var p: Array = pending.pop_front()
 			queue.append({"name": String(p[0]), "kind": String(p[1]), "wish": false, "t": Time.get_ticks_msec() / 1000.0, "later": true})
+		return
+	# away from the lake (or by day) nothing is shown: the lantern waits for the lake at once, the thank-you when
+	# there is a moment for it (not mid-dance, mid-fight or mid-transformation)
+	if not (at_lake and _night_now()):
+		var ew: Dictionary = queue.pop_front()
+		_busy_event = true
+		_event(ew)
 		return
 	if not _can_show():
 		return
@@ -353,12 +369,20 @@ func _event(e: Dictionary) -> void:
 			pending.pop_front()
 		pending.append([String(e.name), String(e.kind)])
 		_save_mem()
-		await _thank_later(e, rec)
+		if _can_show():
+			await _thank_later(e, rec)
+		else:
+			_thank_due.append([e, rec])
 		if main.get("overlay_ui") and main.overlay_ui:
 			main.overlay_ui.note("A lantern for %s waits at Lantern Lake" % e.name)
 	log.append(rec)
 	if log.size() > 60:
 		log.pop_front()
+	_busy_event = false
+
+
+func _thank_now(e: Dictionary, rec: Dictionary) -> void:
+	await _thank_later(e, rec)
 	_busy_event = false
 
 
@@ -1053,8 +1077,8 @@ func _boat_axes() -> Dictionary:
 func _react_frame() -> Dictionary:
 	var a := _boat_axes()
 	var c0: Vector3 = a.c
-	var cam: Vector3 = c0 + (a.side as Vector3) * 6.2 + (a.fwd as Vector3) * -2.6 + Vector3(0, 1.25, 0)
-	var lan: Vector3 = c0 + (a.side as Vector3) * 2.0 + (a.fwd as Vector3) * 1.35 + Vector3(0, 0.22, 0)
+	var cam: Vector3 = c0 + (a.side as Vector3) * 4.6 + (a.fwd as Vector3) * -1.9 + Vector3(0, 1.0, 0)
+	var lan: Vector3 = c0 + (a.side as Vector3) * 1.35 + (a.fwd as Vector3) * 1.45 + Vector3(0, 0.22, 0)
 	return {"cam": cam, "lantern": lan}
 
 
@@ -1064,11 +1088,11 @@ func _react_shot() -> Dictionary:
 	if _on_water():
 		var a := _boat_axes()
 		var c0: Vector3 = a.c
-		var cam: Vector3 = _react.get("cam", c0 + (a.side as Vector3) * 6.2 + Vector3(0, 1.25, 0))
-		var mid := c0 + Vector3(0, 0.95, 0)
-		var look := mid.lerp(lp + Vector3(0, 0.45, 0), 0.42)
-		look.y = minf(look.y, c0.y + 2.6)
-		return {"pos": cam, "look": look, "fov": 50.0, "rate": 1.6}
+		var cam: Vector3 = _react.get("cam", c0 + (a.side as Vector3) * 4.6 + Vector3(0, 1.0, 0))
+		var mid := c0 + Vector3(0, 0.9, 0)
+		var look := mid.lerp(lp + Vector3(0, 0.45, 0), 0.45)
+		look.y = minf(look.y, c0.y + 2.15)           # (the lens tilts up with it, never so far that the two of them leave)
+		return {"pos": cam, "look": look, "fov": 46.0, "rate": 1.6}
 	var pm := _pair_mid()
 	var cam2: Vector3 = _react.get("cam", _L(Vector3(1.6, 1.15, -9.4)))
 	var look2 := (pm + Vector3(0, 1.1, 0)).lerp(lp + Vector3(0, 0.45, 0), 0.45)

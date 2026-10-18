@@ -21,6 +21,11 @@ static func run(t) -> void:
 	await main.streaming.travel("lantern_lake", luna, false)
 	t._check(main.streaming.current_id == "lantern_lake", "at Lantern Lake")
 	main.day_night.set_override(true)
+	if main.get("weather") and main.weather:
+		main.weather.set_weather("clear", 12.0)
+		main.weather.enabled = false                     # (a clear night for the clip: no shower rolling in)
+		main.weather.rain = 0.0
+		main.weather.cloud = 0.0
 	await t._wait(3.0)
 	var boat: MoonBoat = lr._ensure_boat()
 	t._check(boat != null, "the boat is moored at the pier")
@@ -37,6 +42,12 @@ static func run(t) -> void:
 		c.global_position = lr._deck_spot(String(pair[1])) + Vector3(0, 0.05, 0)
 		c.set_hair_frame("")
 	await t._wait(1.0)
+	# (a level-up celebration dance that began at home is let finish its stop, so the lens is the lake's again)
+	var tp: float = t._game_t
+	while main.performance and main.performance.busy() and t._game_t - tp < 12.0:
+		main.performance.interrupt("viewer lantern scene")
+		await t.get_tree().process_frame
+	main.director.end_performance()
 	lr.night_ritual = true
 	lr.participants = ["mika", "luna"]
 	lr.running = "boarding"
@@ -55,6 +66,13 @@ static func run(t) -> void:
 	boat.day_night = null
 	await boat.light_lantern("stern", "bow", "Right")
 	lr._set_shot("two")
+	# the overlay as in normal play (her planner's activity; the planner itself stays off in this scene)
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var label_on: bool = not mb.busy                     # (only when her planner's loop is not running)
+	if label_on:
+		mb.hold = false
+		mb.enabled = true
+	mb.current = {"kind": "lakeboat", "label": "take the boat out and light lanterns for our wishes", "stage": "lighting lanterns"}
 	await t._wait(5.0)                                   # (the drapes settle; a calm two-shot)
 	# the clip: 2 s before the event, the lantern and their thanks, 2 s after
 	var f0: int = Engine.get_frames_drawn()
@@ -86,3 +104,7 @@ static func run(t) -> void:
 	t.report["viewer_lantern"] = {"log": lr.log, "voice": spoken, "clip_frames": [f0, Engine.get_frames_drawn()]}
 	lr.running = ""
 	lr._cam_release("ritual")
+	if label_on:
+		mb.enabled = false
+		mb.hold = true
+	mb.current = {}

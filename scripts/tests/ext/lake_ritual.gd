@@ -15,6 +15,8 @@ static func run(t) -> void:
 	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 21.5 * 60.0
 	if main.get("weather") and main.weather:
 		main.weather.set_weather("clear", 12.0)
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("lake ritual test")          # (a dance at the start: the thank-you would wait for its end)
 	var lr: LakeRitual = LakeRitual.instance
 	t._check(lr != null, "LakeRitual is part of the world")
 	if lr == null:
@@ -46,11 +48,16 @@ static func run(t) -> void:
 	t._check(link != null, "the live link (dummy server) is up")
 	if link == null:
 		return
+	if main.performance:
+		if main.performance.busy():
+			main.performance.interrupt("lake ritual test")
+		main.performance.set_process(false)          # (no celebration dance in the middle of the at-home check)
+	await t._wait(2.0)
 	var lines0: int = main.voice.log.size()
 	link._on_message({"type": "youtube-live-subscriber", "author": "Aiko"})
 	link._on_message({"type": "youtube-live-subscriber", "author": "Aiko"})          # (the same event twice: once)
 	var tw: float = t._game_t
-	while t._game_t - tw < 25.0 and (lr.pending.is_empty() or lr._busy_event):
+	while t._game_t - tw < 40.0 and (lr.pending.is_empty() or lr._busy_event or not lr._thank_due.is_empty()):
 		await t.get_tree().process_frame
 	print("[lakeritual-test] gates %s" % JSON.stringify(lr.debug_state()))
 	print("[lakeritual-test] at home: pending %s queue %d log %s" % [str(lr.pending), lr.queue.size(), JSON.stringify(lr.log)])
@@ -59,6 +66,8 @@ static func run(t) -> void:
 	t._check(said.any(func(s): return s.contains("Aiko")), "Mika thanked Aiko by name at once", said)
 	var mem: Dictionary = WorldState.mind("mika").knowledge.get(LakeRitual.MEM_KEY, {})
 	t._check((mem.get("pending", []) as Array).size() == 1, "the waiting lantern is saved with Mika's mind", mem)
+	if main.performance:
+		main.performance.set_process(true)
 	var pull: Dictionary = lr.visit_pull(mb, 0.5)
 	t._check(float(pull.u) > 0.5 + l4, "the waiting lantern and the longing pull them to the lake (%s)" % str(pull))
 	# 3. their own choice: the walk down at night
@@ -146,15 +155,16 @@ static func run(t) -> void:
 	t._check(day_set and steps.has("stars"), "the clock turned to day mid-ritual and they still finished the night ritual (stars)")
 	t._check(not snap_mid.is_empty() and String(snap_mid.get("step", "")) == "lanterns" and (snap_mid.get("participants", []) as Array).size() == 2,
 		"the ritual's step is persistent (ScenePersist contract) %s" % str(snap_mid))
-	var names := launches.map(func(x): return String(x[0]))
-	t._check(names.has("Aiko") and names.has("Kenji") and names.has("Sora") and names.has("Mei"), "every viewer's lantern rose with its name (%s)" % str(names))
+	var names := lr.log.filter(func(e): return e.has("lantern_at")).map(func(e): return "%s@%s" % [e.name, e.where])
+	t._check(names.has("Aiko@pier") and names.has("Kenji@boat") and names.has("Sora@boat") and names.has("Mei@boat"),
+		"every viewer's lantern rose with its name: Aiko's (waiting) on arrival at the pier, the others beside the boat (%s)" % str(names))
 	var gaps := []
 	for i in range(1, launches.size()):
 		gaps.append(snappedf(float(launches[i][2]) - float(launches[i - 1][2]), 0.1))
 	t._check(not gaps.is_empty() and gaps.all(func(g): return g >= 6.0), "one at a time, no collisions (gaps %s s)" % str(gaps))
 	var thanked := lr.log.filter(func(e): return String(e.where) == "boat")
 	var by_name := thanked.all(func(e): return (e.lines as Array).any(func(l): return String(l).contains(String(e.name))))
-	t._check(thanked.size() >= 4 and by_name, "each one thanked by name from the boat (%d)" % thanked.size(), JSON.stringify(thanked))
+	t._check(thanked.size() >= 3 and by_name, "each one thanked by name from the boat (%d)" % thanked.size(), JSON.stringify(thanked))
 	t._check(lr.boat._floaters.size() >= 2, "their wish lanterns float on the water (%d)" % lr.boat._floaters.size())
 	t._check(worst_shore < -1.0, "the boat stayed on open water (shore margin %.2f m)" % -worst_shore)
 	t._check(pier_hits == 0, "the boat never went through the pier (%d samples)" % pier_hits)

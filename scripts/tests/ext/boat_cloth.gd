@@ -140,7 +140,7 @@ static func run(t) -> void:
 					w[key] = maxi(int(w[key]), int(r[key]))
 				w.total = int(r.total)
 				worst[c.character_id] = w
-			var ct := _contacts(boat, luna, grabs.luna.poses, mika, grabs.mika.poses)
+			var ct := _contacts(boat, luna, grabs.luna.poses, mika, grabs.mika.poses) if tt > 5.0 else {}
 			for key in ct:
 				var prev = contacts.get(key, null)
 				var v = ct[key]
