@@ -59,6 +59,20 @@ static func run(t) -> void:
 	await t._wait(1.0)
 	boat.row(true)
 	boat.trail_hand("stern", "Left", true)
+	var probes := []
+	if RenderProfile.options.has("trace"):
+		var sk0 := luna.skeleton
+		var started := false
+		for n in sk0.get_children().duplicate():
+			if n is SeatPose:
+				started = true
+			if started and n is SkeletonModifier3D and not (n is TraceProbe):
+				var tp := TraceProbe.new()
+				tp.bones = ["RightHand", "LeftHand"]
+				tp.name = "Trace_after_" + String(n.name)
+				sk0.add_child(tp)
+				sk0.move_child(tp, n.get_index() + 1)
+				probes.append(tp)
 	# bone grabbers at the very end of each stack (after the drape)
 	var grabs := {}
 	for c in [luna, mika]:
@@ -102,6 +116,11 @@ static func run(t) -> void:
 			var hm := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightHand")).origin + sk.global_transform * sk.get_bone_global_pose(sk.find_bone("LeftHand")).origin) * 0.5
 			pin.look = hm
 			pin.pos = hm + (b.basis.orthonormalized() * Vector3(0.75, 0.25, 0.75))
+		if not probes.is_empty() and absf(tt - 5.0) < 0.02:
+			var sp: SeatPose = boat.rider("bow").pose
+			print("[trace] grip R %s  armR w %.2f target %s" % [str(boat.grip("R").snappedf(0.01)), float(sp.arm.Right.w), str((sp.arm.Right.target as Vector3).snappedf(0.01))])
+			for tp in probes:
+				print("[trace] %-28s R %s" % [tp.name, str((luna.skeleton.global_transform * (tp.pos.get("RightHand", Vector3.ZERO) as Vector3)).snappedf(0.01))])
 		if tt > 6.0 and absf(fmod(tt - 6.0, 2.0) - 1.0) < 0.02:
 			print("[boatcloth] %s at frame %d" % [angles[ai][0], Engine.get_frames_drawn()])
 		if tt > 3.0 and fmod(tt, 0.5) < 0.034:

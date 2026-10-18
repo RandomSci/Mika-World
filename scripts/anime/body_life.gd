@@ -8,6 +8,7 @@ extends SkeletonModifier3D
 ## Runs right after the clip (DanceDeck), before the softness pass on the arms.
 
 var look: Callable                       # -> world point to look toward, or Vector3.INF for none
+var look_enabled := true                 # false: the PosePipeline routes `look` to the head look-at instead
 var look_weight := 0.35
 var look_max := deg_to_rad(38.0)
 var follow := 5.0                        # 1/s: how fast the upper body catches up with the hips
@@ -31,7 +32,7 @@ static func make(sk: Skeleton3D, at := 1) -> BodyLife:
 	var b := BodyLife.new()
 	b.name = "BodyLife"
 	sk.add_child(b)
-	sk.move_child(b, at)
+	PosePipeline.arrange_for(sk)
 	return b
 
 
@@ -104,7 +105,7 @@ func _process_modification() -> void:
 		_rot(sb, Quaternion(axis, deg_to_rad(deg)))
 	# the look: part of the way toward the target, smoothed, within a cone
 	var want := Quaternion.IDENTITY
-	if look.is_valid():
+	if look.is_valid() and look_enabled:
 		var tp: Vector3 = look.call()
 		if tp != Vector3.INF:
 			var hg := sk.get_bone_global_pose(_ids.Head)

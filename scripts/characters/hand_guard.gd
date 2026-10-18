@@ -11,6 +11,7 @@ const MARGIN := 0.012                    # skin clearance
 var others: Array = []                   # other WorldCharacters whose bodies count too
 var pushes := 0                          # QA: frames a hand was pushed out (since the start)
 var last_depth := 0.0                    # QA: the deepest penetration found this frame (m)
+var skip := {"Left": false, "Right": false}   # set by the PosePipeline: a hand an action holds on purpose (an oar grip)
 var _ids := {}
 var _frame := Basis()
 var _ok := false
@@ -27,8 +28,12 @@ static func attach(sk: Skeleton3D) -> HandGuard:
 	return g
 
 
-## Last among the pose modifiers: just before the dress simulation (or at the end).
+## Its place in the stack is the PosePipeline's (collision stage).
 func settle() -> void:
+	var sk0 := get_skeleton()
+	if sk0:
+		PosePipeline.arrange_for(sk0)
+		return
 	var sk := get_skeleton()
 	if sk == null:
 		return
@@ -152,7 +157,7 @@ func _process_modification() -> void:
 	var theirs := _others_shapes(sk)
 	for side in ["Left", "Right"]:
 		var ids := [_ids[side + "UpperArm"], _ids[side + "LowerArm"], _ids[side + "Hand"]]
-		if ids.has(-1):
+		if ids.has(-1) or bool(skip.get(side, false)):
 			continue
 		var shapes := _shapes(sk, side) + theirs
 		for it in 2:

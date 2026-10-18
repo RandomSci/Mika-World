@@ -185,20 +185,7 @@ func seat(c: WorldCharacter, seat_name: String) -> void:
 	if soft == null:
 		soft = SoftArms.make(sk, 2)
 	soft.elbow_min = deg_to_rad(8.0)
-	# the seated stack runs after every other pose correction (the seated knee turn, body language) and just before
-	# the dress sim, so the hands and feet really reach their targets and the dress follows them
-	var at := sk.get_child_count()
-	for n in sk.get_children():
-		if n is DressSim or n.get_class() == "SpringBoneSimulator3D" or String(n.name).begins_with("SkirtDrape") or String(n.name) == "HeadPosture":
-			at = mini(at, n.get_index())
-	for n in [pose, life, soft]:
-		sk.move_child(n, at - 1)
-	sk.move_child(pose, at - 3)
-	sk.move_child(life, at - 2)
-	sk.move_child(soft, at - 1)
-	for n in sk.get_children():
-		if n is HandGuard:
-			(n as HandGuard).settle()
+	PosePipeline.arrange_for(sk)                   # (the one owner of the order: activity, IK, collision, cloth)
 	var order := []
 	for n in sk.get_children():
 		order.append(String(n.name))
@@ -845,6 +832,7 @@ func restore(d: Dictionary) -> void:
 		seat(c, s)                       # (placed on the seat at once; the hips settle on the cushion in 0.6 s)
 	speed = float(d.get("speed", 0.0))
 	_row_phase = float(d.get("row_phase", 0.0))
+	set_meta("persist_restored_speed", speed)
 	if bool(d.get("rowing", false)):
 		row(true)
 	for s in rs:

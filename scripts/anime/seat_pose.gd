@@ -27,7 +27,7 @@ static func make(sk: Skeleton3D, at := 0) -> SeatPose:
 	var p := SeatPose.new()
 	p.name = "SeatPose"
 	sk.add_child(p)
-	sk.move_child(p, at)
+	PosePipeline.arrange_for(sk)
 	return p
 
 

@@ -42,7 +42,7 @@ static func make(sk: Skeleton3D, at := 2) -> TasselSway:
 	var t := TasselSway.new()
 	t.name = "TasselSway"
 	sk.add_child(t)
-	sk.move_child(t, at)
+	PosePipeline.arrange_for(sk)
 	return t
 
 

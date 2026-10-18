@@ -40,7 +40,7 @@ static func make(sk: Skeleton3D) -> DanceDeck:
 	d.name = "DanceDeck"
 	d.influence = 0.0
 	sk.add_child(d)
-	sk.move_child(d, 0)
+	PosePipeline.arrange_for(sk)
 	return d
 
 

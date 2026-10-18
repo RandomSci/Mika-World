@@ -28,7 +28,7 @@ static func make(sk: Skeleton3D, at := 1) -> SoftArms:
 	var s := SoftArms.new()
 	s.name = "SoftArms"
 	sk.add_child(s)
-	sk.move_child(s, at)
+	PosePipeline.arrange_for(sk)
 	return s
 
 

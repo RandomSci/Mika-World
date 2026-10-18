@@ -287,8 +287,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 		skeleton.add_child(el)
 		el.target_node = el.get_path_to(_head_target)
 		eye_looks.append(el)
-	if head_posture and is_instance_valid(head_posture):
-		skeleton.move_child(head_posture, -1)      # emotional tilt applies on top of the look-at
+	PosePipeline.of(self).arrange()                # one owner of the pose order (activity, IK, collision, cloth)
 	left_hand = _attach("LeftHand")
 	right_hand = _attach("RightHand")
 	chest = _attach("UpperChest")
@@ -328,11 +327,12 @@ func apply_motion_profile() -> void:
 	ears = null
 	if float(motion.get("ears", 0.0)) > 0.0:
 		ears = EarController.attach(self, float(motion.ears))
+		PosePipeline.of(self).arrange()
 	# full-body expression (posture, injury, breathing, talking hands) - before the hair springs and head posture
 	if body_language == null or not is_instance_valid(body_language):
 		body_language = BodyLanguage.attach(self, float(motion.get("body", 1.0)))
 		if body_language:
-			skeleton.move_child(body_language, 0)
+			PosePipeline.of(self).arrange()
 			if reaction and not reaction.reacted.is_connected(body_language.on_hit):
 				reaction.reacted.connect(body_language.on_hit)
 
