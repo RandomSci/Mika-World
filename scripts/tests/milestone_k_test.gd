@@ -6886,6 +6886,7 @@ func _dt_ring_real(c: WorldCharacter, pin: CameraPin, tag: String) -> void:
 
 func _dresstest() -> void:
 	await _hold_all()
+	await _force_luna_l1()
 	for w in main.mage_brains:
 		main.mage_brains[w].set_enabled(false)
 	main.spawner.enabled = false
@@ -7773,6 +7774,7 @@ func _starlitharp() -> void:
 ## skirt's depth under the sampled surface is measured. --dt-who=luna|mika, --sit-spots=watchpoint_rest,garden_meditate,grass
 func _sittest() -> void:
 	await _hold_all()
+	await _force_luna_l1()
 	for w in main.mage_brains:
 		main.mage_brains[w].set_enabled(false)
 	main.director.enabled = false
@@ -7862,13 +7864,15 @@ func _sit_ring(c: WorldCharacter, pin: CameraPin, tag: String, waist_h: float, c
 	fwd.y = 0.0
 	fwd = fwd.normalized()
 	var waist := c.global_position + Vector3(0, waist_h, 0)
-	for a in [["front", 0.0], ["side", 90.0], ["3q", 40.0]]:
+	for a in [["front", 0.0], ["side", 90.0], ["3q", 40.0], ["back", 180.0]]:
 		var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))
 		pin.fov = 28.0
 		pin.pos = Vector3(waist.x, c.global_position.y + cam_h, waist.z) + d * 3.6
 		pin.look = waist
 		pin.roll = 0.0
 		pin.active = true
+		if main.get("subtitle") and main.subtitle:
+			main.subtitle.visible = false
 		await _wait(0.6)
 		_shot("%s_%s" % [tag, a[0]])
 
@@ -7877,6 +7881,7 @@ func _sit_ring(c: WorldCharacter, pin: CameraPin, tag: String, waist_h: float, c
 ## waist, 3.8 m away): for each motion and angle she moves on open ground and a still is taken mid-stride.
 func _motionshots() -> void:
 	await _hold_all()
+	await _force_luna_l1()
 	for w in main.mage_brains:
 		main.mage_brains[w].set_enabled(false)
 	main.director.enabled = false
@@ -7901,7 +7906,7 @@ func _motionshots() -> void:
 	var a0 := NavigationServer3D.map_get_closest_point(map, Vector3(-4.0, 0, 12.0))
 	var a1 := NavigationServer3D.map_get_closest_point(map, Vector3(-4.0, 0, 26.0))
 	for motion in ["walk", "run", "turn"]:
-		for ang in [["front", 0.0], ["side", 90.0], ["3q", 40.0]]:
+		for ang in [["front", 0.0], ["side", 90.0], ["3q", 40.0], ["back", 180.0]]:
 			if main.teleport_guard:
 				main.teleport_guard.allow(c)
 			c.stop_action()
@@ -7928,8 +7933,26 @@ func _motionshots() -> void:
 				pin.pos = Vector3(waist.x, c.global_position.y + 1.0, waist.z) + d * 3.8
 				pin.look = waist
 				pin.active = true
+				if main.get("subtitle") and main.subtitle:
+					main.subtitle.visible = false
 				if not taken and _game_t - t0 >= shot_at:
 					_shot("%s_%s" % [motion, ang[0]])
 					taken = true
 			c.stop_action()
 	pin.active = false
+
+
+## Design B / sitting tests: Luna is forced into her Level 1 stage (design B on this branch) whatever the test save's
+## level or form says (--keep-form leaves her as she is). Selwyn 2026-10-19: "force Luna into Level 1 design B".
+func _force_luna_l1() -> void:
+	if RenderProfile.options.has("keep-form") or not main.characters.has("luna"):
+		return
+	var luna: WorldCharacter = main.characters["luna"]
+	var st: Dictionary = AppearanceRegistry.stage_by_id("luna", "oracle_l1outfit")
+	var path := String(st.get("avatar", ""))
+	if path != "" and luna.avatar_path != path:
+		if main.teleport_guard:
+			main.teleport_guard.allow(luna)
+		luna.swap_avatar(path)
+		await _wait(1.0)
+	_check(luna.avatar_path == path, "Luna wears Level 1 (%s)" % path.get_file(), luna.avatar_path)
