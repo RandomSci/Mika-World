@@ -145,7 +145,9 @@
        1.0,
        1.05,
        1.04
-      ]
+      ],
+      "shade": [0.95, 0.76, 0.78],
+      "body_shading": [-0.55, 0.88]
      },
      "clearance": {
       "left": [
@@ -352,7 +354,9 @@
       "brows_through_fringe": false
      },
      "skin": {
-      "tint": [1.0, 1.05, 1.04]
+      "tint": [1.0, 1.05, 1.04],
+      "shade": [0.95, 0.76, 0.78],
+      "body_shading": [-0.55, 0.88]
      },
      "hair": {
       "natural": true,
@@ -430,7 +434,9 @@
       "brows_through_fringe": false
      },
      "skin": {
-      "tint": [1.0, 1.05, 1.04]
+      "tint": [1.0, 1.05, 1.04],
+      "shade": [0.95, 0.76, 0.78],
+      "body_shading": [-0.55, 0.88]
      },
      "motion": "luna",
      "springs": {
@@ -518,7 +524,9 @@
       "brows_through_fringe": false
      },
      "skin": {
-      "tint": [1.0, 1.05, 1.04]
+      "tint": [1.0, 1.05, 1.04],
+      "shade": [0.95, 0.76, 0.78],
+      "body_shading": [-0.55, 0.88]
      },
      "motion": "luna"
     }

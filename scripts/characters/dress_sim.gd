@@ -148,10 +148,10 @@ func _build() -> void:
 				sim.set_center_bone_name(i, "Hips")
 			_:
 				sim.set_center_from(i, SpringBoneSimulator3D.CENTER_FROM_WORLD_ORIGIN)
-		sim.set_radius(i, _f("joint_radius", 0.03))
-		sim.set_stiffness(i, _f("stiffness", 5.0))
+		sim.set_radius(i, _f("joint_radius", 0.015))
+		sim.set_stiffness(i, _f("stiffness", 16.0))
 		sim.set_drag(i, _f("drag", 0.7))
-		sim.set_gravity(i, _f("gravity", 1.0))
+		sim.set_gravity(i, _f("gravity", 0.5))
 		sim.set_gravity_direction(i, Vector3.DOWN)
 		sim.set_enable_all_child_collisions(i, true)
 	# leg colliders: thigh and shin capsules along the bones, starting below the hip joint
@@ -188,7 +188,7 @@ func _build() -> void:
 	_warm = 0.0
 	sim.reset.call_deferred()
 	print("[dress] %s: %d skirt chains on SpringBoneSimulator3D (stiffness %.2f drag %.2f gravity %.2f, limit %.0f deg/s)" % [c.character_id,
-		_chains.size(), _f("stiffness", 5.0), _f("drag", 0.7), _f("gravity", 1.0), _f("max_deg_s", 240.0)])
+		_chains.size(), _f("stiffness", 16.0), _f("drag", 0.7), _f("gravity", 0.5), _f("max_deg_s", 240.0)])
 
 
 func _leg_capsule(bone: String, r: float, start: float) -> void:
@@ -245,8 +245,8 @@ func _process(delta: float) -> void:
 		var k := _f("seated_stiffness", 3.0) if c.seated else 1.0
 		var g := _f("seated_gravity", 0.4) if c.seated else 1.0
 		for i in _chains.size():
-			sim.set_stiffness(i, _f("stiffness", 5.0) * k)
-			sim.set_gravity(i, _f("gravity", 1.0) * g)
+			sim.set_stiffness(i, _f("stiffness", 16.0) * k)
+			sim.set_gravity(i, _f("gravity", 0.5) * g)
 	_was_seated = c.seated
 
 

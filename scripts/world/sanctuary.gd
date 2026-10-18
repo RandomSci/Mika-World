@@ -889,8 +889,16 @@ func _build_world_links() -> void:
 	add_gate("mentor_tower", Vector3(45.0, h.call(45.0, 18.8), 18.8), Vector3(39.0, h.call(39.0, 16.2) + 0.05, 16.2), atan2(13.0, 12.0), 2.4)
 	# South-west past Starfall Hill: the path down to Lantern Lake (Day 2), a lantern-topped post marks it
 	add_gate("lantern_lake", Vector3(-35.0, h.call(-35.0, 40.0), 40.0), Vector3(-33.0, h.call(-33.0, 35.0) + 0.05, 35.0), atan2(-2.0, 5.0), 2.2)
-	Kit.block(self, Vector3(0.16, 1.9, 0.16), Kit.xf(Vector3(-36.6, h.call(-36.6, 38.6) + 0.95, 38.6)), Kit.uvmat("dark_wooden_planks"), true, 0.02)
-	var lp := Kit.omni(self, Vector3(-36.6, h.call(-36.6, 38.6) + 2.05, 38.6), Color(1.0, 0.62, 0.3), 0.9, 6.0)
+	# (2026-10-18: the post had only its night light - by day a bare stray pole on the meadow. Now a real lantern
+	# hangs from it, as on the Lantern Lake posts)
+	var lpb := Vector3(-36.6, h.call(-36.6, 38.6), 38.6)
+	var wood := Kit.uvmat("dark_wooden_planks")
+	Kit.block(self, Vector3(0.16, 2.3, 0.16), Kit.xf(lpb + Vector3(0, 1.15, 0)), wood, true, 0.02)
+	Kit.mesh_node(self, Kit.box_mesh(Vector3(0.6, 0.09, 0.09), 0.01), wood, Kit.xf(lpb + Vector3(0.26, 2.22, 0)))
+	Kit.mesh_node(self, Kit.prop("Lantern_01", "Lantern_01"), null, Kit.xf(lpb + Vector3(0.5, 1.88, 0), 0.0, Vector3.ONE * 1.3))
+	Kit.mesh_node(self, Kit.prop("Lantern_01", "Lantern_01_glass"), null, Kit.xf(lpb + Vector3(0.5, 1.88, 0), 0.0, Vector3.ONE * 1.3))
+	Kit.mesh_node(self, SphereMesh.new(), Kit.emissive(Color(1.0, 0.68, 0.35), 7.0, true), Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * 0.05), lpb + Vector3(0.5, 2.1, 0)), false)
+	var lp := Kit.omni(self, lpb + Vector3(0.5, 2.05, 0), Color(1.0, 0.62, 0.3), 0.9, 6.0)
 	night_only(lp)
 	Kit.block(self, Vector3(0.18, 1.7, 0.18), Kit.xf(Vector3(41.0, h.call(41.0, 15.2) + 0.85, 15.2)), Kit.uvmat("dark_wooden_planks"), true, 0.02)
 	Kit.block(self, Vector3(1.1, 0.28, 0.06), Kit.xf(Vector3(41.0, h.call(41.0, 15.2) + 1.45, 15.2), 0.4), Kit.uvmat("dark_wooden_planks"), false, 0.01)

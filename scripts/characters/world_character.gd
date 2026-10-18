@@ -866,6 +866,13 @@ func _skin_tone() -> void:
 			if cfg.has("rim"):
 				var rc: Array = cfg.rim
 				sm.set_shader_parameter("_RimColor", Color(float(rc[0]), float(rc[1]), float(rc[2]), 1.0))
+			# one skin tone (2026-10-18, Selwyn: "face almost white, legs and hands bright pink"): the body's skin
+			# gets the face's soft shading (profile.skin.body_shading = [shift, toony] in MToon 0.x terms; the face
+			# is at about -0.80 / 0.90 after the VRM1 conversion) so arms and legs are not mostly in the pink shade
+			if cfg.has("body_shading") and String(sm.resource_name).ends_with("_Body_00_SKIN"):
+				var bs: Array = cfg.body_shading
+				sm.set_shader_parameter("_ShadeShift", float(bs[0]))
+				sm.set_shader_parameter("_ShadeToony", float(bs[1]))
 	_face_colors()
 
 

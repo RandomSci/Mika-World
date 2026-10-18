@@ -179,6 +179,8 @@ func _run() -> void:
 		"showline": await _showline()
 		"luna_r12": await _luna_r12()
 		"dresstest": await _dresstest()
+		"skinprobe": await _skinprobe()
+		"benchscan": await _benchscan()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -6993,3 +6995,109 @@ func _dresstest() -> void:
 	pin.queue_free()
 	main.camera_rig.set_process(true)
 	main.director.set_process(true)
+
+
+## Skin materials of both girls: colour, shade colour, shading and the albedo texture's mean (skin match, 2026-10-18).
+func _skinprobe() -> void:
+	await _wait(1.0)
+	for who in ["mika", "luna"]:
+		var c: WorldCharacter = main.characters[who]
+		for mi in c.avatar.find_children("*", "MeshInstance3D", true, false):
+			var m: MeshInstance3D = mi
+			for si in m.mesh.get_surface_count():
+				var mat := m.get_active_material(si)
+				if not (mat is ShaderMaterial):
+					continue
+				var nm := String(mat.resource_name)
+				if not nm.contains("SKIN"):
+					continue
+				var sm := mat as ShaderMaterial
+				var tex = sm.get_shader_parameter("_MainTex")
+				var mean := Color()
+				if tex is Texture2D:
+					var img: Image = (tex as Texture2D).get_image()
+					if img:
+						if img.is_compressed():
+							img.decompress()
+						img.resize(32, 32, Image.INTERPOLATE_BILINEAR)
+						var n := 0
+						for y in 32:
+							for x in 32:
+								var px := img.get_pixel(x, y)
+								if px.a > 0.5:
+									mean += px
+									n += 1
+						if n > 0:
+							mean /= float(n)
+				print("[mktest] skin %s %s/%s color=%s shade=%s shift=%.2f toony=%.2f rim=%s tex_mean=%s" % [who, m.name, nm, str(sm.get_shader_parameter("_Color")), str(sm.get_shader_parameter("_ShadeColor")),
+					float(sm.get_shader_parameter("_ShadeShift")), float(sm.get_shader_parameter("_ShadeToony")), str(sm.get_shader_parameter("_RimColor")), str(Color(mean.r, mean.g, mean.b).to_html(false))])
+
+
+## The ruins bench and its surroundings (Selwyn 2026-10-18: a floating leaf clump, a stray pole, blocky trees):
+## photographs the bench from 8 directions (wide) and lists thin tall meshes (poles) and foliage whose bottom floats
+## above the ground within 45 m, with their scene paths.
+func _benchscan() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	var it: Interactable = main.world.interactables.get("watchpoint_rest")
+	if it == null:
+		_check(false, "watchpoint bench exists")
+		return
+	var sp: Vector3 = it.get_parent().to_global(it.sit_point)
+	var space := get_viewport().get_world_3d().direct_space_state
+	var poles := []
+	var floats := []
+	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		var g := n as GeometryInstance3D
+		if not g.is_visible_in_tree():
+			continue
+		var bb: AABB = g.global_transform * g.get_aabb()
+		var ctr := bb.get_center()
+		if ctr.distance_to(sp) > 45.0:
+			continue
+		var path := String(g.get_path())
+		if path.contains("Avatar") or path.contains("characters"):
+			continue
+		if bb.size.y > 0.9 and bb.size.x < 0.35 and bb.size.z < 0.35:
+			poles.append("%.1f m  %s  size %s at %s" % [ctr.distance_to(sp), path, str(bb.size.snapped(Vector3.ONE * 0.01)), str(bb.position.snapped(Vector3.ONE * 0.1))])
+		var lname := path.to_lower()
+		if bb.size.length() < 4.0 and not (lname.contains("light") or lname.contains("lantern") or lname.contains("sky") or lname.contains("cloud") or lname.contains("rain") or lname.contains("particles")):
+			var q2 := PhysicsRayQueryParameters3D.create(Vector3(ctr.x, bb.position.y + 0.02, ctr.z), Vector3(ctr.x, bb.position.y - 30.0, ctr.z))
+			var hit2 := space.intersect_ray(q2)
+			var gap2: float = (bb.position.y - float((hit2.position as Vector3).y)) if not hit2.is_empty() else 99.0
+			if gap2 > 0.5:
+				var mesh_name := ""
+				if g is MeshInstance3D and (g as MeshInstance3D).mesh:
+					mesh_name = String((g as MeshInstance3D).mesh.resource_name)
+				elif g is MultiMeshInstance3D:
+					mesh_name = "multimesh"
+				floats.append("%.1f m  gap %.2f m  %s (%s)  size %s at %s" % [ctr.distance_to(sp), gap2, path, mesh_name, str(bb.size.snapped(Vector3.ONE * 0.01)), str(bb.position.snapped(Vector3.ONE * 0.1))])
+		if lname.contains("leaf") or lname.contains("leaves") or lname.contains("foliage") or lname.contains("ivy") or lname.contains("bush") or lname.contains("clump") or lname.contains("canopy"):
+			var q := PhysicsRayQueryParameters3D.create(Vector3(ctr.x, bb.position.y + 0.05, ctr.z), Vector3(ctr.x, bb.position.y - 30.0, ctr.z))
+			var hit := space.intersect_ray(q)
+			var gap: float = (bb.position.y - float((hit.position as Vector3).y)) if not hit.is_empty() else 99.0
+			if gap > 0.6 and not lname.contains("tree"):
+				floats.append("%.1f m  gap %.2f m  %s  size %s" % [ctr.distance_to(sp), gap, path, str(bb.size.snapped(Vector3.ONE * 0.01))])
+	poles.sort()
+	floats.sort()
+	print("[mktest] benchscan bench at %s" % str(sp.snapped(Vector3.ONE * 0.01)))
+	for x in poles.slice(0, 25):
+		print("[mktest] benchscan POLE ", x)
+	for x in floats.slice(0, 25):
+		print("[mktest] benchscan FLOAT ", x)
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.fov = 60.0
+	pin.active = true
+	for k in 8:
+		var d := Vector3(0, 0, 1).rotated(Vector3.UP, TAU * k / 8.0)
+		pin.pos = sp + d * 4.5 + Vector3(0, 1.4, 0)
+		pin.look = sp + Vector3(0, 0.6, 0)
+		await _wait(1.0)
+		_shot("dir%d" % k)
+	pin.active = false
