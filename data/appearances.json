@@ -91,6 +91,7 @@
     "avatar": "res://assets/characters/mika/stages/l01_celestial/MikaCelestial_L1Outfit.vrm",
     "source": "~/Downloads/Mika-Transformation-Lab/l1_outfit (tools/o10_place.py + tools/o12_rig.py) from MIKA_L1_Outfit_3D.zip (sha256 888b9ac0...); vrm sha256 49a35d7cbccd790d... (v3: sleeve fit + body hidden under full cover; v2 9e88ea9a..., v1 b6e1ce68...)",
     "profile": {
+     "dress": {"sim": "godot", "_note": "2026-10-18: the skirt on SpringBoneSimulator3D (scripts/characters/dress_sim.gd)"},
      "face": {
       "brows_through_fringe": false
      },
@@ -424,6 +425,7 @@
     "avatar": "res://assets/characters/luna/stages/l01_oracle/LunaOracle_L1Outfit_faceV2.vrm",
     "source": "Face V2 (round 12, approved by Selwyn 2026-10-18): Mika's face on Luna, gold eyes, violet hair and brows; built by ~/Downloads/Luna-Face-V2-Lab/work/frozen_round12 m01-m05, vrm sha256 5d3c8bda... Before: ~/Downloads/Mika-Transformation-Lab/luna_l1_outfit (tools/luna_o10_place.py + tools/luna_o12_rig.py) from LUNA_L1_Outfit_3D.zip (sha256 80da67b5...); vrm sha256 39b09d1b812e83c5... (corrected build, transformation-outfits 4d7c319; provisional 24f8afb5... replaced)",
     "profile": {
+     "dress": {"sim": "godot", "_note": "2026-10-18: the skirt on SpringBoneSimulator3D (scripts/characters/dress_sim.gd)"},
      "face": {
       "brows_through_fringe": false
      },

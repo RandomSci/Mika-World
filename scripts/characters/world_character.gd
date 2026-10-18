@@ -115,6 +115,7 @@ var world: Node  # the active area (magic bounce / rune floor), set by the strea
 var sword: SwordLayer  # optional magical-sword layer
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
 var cloth_clearance: ClothClearance   # hands kept out of her clothes (profile.clearance)
+var dress_sim: DressSim               # the skirt on SpringBoneSimulator3D (profile.dress.sim, --dress-sim)
 var foot_guard: FootGuard              # feet kept on top of the floor (a dance carrying her hips over a raised floor)
 var head_look: LookAtModifier3D  # eases her head toward what she reads / inspects
 var eye_looks: Array[LookAtModifier3D] = []
@@ -199,6 +200,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_repair_colliders()
 	_shoulder_colliders()
 	_tune_springs()
+	var dress_mode := DressSim.mode_for(self)
+	var dress_chains := DressSim.take_chains(avatar) if dress_mode == "sbs" else 0
 	if not RenderProfile.options.has("no-hem-floor"):
 		HemFloor.attach.call_deferred(self)          # the hem rests on the floor, never through it
 	avatar.name = "Avatar"
@@ -228,6 +231,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	foot_guard.name = "FootGuard"
 	skeleton.add_child(foot_guard)
 	foot_guard.enabled = not RenderProfile.options.has("no-foot-guard")
+	dress_sim = DressSim.attach(self, dress_mode) if (dress_chains > 0 or dress_mode == "guard") else null     # after the pose corrections
 	if _head_target == null:
 		_head_target = Node3D.new()
 		_head_target.name = "HeadLookTarget"

@@ -178,6 +178,7 @@ func _run() -> void:
 		"benchrest": await _benchrest()
 		"showline": await _showline()
 		"luna_r12": await _luna_r12()
+		"dresstest": await _dresstest()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -6758,6 +6759,236 @@ func _luna_r12() -> void:
 				_shot("%s_happy_%s" % [who[0], tag])
 				c.face.set_hold("", 0.0)
 			c.look_head_at(null)
+	pin.active = false
+	pin.queue_free()
+	main.camera_rig.set_process(true)
+	main.director.set_process(true)
+
+
+# ------------------------------------------------------------------ dress (skirt) behaviour (2026-10-18)
+## One girl (--dt-who=luna|mika) walks, turns, sits on the watchpoint bench and stands, filmed by a pinned wide camera
+## (record with --write-movie). Every frame the skirt joints are measured against her leg capsules (clipping), their
+## speed relative to the hips (snaps) and their per-frame jumps (explosions); the first 1.5 s after a fresh avatar
+## (spawn) are measured separately. Prints one "[mktest] dress" JSON line per phase.
+const DT_THIGH_R := 0.066        # tapered leg capsules (thigh 6.6 -> 4.6 cm, shin 4.4 -> 3.2 cm), like the VRoid legs
+var _dt_prev := {}
+var _dt := {}
+
+func _dt_reset(label: String) -> void:
+	_dt = {"label": label, "frames": 0, "clip_frames": 0, "max_pen_cm": 0.0, "max_deg_s": 0.0, "degs": [], "max_jump_cm": 0.0, "explosions": 0}
+	_dt_prev = {}
+
+
+func _dt_sample(c: WorldCharacter, dt: float) -> void:
+	var sk := c.skeleton
+	var g := sk.global_transform
+	var hips_i := sk.find_bone("Hips")
+	var hips_t: Transform3D = g * sk.get_bone_global_pose(hips_i)
+	var legs := []
+	for side in ["Left", "Right"]:
+		var ul := sk.find_bone(side + "UpperLeg")
+		var ll := sk.find_bone(side + "LowerLeg")
+		var ft := sk.find_bone(side + "Foot")
+		if ul < 0 or ll < 0 or ft < 0:
+			continue
+		var a: Vector3 = (g * sk.get_bone_global_pose(ul)).origin
+		var b: Vector3 = (g * sk.get_bone_global_pose(ll)).origin
+		var f: Vector3 = (g * sk.get_bone_global_pose(ft)).origin
+		legs.append([a, b, DT_THIGH_R, 0.046])
+		legs.append([b, f, 0.044, 0.032])
+	var pen := 0.0
+	var frame_deg := 0.0
+	for bi in sk.get_bone_count():
+		var bn := sk.get_bone_name(bi)
+		if not bn.contains("Skirt"):
+			continue
+		var gp: Transform3D = g * sk.get_bone_global_pose(bi)
+		var p := gp.origin
+		if not (bn.ends_with("_0") or bn.ends_with("_1")):      # (the waist joints sit over the hip joint itself)
+			for L in legs:
+				var cp := Geometry3D.get_closest_point_to_segment(p, L[0], L[1])
+				var u := clampf((cp - (L[0] as Vector3)).length() / maxf(0.001, (L[0] as Vector3).distance_to(L[1])), 0.0, 1.0)
+				pen = maxf(pen, lerpf(float(L[2]), float(L[3]), u) - p.distance_to(cp))
+		var local: Vector3 = hips_t.affine_inverse() * p
+		var dir: Vector3 = (hips_t.basis.inverse() * gp.basis.y).normalized()
+		if _dt_prev.has(bi):
+			var pr: Array = _dt_prev[bi]
+			var jump := local.distance_to(pr[0])
+			_dt.max_jump_cm = maxf(_dt.max_jump_cm, jump * 100.0)
+			if jump > 0.2:
+				_dt.explosions += 1
+			if dt > 0.0:
+				frame_deg = maxf(frame_deg, rad_to_deg((pr[1] as Vector3).angle_to(dir)) / dt)
+		_dt_prev[bi] = [local, dir]
+	_dt.frames += 1
+	if pen > 0.01:
+		_dt.clip_frames += 1
+	_dt.max_pen_cm = maxf(_dt.max_pen_cm, pen * 100.0)
+	_dt.max_deg_s = maxf(_dt.max_deg_s, frame_deg)
+	(_dt.degs as Array).append(frame_deg)
+
+
+func _dt_report() -> Dictionary:
+	var d: Array = (_dt.degs as Array).duplicate()
+	d.sort()
+	var r := {"phase": _dt.label, "frames": _dt.frames, "clip_pct": snappedf(100.0 * _dt.clip_frames / maxf(1.0, _dt.frames), 0.1),
+		"max_pen_cm": snappedf(_dt.max_pen_cm, 0.1), "p95_deg_s": snappedf(float(d[int(d.size() * 0.95)]) if d.size() > 0 else 0.0, 1.0),
+		"max_deg_s": snappedf(_dt.max_deg_s, 1.0), "max_jump_cm": snappedf(_dt.max_jump_cm, 0.1), "explosions": _dt.explosions}
+	print("[mktest] dress ", JSON.stringify(r))
+	return r
+
+
+## Still ring for the design-sheet comparison: front (0), her right side (90), back (180) and a 3/4 (45), FOV 28,
+## camera 1.0 m high aimed at her waist, head to sandals in frame. The pin follow pauses while it shoots.
+var _dt_ring_on := false
+func _dt_ring(c: WorldCharacter, pin: CameraPin, tag: String) -> void:
+	_dt_ring_on = true
+	var fwd := -c.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var waist := c.global_position + Vector3(0, 0.62 if tag == "seated" else 0.95, 0)
+	for a in [["front", 0.0], ["side", 90.0], ["back", 180.0], ["3q", 45.0]]:
+		var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))      # 90 = her right side
+		pin.fov = 28.0
+		pin.pos = Vector3(waist.x, c.global_position.y + 1.0, waist.z) + d * 3.9
+		pin.look = waist
+		await _wait(0.6)
+		_shot("%s_%s" % [tag, a[0]])
+	_dt_ring_on = false
+
+
+func _dresstest() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.spawner.enabled = false
+	main.director.enabled = false
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("dress test")
+	if main.weather:
+		main.weather.set_weather("clear", 12.0)
+	var who := String(RenderProfile.options.get("dt-who", "luna"))
+	var c: WorldCharacter = main.characters[who]
+	var other: WorldCharacter = main.characters["mika" if who == "luna" else "luna"]
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var it: Interactable = main.world.interactables.get("watchpoint_rest")
+	if it == null:
+		_check(false, "watchpoint bench exists")
+		return
+	var map: RID = c.get_world_3d().navigation_map
+	var sp: Vector3 = it.get_parent().to_global(it.sit_point)
+	var start := NavigationServer3D.map_get_closest_point(map, sp + Vector3(7, 0, 5))
+	if main.teleport_guard:
+		main.teleport_guard.allow(c)
+		main.teleport_guard.allow(other)
+	other.global_position = NavigationServer3D.map_get_closest_point(map, start + Vector3(12, 0, 12)) + Vector3(0, 0.05, 0)
+	c.stop_action()
+	c.global_position = start + Vector3(0, 0.05, 0)
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.fov = 42.0
+	var follow := func():
+		if _dt_ring_on:
+			return
+		var fwd := -c.global_transform.basis.z
+		fwd.y = 0.0
+		fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3(0, 0, -1)
+		var side := Vector3(-fwd.z, 0, fwd.x)
+		var want: Vector3 = c.global_position + fwd * 2.6 + side * 1.7 + Vector3(0, 1.05, 0)
+		pin.pos = want if pin.pos == Vector3.ZERO else pin.pos.lerp(want, 0.06)
+		pin.look = c.global_position + Vector3(0, 0.85, 0)
+		pin.active = true
+	follow.call()
+	await _wait(1.0)
+	var dt_state := {"on": false, "last": 0}
+	var sampler := func():
+		if dt_state.on:
+			# game time (movie mode runs at a fixed 30 fps, not wall-clock): one sample per frame
+			var fr := Engine.get_process_frames()
+			if fr != int(dt_state.last):
+				_dt_sample(c, get_process_delta_time() if int(dt_state.last) > 0 else 0.0)
+				dt_state.last = fr
+	var phases := []
+	# spawn: a fresh avatar (the swap rebuilds the springs), the first 1.5 s
+	c.swap_avatar(c.avatar_path)
+	c.skeleton.skeleton_updated.connect(sampler)
+	_dt_reset("spawn")
+	dt_state.on = true
+	dt_state.last = 0
+	var t0 := _game_t
+	var last := _game_t
+	while _game_t - t0 < 1.5:
+		await get_tree().physics_frame
+		follow.call()
+	phases.append(_dt_report())
+	if c.dress_sim and c.dress_sim.sim:
+		var sk2 := c.skeleton
+		print("[dress] skeleton scale %s; LeftUpperLeg rest->child %.3f m local; knee world %s" % [str(sk2.global_transform.basis.get_scale().snapped(Vector3.ONE * 0.001)),
+			sk2.get_bone_global_rest(sk2.find_bone("LeftUpperLeg")).origin.distance_to(sk2.get_bone_global_rest(sk2.find_bone("LeftLowerLeg")).origin),
+			str((sk2.global_transform * sk2.get_bone_global_pose(sk2.find_bone("LeftLowerLeg"))).origin.snapped(Vector3.ONE * 0.01))])
+		print("[dress]   chain 0 collisions: all=%s count=%d" % [str(c.dress_sim.sim.are_all_child_collisions_enabled(0)), c.dress_sim.sim.get_collision_count(0)])
+		for n in c.dress_sim.sim.get_children():
+			if n is SpringBoneCollisionCapsule3D:
+				print("[dress]   %s offset %s rot %s height %.3f" % [n.name, str(n.position_offset.snapped(Vector3.ONE * 0.001)), str(n.rotation_offset), n.height])
+		for n in c.dress_sim.sim.get_children():
+			var bn := String(n.get("bone_name")) if n.get("bone_name") != null else ""
+			var bpos := (sk2.global_transform * sk2.get_bone_global_pose(sk2.find_bone(bn))).origin if bn != "" and sk2.find_bone(bn) >= 0 else Vector3.ZERO
+			print("[dress] collider %s %s at %s (bone at %s) r=%s up=%s" % [n.name, n.get_class(), str((n as Node3D).global_position.snapped(Vector3.ONE * 0.01)), str(bpos.snapped(Vector3.ONE * 0.01)), str(n.get("radius")), str((n as Node3D).global_basis.y.normalized().snapped(Vector3.ONE * 0.01))])
+	await _wait(2.0)
+	await _dt_ring(c, pin, "stand")
+	pin.fov = 42.0
+	# walk away 6 m, a quick 180 turn back (walk to a point behind her), then to the bench and sit, then stand
+	var legs := [["walk", start + (sp - start).normalized().rotated(Vector3.UP, 1.2) * 6.0, false],
+		["turn_walk", start, false], ["run", start + (sp - start).normalized().rotated(Vector3.UP, -1.0) * 7.0, true],
+		["to_bench", it.approach_point(), false]]
+	for leg in legs:
+		c.navigate_to(NavigationServer3D.map_get_closest_point(map, leg[1]), bool(leg[2]))
+		_dt_reset(String(leg[0]))
+		dt_state.last = 0
+		t0 = _game_t
+		last = _game_t
+		while c.current_action == "navigate_to" and _game_t - t0 < 25.0:
+			await get_tree().physics_frame
+			follow.call()
+		phases.append(_dt_report())
+	it.duration_override = 12.0
+	var job := func(): await it.perform(c)
+	job.call()
+	_dt_reset("sit")
+	dt_state.last = 0
+	t0 = _game_t
+	last = _game_t
+	var sat := false
+	while _game_t - t0 < 20.0:
+		await get_tree().physics_frame
+		follow.call()
+		if c.seated and not sat:
+			sat = true
+			var job2 := func():
+				await _wait(3.0)
+				await _dt_ring(c, pin, "seated")
+			job2.call()
+		if sat and not c.seated:
+			break
+	phases.append(_dt_report())
+	_dt_reset("stand")
+	dt_state.last = 0
+	t0 = _game_t
+	last = _game_t
+	while _game_t - t0 < 3.0:
+		await get_tree().physics_frame
+		follow.call()
+	phases.append(_dt_report())
+	dt_state.on = false
+	if c.skeleton.skeleton_updated.is_connected(sampler):
+		c.skeleton.skeleton_updated.disconnect(sampler)
+	report["dress"] = phases
+	var bad := phases.filter(func(r): return int(r.explosions) > 0)
+	_check(bad.is_empty(), "no skirt explosions (a joint jumping > 20 cm in one frame)", bad)
 	pin.active = false
 	pin.queue_free()
 	main.camera_rig.set_process(true)
