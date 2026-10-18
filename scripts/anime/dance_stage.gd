@@ -23,6 +23,9 @@ var moon_node: MeshInstance3D
 static var moon_up := 0.27              # the moon's place and size (the MV: higher and bigger, an anime moon)
 static var moon_side := 0.5
 static var moon_size := 150.0
+static var lantern_keep := 1.0          # share of the festival lanterns kept (a quiet night out in the boat: few)
+static var hover_lanterns := true
+static var clear_radius := 2.6           # no floating lanterns this close to the centre
 var _shimmer: MeshInstance3D
 var _t := 0.0
 
@@ -191,7 +194,7 @@ func _lanterns(cams: Array) -> void:
 		for i in _water_mm.instance_count:
 			var t := _water_mm.get_instance_transform(i)
 			var p := gx * t.origin
-			var hide := Vector2(p.x - center.x, p.z - center.z).length() < 2.6 or randf() < 0.45
+			var hide := Vector2(p.x - center.x, p.z - center.z).length() < clear_radius or randf() < 1.0 - 0.55 * lantern_keep
 			for c in cams:
 				var cp: Vector3 = c
 				if _seg_dist(Vector2(p.x, p.z), Vector2(cp.x, cp.z), Vector2(center.x, center.z)) < 1.7 or Vector2(p.x - cp.x, p.z - cp.z).length() < 3.0:
@@ -204,12 +207,12 @@ func _lanterns(cams: Array) -> void:
 	for mmi in lake.find_children("SkyLanterns*", "MultiMeshInstance3D", true, false):
 		var mm := (mmi as MultiMeshInstance3D).multimesh
 		for i in mm.instance_count:
-			if randf() < 0.72:
+			if randf() < 1.0 - 0.28 * lantern_keep:
 				var t := mm.get_instance_transform(i)
 				mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * 0.0001), t.origin + Vector3(0, -50, 0)))
 	# lanterns hanging in the air round her: a few big ones at the sides, more further out behind her
 	var lm = lake.get("lantern_mesh")
-	if lm == null:
+	if lm == null or not hover_lanterns:
 		return
 	var cam: Vector3 = cams[0]
 	var back := center - cam

@@ -14,6 +14,7 @@ var wrist_follow := 9.0                  # 1/s: how fast the hand catches up wit
 var wrist_max := deg_to_rad(26.0)
 var finger_weight := 0.7
 var finger_angle := 1.15                 # radians per joint at curl 1 (as FingerPose)
+var grip := {"Left": 0.0, "Right": 0.0}  # 0..1: the fingers close round something held (an oar)
 
 var _dt := 1.0 / 30.0
 var _t := 0.0
@@ -92,5 +93,6 @@ func _process_modification() -> void:
 		var sgn := -1.0 if side == "Right" else 1.0
 		for f in _fingers[side]:
 			var c: float = float(f[1]) + 0.05 * sin(_t * 1.3 + float(f[3]) * 0.7)
+			c = lerpf(c, 0.8, float(grip[side]))
 			var target := (f[2] as Quaternion) * Quaternion(Vector3(0, 0, 1), c * finger_angle * sgn)
 			sk.set_bone_pose_rotation(int(f[0]), sk.get_bone_pose_rotation(int(f[0])).slerp(target, finger_weight))

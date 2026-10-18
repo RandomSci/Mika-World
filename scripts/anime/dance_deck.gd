@@ -5,7 +5,8 @@ extends SkeletonModifier3D
 ## map at import) straight onto her skeleton, crossfading from one to the next and starting any clip at any point,
 ## at any speed - so a routine can be cut from the six and timed to music. First in her modifier stack: it replaces
 ## the animation tree's pose; the softness pass, the dress sim and the drape all run after it. The hips keep their
-## height but stay on her mark (no travel), as in the gesture clips.
+## height and their sway (the weight shifts that make a dance breathe) but not the clip's travel: the slow drift is
+## taken out (a 2.4 s moving average) so she stays on her mark. (Locked flat, she looked stiff and robotic.)
 
 const DIR := "res://assets/animations/mixamo/"
 const FILES := {"dancing_a": "lake_dancing_a.fbx", "dancing_b": "lake_dancing_b.fbx", "bellydancing": "lake_bellydancing.fbx",
@@ -100,7 +101,12 @@ func _sample(p: Dictionary) -> Dictionary:
 		if m[2]:
 			var v: Vector3 = a.position_track_interpolate(int(m[0]), t)
 			var v0: Vector3 = a.position_track_interpolate(int(m[0]), 0.0)
-			out[-1 - int(m[1])] = Vector3(v0.x, v.y, v0.z) * ms        # (positions keyed by -1 - bone)
+			var avg := Vector3.ZERO
+			for k in 7:
+				avg += a.position_track_interpolate(int(m[0]), fposmod(t + (k - 3) * 0.4, a.length))
+			avg /= 7.0
+			var sway := Vector3(v.x - avg.x, 0.0, v.z - avg.z).limit_length(0.22)
+			out[-1 - int(m[1])] = Vector3(v0.x + sway.x, v.y, v0.z + sway.z) * ms        # (positions keyed by -1 - bone)
 		else:
 			out[int(m[1])] = a.rotation_track_interpolate(int(m[0]), t)
 	return out

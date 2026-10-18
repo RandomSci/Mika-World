@@ -25,6 +25,9 @@ var _origin := Vector2.ZERO
 var _active_kind := ""
 var _legs: Array = []
 var _q_store: Array = []              # the last draped joint positions per chain, in her hip frame
+var frame: Node3D                     # sitting on something that moves (a boat): the surfaces are sampled in its frame
+var contain: Callable                 # (Vector3 world) -> Vector3: keeps a draped joint inside (a boat's hull walls)
+var _frame_xf := Transform3D.IDENTITY # the frame's transform when the surfaces were sampled
 var _dbg := 0                 # [a, b, r] per leg segment (world), refreshed every frame
 
 
@@ -59,6 +62,11 @@ func _find(roots: Array) -> void:
 		var off: Vector3 = sk.get_bone_global_rest(bi).origin - hips_rest.origin
 		off.y = 0.0
 		front.append(off.length() > 0.01 and off.normalized().dot(Vector3(0, 0, 1)) > 0.76)
+
+
+## Sample the surfaces again next frame (she was moved onto the seat after she sat).
+func resample() -> void:
+	_active_kind = ""
 
 
 func _sitting_kind() -> String:
@@ -100,7 +108,7 @@ func _sample() -> void:
 	var props: Array = []
 	for mi in c.get_tree().root.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
-		if m.mesh == null or not m.is_visible_in_tree() or String(m.get_path()).contains("Avatar"):
+		if m.mesh == null or not m.is_visible_in_tree() or String(m.get_path()).contains("Avatar") or m.has_meta("no_drape"):
 			continue
 		var bb: AABB = m.global_transform * m.get_aabb()
 		if not bb.intersects(region) or bb.size.length() > 6.0 or _see_through(m):
@@ -141,6 +149,8 @@ func _sample() -> void:
 	for v in _hf:
 		lo = minf(lo, v)
 		hi = maxf(hi, v)
+	if frame:
+		_frame_xf = frame.global_transform
 	print("[drape] %s sampled %dx%d (%d visible props) around hips y %.2f: surface %.2f .. %.2f" % [c.character_id, _n, _n, props.size(), hp.y, lo, hi])
 
 
@@ -166,6 +176,17 @@ static func _see_through(m: MeshInstance3D) -> bool:
 func _height(p: Vector3) -> float:
 	if _n == 0:
 		return -INF
+	if frame:
+		# the surfaces moved with the boat: look the point up where it was when they were sampled, and carry the
+		# surface height back to now
+		var M := _frame_xf * frame.global_transform.affine_inverse()
+		var ps := M * p
+		var hs := _height_at(ps)
+		return (M.affine_inverse() * Vector3(ps.x, hs, ps.z)).y
+	return _height_at(p)
+
+
+func _height_at(p: Vector3) -> float:
 	var fx := (p.x - _origin.x) / CELL
 	var fz := (p.z - _origin.y) / CELL
 	if fx < 0.0 or fz < 0.0 or fx > _n - 1 or fz > _n - 1:
@@ -309,8 +330,12 @@ func _constrain(q: Vector3, parent: Vector3, seg: float) -> Vector3:
 		var h := _height(q) + MARGIN
 		if q.y < h:
 			q.y = h
+		if contain.is_valid():
+			q = contain.call(q)
 		q = parent + (q - parent).normalized() * seg
 	var h2 := _height(q) + MARGIN
 	if q.y < h2:
 		q.y = h2                                     # (a hair longer than the segment, never through)
+	if contain.is_valid():
+		q = contain.call(q)
 	return q
