@@ -25,6 +25,7 @@ RenderProfile="*res://scripts/core/render_profile.gd"
 GameInput="*res://scripts/core/game_input.gd"
 WorldState="*res://scripts/core/world_state.gd"
 MagicEvents="*res://scripts/core/magic_events.gd"
+PhantomCameraManager="*res://addons/phantom_camera/scripts/managers/phantom_camera_manager.gd"
 
 [display]
 
@@ -35,7 +36,7 @@ window/vsync/vsync_mode=1
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/Godot-MToon-Shader/plugin.cfg", "res://addons/vrm/plugin.cfg")
+enabled=PackedStringArray("res://addons/Godot-MToon-Shader/plugin.cfg", "res://addons/phantom_camera/plugin.cfg", "res://addons/vrm/plugin.cfg")
 
 [physics]
 
