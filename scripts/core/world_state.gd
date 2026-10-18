@@ -210,7 +210,23 @@ func save_data() -> Dictionary:
 		"progress": minds["mika"].progress, "agents": _agents_data(),
 		"mika_location": minds["mika"].location, "mika_music": minds["mika"].music, "mika_deferred": minds["mika"].deferred,
 		"mika_explored": minds["mika"].explored, "habitats": habitats, "play_s": play_s, "world_min": world_min, "real_day0": real_day0,
-		"journey": journey, "rivals": rivals, "weather": weather, "finds": finds}
+		"journey": journey, "rivals": rivals, "weather": weather, "finds": finds, "current_goal": current_goal,
+		"scene": _scene_data()}
+
+
+## Persistence (2026-10-19): the live scene - where each mage stands and faces, the activity she is in and its step
+## (the boat mid-lake, a dance at its clip time), the lake's lanterns - captured by ScenePersist (main.scene_persist)
+## into the same atomic save. While nothing provides it (start-up, a restore in progress) the loaded scene is kept.
+var scene := {}                  # the scene snapshot loaded from the save (ScenePersist restores it)
+var scene_provider := Callable() # ScenePersist.capture: () -> Dictionary
+
+
+func _scene_data() -> Dictionary:
+	if scene_provider.is_valid():
+		var d = scene_provider.call()
+		if d is Dictionary and not (d as Dictionary).is_empty():
+			return d
+	return scene
 
 
 func _agents_data() -> Dictionary:
@@ -350,6 +366,10 @@ func _apply_save(d: Dictionary) -> void:
 	journey = d.get("journey", {})
 	rivals = d.get("rivals", {})
 	weather = d.get("weather", {})
+	scene = d.get("scene", {}) if d.get("scene") is Dictionary else {}
+	var g := String(d.get("current_goal", ""))
+	if not g.begins_with("travel:"):      # (a travel goal belongs to a travel that is not running any more)
+		current_goal = g
 	# the world went on while the game was closed: catch up (capped at a week), journeys included (JourneyDirector)
 	var away_s := maxf(0.0, Time.get_unix_time_from_system() - float(d.get("saved_unix", Time.get_unix_time_from_system())))
 	var add := minf(away_s * clock_rate, 7.0 * 1440.0)

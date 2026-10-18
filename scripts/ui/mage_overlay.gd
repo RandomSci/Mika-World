@@ -49,7 +49,7 @@ func setup(m: Node) -> void:
 	v_bar.max_value = 1.0
 	box.add_child(v_bar)
 	v_doing = _label(box, 28, Color(0.9, 0.92, 0.98))
-	v_goal = _label(box, 26, Color(0.75, 0.85, 1.0))
+	v_goal = _label(box, 23, Color(0.75, 0.85, 1.0))
 	v_event = _label(box, 26, Color(1.0, 0.85, 0.6))
 	dev = Label.new()
 	dev.anchor_left = 1.0
@@ -132,12 +132,24 @@ func _process(delta: float) -> void:
 	if main.performance and main.performance.busy() and String(main.performance.active.get("who", "")) == who:
 		var pa: Dictionary = main.performance.active
 		v_doing.text = "♪ %s · %s%s" % [pa.title, "Singing & dancing" if pa.get("singing", false) else "Dancing", " (special performance)" if pa.mode == "special" else ""]
-	v_goal.text = "Goal: " + _objective(who, pd)
+	v_goal.text = _goal_line(who, pd)
 	var recent := events.filter(func(e): return Time.get_ticks_msec() / 1000.0 - float(e.t) < 90.0)
 	v_event.text = ("Latest: " + String(recent[-1].text)) if not recent.is_empty() else ""
 	viewer.visible = not RenderProfile.tour
 	if dev_on:
 		dev.text = _dev_text()
+
+
+## Their goal (the story's: novice to Level 100 Archmage) and the step in front of her now - one short line.
+func _goal_line(who: String, pd: Dictionary) -> String:
+	var g := String(main.story.data.get("goal", "")) if main.story else ""
+	g = g.trim_prefix("Become a ").trim_prefix("Become ")
+	if g == "":
+		g = "Level 100 Archmage"
+	var step := _objective(who, pd).strip_edges().trim_suffix(".")
+	if step.length() > 66:
+		step = step.left(64).strip_edges() + "…"
+	return "Goal: %s  ·  Next: %s" % [g, step]
 
 
 func _objective(who: String, pd: Dictionary) -> String:

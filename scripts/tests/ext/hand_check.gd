@@ -27,8 +27,35 @@ static func run(t) -> void:
 	var decks := {}
 	for id in chars:
 		decks[id] = t._dance_stack(chars[id])
+	# the residual: after EVERY modifier (the springs included), how deep is any hand or fingertip still inside a body
+	var residual := {"worst": 0.0, "where": ""}
+	var cur := {"pose": ""}
+	for id in chars:
+		var c: WorldCharacter = chars[id]
+		var guard: HandGuard = null
+		for n in c.skeleton.get_children():
+			if n is HandGuard:
+				guard = n
+		var last: SkeletonModifier3D = null
+		for n in c.skeleton.get_children(true):
+			if n is SkeletonModifier3D:
+				last = n
+		if guard and last:
+			last.modification_processed.connect(func():
+				var sk := c.skeleton
+				for side in ["Left", "Right"]:
+					var shapes: Array = guard._shapes(sk, side) + guard._others_shapes(sk)
+					for b in [side + "Hand", side + "MiddleDistal", side + "IndexDistal", side + "ThumbDistal"]:
+						var bi := sk.find_bone(b)
+						if bi < 0:
+							continue
+						var d: float = (guard._push(sk.get_bone_global_pose(bi).origin, shapes)).length() - HandGuard.MARGIN
+						if d > float(residual.worst):
+							residual.worst = d
+							residual.where = "%s %s %s" % [cur.pose, id, b])
 	print("[handcheck] start frame %d" % Engine.get_frames_drawn())
 	for p in POSES:
+		cur.pose = String(p[0])
 		for id in decks:
 			var d: DanceDeck = decks[id]
 			if String(p[1]) == "":
@@ -48,6 +75,8 @@ static func run(t) -> void:
 			print("[handcheck] %s %s at frame %d  guard push depth %s" % [p[0], v, Engine.get_frames_drawn(), str(depth)])
 			await t._wait(HOLD * 0.5)
 	pin.active = false
+	print("[handcheck] worst residual hand depth %.3f m (%s)" % [float(residual.worst), String(residual.where)])
+	t._check(float(residual.worst) <= 0.005, "no hand inside a face or body after the full pose stack (worst %.1f mm, %s)" % [float(residual.worst) * 1000.0, String(residual.where)])
 
 
 static func _hand_mid(c: WorldCharacter) -> Vector3:

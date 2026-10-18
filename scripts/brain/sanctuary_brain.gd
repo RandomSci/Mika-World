@@ -327,6 +327,11 @@ func options() -> Array:
 				continue
 			out.append({"kind": "expedition", "key": "expedition:" + eid, "area": String(e.area), "purpose": String(e.purpose),
 				"curiosity": float(e.get("curiosity", 0.25)), "label": "set out for the %s (%s)" % [String(e.area).replace("_", " "), String(e.purpose)]})
+	# Lantern Lake's boat (LakeRitual): day and night; at night lanterns for their wishes and the viewers' lanterns
+	if here == "lantern_lake" and LakeRitual.instance:
+		var bl := LakeRitual.instance.boat_offer(self)
+		if bl != "":
+			out.append({"kind": "lakeboat", "key": "lakeboat", "area": "lantern_lake", "label": bl})
 	# at the lake at night: sit at the end of the pier and watch the lanterns (once a night)
 	if here == "lantern_lake" and main.world and main.world.has_method("sit_spots") and int(mind.knowledge.get("lake_night", -1)) != night_id():
 		out.append({"kind": "lakewatch", "key": "lakewatch", "area": "lantern_lake", "label": "sit at the end of the pier and watch the lanterns"})
@@ -462,7 +467,7 @@ func options() -> Array:
 			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake"]))
 	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
-	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "discover", "join_find", "revisit", "wander"])
+	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "lakeboat", "discover", "join_find", "revisit", "wander"])
 
 
 const MEET_COOLDOWN_S := 420.0
@@ -567,6 +572,10 @@ func score(o: Dictionary) -> Dictionary:
 		"lakewatch":
 			u = 1.25
 			why.append("the lanterns are why she came")
+		"lakeboat":
+			var lb: Dictionary = LakeRitual.instance.boat_score(self) if LakeRitual.instance else {"u": -1.0, "why": []}
+			u = float(lb.u)
+			why.append_array(lb.why)
 		"visit":
 			var last_v := float(mind.knowledge.get("visited_unix:" + String(o.area), 0.0))
 			var age_v := clampf((Time.get_unix_time_from_system() - last_v) / 1800.0, 0.0, 1.0) if last_v > 0.0 else 1.0
@@ -579,6 +588,11 @@ func score(o: Dictionary) -> Dictionary:
 				else:
 					u = 0.42 + needs.social * 0.25 + (0.35 if main.characters.size() > 1 else 0.0) * rng.randf()
 					why.append("a night for the lanterns")
+				# (LakeRitual) she misses the lake after nights away, viewers' lanterns wait there; a row by day now and then
+				if LakeRitual.instance:
+					var lp: Dictionary = LakeRitual.instance.visit_pull(self, u)
+					u = float(lp.u)
+					why.append_array(lp.why)
 			elif String(o.area) == "sanctuary":
 				# home: after a good stretch away, when tired, and always as the day ends
 				u = 0.1 + clampf(stayed_min / 12.0, 0.0, 0.55) + (1.0 - needs.energy) * 0.35
@@ -890,6 +904,10 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"expedition": return await _expedition(o)
 		"visit": return await _visit(o)
 		"lakewatch": return await _lakewatch(o)
+		"lakeboat":
+			if LakeRitual.instance == null:
+				return {"ok": false, "detail": "no boat"}
+			return await LakeRitual.instance.boat_ritual(self, o)
 		"chat": return await _chat(o)
 		"shelter": return await _shelter(o)
 		"ascend": return await _ascend(o)

@@ -57,6 +57,7 @@ var day_night: DayNightCycle
 var duel: TrainingDuel
 var performance: PerformanceController
 var live_link: LiveLink                    # --live-link: Mika-Live's Stage (null otherwise)
+var scene_persist                           # ScenePersist: the live scene in the save; resumed on load (scripts/core/scene_persist.gd)
 var quiet_test := false                      # older single-mage tests: no Luna / creatures unless asked
 var _spot_t := 0.0
 var _spot_since := 0.0
@@ -366,6 +367,10 @@ func _ready() -> void:
 	chat.name = "ViewerChat"
 	add_child(chat)
 	chat.setup(self)
+	# Lantern Lake: the boat ritual and the viewers' lanterns (scripts/activities/lake_ritual.gd; LakeRitual.instance)
+	var lake_ritual := LakeRitual.new()
+	add_child(lake_ritual)
+	lake_ritual.setup(self)
 	# region-specific portal effects: departing as the travel mask closes, arriving as the next area appears
 	streaming.transition_started.connect(func(_from, to):
 		if characters.has("mika"):
@@ -396,6 +401,13 @@ func _ready() -> void:
 	for who in mage_brains:
 		if who != "mika" and not RenderProfile.options.has("no-luna-brain"):
 			mage_brains[who].set_enabled(true)
+	# persistence: the live scene (places, facings, activities and their steps) is saved with the world and resumed
+	# exactly where it stopped (ScenePersist)
+	scene_persist = preload("res://scripts/core/scene_persist.gd").new()
+	scene_persist.name = "ScenePersist"
+	add_child(scene_persist)
+	scene_persist.setup(self)
+	scene_persist.resume()
 
 	if RenderProfile.options.has("facetest"):
 		var ft := FaceTest.new()

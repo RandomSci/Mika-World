@@ -1278,16 +1278,26 @@ func _animate_faces(delta: float) -> void:
 
 ## A viewer's lantern: it appears just past the end of the pier beside the two of them, glows up, and rises into
 ## the festival with their name glowing softly on two sides. kind: chat | subscriber | member | superchat.
-func viewer_lantern(viewer: String, kind := "chat") -> void:
+## (2026-10-19, LakeRitual) at: where it appears (world; default the end of the pier); face: a world point its name
+## turns toward (the lens). Every launch emits viewer_launched (the two of them look up at it and thank the viewer).
+func viewer_lantern(viewer: String, kind := "chat", at := Vector3.INF, face := Vector3.INF) -> void:
 	viewer = viewer.strip_edges().substr(0, 28)
 	if viewer == "":
 		return
 	if not KINDS.has(kind):
 		kind = "chat"
-	_viewer_queue.append([viewer, kind])
+	_viewer_queue.append([viewer, kind, at, face])
 
 
-func _launch_viewer(viewer: String, kind: String) -> void:
+## Their own lantern (no name) let go at a world point (from the boat).
+func release_at(at: Vector3) -> void:
+	_viewer_queue.append(["", "chat", at, Vector3.INF])
+
+
+signal viewer_launched(viewer: String, kind: String, lantern: Node3D)
+
+
+func _launch_viewer(viewer: String, kind: String, at := Vector3.INF, face := Vector3.INF) -> void:
 	var d := _make_lantern(kind, viewer, 0.9 if kind != "superchat" else 1.05)
 	var n: Node3D = d.node
 	_viewer_side = -_viewer_side
@@ -1295,11 +1305,18 @@ func _launch_viewer(viewer: String, kind: String) -> void:
 	n.rotation.y = PI + _rng.randf_range(-0.3, 0.3)       # the name side toward the shore and the lenses
 	d.vel = Vector3(0.0, 0.12, -0.02)
 	d.spin = _rng.randf_range(-0.06, 0.06)
+	if at != Vector3.INF:
+		n.global_position = at
+		d.spin = _rng.randf_range(-0.02, 0.02)
+	if face != Vector3.INF:
+		var fd := face - n.global_position
+		n.global_rotation = Vector3(0.0, atan2(-fd.x, -fd.z), 0.0)     # (the name is on its local -Z side)
 	_lantern_light(d, 1.1 if kind == "superchat" else 0.8, false)
 	(d.light as OmniLight3D).set_meta("e0", (d.light as OmniLight3D).light_energy)
 	free_lanterns.append(d)
 	counts["viewer_lanterns"] = int(counts.get("viewer_lanterns", 0)) + 1
 	print("[lake] viewer lantern: %s (%s)" % [viewer, kind])
+	viewer_launched.emit(viewer, kind, n)
 	# they notice it
 	for who in characters:
 		_look_t[who] = 3.5
@@ -1323,7 +1340,7 @@ func _poll_commands(delta: float) -> void:
 	_viewer_cool -= delta
 	if not _viewer_queue.is_empty() and _viewer_cool <= 0.0 and _placed:
 		var it: Array = _viewer_queue.pop_front()
-		_launch_viewer(it[0], it[1])
+		_launch_viewer(it[0], it[1], it[2] if it.size() > 2 else Vector3.INF, it[3] if it.size() > 3 else Vector3.INF)
 		_viewer_cool = 1.4
 	_cmd_poll -= delta
 	if _cmd_poll > 0.0:
