@@ -165,3 +165,28 @@ def test_godot_world_drops_home_only_objectives(monkeypatch):
     reality = {'scene': 'GROUNDS', 'availableActions': ['sit_chair', 'dance_session', 'magic_lesson']}
     monkeypatch.setenv('VR_WORLD_RENDERER', '')
     assert 'relax' not in verified_ids(reality)          # no bedroom in the Godot world, whatever the environment says
+
+
+def test_a_quiet_activity_does_not_turn_into_five_lines_about_standing_still():
+    # Rehearsal 2026-10-18, one stargazing dwell: every remark was about keeping still.
+    said = ["The light's dropping fast, nice timing. I can sit and not accidentally do wizard nonsense for once.",
+            'Just standing still and trying not to fidget, because the sky part is the whole point.',
+            'My feet are finally stopping their tiny protest. Good. I can be still for a bit.',
+            'I’m basically on pause mode right now, but, like, the stylish kind.']
+    ns = _talker(said)
+    assert 'staying still, sitting or keeping quiet' in LifestyleShowRunner.tired_themes(ns)
+    # the theme never fires on ordinary lines
+    assert 'staying still, sitting or keeping quiet' not in LifestyleShowRunner.tired_themes(
+        _talker(['Still thinking about that spell from earlier.', 'Luna is still asleep, I think.']))
+    # on a quiet goal only the first remark is about the activity; later ones come from her general topics
+    ns.rng = random.Random(3)
+    ns.state_block = lambda: '{}'
+    ns.autonomy = SimpleNamespace(goal={'id': 'stargaze', 'quiet': True})
+    ns.idle_seeds = lambda: ['SEED: something about Luna']
+    ns.tired_themes = types.MethodType(LifestyleShowRunner.tired_themes, ns)
+    first = LifestyleShowRunner.activity_prompt(ns)
+    second = LifestyleShowRunner.activity_prompt(ns)
+    assert 'SEED' not in first and 'SEED: something about Luna' in second
+    # a lively goal keeps talking about what she is doing
+    ns.autonomy = SimpleNamespace(goal={'id': 'dance_practice', 'quiet': False})
+    assert all('SEED' not in LifestyleShowRunner.activity_prompt(ns) for _ in range(3))

@@ -339,10 +339,16 @@ class LifestyleShowRunner:
     def activity_prompt(self):
         """While a goal is underway: a short live remark about the doing (or silence)."""
         recent=list(self.topics.long_lines)[-8:];tired=self.tired_themes()
+        angle=self.rng.choice(['what you are doing right now and why it is fun or tricky','one specific thing you notice while doing it','a playful opinion about it','a small plan for the next minute','a light joke about yourself'])
+        g=self.autonomy.goal
+        if g is not None:
+            g['comments']=g.get('comments',0)+1
+            # a quiet activity has little to say about itself after the first remark: talk about something else
+            if g.get('quiet') and g['comments']>1:angle=self.rng.choice(self.idle_seeds())
         return (CONTENT_RULES+'\nMIKA STATE: '+self.state_block()+
                 '\nThings you already said (do not repeat them): '+json.dumps(recent,ensure_ascii=False)+
                 ('\nDo NOT talk about '+', '.join(tired)+' now: you have said plenty about that lately.' if tired else '')+
-                '\nSay one short live remark, angle: '+self.rng.choice(['what you are doing right now and why it is fun or tricky','one specific thing you notice while doing it','a playful opinion about it','a small plan for the next minute','a light joke about yourself'])+'. '
+                '\nSay one short live remark, angle: '+angle+'. '
                 'Do not repeat a feeling or complaint you already voiced above; mostly upbeat, honest. Not a description of the scenery. At most 18 words. No questions.')
 
     def boredom_reaction(self,message):
@@ -400,7 +406,9 @@ class LifestyleShowRunner:
     # Themes she kept returning to on stream (2026-10-18: 63 of 324 lines were about dancing, then the dawn sky)
     THEMES={'dancing or dance routines':r'danc|routine|hip.?hop|macarena|choreo|ymca|chicken dance|my (feet|legs)',
             'the sky, the stars or the dawn':r'\bsky\b|\bstars?\b|stargaz|\bdawn\b|sunrise',
-            'app, gadget or game ideas':r'\bapp\b|game idea|tiny game|\bscript\b|tracker|gadget'}
+            'app, gadget or game ideas':r'\bapp\b|game idea|tiny game|\bscript\b|tracker|gadget',
+            # a quiet dwell (stargazing, a bench) turned every remark into "I'm standing still" - rehearsal 2026-10-18
+            'staying still, sitting or keeping quiet':r'\b(stay(ing)?|stand(ing)?|be|being|sit(ting)?|keep(ing)?) (still|quiet|put)\b|\bfidget|pause mode|not moving|\bstillness\b'}
 
     def danced_recently(self,seconds=900):
         last=self.dance_history[-1].get('at',0) if self.dance_history else 0

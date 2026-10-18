@@ -175,3 +175,30 @@ def test_answer_uses_memory_and_adds_a_followup_only_when_needed(monkeypatch, tm
     assert 'short and natural' in first_prompt
     assert 'three beats' in spoken[1][1] and 'do not greet again' in spoken[1][1]
     assert store.viewers['youtube:UC9']['replies'][-1]['text'].startswith('Ooh, the Heartstone')
+
+
+def test_chat_intake_remembers_real_messages_and_never_spam(tmp_path, monkeypatch):
+    # The whole intake path (identity -> guard -> buffer -> memory), as YouTube messages arrive on stream.
+    from datetime import datetime, timezone
+    from open_llm_vtuber.live.youtube_live import YouTubeChatMessage, YouTubeLiveChatService
+    monkeypatch.setenv('VIEWER_IDENTITY_FILE', str(tmp_path / 'viewers.json'))
+    store = ViewerMemoryStore(tmp_path / 'vm.json', Clock())
+    monkeypatch.setattr(viewer_memory, '_STORE', store)
+    config = SimpleNamespace(youtube_live_enabled=True, chat_source='api', api_key='key',
+                             channel_id='UC0000000000000000000000', video_id='', prefer_stream_list=False,
+                             max_buffer_messages=20, message_buffer_seconds=120, same_user_cooldown_seconds=60,
+                             selector_max_messages=10, discovery_retry_seconds=1, response_cooldown_seconds=0,
+                             idle_banter_enabled=False)
+    svc = YouTubeLiveChatService(config, None, SimpleNamespace())
+
+    def yt(mid, channel, name, text):
+        return YouTubeChatMessage(message_id=mid, author_channel_id=channel, author_display_name=name, text=text,
+                                  timestamp=datetime.now(timezone.utc))
+
+    assert svc._accept(yt('m1', 'UCRowan00000000000000000', '@Rowan', 'what spell is Luna practising?'), 'test')
+    assert not svc._accept(yt('m2', 'UCSpam000000000000000000', '@Spammer', 'check out my channel for free stuff'), 'test')
+    keys = list(store.viewers)
+    assert len(keys) == 1 and keys[0].endswith('UCRowan00000000000000000')
+    assert store.viewers[keys[0]]['said'][-1]['text'] == 'what spell is Luna practising?'
+    assert 'm1' in store.info_for                       # the reply can read what she knew at intake
+    assert (tmp_path / 'vm.json').exists() and 'Spammer' not in (tmp_path / 'vm.json').read_text()
