@@ -183,6 +183,7 @@ func _run() -> void:
 		"benchscan": await _benchscan()
 		"screenfx": await _screenfx()
 		"lunaclip": await _lunaclip()
+		"outfitaudit": await _outfitaudit()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7281,7 +7282,8 @@ func _lunaclip() -> void:
 		str(host.is_processing()), str(host.is_physics_processing()), str(host.get("_active_pcam_missing")), str(get_tree().paused), host.process_mode])
 	_shot("00_start")
 	var t0 := _game_t
-	# 1. the walk toward the lens (the camera dollies back with her, low)
+	# 1. the walk toward the lens (the camera dollies back with her, low): the goddess walk (catwalk x walk, 50/50)
+	luna.set_walk_clip("walk_goddess")
 	luna.navigate_to(NavigationServer3D.map_get_closest_point(map, start + Vector3(0, 0, -5.0)), false)
 	while luna.current_action == "navigate_to" and _game_t - t0 < 9.0:
 		await get_tree().process_frame
@@ -7291,14 +7293,30 @@ func _lunaclip() -> void:
 	# 2. the slow turn (a full circle, 4 s), the camera eases to a medium three-quarter
 	var b := _pcam("B_turn_med", 20, luna, Vector3(1.4, 1.15, -2.5), chest, 1.4, 34.0)
 	luna.look_head_at(null)
-	var tw := luna.create_tween()
-	tw.tween_property(luna, "rotation:y", luna.rotation.y + TAU, 4.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# the catwalk turn, twice (away from the lens, then back to it); its hip yaw drives her root
 	var tt := _game_t
-	while _game_t - tt < 4.2:
+	var turns_ok := luna.play_turn("catwalk_turn")
+	_check(turns_ok, "the catwalk turn plays with its yaw on her root")
+	var turn_len := luna.animation_length("catwalk_turn")
+	var shot_back := false
+	var tdbg := 0
+	while _game_t - tt < turn_len + 0.1:
 		await get_tree().process_frame
 		track.call()
-		if _game_t - tt > 1.9 and _game_t - tt < 1.95:
+		tdbg += 1
+		if tdbg % 8 == 0:
+			print("[mktest] turn1 t=%.2f body=%.0f avatar=%.0f vel=%.2f" % [_game_t - tt, rad_to_deg(luna.rotation.y), rad_to_deg(luna.avatar.rotation.y), luna.velocity.length()])
+		if not shot_back and _game_t - tt > turn_len * 0.6:
 			_shot("02_turn_back")
+			shot_back = true
+	luna.play_turn("catwalk_turn")
+	tt = _game_t
+	while _game_t - tt < turn_len + 0.3:
+		await get_tree().process_frame
+		track.call()
+		tdbg += 1
+		if tdbg % 8 == 0:
+			print("[mktest] turn2 t=%.2f body=%.0f avatar=%.0f vel=%.2f" % [_game_t - tt, rad_to_deg(luna.rotation.y), rad_to_deg(luna.avatar.rotation.y), luna.velocity.length()])
 	# 3. the fingertip reach toward the lens (TwoBoneIK3D), eyes following the camera; a close medium on face + hand
 	var c := _pcam("C_reach_close", 30, luna, Vector3(0.45, 1.5, -1.35), face, 1.2, 32.0)
 	var ik := TwoBoneIK3D.new()
@@ -7410,3 +7428,49 @@ func _lunaclip() -> void:
 		if is_instance_valid(n):
 			n.queue_free()
 	_check(Engine.time_scale > 0.9, "time back to normal after the spell", Engine.time_scale)
+
+
+## Outfit audit stills (2026-10-19): each model in --audit-list (comma-separated res:// paths) worn by Luna's rig,
+## standing at idle, photographed front / right side / back / 3/4 (FOV 28, camera 1.0 m, head to feet), plus a spin
+## frame mid-walk-cycle is not needed: the rules (fitted, opaque, open front, no floor-length layers, sheer fabric,
+## loose drapes or wide sleeves) read from the standing views.
+func _outfitaudit() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 12.0)
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = luna.get_world_3d().navigation_map
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, spot + Vector3(16, 0, 16)) + Vector3(0, 0.05, 0)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	for path in String(RenderProfile.options.get("audit-list", "")).split(",", false):
+		_check(luna.swap_avatar(path), "wears " + path.get_file())
+		luna.stop_action()
+		luna.global_position = spot + Vector3(0, 0.05, 0)
+		luna.rotation.y = 0.0
+		await _wait(3.0)
+		var fwd := Vector3(0, 0, -1)
+		var waist := spot + Vector3(0, 0.9, 0)
+		for a in [["front", 0.0], ["side", 90.0], ["back", 180.0], ["3q", 45.0]]:
+			var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))
+			pin.fov = 30.0
+			pin.pos = Vector3(waist.x, spot.y + 1.0, waist.z) + d * 4.2
+			pin.look = waist
+			pin.active = true
+			await _wait(0.8)
+			_shot("%s_%s" % [path.get_file().get_basename(), a[0]])
+	pin.active = false

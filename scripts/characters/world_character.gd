@@ -14,6 +14,10 @@ const MIXAMO_DIR := "res://assets/animations/mixamo/"
 const CLIPS := {
 	"idle": ["standing_idle.fbx", true, true],
 	"walk": ["walking.fbx", true, true],
+	# runway walk and turn (Selwyn's Mixamo clips, 2026-10-19): "walk_goddess" = a phase-aligned 50/50 blend of the
+	# catwalk and the normal walk (elegant, not sassy); "catwalk_turn" plays with its hip yaw moved to her root
+	"catwalk": ["catwalk_walking.fbx", true, true],
+	"catwalk_turn": ["catwalk_walk_turn_180_wide.fbx", false, true],
 	"run": ["run_forward.fbx", true, true],
 	"jog": ["jog_forward.fbx", true, true],
 	"look_around": ["look_around.fbx", false, true],
@@ -1185,7 +1189,139 @@ func _build_library() -> AnimationLibrary:
 		lib.add_animation(clip_name, anim)
 	for src_node in pack_srcs:
 		src_node.free()
+	if lib.has_animation("walk") and lib.has_animation("catwalk"):
+		var gw := _blend_cycles(lib.get_animation("walk"), lib.get_animation("catwalk"), 0.5)
+		gw.loop_mode = Animation.LOOP_LINEAR
+		lib.add_animation("walk_goddess", gw)
+	if lib.has_animation("catwalk_turn"):
+		turn_yaw_curves["catwalk_turn"] = _strip_hip_yaw(lib.get_animation("catwalk_turn"))
 	return lib
+
+
+static var turn_yaw_curves := {}
+
+## The left thigh's most forward swing (largest x of its rotation): the phase anchor of a walk cycle.
+static func _cycle_anchor(anim: Animation) -> float:
+	var ti := -1
+	for t in anim.get_track_count():
+		if anim.track_get_type(t) == Animation.TYPE_ROTATION_3D and String(anim.track_get_path(t)).ends_with(":LeftUpperLeg"):
+			ti = t
+	if ti < 0:
+		return 0.0
+	var best := -INF
+	var at := 0.0
+	for k in 120:
+		var tt := anim.length * k / 120.0
+		var q := anim.rotation_track_interpolate(ti, tt)
+		if q.x > best:
+			best = q.x
+			at = tt
+	return at
+
+
+## Two walk cycles blended at weight w (0 = a, 1 = b), sampled by phase from each one's own anchor so the feet stay in
+## step: rotations slerped, positions lerped, 30 Hz, length between the two.
+static func _blend_cycles(a: Animation, b: Animation, w: float) -> Animation:
+	var out := Animation.new()
+	var la := a.length
+	var lb := b.length
+	var L := lerpf(la, lb, w)
+	var oa := _cycle_anchor(a)
+	var ob := _cycle_anchor(b)
+	var paths_b := {}
+	for t in b.get_track_count():
+		paths_b[str(b.track_get_path(t)) + "|" + str(b.track_get_type(t))] = t
+	var step := 1.0 / 30.0
+	for ti in a.get_track_count():
+		var type := a.track_get_type(ti)
+		if type != Animation.TYPE_POSITION_3D and type != Animation.TYPE_ROTATION_3D:
+			continue
+		var key := str(a.track_get_path(ti)) + "|" + str(type)
+		var tb: int = paths_b.get(key, -1)
+		var nt := out.add_track(type)
+		out.track_set_path(nt, a.track_get_path(ti))
+		var tt := 0.0
+		while tt <= L + 1e-4:
+			var u := tt / L
+			var ta := fmod(oa + u * la, la)
+			var tbb := fmod(ob + u * lb, lb)
+			if type == Animation.TYPE_POSITION_3D:
+				var va := a.position_track_interpolate(ti, ta)
+				out.position_track_insert_key(nt, tt, va.lerp(b.position_track_interpolate(tb, tbb), w) if tb >= 0 else va)
+			else:
+				var qa := a.rotation_track_interpolate(ti, ta)
+				out.rotation_track_insert_key(nt, tt, qa.slerp(b.rotation_track_interpolate(tb, tbb), w) if tb >= 0 else qa)
+			tt += step
+	out.length = L
+	return out
+
+
+## A turn clip's hip yaw is taken out of the clip (the hips keep their pitch and roll) and returned as a curve (radians
+## per 1/30 s from the start) for the character's root to follow - she ends the clip facing the new way without the
+## blend back to idle snapping her round.
+static func _strip_hip_yaw(anim: Animation) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	var ti := -1
+	for t in anim.get_track_count():
+		if anim.track_get_type(t) == Animation.TYPE_ROTATION_3D and String(anim.track_get_path(t)).ends_with(":Hips"):
+			ti = t
+	if ti < 0:
+		return out
+	var yaw0 := (anim.rotation_track_interpolate(ti, 0.0) * Vector3.FORWARD)
+	var a0 := atan2(-yaw0.x, -yaw0.z)
+	var prev := 0.0
+	var acc := 0.0
+	var keys := anim.track_get_key_count(ti)
+	# the curve, unwrapped
+	var tt := 0.0
+	while tt <= anim.length + 1e-4:
+		var f := anim.rotation_track_interpolate(ti, tt) * Vector3.FORWARD
+		var ang := atan2(-f.x, -f.z) - a0
+		var d := wrapf(ang - prev, -PI, PI)
+		acc += d
+		prev = ang
+		out.append(acc)
+		tt += 1.0 / 30.0
+	# strip it from the keys
+	for k in keys:
+		var kt := anim.track_get_key_time(ti, k)
+		var q: Quaternion = anim.track_get_key_value(ti, k)
+		var f := q * Vector3.FORWARD
+		var ang := wrapf(atan2(-f.x, -f.z) - a0, -PI, PI)
+		anim.track_set_key_value(ti, k, Quaternion(Vector3.UP, -ang) * q)
+	return out
+
+
+## Plays a turn clip with its yaw on her root (see _strip_hip_yaw).
+func play_turn(clip := "catwalk_turn", fade_in := 0.3, fade_out := 0.4) -> bool:
+	var curve: PackedFloat32Array = turn_yaw_curves.get(clip, PackedFloat32Array())
+	if curve.is_empty() or not play_gesture(clip, fade_in, fade_out):
+		return false
+	# the yaw goes on the avatar node (her own facing logic steers the body's rotation.y and would fight a tween);
+	# when the clip ends the turn is handed to the body in one step, invisible because the sum is unchanged
+	# (BodyReaction owns the avatar's rest rotation, _avatar_q, and restores it every frame: the turn goes through it)
+	var av := avatar
+	var base := av.rotation.y
+	var set_yaw := func(y: float):
+		var q := Quaternion(Vector3.UP, y)
+		if reaction and is_instance_valid(reaction):
+			reaction.set("_avatar_q", q)
+		av.quaternion = q
+	var tw := create_tween()
+	tw.tween_method(func(i: float): set_yaw.call(base + curve[clampi(int(i), 0, curve.size() - 1)]), 0.0, float(curve.size() - 1), (curve.size() - 1) / 30.0)
+	tw.tween_callback(func():
+		var total := curve[curve.size() - 1]
+		set_yaw.call(base)
+		rotation.y += total
+		_look_target = global_position - global_transform.basis.z * 3.0)
+	return true
+
+
+## Swap the walk cycle the locomotion uses ("walk", "walk_goddess", ...).
+func set_walk_clip(clip: String) -> void:
+	if anim_tree and has_clip(clip):
+		var loco := (anim_tree.tree_root as AnimationNodeBlendTree).get_node("loco") as AnimationNodeBlendSpace1D
+		(loco.get_blend_point_node(1) as AnimationNodeAnimation).animation = "mx/" + clip
 
 
 ## A held pose (freeze at time t, 0.1 s loop) or the clip played backwards, baked at 30 Hz from the sampled
