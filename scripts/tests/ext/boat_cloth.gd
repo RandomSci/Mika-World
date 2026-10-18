@@ -146,13 +146,17 @@ static func run(t) -> void:
 				var v = ct[key]
 				if typeof(v) == TYPE_FLOAT:
 					contacts[key] = v if prev == null else (maxf(prev, v) if not String(key).begins_with("min_") else minf(prev, v))
+				elif prev == null or (String(key) == "legs_pair" and float(ct.get("min_legs_gap", 9.0)) <= float(contacts.get("min_legs_gap", 9.0))):
+					contacts[key] = v
 	# Mika's chin on her hand: close from both sides (the hand rests on the face, never in it)
 	boat.trail_hand("stern", "Left", false)
 	boat.chin_rest("stern", true, "Right")
 	await t._wait(1.6)
 	for side in [-1.0, 1.0]:
 		var st := boat.seat_xform("stern")
-		var hd: Vector3 = st.origin + Vector3(0, 0.62, 0) + st.basis.z * 0.12
+		var gp: Array = grabs.mika.poses
+		var hb := mika.skeleton.find_bone("Head")
+		var hd: Vector3 = mika.skeleton.global_transform * (gp[hb] as Transform3D).origin + Vector3(0, 0.05, 0) if gp.size() > hb else st.origin + Vector3(0, 0.62, 0)
 		pin.fov = 32.0
 		pin.pos = hd + st.basis.z * 0.75 + st.basis.x * (0.45 * side) + Vector3(0, -0.05, 0)
 		pin.look = hd + Vector3(0, -0.06, 0)
@@ -295,6 +299,10 @@ static func _contacts(boat: MoonBoat, luna: WorldCharacter, lp: Array, mika: Wor
 	for a in [["LeftUpperLeg", "LeftLowerLeg", 0.075], ["LeftLowerLeg", "LeftFoot", 0.05], ["RightUpperLeg", "RightLowerLeg", 0.075], ["RightLowerLeg", "RightFoot", 0.05]]:
 		for b in [["LeftUpperLeg", "LeftLowerLeg", 0.075], ["LeftLowerLeg", "LeftFoot", 0.05], ["RightUpperLeg", "RightLowerLeg", 0.075], ["RightLowerLeg", "RightFoot", 0.05]]:
 			var pq := Geometry3D.get_closest_points_between_segments(W.call(luna, lp, a[0]), W.call(luna, lp, a[1]), W.call(mika, mp, b[0]), W.call(mika, mp, b[1]))
-			gap = minf(gap, (pq[0] as Vector3).distance_to(pq[1]) - float(a[2]) - float(b[2]))
+			var g := (pq[0] as Vector3).distance_to(pq[1]) - float(a[2]) - float(b[2])
+			if g < gap:
+				gap = g
+				out["legs_pair"] = "luna %s-%s vs mika %s-%s at %s / %s" % [a[0], a[1], b[0], b[1], str((pq[0] as Vector3).snappedf(0.01)), str((pq[1] as Vector3).snappedf(0.01))]
 	out["min_legs_gap"] = gap
+	out["mika_hand_at"] = str(hand.snappedf(0.01)) + " thigh " + str(snappedf(d_thigh, 0.001)) + " water " + str(snappedf(d_water, 0.001))
 	return out

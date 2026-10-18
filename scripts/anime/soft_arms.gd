@@ -93,6 +93,7 @@ func _process_modification() -> void:
 		var sgn := -1.0 if side == "Right" else 1.0
 		for f in _fingers[side]:
 			var c: float = float(f[1]) + 0.05 * sin(_t * 1.3 + float(f[3]) * 0.7)
-			c = lerpf(c, 0.8, float(grip[side]))
+			var g := float(grip[side])
+			c = lerpf(c, 1.05, g)                  # (a held grip: the fingers close right round the handle)
 			var target := (f[2] as Quaternion) * Quaternion(Vector3(0, 0, 1), c * finger_angle * sgn)
-			sk.set_bone_pose_rotation(int(f[0]), sk.get_bone_pose_rotation(int(f[0])).slerp(target, finger_weight))
+			sk.set_bone_pose_rotation(int(f[0]), sk.get_bone_pose_rotation(int(f[0])).slerp(target, lerpf(finger_weight, 1.0, g)))

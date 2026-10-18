@@ -226,7 +226,17 @@ func seat(c: WorldCharacter, seat_name: String) -> void:
 	life.look = _auto_look.bind(seat_name)
 	var st0 := seat_xform(seat_name)
 	c.global_transform = Transform3D(st0.basis * face_fix, st0.origin + st0.basis.y * -0.25)
-	c.play_gesture("sit_loop", 0.5, 0.5)
+	# sitting must take: a spell still being cast (or any action) would make the sit clip refuse, and she would stand
+	# in the boat - finish it first and retry until the clip really plays
+	if c.casting:
+		c.stop_action()
+	var tries := 0
+	while not c.play_gesture("sit_loop", 0.5, 0.5) and tries < 20:
+		c.stop_action()
+		tries += 1
+		await get_tree().create_timer(0.15).timeout
+	if tries > 0:
+		print("[boat] %s: sitting took %d retries" % [c.character_id, tries])
 	c.set_seated(true, 0.7)
 	# the root sits so her hips rest on the cushion (measured from the clip once it plays)
 	await get_tree().create_timer(0.6).timeout
@@ -279,6 +289,7 @@ func _feet_targets(seat_name: String) -> Array:
 	var s: Dictionary = SEATS[seat_name]
 	var sb := Basis(Vector3.UP, float(s.yaw))
 	var f: Vector3 = s.pos + sb.z * (0.62 if seat_name == "bow" else 0.48)    # (the rower's legs reach out to the stretcher: her knees stay low)
+	f -= sb.x * 0.13               # each to her own right: facing each other, their legs pass side by side, never through
 	f.y = -0.02
 	return [global_transform * (f + sb.x * 0.13), global_transform * (f - sb.x * 0.13)]    # [left, right]
 
