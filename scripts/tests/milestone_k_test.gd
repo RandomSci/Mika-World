@@ -188,6 +188,7 @@ func _run() -> void:
 		"starlitharp": await _starlitharp()
 		"sittest": await _sittest()
 		"motionshots": await _motionshots()
+		"daylapse": await _daylapse()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7956,3 +7957,41 @@ func _force_luna_l1() -> void:
 		luna.swap_avatar(path)
 		await _wait(1.0)
 	_check(luna.avatar_path == path, "Luna wears Level 1 (%s)" % path.get_file(), luna.avatar_path)
+
+
+## A sped-up full day over the sanctuary (2026-10-19): the clock runs 24 h in --lapse-s seconds (default 96) from
+## 04:00, a fixed wide camera looks west over the dais; record with --write-movie. Logs the sun's elevation, the
+## light energy and the night amount every game hour.
+func _daylapse() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 48.0)
+	if main.day_night:
+		main.day_night.clear_override()
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.pos = Vector3(14.0, 7.0, 18.0)
+	pin.look = Vector3(-6.0, 2.0, -6.0)
+	pin.fov = 62.0
+	pin.active = true
+	var secs := float(RenderProfile.options.get("lapse-s", 96.0))
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 4.0 * 60.0
+	await _wait(2.0)
+	var rate := 1440.0 / secs                          # game minutes per real second
+	var t0 := _game_t
+	var last_h := -1
+	var sun: DirectionalLight3D = main.world.get("sun")
+	while _game_t - t0 < secs:
+		await get_tree().process_frame
+		WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 4.0 * 60.0 + (_game_t - t0) * rate
+		var hh := int(WorldState.hour_f())
+		if hh != last_h:
+			last_h = hh
+			print("[mktest] lapse %02d:00 night_k %.2f sun_el %.1f energy %.2f" % [hh, main.day_night.k if main.day_night else -1.0, -rad_to_deg(sun.global_rotation.x), sun.light_energy if sun.visible else 0.0])
+	pin.active = false

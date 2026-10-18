@@ -14,6 +14,10 @@ uniform float star_energy = 1.3;
 uniform float meteor_energy = 9.0;
 uniform vec2 meteor_az = vec2(-1.2, 1.2);      // azimuth range (radians) where shooting stars start
 uniform float meteor_heading = 0.0;            // the azimuth the ranges are measured from
+// dusk and dawn (DayNightCycle, 2026-10-19): the area's day panorama crossfaded in by the clock (mixk 1 = full night)
+uniform sampler2D day_pano : filter_linear, repeat_enable;
+uniform float day_energy = 1.0;
+uniform float mixk = 1.0;
 
 float hash13(vec3 p) {
 	p = fract(p * 0.1031);
@@ -78,5 +82,5 @@ void sky() {
 		col += vec3(0.85, 0.92, 1.0) * m * meteor_energy * up;
 	}
 	col = mix(col, ground_col, smoothstep(0.0, -0.08, d.y));
-	COLOR = col;
+	COLOR = mix(texture(day_pano, SKY_COORDS).rgb * day_energy, col, smoothstep(0.0, 1.0, mixk));
 }

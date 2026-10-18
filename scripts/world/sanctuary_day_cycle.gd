@@ -22,6 +22,8 @@ static func attach(m: Node, w: Node) -> SanctuaryDayCycle:
 
 
 func _ready() -> void:
+	if DayNightCycle.instance and is_instance_valid(DayNightCycle.instance):
+		return
 	process_priority = 900        # before the weather (950: it dims what this writes) and the stream grade (1000)
 	_night = not (WorldState.daylight() >= 0.15)
 	WorldState.night = _night
@@ -31,6 +33,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if DayNightCycle.instance and is_instance_valid(DayNightCycle.instance):
+		return                     # (2026-10-19) DayNightCycle owns the sky, the sun and the moon now, every frame
 	_acc += delta
 	if _acc < 0.5:
 		return

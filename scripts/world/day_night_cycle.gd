@@ -14,7 +14,8 @@ const ENV_PROPS := ["background_energy_multiplier", "ambient_light_energy", "amb
 	"tonemap_exposure", "fog_light_color", "fog_density", "fog_height_density", "fog_sky_affect", "fog_sun_scatter",
 	"adjustment_saturation", "adjustment_contrast", "volumetric_fog_albedo", "volumetric_fog_density"]
 const BLEND := preload("res://shaders/sky/day_night_blend.gdshader")
-const STEP_S := 0.2
+const STEP_S := 0.0                # every frame (2026-10-19: steps of 0.2 s, and a second cycle writing the sun every
+                                   # 0.5 s, made the sun and the light jump - Selwyn: "every transition smooth")
 
 static var instance: DayNightCycle
 
@@ -26,6 +27,7 @@ var _day := {}
 var _night := {}
 var _blend_sky: Sky
 var _blend_mat: ShaderMaterial
+var _night_mix_mat: ShaderMaterial    # a shader night sky that blends the day panorama in itself
 var _sky_k := -1.0
 var _acc := 0.0
 var _lights := {}                # Light3D -> base energy (night-only nodes)
@@ -66,9 +68,8 @@ func _process(delta: float) -> void:
 		_capture(w)
 	var t := target_k()
 	# the clock moves slowly (dusk ~4 real minutes); a jump (a test setting the time, an override, a load) eases over ~3 s
-	var nk: float = t if k < 0.0 else move_toward(k, t, maxf(dt / 3.0, 0.004))
-	if absf(nk - k) > 0.0005 or k < 0.0:
-		apply(nk)
+	var nk: float = t if k < 0.0 else move_toward(k, t, maxf(dt / 3.0, 0.0005))
+	apply(nk)                          # every frame: the sun and moon move continuously with the clock
 
 
 ## Reads the area's own day and night settings once (its set_night does the work), then blends between them.
@@ -83,8 +84,17 @@ func _capture(w: Node) -> void:
 	w.set_night(was)
 	_blend_sky = null
 	_blend_mat = null
+	_night_mix_mat = null
 	var ds: Sky = _day.get("sky")
 	var ns: Sky = _night.get("sky")
+	# a night sky that is its own shader (Starfall's Milky Way) crossfades the day panorama itself (uniform mixk)
+	if ds and ns and ds != ns and ds.sky_material is PanoramaSkyMaterial and ns.sky_material is ShaderMaterial:
+		var sm := ns.sky_material as ShaderMaterial
+		for u in sm.shader.get_shader_uniform_list():
+			if String(u.name) == "mixk":
+				_night_mix_mat = sm
+				sm.set_shader_parameter("day_pano", (ds.sky_material as PanoramaSkyMaterial).panorama)
+				sm.set_shader_parameter("day_energy", (ds.sky_material as PanoramaSkyMaterial).energy_multiplier)
 	if ds and ns and ds != ns and ds.sky_material is PanoramaSkyMaterial and ns.sky_material is PanoramaSkyMaterial:
 		_blend_mat = ShaderMaterial.new()
 		_blend_mat.shader = BLEND
@@ -94,6 +104,7 @@ func _capture(w: Node) -> void:
 		_blend_mat.set_shader_parameter("night_energy", (ns.sky_material as PanoramaSkyMaterial).energy_multiplier)
 		_blend_sky = Sky.new()
 		_blend_sky.sky_material = _blend_mat
+		_blend_sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL      # the sky's lighting re-filters over a few frames, no pop
 		_blend_sky.radiance_size = ds.radiance_size
 	k = -1.0
 	_sky_k = -1.0
@@ -139,21 +150,33 @@ func apply(nk: float) -> void:
 			env.set(p, _lerp(_day[p], _night[p], e))
 	sun.light_color = (_day.sun_color as Color).lerp(_night.sun_color, e)
 	sun.light_energy = lerpf(float(_day.sun_energy), float(_night.sun_energy), e)
-	sun.visible = sun.light_energy > 0.001
 	if sun.is_inside_tree():
-		var q: Quaternion = (_day.sun_q as Quaternion).slerp(_night.sun_q, e)
-		sun.global_transform = Transform3D(Basis(q), sun.global_transform.origin)
+		if override >= 0 or RenderProfile.options.has("fixed-sun"):
+			# a test override: the area's own day / night sun
+			var q: Quaternion = (_day.sun_q as Quaternion).slerp(_night.sun_q, e)
+			sun.global_transform = Transform3D(Basis(q), sun.global_transform.origin)
+		else:
+			_sky_bodies(sun)
+	sun.visible = sun.light_energy > 0.001
 	# the sky
 	if k <= 0.002:
 		env.sky = _day.sky
 		_sky_k = 0.0
 	elif k >= 0.998:
 		env.sky = _night.sky
+		if _night_mix_mat and _sky_k != 1.0:
+			_night_mix_mat.set_shader_parameter("mixk", 1.0)
 		_sky_k = 1.0
+	elif _night_mix_mat:
+		if env.sky != _night.sky:
+			env.sky = _night.sky
+		if absf(k - _sky_k) > 0.006:
+			_night_mix_mat.set_shader_parameter("mixk", k)
+			_sky_k = k
 	elif _blend_sky:
 		if env.sky != _blend_sky:
 			env.sky = _blend_sky
-		if absf(k - _sky_k) > 0.015:          # (each change re-filters the sky's radiance: not every frame)
+		if absf(k - _sky_k) > 0.006:          # (each change re-filters the sky's radiance: not every frame)
 			_blend_mat.set_shader_parameter("mixk", k)
 			_sky_k = k
 	else:
@@ -176,6 +199,32 @@ func apply(nk: float) -> void:
 		(n as Node3D).visible = k < 0.5
 	if w.has_method("night_blend"):
 		w.night_blend(k)
+
+
+## The sun and the moon cross the sky with the clock, every frame: the sun rises in the east at 06:00, stands at
+## ~58 deg at noon and sets in the west at 18:00; the moon rises at 18:00 and sets at 06:00 on the same arc. The one
+## directional light follows whichever is higher; its energy fades to nothing as a body nears the horizon (so the
+## hand-over at dusk / dawn happens in the dark, no visible jump); a low sun is warmer.
+func _sky_bodies(sun: DirectionalLight3D) -> void:
+	var h := WorldState.hour_f()
+	var ts := (h - 6.0) / 12.0                         # 0..1 over the day
+	var tm := fposmod(h - 18.0, 24.0) / 12.0           # 0..1 over the night
+	var sun_el := 58.0 * sin(PI * ts)
+	var moon_el := 46.0 * sin(PI * tm)
+	var use_sun := sun_el >= moon_el
+	var el := sun_el if use_sun else moon_el
+	var az := lerpf(-100.0, 100.0, clampf(ts if use_sun else tm, 0.0, 1.0)) + (0.0 if use_sun else 180.0)
+	sun.global_transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(-maxf(el, 2.0)), deg_to_rad(az), 0.0)), sun.global_transform.origin)
+	var horizon := smoothstep(-1.0, 14.0, el)            # nothing at the horizon, full from ~14 deg
+	if use_sun:
+		# sunlight only (the area's day sun), warmer when low
+		var low := 1.0 - smoothstep(8.0, 35.0, el)
+		sun.light_color = (_day.sun_color as Color).lerp(Color(1.0, 0.68, 0.45), low * 0.7)
+		sun.light_energy = float(_day.sun_energy) * horizon
+	else:
+		# moonlight only (the area's night sun)
+		sun.light_color = _night.sun_color
+		sun.light_energy = float(_night.sun_energy) * horizon
 
 
 func describe() -> Dictionary:
