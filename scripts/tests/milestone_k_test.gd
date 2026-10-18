@@ -182,6 +182,7 @@ func _run() -> void:
 		"skinprobe": await _skinprobe()
 		"benchscan": await _benchscan()
 		"screenfx": await _screenfx()
+		"lunaclip": await _lunaclip()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7159,3 +7160,253 @@ func _screenfx() -> void:
 	await _wait(2.5)
 	_check(Engine.time_scale > 0.9, "time scale back to normal after the freeze and slow motion", Engine.time_scale)
 	pin.active = false
+
+
+# ------------------------------------------------------------------ the test clip (2026-10-18, anime-proof)
+## Round 12 Luna in the meadow, filmed with Phantom Camera: a walk toward the lens, a slow graceful turn, a slow
+## fingertip reach (TwoBoneIK3D) with her eyes on the camera, then one spell in the 4-layer standard:
+## anticipation (circle at her feet, gathering glow on the hand, push-in), release (2-frame flash, the projectile
+## with trail, speed lines), impact (hit freeze, burst frames, chroma, shake, the big impact) and aftermath (the
+## lingering area glow, slow motion, back to her). Record with --write-movie; stills at the key beats.
+const LUNA_VIOLET := Color(0.62, 0.36, 1.0)
+const LUNA_GOLD := Color(1.0, 0.8, 0.38)
+
+func _fx(path: String, at: Vector3, primary: Color, secondary: Color, scale := 1.0) -> Node3D:
+	var n: Node3D = (load(path) as PackedScene).instantiate()
+	main.add_child(n)
+	n.global_position = at
+	n.scale = Vector3.ONE * scale
+	if n.get("primary_color") != null:
+		n.set("primary_color", primary)
+	if n.get("secondary_color") != null:
+		n.set("secondary_color", secondary)
+	if n.get("light_color") != null:
+		n.set("light_color", primary)
+	if n.has_method("play"):
+		n.call("play")
+	return n
+
+
+func _sigil(at: Vector3, size: float, sides: int, col: Color, intensity: float) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var q := PlaneMesh.new()
+	q.size = Vector2(size, size)
+	mi.mesh = q
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/magic/sigil.gdshader")
+	m.set_shader_parameter("sides", sides)
+	m.set_shader_parameter("color", col)
+	m.set_shader_parameter("intensity", intensity)
+	m.set_shader_parameter("seed", randf() * 100.0)
+	m.set_shader_parameter("draw_progress", 0.0)
+	m.set_shader_parameter("spin", 0.35 if sides % 2 == 0 else -0.5)
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	main.add_child(mi)
+	mi.global_position = at
+	return mi
+
+
+func _pcam(name_: String, prio: int, follow: Node3D, offset: Vector3, look: Node3D, tween_s: float, fov := 40.0) -> PhantomCamera3D:
+	var pc := PhantomCamera3D.new()
+	pc.name = name_
+	main.add_child(pc)
+	pc.set_tween_duration(tween_s)
+	pc.set_tween_transition(Tween.TRANS_SINE)
+	if follow:
+		pc.follow_mode = PhantomCamera3D.FollowMode.SIMPLE
+		pc.set_follow_target(follow)
+		pc.set_follow_offset(offset)
+	else:
+		pc.global_position = offset
+	if look:
+		pc.look_at_mode = PhantomCamera3D.LookAtMode.SIMPLE
+		pc.set_look_at_target(look)
+	pc.set("fov", fov)
+	pc.set_priority(prio)
+	return pc
+
+
+func _lunaclip() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 12.0)
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = luna.get_world_3d().navigation_map
+	var start := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 9.0))
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, start + Vector3(16, 0, 16)) + Vector3(0, 0.05, 0)
+	luna.stop_action()
+	luna.global_position = start + Vector3(0, 0.05, 0)
+	luna.rotation.y = 0.0                                  # facing -Z: she walks toward the camera at -Z
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED   # close-ups approved inside cinematics
+	# the camera: Phantom Camera drives the live camera (the rig and director stand still)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var cam: Camera3D = main.camera_rig.camera
+	cam.top_level = true
+	var host := PhantomCameraHost.new()
+	host.interpolation_mode = PhantomCameraHost.InterpolationMode.MANUAL    # ticked last every frame (PCamDriver)
+	cam.add_child(host)
+	var driver := PCamDriver.new()
+	driver.host = host
+	main.add_child(driver)
+	# look targets that follow her body
+	var chest := Node3D.new()
+	var face := Node3D.new()
+	var hand_t := Node3D.new()
+	for n in [chest, face, hand_t]:
+		main.add_child(n)
+	var sk := luna.skeleton
+	var track := func():
+		chest.global_position = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Chest")).origin
+		face.global_position = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Head")).origin + Vector3(0, 0.06, 0)
+		hand_t.global_position = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightHand")).origin
+	track.call()
+	var a := _pcam("A_walk_low", 10, luna, Vector3(0.35, 0.75, -3.0), chest, 0.0, 38.0)
+	await _wait(1.5)
+	print("[mktest] lunaclip camera: current=%s is_rig_cam=%s host_active=%s pcam_pos=%s cam_pos=%s luna=%s" % [get_viewport().get_camera_3d().get_path(),
+		str(get_viewport().get_camera_3d() == cam), str(host.get_active_pcam()), str(a.global_position.snapped(Vector3.ONE * 0.01)),
+		str(cam.global_position.snapped(Vector3.ONE * 0.01)), str(luna.global_position.snapped(Vector3.ONE * 0.01))])
+	print("[mktest] lunaclip host: child_of_cam=%s physics_based=%s processing=%s/%s missing=%s tree_paused=%s pmode=%d" % [str(host.get("_is_child_of_camera")), str(host.get("_follow_target_physics_based")),
+		str(host.is_processing()), str(host.is_physics_processing()), str(host.get("_active_pcam_missing")), str(get_tree().paused), host.process_mode])
+	_shot("00_start")
+	var t0 := _game_t
+	# 1. the walk toward the lens (the camera dollies back with her, low)
+	luna.navigate_to(NavigationServer3D.map_get_closest_point(map, start + Vector3(0, 0, -5.0)), false)
+	while luna.current_action == "navigate_to" and _game_t - t0 < 9.0:
+		await get_tree().process_frame
+		track.call()
+		luna.look_head_at(cam.global_position)
+	_shot("01_walk_end")
+	# 2. the slow turn (a full circle, 4 s), the camera eases to a medium three-quarter
+	var b := _pcam("B_turn_med", 20, luna, Vector3(1.4, 1.15, -2.5), chest, 1.4, 34.0)
+	luna.look_head_at(null)
+	var tw := luna.create_tween()
+	tw.tween_property(luna, "rotation:y", luna.rotation.y + TAU, 4.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var tt := _game_t
+	while _game_t - tt < 4.2:
+		await get_tree().process_frame
+		track.call()
+		if _game_t - tt > 1.9 and _game_t - tt < 1.95:
+			_shot("02_turn_back")
+	# 3. the fingertip reach toward the lens (TwoBoneIK3D), eyes following the camera; a close medium on face + hand
+	var c := _pcam("C_reach_close", 30, luna, Vector3(0.45, 1.5, -1.35), face, 1.2, 32.0)
+	var ik := TwoBoneIK3D.new()
+	ik.name = "ReachIK"
+	sk.add_child(ik)
+	var ik_target := Node3D.new()
+	main.add_child(ik_target)
+	ik.setting_count = 1
+	ik.set_root_bone_name(0, "RightUpperArm")
+	ik.set_middle_bone_name(0, "RightLowerArm")
+	ik.set_end_bone_name(0, "RightHand")
+	ik.set_target_node(0, ik.get_path_to(ik_target))
+	ik.influence = 0.0
+	var fwd := -luna.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var shoulder: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightUpperArm")).origin
+	ik_target.global_position = hand_t.global_position
+	var reach_to := shoulder + fwd * 0.52 + right * 0.08 + Vector3(0, 0.12, 0)
+	# (2026-10-19: TwoBoneIK3D ran with influence 1 but never moved the hand in this rig - logged as a gap; the reach
+	# is the Mixamo pointing clip toward the lens until the IK works)
+	ik.active = false
+	luna.play_gesture("pointing", 0.6, 0.7)
+	var rt := create_tween()
+	rt.tween_property(ik, "influence", 1.0, 0.6)
+	rt.parallel().tween_property(ik_target, "global_position", reach_to, 1.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var ikdbg := {"n": 0}
+	var ikprobe := func():
+		ikdbg.n = int(ikdbg.n) + 1
+		if int(ikdbg.n) % 20 == 0:
+			var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightHand")).origin
+			print("[mktest] lunaclip ik: influence %.2f active %s hand-target %.3f m" % [ik.influence, str(ik.active), hp.distance_to(ik_target.global_position)])
+	sk.skeleton_updated.connect(ikprobe)
+	tt = _game_t
+	while _game_t - tt < 3.0:
+		await get_tree().process_frame
+		track.call()
+		luna.look_head_at(cam.global_position)
+		if _game_t - tt > 1.8 and _game_t - tt < 1.85:
+			_shot("03_reach")
+	sk.skeleton_updated.disconnect(ikprobe)
+	var rb := create_tween()
+	rb.tween_property(ik, "influence", 0.0, 0.8).set_trans(Tween.TRANS_SINE)
+	await _wait(0.9)
+	ik.queue_free()
+	ik_target.queue_free()
+	# 4. the spell, 4 layers. Target: 9 m in front of her
+	var target := NavigationServer3D.map_get_closest_point(map, luna.global_position + fwd * 9.0) + Vector3(0, 0.6, 0)
+	var fx := ScreenFX.get_for(self)
+	# 4a anticipation: the circle at her feet, gathering glow at the hand, a low push-in
+	var d := _pcam("D_cast_low", 40, luna, Vector3(-1.3, 0.45, -2.2), chest, 0.6, 40.0)
+	luna.look_head_at(target)
+	luna.play_gesture("prepare_and_cast", 0.25, 0.4)
+	var circle := _sigil(luna.global_position + Vector3(0, 0.03, 0), 3.2, 8, LUNA_VIOLET, 2.2)
+	var circle2 := _sigil(luna.global_position + Vector3(0, 0.04, 0), 1.9, 6, LUNA_GOLD, 2.4)
+	for sg in [circle, circle2]:
+		create_tween().tween_property((sg as MeshInstance3D).material_override, "shader_parameter/draw_progress", 1.0, 1.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var gather := _fx("res://assets/BinbunVFX_Vol2/ElementalMagicFX/effects/cast/vfx_fire_cast_01.tscn", hand_t.global_position, LUNA_VIOLET, LUNA_GOLD, 0.45)
+	if gather.get("emission") != null:
+		gather.set("emission", 1.2)
+	fx.vignette(0.45, 2.4)
+	var push := create_tween()
+	push.tween_method(func(v: Vector3): d.set_follow_offset(v), Vector3(-1.3, 0.45, -2.2), Vector3(-0.9, 0.5, -1.6), 1.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tt = _game_t
+	while _game_t - tt < 1.3:
+		await get_tree().process_frame
+		track.call()
+		gather.global_position = hand_t.global_position
+		if _game_t - tt > 1.0 and _game_t - tt < 1.05:
+			_shot("04_anticipation")
+	# 4b release: a 2-frame white flash, the projectile with its trail, speed lines toward the target
+	fx.flash("white", 2)
+	var proj := _fx("res://assets/BinbunVFX_Vol2/ElementalMagicFX/effects/projectile/vfx_fire_projectile_01.tscn", hand_t.global_position, LUNA_VIOLET, LUNA_GOLD, 1.0)
+	proj.look_at(target, Vector3.UP)
+	var e := _pcam("E_follow_shot", 50, null, luna.global_position + right * 1.6 + Vector3(0, 1.1, 0) - fwd * 0.6, proj, 0.25, 46.0)
+	fx.speed_lines(0.7, 0.5, Vector2(0.5, 0.5), Color(0.85, 0.75, 1.0))
+	var pt := create_tween()
+	pt.tween_property(proj, "global_position", target, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await _wait(0.25)
+	_shot("05_release")
+	await _wait(0.27)
+	# 4c impact: freeze, burst frames, chroma, shake, the big impact; a wide cut on the hit
+	var f2 := _pcam("F_impact_wide", 60, null, target + fwd * 3.6 + right * 2.4 + Vector3(0, 1.0, 0), null, 0.0, 50.0)
+	f2.look_at_mode = PhantomCamera3D.LookAtMode.NONE
+	f2.look_at(target, Vector3.UP)
+	var boom := _fx("res://assets/BinbunVFX_Vol2/StylizedHitFX/effects/big_impact/vfx_big_impact_01.tscn", target, LUNA_VIOLET, LUNA_GOLD, 1.6)
+	fx.impact(1.0)
+	await _wait(0.12)
+	_shot("06_impact")
+	fx.slow_mo(0.35, 0.9)
+	# 4d aftermath: the lingering area glow at the target, back to her
+	var linger := _sigil(target - Vector3(0, 0.57, 0), 2.6, 6, LUNA_GOLD, 2.0)
+	(linger as MeshInstance3D).material_override.set_shader_parameter("draw_progress", 1.0)
+	create_tween().tween_property((linger as MeshInstance3D).material_override, "shader_parameter/intensity", 0.0, 2.2).set_trans(Tween.TRANS_SINE)
+	for sg in [circle, circle2]:
+		create_tween().tween_property((sg as MeshInstance3D).material_override, "shader_parameter/intensity", 0.0, 1.2)
+	await _wait(1.3)
+	_shot("07_aftermath")
+	var g := _pcam("G_after", 70, luna, Vector3(0.8, 1.3, -2.2), face, 1.6, 34.0)
+	luna.look_head_at(cam.global_position)
+	tt = _game_t
+	while _game_t - tt < 3.0:
+		await get_tree().process_frame
+		track.call()
+		luna.look_head_at(cam.global_position)
+	_shot("08_end")
+	for n in [proj, boom, linger, circle, circle2, gather]:
+		if is_instance_valid(n):
+			n.queue_free()
+	_check(Engine.time_scale > 0.9, "time back to normal after the spell", Engine.time_scale)
