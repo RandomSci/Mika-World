@@ -6862,6 +6862,24 @@ func _dt_ring(c: WorldCharacter, pin: CameraPin, tag: String) -> void:
 	_dt_ring_on = false
 
 
+## The same ring on real time (the game frozen for a held pose).
+func _dt_ring_real(c: WorldCharacter, pin: CameraPin, tag: String) -> void:
+	_dt_ring_on = true
+	var fwd := -c.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var waist := c.global_position + Vector3(0, 0.95, 0)
+	for a in [["front", 0.0], ["side", 90.0], ["back", 180.0], ["3q", 45.0]]:
+		var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))
+		pin.fov = 28.0
+		pin.pos = Vector3(waist.x, c.global_position.y + 1.0, waist.z) + d * 3.9
+		pin.look = waist
+		for _i in 3:
+			await get_tree().process_frame
+		_shot("%s_%s" % [tag, a[0]])
+	_dt_ring_on = false
+
+
 func _dresstest() -> void:
 	await _hold_all()
 	for w in main.mage_brains:
@@ -6908,6 +6926,9 @@ func _dresstest() -> void:
 		pin.look = c.global_position + Vector3(0, 0.85, 0)
 		pin.active = true
 	follow.call()
+	if RenderProfile.options.has("dt-avatar"):          # a candidate model (test only)
+		_check(c.swap_avatar(String(RenderProfile.options["dt-avatar"])), "wears " + String(RenderProfile.options["dt-avatar"]).get_file())
+		await _wait(1.0)
 	await _wait(1.0)
 	var dt_state := {"on": false, "last": 0}
 	var sampler := func():
@@ -6945,6 +6966,13 @@ func _dresstest() -> void:
 			print("[dress] collider %s %s at %s (bone at %s) r=%s up=%s" % [n.name, n.get_class(), str((n as Node3D).global_position.snapped(Vector3.ONE * 0.01)), str(bpos.snapped(Vector3.ONE * 0.01)), str(n.get("radius")), str((n as Node3D).global_basis.y.normalized().snapped(Vector3.ONE * 0.01))])
 	await _wait(2.0)
 	await _dt_ring(c, pin, "stand")
+	if RenderProfile.options.has("dt-armsup"):
+		c.play_gesture("wide_arm_spell", 0.3, 0.4)
+		await _wait(1.3)
+		Engine.time_scale = 0.001                          # hold the arms-up moment for the ring
+		await _dt_ring_real(c, pin, "armsup")
+		Engine.time_scale = 1.0
+		await _wait(2.5)
 	pin.fov = 42.0
 	# walk away 6 m, a quick 180 turn back (walk to a point behind her), then to the bench and sit, then stand
 	var legs := [["walk", start + (sp - start).normalized().rotated(Vector3.UP, 1.2) * 6.0, false],
