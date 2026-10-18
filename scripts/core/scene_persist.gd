@@ -114,6 +114,10 @@ func _mage_state(who: String) -> Dictionary:
 			e["yaw"] = snappedf(c.global_rotation.y, 0.0001)
 			e["physics"] = c.is_physics_processing()
 			e["action"] = String(c.current_action)
+			if String(c.current_action) == "navigate_to":
+				var g: Vector3 = c.get("_nav_goal")
+				e["nav_goal"] = _v3(g)                # (where the walk was going: it carries on there after a restart)
+				e["nav_run"] = bool(c.get("_run"))
 			e["ground_pose"] = String(c.ground_pose)
 			e["seated"] = c.seated
 		else:
@@ -305,6 +309,10 @@ func _restore_mage(who: String, e: Dictionary, parts: Dictionary, area: String) 
 			r["placed"] = _v3(at)
 		if e.has("yaw"):
 			c.global_rotation.y = float(e.yaw)
+		var ng: Array = e.get("nav_goal", [])
+		if String(e.get("action", "")) == "navigate_to" and ng.size() == 3:
+			c.navigate_to(Vector3(float(ng[0]), float(ng[1]), float(ng[2])), bool(e.get("nav_run", false)))
+			r["walking_to"] = ng
 	if parts.has(who):
 		c.set_meta("persist_activity", String(parts[who]))
 		if main.teleport_guard:

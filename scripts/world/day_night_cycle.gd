@@ -56,6 +56,8 @@ func clear_override() -> void:
 
 
 func _process(delta: float) -> void:
+	if get_tree().get_first_node_in_group("env_owner") != null:
+		return                                    # (a scene owns the look now - the lake dance's night stage)
 	_acc += delta
 	if _acc < STEP_S:
 		return

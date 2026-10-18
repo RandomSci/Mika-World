@@ -14,6 +14,7 @@ var song_to := -1.0               # stop here (< 0: no end)
 var playing := false
 var tag := "dance"
 var _done := {}                   # routine step index -> true
+var stage_info := {}               # the night look it dances in (DanceStage): rebuilt on restore
 
 
 ## Start a dance: each dancer gets her dance stack (deck + softness + cords), the routine plays from `from_t`.
@@ -104,6 +105,14 @@ func _apply_routine(jump: bool) -> void:
 
 
 # ------------------------------------------------------------------------------------------------- persistence
+## The DanceStage this dance is dressed with (and the camera side it was built for), so a resume brings the same
+## night look back.
+func attach_stage(st: DanceStage, cam: Vector3) -> void:
+	stage_info = {"center": [st.center.x, st.center.y, st.center.z], "water_y": st.water_y, "cam": [cam.x, cam.y, cam.z],
+		"moon_up": DanceStage.moon_up, "moon_side": DanceStage.moon_side, "moon_size": DanceStage.moon_size,
+		"lantern_keep": DanceStage.lantern_keep, "hover": DanceStage.hover_lanterns, "clear": DanceStage.clear_radius}
+
+
 func persist_key() -> String:
 	return "dance:" + tag
 
@@ -131,7 +140,18 @@ func snapshot() -> Dictionary:
 	if ds.is_empty():
 		return {}
 	return {"kind": "dance", "step": persist_step(), "tag": tag, "song_t": snappedf(song_t, 0.0001), "song_to": song_to, "playing": playing,
-		"routine": routine, "done": _done.keys(), "dancers": ds, "participants": ds.keys()}
+		"routine": routine, "done": _done.keys(), "dancers": ds, "participants": ds.keys(), "stage": _stage_record()}
+
+
+func _stage_record() -> Dictionary:
+	if not stage_info.is_empty():
+		return stage_info
+	for st in get_tree().root.find_children("*", "DanceStage", true, false):
+		var dst := st as DanceStage
+		return {"center": [dst.center.x, dst.center.y, dst.center.z], "water_y": dst.water_y,
+			"cam": [dst.center.x, dst.center.y + 1.5, dst.center.z + 4.0], "moon_up": DanceStage.moon_up, "moon_side": DanceStage.moon_side,
+			"moon_size": DanceStage.moon_size, "lantern_keep": DanceStage.lantern_keep, "hover": DanceStage.hover_lanterns, "clear": DanceStage.clear_radius}
+	return {}
 
 
 ## Back on her mark, the same clip at the same clip time, the song where it was.
@@ -169,3 +189,38 @@ func restore(d: Dictionary) -> void:
 		dk.influence = float(e.get("influence", 1.0))
 		dk.play(String(e.get("clip", "dancing_a")), float(e.get("t", 0.0)), float(e.get("speed", 1.0)), 0.01)
 	playing = bool(d.get("playing", true))
+	_restore_stage(d.get("stage", {}), chars, ds)
+
+
+## The night look back (moon, navy sky, golden lanterns, their key light) where it was.
+func _restore_stage(si: Dictionary, chars: Dictionary, ds: Dictionary) -> void:
+	if si.is_empty() or not get_tree().root.find_children("*", "DanceStage", true, false).is_empty():
+		return
+	var lake: Node3D = null
+	for n in get_tree().root.find_children("*", "Node3D", true, false):
+		if n.get("water_mat") != null:
+			lake = n
+			break
+	if lake == null:
+		return
+	stage_info = si
+	DanceStage.moon_up = float(si.get("moon_up", 0.27))
+	DanceStage.moon_side = float(si.get("moon_side", 0.5))
+	DanceStage.moon_size = float(si.get("moon_size", 150.0))
+	DanceStage.lantern_keep = float(si.get("lantern_keep", 1.0))
+	DanceStage.hover_lanterns = bool(si.get("hover", true))
+	DanceStage.clear_radius = float(si.get("clear", 2.6))
+	var c0: Array = si.center
+	var cm: Array = si.cam
+	var first: WorldCharacter = null
+	for who in ds:
+		if chars.has(who):
+			if first == null:
+				first = chars[who]
+			(chars[who] as WorldCharacter).set_hair_frame("")
+	if first == null:
+		return
+	var st := DanceStage.build(lake, Vector3(float(c0[0]), float(c0[1]), float(c0[2])), float(si.get("water_y", lake.global_position.y)), [Vector3(float(cm[0]), float(cm[1]), float(cm[2]))], first)
+	for who in ds:
+		if chars.has(who) and chars[who] != first:
+			st.light_also(chars[who])

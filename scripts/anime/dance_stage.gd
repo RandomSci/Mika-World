@@ -37,6 +37,7 @@ static func build(lake_node: Node3D, at: Vector3, water: float, cams: Array, who
 	s.center = at
 	s.water_y = water
 	lake_node.add_child(s)
+	s.add_to_group("env_owner")               # (the day/night cycle leaves the look alone while the stage stands)
 	s._look()
 	s._moon(cams)
 	s._light_her(who, cams)
