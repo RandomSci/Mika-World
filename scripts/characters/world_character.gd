@@ -544,6 +544,7 @@ func _lab_hair_fix() -> void:
 ## the PBR world needs. Scale the sun's and the ambient's effect on HER materials toward a balanced anime key
 ## (effective sun ~1.35, ambient ~0.6). Called when the light changes (area load, day/night).
 var _light_balance := Vector2(-1, -1)
+var _scene_tint_key := Vector3(-1, -1, -1)
 
 func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
 	var cfg: Dictionary = Progression.mages.get(character_id, {}).get("face", {}) if Progression.mages else {}
@@ -552,9 +553,32 @@ func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
 	var ss := clampf(sun_target / maxf(sun_energy, 0.05), 0.3, 1.0) if sun_energy > 0.05 else 1.0
 	var am := clampf(amb_target / maxf(ambient_energy, 0.05), 0.35, 1.0)
 	var key := Vector2(snappedf(ss, 0.01), snappedf(am, 0.01))
-	if key == _light_balance or avatar == null:
+	# scene light match (2026-10-18, Selwyn: "she looks pasted on: flat even lighting while the world is overcast
+	# grey"): her light takes the scene's colour (the sun's and the sky's, half way to white so she stays readable)
+	# and a soft rim in the sky's colour - she sits inside the scene's light instead of on top of it
+	var tint := Color(1, 1, 1)
+	var sky := Color(0, 0, 0)
+	if not RenderProfile.options.has("no-scene-light"):
+		var env: Environment = get_world_3d().environment if get_world_3d() else null
+		var sun_col := Color(1, 1, 1)
+		for l in get_tree().root.find_children("Sun", "DirectionalLight3D", true, false):
+			if (l as DirectionalLight3D).is_visible_in_tree():
+				sun_col = (l as DirectionalLight3D).light_color
+				break
+		if env:
+			var amb := env.ambient_light_color
+			var w := clampf(ambient_energy / maxf(ambient_energy + sun_energy, 0.01), 0.0, 1.0)
+			var mixc := sun_col.lerp(amb, w)
+			var mx := maxf(mixc.r, maxf(mixc.g, mixc.b))
+			if mx > 0.001:
+				mixc = Color(mixc.r / mx, mixc.g / mx, mixc.b / mx)
+			tint = Color(1, 1, 1).lerp(mixc, float(Progression.mages.get(character_id, {}).get("face", {}).get("scene_tint", 0.5)) if Progression.mages else 0.5)
+			sky = amb * clampf(ambient_energy, 0.2, 1.2) * 0.28
+	var tkey := Vector3(snappedf(tint.r, 0.02), snappedf(tint.g, 0.02), snappedf(tint.b, 0.02))
+	if key == _light_balance and tkey == _scene_tint_key or avatar == null:
 		return
 	_light_balance = key
+	_scene_tint_key = tkey
 	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
 		var m: MeshInstance3D = mi
 		if m.mesh == null:
@@ -566,6 +590,8 @@ func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
 				if sm.get_shader_parameter("_ShadeShift") != null:
 					sm.set_shader_parameter("_CharSunScale", key.x)
 					sm.set_shader_parameter("_CharAmbientScale", key.y)
+					sm.set_shader_parameter("_CharLightTint", Vector3(tint.r, tint.g, tint.b))
+					sm.set_shader_parameter("_CharSkyRim", Vector3(sky.r, sky.g, sky.b))
 				elif sm.shader and String(sm.shader.resource_path).ends_with("natural_hair.gdshader"):
 					sm.set_shader_parameter("sun_scale", key.x)          # the hair sits in the same light key as her face
 				mat = sm.next_pass

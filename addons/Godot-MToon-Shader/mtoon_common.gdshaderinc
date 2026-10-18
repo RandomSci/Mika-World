@@ -86,6 +86,11 @@ uniform float _Vrm1Lighting : hint_range(0,1,1) = 0.0;
 // (via AO, which only affects indirect light) for the avatar's own materials. 1.0 = unchanged.
 uniform float _CharSunScale = 1.0;
 uniform float _CharAmbientScale = 1.0;
+// scene light match (2026-10-18): the scene's light colour on the character (overcast grey, golden hour, night blue)
+uniform vec3 _CharLightTint = vec3(1.0);
+// a soft sky rim in the scene's sky colour (anime "sits in the light" edge); 0 = off
+uniform vec3 _CharSkyRim = vec3(0.0);
+uniform float _CharSkyRimPower = 3.0;
 
 uniform float _MToonVersion = 33;
 
@@ -411,6 +416,11 @@ void light() {
 			diffuse_output = addLightIntensity;
 		}
 		SPECULAR_LIGHT = vec3(0.0);
+	}
+	diffuse_output *= _CharLightTint;
+	if (LIGHT_IS_DIRECTIONAL && dot(_CharSkyRim, vec3(1.0)) > 0.0) {
+		float skyRim = pow(clamp(1.0 - dot(viewNormal, normalize(VIEW)), 0.0, 1.0), _CharSkyRimPower);
+		SPECULAR_LIGHT += mix(_CharSkyRim * skyRim, vec3(0.0), isOutline);
 	}
 	DIFFUSE_LIGHT += diffuse_output / fragment_albedo_output;
 }
