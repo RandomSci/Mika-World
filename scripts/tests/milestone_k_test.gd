@@ -181,6 +181,7 @@ func _run() -> void:
 		"dresstest": await _dresstest()
 		"skinprobe": await _skinprobe()
 		"benchscan": await _benchscan()
+		"screenfx": await _screenfx()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7100,4 +7101,61 @@ func _benchscan() -> void:
 		pin.look = sp + Vector3(0, 0.6, 0)
 		await _wait(1.0)
 		_shot("dir%d" % k)
+	pin.active = false
+
+
+## The screen-effect stack, one effect at a time on Luna in the meadow (medium shot), each photographed at its peak for
+## the side-by-side against its reference frame. Record with --write-movie for the motion.
+func _screenfx() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = luna.get_world_3d().navigation_map
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+		main.teleport_guard.allow(mika)
+	luna.stop_action()
+	luna.global_position = spot + Vector3(0, 0.05, 0)
+	luna.rotation.y = 0.0
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, spot + Vector3(14, 0, 14)) + Vector3(0, 0.05, 0)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.pos = spot + Vector3(0.6, 1.45, -2.4)
+	pin.look = spot + Vector3(0, 1.1, 0)
+	pin.fov = 40.0
+	pin.active = true
+	await _wait(2.5)
+	_shot("00_plain")
+	var fx := ScreenFX.get_for(self)
+	var steps := [
+		["01_speed_lines", func(): fx.speed_lines(1.0, 1.4), 0.5],
+		["02_zoom_blur", func(): fx.zoom_blur(1.0, 1.0), 0.3],
+		["03_chroma", func(): fx.chroma(1.0, 1.0), 0.05],
+		["04_flash_burst", func(): fx.flash_seq([["burst", 8]], 0.6), 0.1],
+		["05_flash_invert", func(): fx.flash_seq([["invert", 8]]), 0.1],
+		["06_flash_white_burst", func(): fx.flash_seq([["burst_white", 8]], -0.5), 0.1],
+		["07_wash_red", func(): fx.wash(Color(1.0, 0.08, 0.18), 0.75, 0.15, 1.0, 0.4), 0.5],
+		["08_wash_violet", func(): fx.wash(Color(0.48, 0.24, 1.0), 0.6, 0.15, 1.0, 0.4), 0.5],
+		["09_speed_lines_chroma_zoom", func(): fx.speed_lines(1.0, 1.2); fx.zoom_blur(0.8, 1.2); fx.chroma(0.8, 1.2), 0.4],
+	]
+	for st in steps:
+		(st[1] as Callable).call()
+		await _wait(float(st[2]))
+		_shot(String(st[0]))
+		await _wait(1.6)
+	# the impact sequence in motion (for the recording): freeze, flashes, chroma, shake, then slow motion
+	fx.impact(1.0)
+	await _wait(0.2)
+	fx.slow_mo(0.3, 1.0)
+	await _wait(2.5)
+	_check(Engine.time_scale > 0.9, "time scale back to normal after the freeze and slow motion", Engine.time_scale)
 	pin.active = false
