@@ -18,6 +18,12 @@ var _water_mm: MultiMesh
 var _water_base: Array = []            # [index, Transform3D, delay, height]
 var _hover: Array = []                 # {node, base, seed, rise}
 var _lift_t := -1.0
+var _moon_dir := Vector3.ZERO
+var moon_node: MeshInstance3D
+static var moon_up := 0.27              # the moon's place and size (the MV: higher and bigger, an anime moon)
+static var moon_side := 0.5
+static var moon_size := 150.0
+var _shimmer: MeshInstance3D
 var _t := 0.0
 
 
@@ -88,11 +94,11 @@ func _moon(cams: Array) -> void:
 	look.y = 0.0
 	look = look.normalized()
 	var side := look.cross(Vector3.UP).normalized()
-	var dir := (look - side * 0.5 + Vector3.UP * 0.27).normalized()
+	var dir := (look - side * moon_side + Vector3.UP * moon_up).normalized()
 	var mi := MeshInstance3D.new()
 	mi.name = "Moon"
 	var q := QuadMesh.new()
-	q.size = Vector2(150, 150)
+	q.size = Vector2(moon_size, moon_size)
 	mi.mesh = q
 	var m := ShaderMaterial.new()
 	m.shader = load("res://shaders/anime/dance/moon.gdshader")
@@ -105,6 +111,28 @@ func _moon(cams: Array) -> void:
 		(rc as Camera3D).cull_mask &= ~MOON_LAYER
 	add_child(mi)
 	mi.global_position = center + dir * 600.0
+	_moon_dir = dir
+	moon_node = mi
+	# its reflection: a soft broken column of light on the water under it (the mirror never sees the disc itself)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in 48:
+		var z := 8.0 * pow(450.0 / 8.0, i / 47.0)
+		var w := 0.6 + 0.07 * z
+		st.set_uv(Vector2(0.0, i / 47.0))
+		st.add_vertex(Vector3(-w, 0.0, z))
+		st.set_uv(Vector2(1.0, i / 47.0))
+		st.add_vertex(Vector3(w, 0.0, z))
+	_shimmer = MeshInstance3D.new()
+	_shimmer.name = "MoonShimmer"
+	_shimmer.mesh = st.commit()
+	var sm := ShaderMaterial.new()
+	sm.shader = load("res://shaders/anime/dance/moon_shimmer.gdshader")
+	_shimmer.material_override = sm
+	_shimmer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_shimmer.layers = MOON_LAYER
+	_shimmer.extra_cull_margin = 500.0
+	add_child(_shimmer)
 
 
 ## Her light: a neutral moon key from the front-left and a warm lantern bounce from below the lens, on her alone, so
@@ -140,6 +168,12 @@ func _light_her(who: WorldCharacter, cams: Array) -> void:
 	warm.global_position = center + to_cam * 1.1 - side * 0.6 + Vector3.UP * 0.35
 
 
+## A second dancer in her own key light too.
+func light_also(who: WorldCharacter) -> void:
+	for n in who.find_children("*", "VisualInstance3D", true, false):
+		(n as VisualInstance3D).layers |= CHAR_LAYER
+
+
 func _lanterns(cams: Array) -> void:
 	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
 		var g := n as GeometryInstance3D
@@ -157,7 +191,7 @@ func _lanterns(cams: Array) -> void:
 		for i in _water_mm.instance_count:
 			var t := _water_mm.get_instance_transform(i)
 			var p := gx * t.origin
-			var hide := Vector2(p.x - center.x, p.z - center.z).length() < 1.8 or randf() < 0.45
+			var hide := Vector2(p.x - center.x, p.z - center.z).length() < 2.6 or randf() < 0.45
 			for c in cams:
 				var cp: Vector3 = c
 				if _seg_dist(Vector2(p.x, p.z), Vector2(cp.x, cp.z), Vector2(center.x, center.z)) < 1.7 or Vector2(p.x - cp.x, p.z - cp.z).length() < 3.0:
@@ -213,6 +247,8 @@ func _seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
 
 ## The finale: every lantern lifts off and burns brighter.
 func lift() -> void:
+	if _lift_t >= 0.0:
+		return                          # (both dancers call it: once)
 	_lift_t = 0.0
 	for m in lantern_mats:
 		var sm := m as ShaderMaterial
@@ -237,6 +273,10 @@ func flare(strength := 1.0) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	var cam := get_viewport().get_camera_3d()
+	if _shimmer and cam:
+		var flat := Vector3(_moon_dir.x, 0.0, _moon_dir.z).normalized()
+		_shimmer.global_transform = Transform3D(Basis.looking_at(-flat, Vector3.UP), Vector3(cam.global_position.x, water_y + 0.006, cam.global_position.z))
 	for h in _hover:
 		var n: Node3D = h.node
 		var up := 0.0

@@ -25,6 +25,11 @@ var stage: DanceStage
 var spin_dir := 1.0                     # +1 = her yaw increasing
 var ripple_every := 0.0                 # seconds between rings under her standing foot (0 = off)
 var ring_colors := [GOLD, VIOLET]
+var ambient := true                     # the motes, glints and petals (one dancer carries them in a duet)
+var level := 0.5                        # how much is going on (the music's energy): 0.2 a quiet verse .. 1.2 a chorus
+var ring_scale := 1.0                   # ripple size (smaller in a duet, so the two sets don't tile the lake)
+var _aura: Array = []                   # the light ribbons that coil round her the whole dance
+var _ambient_nodes: Array = []
 var _probe: DanceProbe
 var _trails: Array = []                 # {src, hist, im, mat, w, len, live, temp}
 var _hands := {}                        # bone -> {trail, dust, prev}
@@ -53,12 +58,13 @@ class DanceProbe extends SkeletonModifier3D:
 				pos[names[i]] = g * sk.get_bone_global_pose(int(_ids[i])).origin
 
 
-static func attach(ch: WorldCharacter, water := -INF, stage_node: DanceStage = null) -> DanceFX:
+static func attach(ch: WorldCharacter, water := -INF, stage_node: DanceStage = null, ambient := true) -> DanceFX:
 	var d := DanceFX.new()
 	d.name = "DanceFX"
 	d.c = ch
 	d.water_y = water
 	d.stage = stage_node
+	d.ambient = ambient
 	ch.get_parent().add_child(d)
 	d._build()
 	return d
@@ -183,6 +189,9 @@ func _build() -> void:
 			t.live = false
 			_hem.append(t)
 	# always on: warm bokeh motes, small violet glints, petals - round her and across the frame
+	if not ambient:
+		print("[dancefx] %d ribbons, dust (no ambient)" % _trails.size())
+		return
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	pm.emission_box_extents = Vector3(3.6, 1.6, 1.6)
@@ -234,6 +243,7 @@ func _build() -> void:
 	petals.name = "Petals"
 	for p in [motes, glints, petals]:
 		p.set_meta("follow", true)
+	_ambient_nodes = [motes, glints, petals]
 	print("[dancefx] %d ribbons, dust, motes, glints, petals" % _trails.size())
 
 
@@ -254,9 +264,36 @@ func spiral(dur: float, n := 3, radius := 0.62) -> void:
 			t.live = false)
 
 
+## The light ribbons that coil round her through the whole dance (n of them): slow and faint in a verse, fast and
+## bright on a chorus (level).
+func aura(n := 2) -> void:
+	for k in n:
+		var s := {"t0": _now, "dur": 1.0e9, "phase": TAU * k / n + 0.7, "r": 0.58 + 0.08 * k, "hf": 1.3 + 0.5 * k,
+			"lo": [0.45, 0.85][k % 2], "hi": [1.3, 0.35][k % 2], "aura": true, "ang": 0.0}
+		var col: Color = [VIOLET, GOLD][k % 2]
+		s["trail"] = _trail(_spiral_point.bind(s), col, 0.03, 34, Color(1.0, 0.95, 0.85), 2.0)
+		s["dust"] = _dust(col, 90)
+		_aura.append(s)
+
+
+func set_level(v: float) -> void:
+	level = v
+	for n in _ambient_nodes:
+		(n as GPUParticles3D).amount_ratio = clampf(0.45 + 0.55 * v, 0.2, 1.0)
+	for s in _aura:
+		((s.trail as Dictionary).mat as ShaderMaterial).set_shader_parameter("fade_all", clampf(0.25 + 0.75 * v, 0.15, 1.3))
+		(s.dust as GPUParticles3D).amount_ratio = clampf(0.15 + 0.85 * v, 0.1, 1.0)
+
+
 func _spiral_point(s: Dictionary) -> Vector3:
 	var t := _now - float(s.t0)
 	var grow := smoothstep(0.0, 0.5, t) * (1.0 - 0.35 * smoothstep(float(s.dur) - 0.6, float(s.dur), t))
+	if s.has("aura"):
+		s.ang = float(s.ang) + spin_dir * get_process_delta_time() * lerpf(1.6, 6.0, clampf(level, 0.0, 1.2) / 1.2)
+		var ra := float(s.r) * (1.0 + 0.1 * sin(t * 1.7 + float(s.phase)))
+		var ha := lerpf(float(s.lo), float(s.hi), 0.5 + 0.5 * sin(t * float(s.hf) + float(s.phase)))
+		var aa := float(s.phase) + float(s.ang)
+		return c.global_position + Vector3(cos(aa) * ra, ha, -sin(aa) * ra)
 	var a := float(s.phase) + spin_dir * t * 7.2
 	var r := float(s.r) * (0.35 + 0.65 * grow) * (1.0 + 0.12 * sin(t * 2.1 + float(s.phase)))
 	var h := lerpf(float(s.lo), float(s.hi), 0.5 + 0.5 * sin(t * float(s.hf) + float(s.phase)))
@@ -510,6 +547,8 @@ func _process(delta: float) -> void:
 	for n in get_children():
 		if n.has_meta("follow"):
 			(n as Node3D).global_position = hips + Vector3(0, 0.55, 0)
+		elif n.has_meta("follow_cam") and cam:
+			(n as Node3D).global_position = cam.global_position - cam.global_basis.z * 1.6
 	# hands: dust in proportion to how fast the hand moves
 	for hb in _hands:
 		var h: Dictionary = _hands[hb]
@@ -517,12 +556,14 @@ func _process(delta: float) -> void:
 		var spd := 0.0 if h.prev == Vector3.INF else (p - (h.prev as Vector3)).length() / maxf(delta, 0.001)
 		h.prev = p
 		(h.dust as GPUParticles3D).global_position = p
-		(h.dust as GPUParticles3D).amount_ratio = clampf((spd - 0.4) / 2.5, 0.0, 1.0)
+		(h.dust as GPUParticles3D).amount_ratio = maxf(clampf((spd - 0.4) / 2.5, 0.0, 1.0), 0.3 * level)
 		(h.dust as GPUParticles3D).emitting = true
-		var vis := clampf((spd - 0.6) / 1.6, 0.0, 1.0)
+		var vis := maxf(clampf((spd - 0.6) / 1.6, 0.0, 1.0), clampf(0.2 + 0.5 * level, 0.0, 0.8))
 		h.vis = lerpf(float(h.get("vis", 0.0)), vis, 0.12 if vis < float(h.get("vis", 0.0)) else 0.5)
 		((h.trail as Dictionary).mat as ShaderMaterial).set_shader_parameter("fade_all", float(h.vis) if not (h.trail as Dictionary).get("arc", false) else 1.0)
 	# spirals: their dust follows their heads; finished ones stop and let the ribbon run out
+	for s in _aura:
+		(s.dust as GPUParticles3D).global_position = _spiral_point(s)
 	for s in _spirals.duplicate():
 		var head := _spiral_point(s)
 		(s.dust as GPUParticles3D).global_position = head
@@ -540,7 +581,7 @@ func _process(delta: float) -> void:
 			var fp := bone(fb)
 			var down := fp.y - water_y < 0.07
 			if down and not bool(_feet.get(fb, true)):
-				rings(fp, 0.9, 2)
+				rings(fp, 0.9 * ring_scale, 2)
 			_feet[fb] = down
 		if ripple_every > 0.0:
 			_since_ring += delta
@@ -548,7 +589,7 @@ func _process(delta: float) -> void:
 				_since_ring = 0.0
 				var lo := bone("LeftToes")
 				var ro := bone("RightToes")
-				rings(lo if lo.y < ro.y else ro, 1.3, 1)
+				rings(lo if lo.y < ro.y else ro, 1.3 * ring_scale, 1)
 
 
 func _draw_trail(t: Dictionary, cam: Camera3D) -> void:
@@ -597,3 +638,36 @@ func _draw_trail(t: Dictionary, cam: Camera3D) -> void:
 		im.surface_set_uv(Vector2(u, 1.0))
 		im.surface_add_vertex(a - side)
 	im.surface_end()
+
+
+## Petals swirling round the lens (the MV): a few big soft petals just in front of the camera, circling it.
+func camera_petals() -> GPUParticles3D:
+	var pp := ParticleProcessMaterial.new()
+	pp.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pp.emission_sphere_radius = 1.4
+	pp.gravity = Vector3(0, -0.15, 0)
+	pp.initial_velocity_min = 0.1
+	pp.initial_velocity_max = 0.35
+	pp.spread = 180.0
+	pp.tangential_accel_min = 0.6
+	pp.tangential_accel_max = 1.2
+	pp.radial_accel_min = -0.3
+	pp.radial_accel_max = -0.1
+	pp.angular_velocity_min = -90.0
+	pp.angular_velocity_max = 90.0
+	pp.angle_min = -180.0
+	pp.angle_max = 180.0
+	pp.turbulence_enabled = true
+	pp.turbulence_noise_strength = 0.6
+	pp.color_ramp = _fade_ramp(0.15, 0.75)
+	pp.scale_min = 0.7
+	pp.scale_max = 1.4
+	var petal_m := ShaderMaterial.new()
+	petal_m.shader = load("res://shaders/anime/dance/petal.gdshader")
+	petal_m.set_shader_parameter("color", PETAL)
+	petal_m.set_shader_parameter("glow", 0.95)
+	var p := _particles(26, 5.0, pp, _quad(Vector2(0.05, 0.05), petal_m))
+	p.preprocess = 5.0
+	p.set_meta("follow_cam", true)
+	p.name = "CameraPetals"
+	return p

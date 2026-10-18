@@ -190,6 +190,8 @@ func _run() -> void:
 		"motionshots": await _motionshots()
 		"daylapse": await _daylapse()
 		"lakedance": await _lakedance()
+		"clipreel": await _clipreel()
+		"lakemv": await _lakemv()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7999,11 +8001,10 @@ func _daylapse() -> void:
 	pin.active = false
 
 
-## Luna dances on the Lantern Lake water at night (Selwyn's targets T1 spin, T2 pose, T3 finale, 2026-10-19): a
-## moonlit navy sky, golden lanterns on the water and in the air (DanceStage), real 3D effects on her body (DanceFX)
-## and held poses (PoseAim). A straight camera, her whole figure in frame, no screen wash, no blur. ~21 s; record
-## with --write-movie and run with --no-scene-light (her own neutral key instead of the scene tint).
-func _lakedance() -> void:
+## The lake set for the dances: both mages on the Lantern Lake water at night, physics off, facing the lens (+Z of
+## the clear lane in the floating lanterns), the stage dressed (DanceStage), the camera pinned. who: ids to place,
+## with sideways offsets in metres. Returns {lake, spot, water_y, stage, pin, chars}.
+func _lake_setup(who: Dictionary) -> Dictionary:
 	await _hold_all()
 	await _force_luna_l1()
 	for w in main.mage_brains:
@@ -8011,7 +8012,6 @@ func _lakedance() -> void:
 	main.director.enabled = false
 	main.spawner.enabled = false
 	var luna: WorldCharacter = main.characters["luna"]
-	var mika: WorldCharacter = main.characters["mika"]
 	var tr: Dictionary = await main.streaming.travel("lantern_lake", luna, false)
 	_check(main.streaming.current_id == "lantern_lake", "at Lantern Lake (%s)" % str(tr).left(120))
 	if main.day_night:
@@ -8027,41 +8027,42 @@ func _lakedance() -> void:
 			break
 	_check(lake != null, "the lake node")
 	if lake == null:
-		return
-	mika.visible = false
+		return {}
 	var water_y: float = lake.global_position.y
 	var spot: Vector3 = lake.to_global(Vector3(-1.5, 0.0, -9.0))      # the clear lane in the floating lanterns
 	spot.y = water_y
-	if main.teleport_guard:
-		main.teleport_guard.allow(luna)
-	luna.stop_action()
-	luna.set_physics_process(false)
-	luna.visible = true                              # (the area change parks every mage but the focus)
-	luna.global_position = spot
-	luna.swap_avatar(luna.avatar_path)              # (springs start where she stands)
+	var chars := {}
+	for id in main.characters:
+		var c: WorldCharacter = main.characters[id]
+		if not who.has(id):
+			c.visible = false
+			continue
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+		c.stop_action()
+		c.set_physics_process(false)
+		c.visible = true                              # (the area change parks every mage but the focus)
+		c.global_position = spot + Vector3(float(who[id]), 0, 0)
+		c.swap_avatar(c.avatar_path)                  # (springs start where she stands)
+		chars[id] = c
 	await _wait(0.5)
-	# face the lens: her forward (foot -> toes in the rest pose) turned toward +Z, where the camera stands
-	var cam_dir := Vector3(0, 0, 1)
-	var sk := luna.skeleton
-	var toe := sk.global_basis * (sk.get_bone_global_rest(sk.find_bone("LeftToes")).origin - sk.get_bone_global_rest(sk.find_bone("LeftFoot")).origin)
-	toe.y = 0.0
-	luna.rotation.y += toe.normalized().signed_angle_to(cam_dir, Vector3.UP)
-	var yaw0 := luna.rotation.y
+	for id in chars:
+		var c: WorldCharacter = chars[id]
+		var sk := c.skeleton
+		var toe := sk.global_basis * (sk.get_bone_global_rest(sk.find_bone("LeftToes")).origin - sk.get_bone_global_rest(sk.find_bone("LeftFoot")).origin)
+		toe.y = 0.0
+		c.rotation.y += toe.normalized().signed_angle_to(Vector3(0, 0, 1), Vector3.UP)
 	await _wait(1.0)
 	if main.get("subtitle") and main.subtitle:
 		main.subtitle.visible = false
 	var cams := []
 	for k in 5:
 		var ang := deg_to_rad(lerpf(-12.0, 12.0, k / 4.0))
-		cams.append(spot + Vector3(sin(ang), 0, cos(ang)) * 3.7 + Vector3(0, 0.9, 0))
-	var stage := DanceStage.build(lake, spot, water_y, cams, luna)
-	var fx := DanceFX.attach(luna, water_y, stage)
-	var poses := {}
-	for pn in ["spin", "reach", "open"]:
-		poses[pn] = PoseAim.make(luna.skeleton, pn)
-	var blend := func(pn: String, to: float, dur: float) -> void:
-		var tw := luna.create_tween()
-		tw.tween_property(poses[pn], "influence", to, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		cams.append(spot + Vector3(sin(ang), 0, cos(ang)) * 3.9 + Vector3(0, 0.9, 0))
+	var stage := DanceStage.build(lake, spot, water_y, cams, chars.values()[0])
+	for id in chars:
+		if id != chars.keys()[0]:
+			stage.light_also(chars[id])
 	for g in get_tree().root.find_children("FramingGuard", "", true, false):
 		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
 	var pin := CameraPin.new()
@@ -8072,74 +8073,486 @@ func _lakedance() -> void:
 	pin.fov = 40.0
 	pin.roll = 0.0
 	pin.active = true
-	fx.ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
-	fx.ripple_every = 0.9
+	return {"lake": lake, "spot": spot, "water_y": water_y, "stage": stage, "pin": pin, "chars": chars}
+
+
+## Each dancer's stack for the lake dances: the six-clip deck first, then the softness pass, then the belt cords.
+func _dance_stack(c: WorldCharacter) -> DanceDeck:
+	var d := DanceDeck.make(c.skeleton)
+	SoftArms.make(c.skeleton, 1)
+	TasselSway.make(c.skeleton, 2)
+	return d
+
+
+## QA reel: Luna alone on the lake plays each of Selwyn's six dance clips through once (deck + softness + cords), a
+## straight full-figure camera - to choose the routine's pieces. --reel-clips=a,b (default: all six).
+func _clipreel() -> void:
+	var set := await _lake_setup({"luna": 0.0})
+	if set.is_empty():
+		return
+	var luna: WorldCharacter = set.chars["luna"]
+	var deck := _dance_stack(luna)
+	var pin: CameraPin = set.pin
+	var spot: Vector3 = set.spot
+	pin.pos = spot + Vector3(0, 0.9, 3.4)
+	pin.look = spot + Vector3(0, 0.95, 0)
+	var list := String(RenderProfile.options.get("reel-clips", "dancing_a,dancing_b,bellydancing,belly_dance,rumba,samba")).split(",")
+	deck.influence = 1.0
+	for clip in list:
+		var L := DanceDeck.clip_length(clip)
+		deck.play(clip, 0.0, 1.0, 0.01)
+		print("[clipreel] %s at %.2f for %.2fs" % [clip, _game_t, L])
+		await _wait(minf(L, 26.0))
+
+
+## The lake duet (Selwyn, 2026-10-19): Mika and Luna dance on the Lantern Lake water to the first chorus of
+## 月夜灯火, using ONLY his six Mixamo dance clips (DanceDeck) - no other motion, no code-made poses - with the
+## softness pass on wrists, fingers and elbows, the belt cords shortened and swinging, the dance effects on both
+## (ribbons, spirals on their turns, arcs, rings, the finale), the moon's shimmer on the water. Straight camera,
+## both full figures. Record with --write-movie; run with --no-scene-light.
+func _lakedance() -> void:
+	var set := await _lake_setup({"luna": -0.85, "mika": 0.85})
+	if set.is_empty():
+		return
+	var luna: WorldCharacter = set.chars["luna"]
+	var mika: WorldCharacter = set.chars["mika"]
+	var spot: Vector3 = set.spot
+	var pin: CameraPin = set.pin
+	var stage: DanceStage = set.stage
+	var decks := {"luna": _dance_stack(luna), "mika": _dance_stack(mika)}
+	var fxs := {"luna": DanceFX.attach(luna, set.water_y, stage, true), "mika": DanceFX.attach(mika, set.water_y, stage, false)}
+	for id in fxs:
+		fxs[id].ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
+		fxs[id].ripple_every = 1.3
+	var steps: Array = ROUTINE
 	var t0 := _game_t
 	var done := {}
-	var at := func(k: String, t: float) -> bool:
-		if done.has(k) or _game_t - t0 < t:
-			return false
-		done[k] = true
-		return true
-	var sway := 0.0
-	while _game_t - t0 < 22.0:
+	var last_turn := {"luna": -9.0, "mika": -9.0}
+	var last_arc := {"luna": -9.0, "mika": -9.0}
+	var prev_yaw := {}
+	var prev_hand := {}
+	var dur := float(steps[steps.size() - 1][0]) + 2.0
+	print("[lakedance] routine %.1fs, song from %.2fs, t0 frame %d" % [dur, SONG_FROM, Engine.get_frames_drawn()])
+	var cam_mode := String(RenderProfile.options.get("lake-cam", "wide"))
+	var look_s := Vector3.ZERO
+	while _game_t - t0 < dur:
 		await get_tree().process_frame
 		var t := _game_t - t0
 		if main.get("subtitle") and main.subtitle:
 			main.subtitle.visible = false
-		# the camera: straight (no roll), low near the water, her whole figure; a slow drift across, easing back
-		# a little before the finale so the burst fits
-		var ang := deg_to_rad(lerpf(-10.0, 10.0, t / 22.0))
-		var dist := lerpf(3.35, 4.0, smoothstep(12.5, 15.2, t))
-		var look_y := lerpf(0.98, 1.2, smoothstep(12.5, 15.2, t))
-		pin.pos = spot + Vector3(sin(ang), 0, cos(ang)) * dist + Vector3(0, 0.9, 0)
-		pin.look = spot + Vector3(0, look_y, 0)
-		# T1: the double spin with the ribbons coiling round her
-		if at.call("spin_pose", 1.2):
-			blend.call("spin", 1.0, 0.6)
-		if at.call("spin", 1.6):
-			var tw := luna.create_tween()
-			tw.tween_property(luna, "rotation:y", yaw0 + TAU * 2.0, 4.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			fx.spin_dir = 1.0
-			fx.spiral(4.6, 3)
-			fx.ring_colors = [DanceFX.GOLD, DanceFX.VIOLET]
-			fx.ripple_every = 0.7
-		if at.call("spin_end", 6.0):
-			fx.burst(1.0)
-			fx.ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
-			fx.ripple_every = 0.85
-		# T2: the arm sweeps up (one gold arc), the leg draws up, she holds and sways a little
-		if at.call("reach", 6.4):
-			blend.call("spin", 0.0, 0.8)
-			blend.call("reach", 1.0, 1.1)
-			fx.arc("RightHand", 1.6)
-		if t > 7.5 and t < 12.4:
-			sway = deg_to_rad(6.0) * sin((t - 7.5) * 1.1)
-			luna.rotation.y = yaw0 + TAU * 2.0 + sway
-		if at.call("tw1", 9.6):
-			fx.twinkle("RightHand")
-		if at.call("tw2", 11.4):
-			fx.twinkle("RightHand")
-		# the turn back: a single spin into the finale
-		if at.call("turn", 12.6):
-			blend.call("reach", 0.0, 0.7)
-			blend.call("spin", 1.0, 0.7)
-			var tw2 := luna.create_tween()
-			tw2.tween_property(luna, "rotation:y", yaw0 + TAU * 3.0, 2.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			fx.spiral(2.5, 2)
-			fx.ring_colors = [DanceFX.GOLD, DanceFX.VIOLET]
-			fx.ripple_every = 0.7
-		# T3: arms open wide, the burst ring, the splash crown, the lanterns lift
-		if at.call("open", 15.0):
-			blend.call("spin", 0.0, 0.5)
-			blend.call("open", 1.0, 0.6)
-			fx.ripple_every = 0.0
-		if at.call("finale", 15.6):
-			fx.finale()
-			fx.ring_colors = [DanceFX.GOLD, DanceFX.ICE]
-		if at.call("ripples_late", 17.0):
-			fx.ripple_every = 0.75
-		for k in [["s1", 3.6], ["s2", 9.0], ["s3", 16.2]]:
-			if at.call(String(k[0]), float(k[1])):
-				_shot(String(k[0]))
+		# the camera: straight, low by the water, both full figures; a slow drift across
+		var ang := deg_to_rad(lerpf(-8.0, 8.0, t / dur))
+		if cam_mode == "hands":
+			# a close look at Luna's hands and arms: framed on her chest and both hands, following them softly
+			var lf: DanceFX = fxs["luna"]
+			var want := (lf.bone("RightHand") + lf.bone("LeftHand") + lf.bone("Chest") * 2.0) / 4.0
+			look_s = want if look_s == Vector3.ZERO else look_s.lerp(want, 0.08)
+			pin.fov = 34.0
+			pin.pos = look_s + Vector3(sin(ang) * 0.4, -0.05, 1.75)
+			pin.look = look_s
+		else:
+			var dist := lerpf(3.9, 4.3, smoothstep(dur - 9.0, dur - 6.0, t))
+			pin.pos = spot + Vector3(sin(ang), 0, cos(ang)) * dist + Vector3(0, 0.9, 0)
+			pin.look = spot + Vector3(0, lerpf(1.0, 1.15, smoothstep(dur - 9.0, dur - 6.0, t)), 0)
+		# the routine: [time, who ("both"/id), clip, start in clip, speed, fade] and the effect cues
+		for i in steps.size():
+			var st: Array = steps[i]
+			if done.has(i) or t < float(st[0]):
+				continue
+			done[i] = true
+			var who: String = st[2] if st[1] == "fx" else st[1]
+			if st[1] == "fx":
+				for id in fxs:
+					if who == "both" or who == id:
+						match String(st[3]):
+							"burst": fxs[id].burst(float(st[4]))
+							"finale": fxs[id].finale()
+							"rings_gold":
+								fxs[id].ring_colors = [DanceFX.GOLD, DanceFX.VIOLET]
+								fxs[id].ripple_every = float(st[4])
+							"rings_ice":
+								fxs[id].ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
+								fxs[id].ripple_every = float(st[4])
+				continue
+			for id in decks:
+				if who == "both" or who == id:
+					var deck: DanceDeck = decks[id]
+					if deck.influence < 1.0:
+						var tw := create_tween()
+						tw.tween_property(deck, "influence", 1.0, float(st[5]))
+					deck.play(String(st[2]), float(st[3]), float(st[4]), float(st[5]))
+		# effects that follow their own motion: a spiral on every fast turn, a gold arc when a hand sweeps up high
+		for id in decks:
+			var c: WorldCharacter = set.chars[id]
+			var fx: DanceFX = fxs[id]
+			var hips := c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Hips")).basis * Vector3(0, 0, 1)
+			var yaw := atan2(hips.x, hips.z)
+			if prev_yaw.has(id):
+				var rate := absf(angle_difference(float(prev_yaw[id]), yaw)) / maxf(get_process_delta_time(), 0.001)
+				if rate > deg_to_rad(120.0) and t - float(last_turn[id]) > 2.2 and t > 1.0:
+					last_turn[id] = t
+					fx.spin_dir = signf(angle_difference(float(prev_yaw[id]), yaw))
+					fx.spiral(1.8, 2, 0.55)
+			prev_yaw[id] = yaw
+			for hb in ["RightHand", "LeftHand"]:
+				var hp := fx.bone(hb)
+				var head := fx.bone("Head")
+				var key: String = id + hb
+				if prev_hand.has(key):
+					var vy := (hp.y - float(prev_hand[key])) / maxf(get_process_delta_time(), 0.001)
+					if hp.y > head.y + 0.05 and vy > 0.9 and t - float(last_arc[id]) > 2.5:
+						last_arc[id] = t
+						fx.arc(hb, 1.3)
+				prev_hand[key] = hp.y
+		for k in SHOTS:
+			if at_once(done, "shot" + str(k), t >= float(k)):
+				_shot("lake_%s" % str(k))
 	pin.active = false
+
+
+func at_once(done: Dictionary, key: String, cond: bool) -> bool:
+	if not cond or done.has(key):
+		return false
+	done[key] = true
+	return true
+
+
+const SONG_FROM := 57.93          # the routine's t = 0 in 月夜灯火 (two beats before the first chorus, 59.26)
+const SHOTS := []
+## [t, who, clip, start s in the clip, speed, crossfade s] - and [t, who, "fx", cue, value]. Bars of the first chorus
+## (from the song map's beats, t = song - 57.93): 1.33 3.93 6.53 9.15 11.75 14.38 16.98 19.58 22.2 24.8 27.4 29.98,
+## the chorus ends at 32.63. Pieces chosen from the reel of the six clips (2026-10-19).
+const ROUTINE := [
+	# in unison: arms rising slowly over their heads (belly dance)
+	[0.0, "both", "belly_dance", 1.0, 0.9, 1.0],
+	# side by side, each her own: Luna's arms frame her face (dancing), Mika's arm lifts high (belly dancing)
+	[6.53, "fx", "both", "burst", 0.6],
+	[6.53, "luna", "dancing_a", 2.0, 0.95, 1.2],
+	[6.53, "mika", "bellydancing", 0.5, 0.95, 1.2],
+	# the turn, in canon: Luna first, Mika one beat behind
+	[11.75, "fx", "both", "rings_gold", 0.8],
+	[11.75, "luna", "dancing_a", 7.0, 1.0, 1.0],
+	[12.4, "mika", "dancing_a", 7.0, 1.0, 1.0],
+	# contrast: Luna's arms sway overhead (rumba), Mika's hands circle (samba)
+	[16.98, "fx", "both", "rings_ice", 1.0],
+	[16.98, "luna", "rumba", 0.0, 0.9, 1.2],
+	[16.98, "mika", "samba", 6.0, 0.9, 1.2],
+	# together again: arms open wide and swaying (belly dancing)
+	[22.2, "fx", "both", "burst", 0.8],
+	[22.2, "both", "bellydancing", 18.0, 0.95, 1.2],
+	# the lift: both arms up (dancing)
+	[24.8, "fx", "both", "rings_gold", 0.7],
+	[24.8, "both", "dancing_b", 0.0, 0.85, 1.0],
+	# arms rising over their heads into the last bar, and the finale on its downbeat
+	[27.4, "both", "belly_dance", 12.5, 0.9, 1.0],
+	[29.98, "fx", "both", "finale", 0.0],
+	[31.0, "fx", "both", "rings_gold", 0.9],
+	[33.0, "fx", "both", "rings_gold", 0.9],
+]
+
+
+# ------------------------------------------------------------------------------------------------- the lake MV
+## The lake duet as an anime MV (Selwyn, 2026-10-19: "rebuild the camera as a cinematic anime MV"): a Phantom Camera
+## shot list cut on the song map's beats (no shot over ~4.6 s), slow motion on key moves, depth of field, the MV grade,
+## lens flare and light sweeps off the moon, shake on the big beats, a white flash on the chorus drop; the effects
+## follow the music (quiet verse, chorus explodes), petals swirl round the lens, the lanterns rise on the chorus.
+## Dancing: only Selwyn's six clips (DanceDeck) + the softness pass + the swinging belt cords. Song time runs on the
+## frame count (30 fps), so the cut stays on the music whatever slow motion does to the world.
+const MV_FROM := 38.33             # song time at the first frame (2 s pre-roll; the clip is cut from 40.33)
+const MV_TO := 70.5
+const MV_SHOTS := [                # [song t, kind, who, tween s (0 = cut, > 0 = a whip pan)]
+	[38.33, "crane", "both", 0.0],
+	[44.91, "hand_ecu", "luna", 0.0],
+	[47.51, "face_cu", "luna", 0.0],
+	[50.13, "ots", "mika", 0.0],
+	[52.73, "feet", "luna", 0.0],
+	[54.03, "hair_slow", "mika", 0.0],
+	[56.63, "push_pose", "luna", 0.0],
+	[58.58, "push_pose", "mika", 0.2],
+	[59.26, "hero_low", "both", 0.0],
+	[61.86, "orbit", "both", 0.0],
+	[65.76, "face_cu", "mika", 0.0],
+	[67.08, "push_both", "both", 0.2],
+]
+const MV_ROUTINE := [              # [song t, who, clip, start s, speed, fade s]
+	[38.33, "both", "dancing_a", 9.2, 0.9, 0.6],
+	[44.91, "luna", "bellydancing", 0.5, 0.95, 0.9],
+	[44.91, "mika", "dancing_a", 2.0, 0.95, 0.9],
+	[50.13, "both", "belly_dance", 8.0, 0.9, 0.9],
+	[54.03, "both", "belly_dance", 12.5, 0.9, 0.9],
+	[59.26, "luna", "dancing_a", 5.5, 1.0, 0.6],
+	[59.91, "mika", "dancing_a", 5.5, 1.0, 0.6],
+	[63.81, "luna", "rumba", 0.0, 0.9, 1.0],
+	[64.46, "mika", "samba", 6.0, 0.9, 1.0],
+	[67.08, "both", "dancing_b", 0.0, 0.85, 0.8],
+]
+const MV_SLOW := [[54.35, 55.95], [62.45, 63.75]]
+const MV_DROP := 59.26
+const MV_CHORUS_DOWNBEATS := [59.26, 61.86, 64.46, 67.08, 69.68]
+
+
+func _mv_expected(id: String, song_t: float) -> Array:
+	var best: Array = []
+	for st in MV_ROUTINE:
+		if float(st[0]) <= song_t and (st[1] == "both" or st[1] == id):
+			best = st
+	if best.is_empty():
+		return []
+	return [String(best[2]), float(best[3]) + (song_t - float(best[0])) * float(best[4])]
+
+
+func _lakemv() -> void:
+	DanceStage.moon_up = 0.55
+	DanceStage.moon_side = 0.38
+	DanceStage.moon_size = 250.0
+	var set := await _lake_setup({"luna": -0.75, "mika": 0.75})
+	if set.is_empty():
+		return
+	(set.pin as CameraPin).active = false
+	var chars: Dictionary = set.chars
+	var spot: Vector3 = set.spot
+	var stage: DanceStage = set.stage
+	var decks := {"luna": _dance_stack(chars.luna), "mika": _dance_stack(chars.mika)}
+	var fxs := {"luna": DanceFX.attach(chars.luna, set.water_y, stage, true), "mika": DanceFX.attach(chars.mika, set.water_y, stage, false)}
+	for id in fxs:
+		fxs[id].ring_scale = 0.75
+		fxs[id].aura(2)
+		fxs[id].ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
+		fxs[id].ripple_every = 1.6
+	fxs.luna.camera_petals()
+	# Phantom Camera drives the live camera; the driver's post hook adds the lens (fov, depth of field) and the shake
+	var cam: Camera3D = main.camera_rig.camera
+	cam.top_level = true
+	var host := PhantomCameraHost.new()
+	host.interpolation_mode = PhantomCameraHost.InterpolationMode.MANUAL
+	cam.add_child(host)
+	var driver := PCamDriver.new()
+	driver.host = host
+	main.add_child(driver)
+	var attrs := CameraAttributesPractical.new()
+	attrs.dof_blur_far_enabled = true
+	RenderingServer.camera_attributes_set_dof_blur_bokeh_shape(RenderingServer.DOF_BOKEH_CIRCLE)
+	RenderingServer.camera_attributes_set_dof_blur_quality(RenderingServer.DOF_BLUR_QUALITY_HIGH, true)
+	var lens := {"fov": 40.0, "shake": 0.0, "seed": 0.0}
+	driver.post = func(c: Camera3D) -> void:
+		c.fov = float(lens.fov)
+		c.attributes = attrs
+		var k: float = lens.shake
+		if k > 0.001:
+			var ph: float = lens.seed
+			c.global_position += c.global_basis * Vector3(sin(ph * 37.0), sin(ph * 51.0 + 1.3), 0.0) * 0.035 * k
+			c.rotate_object_local(Vector3.FORWARD, sin(ph * 43.0 + 0.7) * 0.012 * k)
+	var post := MVPost.make(main, stage.moon_node)
+	var pcs: Array = []
+	var shot_i := -1
+	var shot: Array = []
+	var shot_t0 := 0.0
+	var step_done := {}
+	var drop_done := false
+	var downbeats_done := {}
+	var prev_yaw := {}
+	var last_turn := {"luna": -9.0, "mika": -9.0}
+	var prev_hand := {}
+	var last_arc := {"luna": -9.0, "mika": -9.0}
+	var smooth := {}
+	var frame := 0
+	var song_t := MV_FROM
+	print("[lakemv] song %.2f-%.2f, t0 frame %d" % [MV_FROM, MV_TO, Engine.get_frames_drawn()])
+	while song_t < MV_TO:
+		await get_tree().process_frame
+		frame += 1
+		song_t = MV_FROM + frame / 30.0
+		if main.get("subtitle") and main.subtitle:
+			main.subtitle.visible = false
+		# slow motion on the key moves (the world slows; the music, and so the cut, does not)
+		var slow := false
+		for w in MV_SLOW:
+			if song_t >= float(w[0]) and song_t < float(w[1]):
+				slow = true
+		Engine.time_scale = 0.3 if slow else 1.0
+		# the routine
+		for i in MV_ROUTINE.size():
+			var st: Array = MV_ROUTINE[i]
+			if step_done.has(i) or song_t < float(st[0]):
+				continue
+			step_done[i] = true
+			for id in decks:
+				if st[1] == "both" or st[1] == id:
+					var deck: DanceDeck = decks[id]
+					if deck.influence < 1.0:
+						create_tween().tween_property(deck, "influence", 1.0, float(st[5]))
+					deck.play(String(st[2]), float(st[3]), float(st[4]), float(st[5]))
+		# the music's level: a quiet verse, the pre-chorus building, the chorus exploding
+		var e: float = _song_energy(song_t)
+		var base := 0.35 if song_t < 54.03 else (lerpf(0.45, 0.85, (song_t - 54.03) / 5.23) if song_t < MV_DROP else 1.1)
+		var lvl := clampf(base * (0.8 + 0.4 * e / 0.7), 0.15, 1.25)
+		for id in fxs:
+			fxs[id].set_level(lvl)
+		# the drop: a white flash, the lanterns rise, bursts; then a pulse on every chorus downbeat
+		if not drop_done and song_t >= MV_DROP:
+			drop_done = true
+			post.flash_white(0.45)
+			stage.lift()
+			for id in fxs:
+				fxs[id].burst(1.2)
+				fxs[id].ring_colors = [DanceFX.GOLD, DanceFX.VIOLET]
+				fxs[id].ripple_every = 0.9
+			lens.shake = 1.0
+		for db in MV_CHORUS_DOWNBEATS:
+			if song_t >= float(db) and not downbeats_done.has(db):
+				downbeats_done[db] = true
+				if float(db) > MV_DROP:
+					lens.shake = maxf(float(lens.shake), 0.55)
+					stage.flare(0.7)
+		lens.shake = maxf(float(lens.shake) - (1.0 / 30.0) / 0.3, 0.0)
+		lens.seed = float(lens.seed) + 1.0 / 30.0
+		# effects that follow their own motion: a spiral on each fast turn, a gold arc when a hand sweeps up high
+		for id in decks:
+			var c: WorldCharacter = chars[id]
+			var fx: DanceFX = fxs[id]
+			var hips := c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Hips")).basis * Vector3(0, 0, 1)
+			var yaw := atan2(hips.x, hips.z)
+			var dt := maxf(get_process_delta_time(), 0.0005)
+			if prev_yaw.has(id):
+				var rate := absf(angle_difference(float(prev_yaw[id]), yaw)) / dt
+				if rate > deg_to_rad(120.0) and song_t - float(last_turn[id]) > 2.0:
+					last_turn[id] = song_t
+					fx.spin_dir = signf(angle_difference(float(prev_yaw[id]), yaw))
+					fx.spiral(1.8, 2, 0.55)
+			prev_yaw[id] = yaw
+			for hb in ["RightHand", "LeftHand"]:
+				var hp := fx.bone(hb)
+				var key: String = id + hb
+				if prev_hand.has(key):
+					var vy := (hp.y - float(prev_hand[key])) / dt
+					if hp.y > fx.bone("Head").y + 0.05 and vy > 0.9 and song_t - float(last_arc[id]) > 2.5:
+						last_arc[id] = song_t
+						fx.arc(hb, 1.3)
+				prev_hand[key] = hp.y
+		# the shot list: a new Phantom Camera on each cut (a whip pan tweens to it), the dancers back in step
+		var ni := shot_i
+		while ni + 1 < MV_SHOTS.size() and song_t >= float(MV_SHOTS[ni + 1][0]):
+			ni += 1
+		if ni != shot_i:
+			shot_i = ni
+			shot = MV_SHOTS[ni]
+			shot_t0 = song_t
+			smooth.clear()
+			for id in decks:
+				var ex := _mv_expected(id, song_t)
+				if not ex.is_empty() and (decks[id] as DanceDeck).current() == ex[0]:
+					(decks[id] as DanceDeck).sync(float(ex[1]))
+			var pc := PhantomCamera3D.new()
+			pc.name = "MV_%02d_%s" % [ni, shot[1]]
+			main.add_child(pc)
+			pc.set_tween_duration(float(shot[3]))
+			pc.set_tween_transition(Tween.TRANS_EXPO)
+			pcs.append(pc)
+			if pcs.size() > 3:
+				(pcs.pop_front() as Node).queue_free()
+			fxs.luna.ring_scale = 1.0 if shot[1] == "feet" else 0.75
+			if shot[1] == "hand_ecu":
+				(fxs[String(shot[2])] as DanceFX).arc("RightHand", (float(MV_SHOTS[ni + 1][0]) - song_t) / maxf(Engine.time_scale, 0.3))
+			print("[lakemv] %.2f shot %d %s %s" % [song_t, ni, shot[1], shot[2]])
+		var u := (song_t - shot_t0) / maxf((float(MV_SHOTS[shot_i + 1][0]) if shot_i + 1 < MV_SHOTS.size() else MV_TO) - shot_t0, 0.1)
+		var cp := _mv_camera(String(shot[1]), String(shot[2]), u, chars, fxs, spot, smooth)
+		var pcam: PhantomCamera3D = pcs[pcs.size() - 1]
+		var pos: Vector3 = cp.pos
+		var look: Vector3 = cp.look
+		if (look - pos).length() > 0.01:
+			pcam.global_transform = Transform3D(Basis.looking_at(look - pos, Vector3.UP), pos)
+		if shot_i == 0 and frame == 1:
+			pcam.set_priority(100)
+		pcam.set_priority(100 + shot_i)
+		lens.fov = cp.fov
+		var fd: float = (cp.focus - pos).length()
+		attrs.dof_blur_far_distance = fd + float(cp.far)
+		attrs.dof_blur_far_transition = float(cp.far) * 2.5
+		attrs.dof_blur_amount = float(cp.amount)
+		attrs.dof_blur_near_enabled = float(cp.near) > 0.0
+		attrs.dof_blur_near_distance = maxf(fd - float(cp.near), 0.05)
+		attrs.dof_blur_near_transition = float(cp.near) * 0.8
+	Engine.time_scale = 1.0
+	print("[lakemv] done at frame %d" % Engine.get_frames_drawn())
+
+
+func _song_energy(t: float) -> float:
+	if _song_map.is_empty():
+		var f := FileAccess.open(OS.get_environment("HOME") + "/Downloads/song_map_raw.json", FileAccess.READ)
+		if f:
+			_song_map = JSON.parse_string(f.get_as_text())
+		if _song_map == null or not (_song_map is Dictionary):
+			_song_map = {"energy_per_sec": []}
+	var arr: Array = _song_map.get("energy_per_sec", [])
+	var i := clampi(int(t), 0, maxi(arr.size() - 1, 0))
+	return float(arr[i]) if arr.size() > 0 else 0.6
+
+var _song_map = {}
+
+
+## One MV shot's camera at progress u (0..1): {pos, look, fov, focus, far (m of sharp depth behind the focus), near
+## (m in front, 0 = off), amount}.
+func _mv_camera(kind: String, who: String, u: float, chars: Dictionary, fxs: Dictionary, spot: Vector3, sm: Dictionary) -> Dictionary:
+	var e := u * u * (3.0 - 2.0 * u)
+	var both := spot + Vector3(0, 1.0, 0)
+	var fx: DanceFX = fxs.get(who, fxs.luna)
+	var follow := func(key: String, p: Vector3, k := 0.18) -> Vector3:
+		var v: Vector3 = sm.get(key, p)
+		v = v.lerp(p, k)
+		sm[key] = v
+		return v
+	match kind:
+		"crane":
+			var ec := pow(u, 2.2)
+			var p0 := spot + Vector3(0.7, 0.14, 2.6)
+			var p1 := spot + Vector3(-1.2, 5.2, 8.0)
+			var pos := p0.lerp(p1, ec)
+			var look := (spot + Vector3(0, 0.95, 0)).lerp(spot + Vector3(0, 0.4, -3.0), ec)
+			e = ec
+			return {"pos": pos, "look": look, "fov": lerpf(42.0, 54.0, e), "focus": spot + Vector3(0, 1, 0), "far": lerpf(1.5, 30.0, e), "near": 0.0, "amount": lerpf(0.06, 0.02, e)}
+		"hand_ecu":
+			var h: Vector3 = follow.call("hand", fx.bone("RightHand"), 0.25)
+			var pos := h + Vector3(0.28 + 0.1 * u, 0.06, 0.62 - 0.08 * u)
+			return {"pos": pos, "look": h, "fov": 30.0, "focus": h, "far": 0.25, "near": 0.0, "amount": 0.16}
+		"face_cu":
+			var hd: Vector3 = follow.call("head", fx.bone("Head") + Vector3(0, 0.02, 0), 0.4)
+			var sd := -1.0 if who == "luna" else 1.0
+			var pos := hd + Vector3(sd * (0.22 - 0.06 * e), -0.03, 1.12 - 0.18 * e)
+			return {"pos": pos, "look": hd, "fov": 34.0, "focus": hd, "far": 0.3, "near": 0.0, "amount": 0.15}
+		"ots":
+			var other: DanceFX = fxs.luna if who == "mika" else fxs.mika
+			var mine: Vector3 = fx.bone("Head")
+			var their: Vector3 = follow.call("their", other.bone("Head") + Vector3(0, 0.02, 0), 0.2)
+			var away := (mine - their)
+			away.y = 0.0
+			away = away.normalized()
+			var pos := mine + away * (0.45 - 0.08 * e) + Vector3(0, 0.02, 0.3)
+			return {"pos": pos, "look": their, "fov": 34.0, "focus": their, "far": 0.4, "near": 0.9, "amount": 0.14}
+		"feet":
+			var f: Vector3 = follow.call("feet", (fx.bone("LeftToes") + fx.bone("RightToes")) * 0.5, 0.15)
+			f.y = spot.y
+			var pos := f + Vector3(0.45 - 0.2 * e, 0.11, 0.85 - 0.15 * e)
+			return {"pos": pos, "look": f + Vector3(0, 0.12, 0), "fov": 36.0, "focus": f, "far": 0.4, "near": 0.0, "amount": 0.14}
+		"hair_slow":
+			var hp: Vector3 = follow.call("hips", fx.bone("Chest") + Vector3(0, -0.15, 0), 0.12)
+			var ang := lerpf(125.0, 70.0, e)
+			var pos := hp + Vector3(cos(deg_to_rad(ang)) * 2.3, 0.25, sin(deg_to_rad(ang)) * 2.3)
+			return {"pos": pos, "look": hp + Vector3(0, 0.1, 0), "fov": 42.0, "focus": hp, "far": 0.6, "near": 0.0, "amount": 0.1}
+		"push_pose":
+			var ch: Vector3 = follow.call("chest", fx.bone("Chest") + Vector3(0, 0.15, 0), 0.15)
+			var sd2 := -0.5 if who == "luna" else 0.5
+			var pos := ch + Vector3(sd2 * (1.0 - 0.4 * e), -0.15, lerpf(2.6, 1.55, e))
+			return {"pos": pos, "look": ch, "fov": 38.0, "focus": ch, "far": 0.8, "near": 0.0, "amount": 0.1}
+		"hero_low":
+			var pos := spot + Vector3(0.35 - 0.3 * e, 0.22 + 0.15 * e, 2.55 - 0.35 * e)
+			var look := spot + Vector3(-0.2, 1.75, -0.6)
+			return {"pos": pos, "look": look, "fov": 46.0, "focus": both, "far": 2.0, "near": 0.0, "amount": 0.06}
+		"orbit":
+			var ang := deg_to_rad(lerpf(25.0, 235.0, e) + 90.0)
+			var pos := both + Vector3(cos(ang) * 3.0, lerpf(0.0, 0.45, e), sin(ang) * 3.0)
+			return {"pos": pos, "look": both + Vector3(0, 0.1, 0), "fov": 42.0, "focus": both, "far": 1.8, "near": 0.0, "amount": 0.07}
+		"push_both":
+			var pos := spot + Vector3(0.2 * (1.0 - e), lerpf(0.55, 0.8, e), lerpf(4.6, 3.1, e))
+			var look := spot + Vector3(0, lerpf(1.15, 1.35, e), 0)
+			return {"pos": pos, "look": look, "fov": 42.0, "focus": both, "far": 2.0, "near": 0.0, "amount": 0.06}
+	return {"pos": both + Vector3(0, 0, 4), "look": both, "fov": 40.0, "focus": both, "far": 2.0, "near": 0.0, "amount": 0.05}
