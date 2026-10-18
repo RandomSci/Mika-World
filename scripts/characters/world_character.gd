@@ -17,6 +17,14 @@ const CLIPS := {
 	# runway walk and turn (Selwyn's Mixamo clips, 2026-10-19): "walk_goddess" = a phase-aligned 50/50 blend of the
 	# catwalk and the normal walk (elegant, not sassy); "catwalk_turn" plays with its hip yaw moved to her root
 	"catwalk": ["catwalk_walking.fbx", true, true],
+	# held poses for cinematics (probe candidates for the Starlit Harp)
+	"hold_wide_a": ["wide_arm_spell_casting.fbx@0.9", true, true],
+	"hold_wide_b": ["wide_arm_spell_casting.fbx@1.7", true, true],
+	"hold_wide_c": ["wide_arm_spell_casting.fbx@2.5", true, true],
+	"hold_point_a": ["pointing.fbx@0.7", true, true],
+	"hold_point_b": ["pointing.fbx@1.2", true, true],
+	"hold_cast_a": ["spell_casting.fbx@1.0", true, true],
+	"hold_cast_b": ["spell_casting.fbx@2.0", true, true],
 	"catwalk_turn": ["catwalk_walk_turn_180_wide.fbx", false, true],
 	"run": ["run_forward.fbx", true, true],
 	"jog": ["jog_forward.fbx", true, true],

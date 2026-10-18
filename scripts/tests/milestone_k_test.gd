@@ -184,6 +184,8 @@ func _run() -> void:
 		"screenfx": await _screenfx()
 		"lunaclip": await _lunaclip()
 		"outfitaudit": await _outfitaudit()
+		"harpprobe": await _harpprobe()
+		"starlitharp": await _starlitharp()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -7502,3 +7504,263 @@ func _outfitaudit() -> void:
 			await _wait(0.8)
 			_shot("%s_%s" % [path.get_file().get_basename(), a[0]])
 	pin.active = false
+
+
+## Pose probe for the harp: each held pose, a medium front still, and the right hand with the finger curl test.
+func _harpprobe() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	var luna: WorldCharacter = main.characters["luna"]
+	var map: RID = luna.get_world_3d().navigation_map
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	if RenderProfile.options.has("harp-avatar"):
+		luna.swap_avatar(String(RenderProfile.options["harp-avatar"]))
+		await _wait(1.0)
+	luna.stop_action()
+	luna.global_position = spot + Vector3(0, 0.05, 0)
+	luna.rotation.y = 0.0
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.pos = spot + Vector3(0.0, 1.2, -3.2)
+	pin.look = spot + Vector3(0, 1.1, 0)
+	pin.fov = 40.0
+	pin.active = true
+	await _wait(1.5)
+	for clip in ([] if RenderProfile.options.has("hp-fingers-only") else ["hold_wide_a", "hold_wide_b", "hold_wide_c", "hold_point_a", "hold_point_b", "hold_cast_a", "hold_cast_b"]):
+		luna.play_gesture(clip, 0.2, 0.2)
+		await _wait(0.9)
+		_shot(clip)
+		luna.end_gesture()
+		await _wait(0.4)
+	# fingers: the curl on the right hand, curl 0 and 1, close on the hand
+	var fp := FingerPose.new()
+	luna.skeleton.add_child(fp)
+	luna.play_gesture("hold_wide_a", 0.2, 0.2)
+	await _wait(0.8)
+	var sk := luna.skeleton
+	var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightHand")).origin
+	pin.pos = hp + Vector3(-0.25, 0.15, -0.55)
+	pin.look = hp
+	pin.fov = 34.0
+	for ax in [["z", Vector3(0, 0, 1)], ["x", Vector3(1, 0, 0)]]:
+		fp.axis = ax[1]
+		for c in [0.0, 1.0]:
+			for f in fp.curl:
+				fp.curl[f] = c
+			await _wait(0.3)
+			_shot("fingers_%s_%02d" % [ax[0], int(c * 10)])
+	print("[mktest] harpprobe bones: ", [sk.find_bone("RightIndexProximal"), sk.find_bone("RightThumbMetacarpal"), sk.find_bone("RightIndexDistal")])
+
+
+# ------------------------------------------------------------------ the Starlit Harp proof (reference video 4)
+## 27.5 s, timed to the reference: A 0-5.5 hand plucking light strings (extreme close-up, rolled), B 5.5-13.5 she
+## floats before the sun-cloud orb and its spoke rings (low, slow push, counter-roll, the orb blooms), C 13.5-14.3 the
+## reach to the lens: crash zoom, roll, white flash, zoom blur, D 14.3-18 the crystal lance forms (tracking along it),
+## E 18-22 it dives onto the sanctuary below (speed lines, zoom blur, follow cam), F 22-23.5 the impact frames,
+## G 23.5-27.5 the shockwave and a slow fade to the palette's colour. --harp-palette=blue|luna, --harp-avatar=<vrm>.
+func _starlitharp() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 0.1)
+		if main.weather.get("rain") != null:
+			main.weather.set("rain", 0.0)
+		if main.weather.get("enabled") != null:
+			main.weather.set("enabled", false)
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 22.5 * 60.0
+	if main.day_night:
+		main.day_night.set_override(true)
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+		main.teleport_guard.allow(mika)
+	var map: RID = luna.get_world_3d().navigation_map
+	var ground := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, ground + Vector3(20, 0, 20)) + Vector3(0, 0.05, 0)
+	var H := ground + Vector3(0, 26.0, -10.0)                 # she floats high over the meadow, south of the ground point
+	luna.stop_action()
+	luna.set_physics_process(false)
+	luna.global_position = H
+	luna.rotation.y = 0.0                                       # faces -Z
+	# (the avatar is rebuilt up here, so its hair and skirt springs start where she floats instead of being yanked 26 m)
+	luna.swap_avatar(String(RenderProfile.options.get("harp-avatar", luna.avatar_path)))
+	await _wait(1.5)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var palette := String(RenderProfile.options.get("harp-palette", "blue"))
+	var set := StarlitHarp.new()
+	set.name = "StarlitHarp"
+	main.add_child(set)
+	set.setup(palette)
+	set.build_clouds(H + Vector3(0, -2, 0), 26.0, 11)
+	var fx := ScreenFX.get_for(self)
+	fx.wash(set.pal.wash, 0.32, 0.3, -1.0)                      # the whole sequence lives in one colour (rule 2)
+	fx.vignette(0.45, 30.0)
+	var fp := FingerPose.new()
+	luna.skeleton.add_child(fp)
+	for f in fp.curl:
+		fp.curl[f] = 0.25
+	luna.play_gesture("hold_wide_a", 0.2, 0.2)
+	await _wait(1.2)
+	var sk := luna.skeleton
+	var bone := func(n: String) -> Vector3:
+		return sk.global_transform * sk.get_bone_global_pose(sk.find_bone(n)).origin
+	# ---- A: the hand and the harp
+	var hp: Vector3 = bone.call("RightHand")
+	print("[mktest] harp hand %s head %s chest %s luna %s gesture %s" % [str((hp - H).snapped(Vector3.ONE * 0.01)), str((bone.call("Head") - H).snapped(Vector3.ONE * 0.01)), str((bone.call("Chest") - H).snapped(Vector3.ONE * 0.01)), str((luna.global_position - H).snapped(Vector3.ONE * 0.01)), str(luna.get("gesture_clip"))])
+	var camA := hp + Vector3(0.28, -0.12, -0.62)
+	var to_cam := (camA - hp).normalized()
+	set.build_harp(hp - to_cam * 0.22 + Vector3(-0.08, 0.1, 0), to_cam, 48.0)
+	var key := OmniLight3D.new()                                # her key light from the orb side / the lens side
+	main.add_child(key)
+	key.light_color = Color(set.pal.glow).lerp(Color(1, 1, 1), 0.4)
+	key.light_energy = 1.6
+	key.omni_range = 6.0
+	pin.fov = 30.0
+	pin.active = true
+	var t0 := _game_t
+	var done := {}
+	var once := func(key: String) -> bool:
+		if done.has(key):
+			return false
+		done[key] = true
+		return true
+	var shots := {"A_pluck": 0.62, "A_open": 2.4, "B_orb": 8.0, "B_bloom": 12.6, "C_reach": 13.75, "D_lance": 16.4, "E_dive": 20.0, "F_burst": 22.05, "F_invert": 22.35, "G_wave": 24.6, "G_end": 27.2}
+	var lance_dir := Vector3.ZERO
+	var lance_start := Vector3.ZERO
+	var boom: Node3D = null
+	while _game_t - t0 < 27.6:
+		await get_tree().process_frame
+		var t := _game_t - t0
+		if main.get("subtitle") and main.subtitle:
+			main.subtitle.visible = false
+		key.global_position = luna.global_position + Vector3(0.6, 1.8, -1.6)
+		if t < 5.5:
+			# A: an extreme close-up of the hand, rolled 30 deg, a slow push
+			var u := t / 5.5
+			pin.pos = camA.lerp(hp + to_cam * 0.42 + Vector3(0.0, -0.05, 0.0), u)
+			pin.look = hp + Vector3(-0.04, 0.06, 0)
+			pin.roll = deg_to_rad(lerpf(32.0, 18.0, u))
+			for pt in [[0.5, 4], [1.5, 2], [3.6, 3], [4.25, 5]]:
+				if t > float(pt[0]) - 0.18 and t < float(pt[0]) + 0.25:
+					fp.curl["Index"] = 0.85 if t < float(pt[0]) else 0.15
+					fp.curl["Middle"] = 0.5 if t < float(pt[0]) else 0.2
+				if t >= float(pt[0]) and once.call("pluck%s" % str(pt[0])):
+					set.pluck(int(pt[1]), 0.4)
+					set.spark(bone.call("RightIndexDistal") - to_cam * 0.04, 0.02)
+		elif t < 13.5:
+			# B: she floats before the orb, arms open; low angle, slow push, counter-roll; the orb blooms from 9.5 s
+			if once.call("B"):
+				set.harp.visible = false
+				set.slats.visible = false
+				luna.end_gesture()
+				luna.play_gesture("hold_wide_b", 0.5, 0.3)
+				for f in fp.curl:
+					fp.curl[f] = 0.2
+				set.build_orb(H + Vector3(0, 1.35, 5.5), 3.4)
+			var u := (t - 5.5) / 8.0
+			var chest: Vector3 = bone.call("Chest")
+			pin.fov = 40.0
+			pin.pos = H + Vector3(0.7, 0.45, -3.4).lerp(Vector3(0.35, 0.75, -2.3), u)
+			pin.look = chest + Vector3(0, 0.25, 0)
+			pin.roll = deg_to_rad(lerpf(-28.0, -12.0, u))
+			luna.global_position = H + Vector3(0, sin(t * 1.3) * 0.06, 0)
+			set.orb_bloom(clampf((t - 9.5) / 4.0, 0.0, 1.0))
+		elif t < 14.3:
+			# C: the reach to the lens: crash zoom, a fast roll, a 2-frame white flash, zoom blur
+			if once.call("C"):
+				luna.end_gesture()
+				luna.play_gesture("hold_point_b", 0.15, 0.2)
+				fx.zoom_blur(1.0, 0.8)
+				fx.speed_lines(0.6, 0.7, Vector2(0.5, 0.5), Color(set.pal.core))
+			var u := (t - 13.5) / 0.8
+			pin.fov = lerpf(40.0, 24.0, u)
+			pin.roll = deg_to_rad(lerpf(-12.0, 40.0, u))
+			if t > 13.8 and once.call("Cflash"):
+				fx.flash("white", 2)
+		elif t < 18.0:
+			# D: the lance forms under her, pointing down at the ground; the camera tracks along it
+			if once.call("D"):
+				lance_dir = (ground + Vector3(0, 0.6, 0) - (H + Vector3(0, -3.0, 0))).normalized()
+				lance_start = H + Vector3(0, -1.5, 0) + lance_dir * 4.5
+				set.build_lance(9.0, 0.55)
+				set.lance.global_transform = Transform3D(Basis(Quaternion(Vector3.UP, lance_dir)), lance_start)
+				create_tween().tween_method(func(v): set.lance_form(v), 0.0, 1.0, 1.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+				fx.flash("white", 1)
+			var u := (t - 14.3) / 3.7
+			var side := lance_dir.cross(Vector3.UP).normalized()
+			pin.fov = 46.0
+			pin.pos = lance_start + side * 3.4 + Vector3(0, 0.9, 0) + lance_dir * lerpf(-3.0, 2.0, u)
+			pin.look = lance_start + lance_dir * lerpf(-1.0, 2.5, u)
+			pin.roll = deg_to_rad(lerpf(18.0, 8.0, u))
+		elif t < 22.0:
+			# E: the dive (ease-in), the follow camera behind and above, speed lines and zoom blur toward the tip
+			if once.call("E"):
+				fx.speed_lines(0.9, 4.0, Vector2(0.5, 0.55), Color(set.pal.core))
+				fx.zoom_blur(0.6, 4.0, Vector2(0.5, 0.55))
+			var u := clampf((t - 18.0) / 4.0, 0.0, 1.0)
+			var target := ground + Vector3(0, 0.3, 0) - lance_dir * 4.5
+			var p := lance_start.lerp(target, u * u)
+			set.lance.global_position = p
+			luna.global_position = p - lance_dir * 4.0 + Vector3(0, 0.45, 0)      # she rides the lance down
+			var sd := lance_dir.cross(Vector3.UP).normalized()
+			pin.fov = 50.0
+			pin.pos = p + sd * 3.2 - lance_dir * 3.5 + Vector3(0, 1.6, 0)
+			pin.look = p + lance_dir * 3.0
+			pin.roll = deg_to_rad(lerpf(8.0, -14.0, u))
+		elif t < 23.5:
+			# F: the impact frames (ref 22.1-23.5 s): burst, invert, white-with-dark-burst, chroma, a 4-frame freeze
+			if once.call("F"):
+				set.lance.visible = false
+				fx.hit_freeze(4)
+				fx.flash_seq([["burst", 3], ["invert", 1], ["burst", 2], ["burst_white", 4], ["invert", 3], ["white", 2]], deg_to_rad(-55.0))
+				fx.chroma(1.0, 1.2)
+				fx.shake(0.12, 0.8)
+				boom = load("res://assets/BinbunVFX_Vol2/StylizedHitFX/effects/big_impact/vfx_big_impact_01.tscn").instantiate()
+				main.add_child(boom)
+				boom.global_position = ground + Vector3(0, 0.3, 0)
+				boom.scale = Vector3.ONE * 6.0
+				set.shockwave(ground, 16.0, 1.4)
+				for kv in [["primary_color", set.pal.glow], ["secondary_color", set.pal.core], ["light_color", set.pal.glow]]:
+					if boom.get(kv[0]) != null:
+						boom.set(kv[0], kv[1])
+				if boom.has_method("play"):
+					boom.call("play")
+			pin.fov = 55.0
+			pin.pos = ground + Vector3(6.5, 3.2, -6.5)
+			pin.look = ground + Vector3(0, 0.8, 0)
+			pin.roll = deg_to_rad(-6.0)
+		else:
+			# G: the shockwave and the fade to the palette's colour (slow motion, the camera lifts away)
+			if once.call("G"):
+				fx.slow_mo(0.4, 1.8)
+				fx.wash(set.pal.wash, 0.75, 2.5, -1.0)
+			var u := clampf((t - 23.5) / 4.0, 0.0, 1.0)
+			if once.call("G2"):
+				set.shockwave(ground, 24.0, 2.2)
+			pin.pos = ground + Vector3(6.5, 3.2, -6.5).lerp(Vector3(9.0, 7.0, -9.0), u)
+			pin.look = ground + Vector3(0, 1.0, 0)
+			pin.roll = deg_to_rad(lerpf(-6.0, 0.0, u))
+		for k in shots:
+			if t >= float(shots[k]) and once.call("shot_" + k):
+				_shot(k)
+	pin.active = false
+	_check(Engine.time_scale > 0.9, "time back to normal", Engine.time_scale)
