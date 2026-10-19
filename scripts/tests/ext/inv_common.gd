@@ -6,8 +6,8 @@ extends RefCounted
 
 ## Starts capturing c's final bone poses; returns a Dictionary {"poses": Array[Transform3D]} that fills every frame.
 static func capture(c: WorldCharacter) -> Dictionary:
-	var box := {"poses": []}
 	var sk := c.skeleton
+	var box := {"poses": [], "sk": sk}           # (sk: a new avatar brings a new skeleton - capture again)
 	var last: SkeletonModifier3D = null
 	for n in sk.get_children(true):
 		if n is SkeletonModifier3D:

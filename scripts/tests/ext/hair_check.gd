@@ -108,25 +108,46 @@ static func _inside(c: WorldCharacter, poses: Array, o: WorldCharacter, oposes: 
 	return Vector2i(n_self, n_other)
 
 
-## Her own torso radius round the hips -> upper chest line: the median distance of her body mesh's vertices there
-## (a fixed 10 cm counted hair lying ON her slim back as inside).
-static func _torso_r(c: WorldCharacter, poses: Array, a: Vector3, b: Vector3) -> float:
+## Her own torso radius round the hips -> upper chest line, from the rest pose: the median distance of the body
+## vertices skinned mostly (> 0.5) to her spine bones to the rest hips -> upper chest line. (Cached per character.)
+static var _tr_cache := {}
+
+static func _torso_r(c: WorldCharacter, _poses: Array, _a: Vector3, _b: Vector3) -> float:
+	if _tr_cache.has(c.character_id):
+		return _tr_cache[c.character_id]
 	var sk := c.skeleton
+	var spine := {}
+	for n in ["Hips", "Spine", "Chest", "UpperChest"]:
+		spine[sk.find_bone(n)] = true
+	var ra := sk.get_bone_global_rest(sk.find_bone("Hips")).origin
+	var rb := sk.get_bone_global_rest(sk.find_bone("UpperChest")).origin
 	var ds := []
 	for mi in c.avatar.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
-		if not String(m.name).contains("Body") or m.mesh == null:
+		if not String(m.name).contains("Body") or m.mesh == null or m.skin == null:
 			continue
-		var r := InvCommon.skin(m, sk, poses, 0)
-		var S: PackedVector3Array = r[0]
-		for vi in range(0, S.size(), 7):
-			var wp := sk.global_transform * S[vi]
-			var q := Geometry3D.get_closest_point_to_segment(wp, a, b)
-			if q.distance_to(a) > 0.02 and q.distance_to(b) > 0.02:
-				ds.append(wp.distance_to(q))
-	if ds.size() < 50:
-		return 0.1
-	ds.sort()
-	var r0: float = ds[ds.size() / 2]
-	print("[hair] %s torso radius %.3f m (%d body samples)" % [c.character_id, r0, ds.size()])
+		var arr := m.mesh.surface_get_arrays(0)
+		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var BI = arr[Mesh.ARRAY_BONES]
+		var BW = arr[Mesh.ARRAY_WEIGHTS]
+		if BI == null or BW == null or V.is_empty():
+			continue
+		var per: int = (BI as PackedInt32Array).size() / V.size() if BI is PackedInt32Array else (BI as Array).size() / V.size()
+		for vi in range(0, V.size(), 3):
+			var on_spine := 0.0
+			for k in per:
+				var b := m.skin.get_bind_bone(int(BI[vi * per + k]))
+				if b < 0:
+					b = sk.find_bone(m.skin.get_bind_name(int(BI[vi * per + k])))
+				if spine.has(b):
+					on_spine += float(BW[vi * per + k])
+			if on_spine > 0.5:
+				var q := Geometry3D.get_closest_point_to_segment(V[vi], ra, rb)
+				ds.append(V[vi].distance_to(q))
+	var r0 := 0.1
+	if ds.size() >= 50:
+		ds.sort()
+		r0 = ds[ds.size() / 2]
+	print("[hair] %s torso radius %.3f m from the rest pose (%d spine vertices)" % [c.character_id, r0, ds.size()])
+	_tr_cache[c.character_id] = r0
 	return r0

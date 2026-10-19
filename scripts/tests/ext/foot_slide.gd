@@ -36,6 +36,8 @@ class Probe extends Node:
 		var bi := sk.find_bone(bone)
 		if bi < 0:
 			bi = sk.find_bone(fallback)          # (a rig without toe joints: the ankle)
+		if caps.has(wc.character_id) and caps[wc.character_id].get("sk") != sk:
+			caps[wc.character_id] = InvCommon.capture(wc)      # (her avatar was swapped: its new skeleton)
 		var ps: Array = caps.get(wc.character_id, {}).get("poses", [])
 		var tr: Transform3D = ps[bi] if bi >= 0 and bi < ps.size() else sk.get_bone_global_pose(bi)
 		return sk.global_transform * tr.origin

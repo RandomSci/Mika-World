@@ -11,6 +11,13 @@ static func run(t) -> void:
 	if set.is_empty():
 		return
 	var chars: Dictionary = set.chars
+	# a fixed lens on both of them, so a GPU run shows each worst moment ("[tear] worst ... at frame N")
+	var pin: CameraPin = set.pin
+	var mid: Vector3 = (set.spot as Vector3) + Vector3(0, 1.0, 0)
+	pin.fov = 42.0
+	pin.pos = mid + Vector3(0, 0.2, 3.6)
+	pin.look = mid
+	pin.active = true
 	var caps := {}
 	for id in chars:
 		caps[id] = InvCommon.capture(chars[id])
@@ -32,6 +39,8 @@ static func run(t) -> void:
 	boat.day_night = t.main.day_night
 	boat.seat(chars.luna, "bow")
 	boat.seat(chars.mika, "stern")
+	pin.pos = boat.global_position + Vector3(0, 1.6, 3.6)
+	pin.look = boat.global_position + Vector3(0, 0.6, 0)
 	await t._wait(1.5)
 	boat.row(true)
 	boat.trail_hand("stern", "Left", true)
@@ -71,4 +80,6 @@ static func _sample(t, chars: Dictionary, caps: Dictionary, worst: Dictionary, p
 					var s := InvCommon.stretch(m, sk_r[0], sk_r[1], si)
 					var key := "%s_%s_%s" % [id, phase, part]
 					var w0: Vector2 = worst.get(key, Vector2(1.0, 0.0))
+					if s.y > MAX_OPEN and s.y > w0.y + 0.02:
+						print("[tear] worst %s open %.2f at frame %d" % [key, s.y, Engine.get_frames_drawn()])
 					worst[key] = Vector2(snappedf(maxf(w0.x, s.x), 0.01), snappedf(maxf(w0.y, s.y), 0.001))
