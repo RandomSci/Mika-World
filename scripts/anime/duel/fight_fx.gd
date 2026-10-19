@@ -671,16 +671,7 @@ func ghost(c: WorldCharacter, col: Color, life: float) -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/fx/afterimage.gdshader")
 	mat.set_shader_parameter("color", col)
-	for mi in c.avatar.find_children("*", "MeshInstance3D", true, false):
-		var m := mi as MeshInstance3D
-		if m.mesh == null or not m.is_visible_in_tree() or String(m.name).to_lower().contains("face"):
-			continue
-		var g := MeshInstance3D.new()
-		g.mesh = m.bake_mesh_from_current_skeleton_pose() if m.skin != null or m.skeleton != NodePath("") else m.mesh
-		g.material_override = mat
-		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		holder.add_child(g)
-		g.global_transform = m.global_transform
+	Afterimage.fill(holder, c.avatar, mat, func(m: MeshInstance3D) -> bool: return String(m.name).to_lower().contains("face"))
 	var tw := holder.create_tween()
 	tw.tween_method(func(k: float) -> void: mat.set_shader_parameter("fade", 1.0 - k), 0.0, 1.0, life)
 	tw.tween_callback(holder.queue_free)
