@@ -49,7 +49,10 @@ func setup(m: Node) -> void:
 	add_child(player)
 	# a level gained is worth a dance (with the other mage when she is close)
 	if main.get("progression") and main.progression.has_signal("leveled"):
-		main.progression.leveled.connect(func(who: String, _lv: int): request(who, {"partner_if_near": true, "why": "celebrating"}))
+		main.progression.leveled.connect(func(who: String, lv: int):
+			# a level that brings a new form is celebrated by its transformation (the dance would only delay it)
+			if not Progression.mages.get(who, {}).get("forms", {}).has(str(lv)):
+				request(who, {"partner_if_near": true, "why": "celebrating"}))
 
 
 ## Ask for a dance (a viewer's request, a celebration): it starts as soon as the dancer (and her partner) are free,

@@ -66,6 +66,9 @@ func run(a: SanctuaryBrain, b: SanctuaryBrain) -> Dictionary:
 	f.leader = ca
 	f.follower = cb
 	main.companionship.add_child(f)
+	if SpellFX.instance:
+		# every effect of this fight exists and is compiled before the first cast (pools, pipelines)
+		SpellFX.instance.prewarm([SpellFX.element_for(a.agent_id), SpellFX.element_for(b.agent_id)])
 	await main.companionship.walk_together(ca, f, center, 40.0)
 	f.queue_free()
 	var axis := Vector3(1, 0, 0.25).normalized()
@@ -279,6 +282,8 @@ func _cast_bolt(me_b: SanctuaryBrain, opp: WorldCharacter) -> void:
 	me.play_gesture(gesture, 0.12, 0.3)
 	MagicEvents.emit_phase(me, "spar_bolt", "gather", String(st.element), me.right_hand.global_position if me.right_hand else me.global_position)
 	var release_s := float(st.get("release_at", 0.3)) * me.animation_length(gesture) / maxf(gs, 0.1)
+	if SpellFX.instance and me.right_hand:
+		SpellFX.instance.charge(me.right_hand, SpellFX.element_for(who), clampf(release_s, 0.15, 1.2) * 0.95)   # anticipation
 	await get_tree().create_timer(clampf(release_s, 0.15, 1.2)).timeout
 	me.set_gesture_speed(1.0)
 	if not busy():
@@ -301,6 +306,8 @@ func _cast_bolt(me_b: SanctuaryBrain, opp: WorldCharacter) -> void:
 	h.max_range = 16.0
 	h.vigor = 0.02
 	h.style = String(st.get("style", "spar_" + who))
+	if SpellFX.instance:
+		h.fx_element = SpellFX.element_for(who)
 	var c: Array = st.color
 	h.color = Color(c[0], c[1], c[2])
 	h.resolved.connect(_on_bolt_resolved)

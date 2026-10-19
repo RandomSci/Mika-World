@@ -32,6 +32,8 @@ var done := false
 var _mesh: MeshInstance3D
 var _mat: ShaderMaterial
 var _bolt: Node3D
+var fx_element := ""              # set: the bolt is drawn by SpellFX in this element (the caster's)
+var _fx: Node3D
 var _travelled := 0.0
 var _exclude: Array = []
 var warned: Array = []              # mages a companion shouted a warning to: they know it is coming (V3 Part 1.4)
@@ -64,6 +66,10 @@ func _ready() -> void:
 		_axis = center
 		_bolt = Node3D.new()
 		add_child(_bolt)
+		if fx_element != "" and SpellFX.instance:
+			# the caster's element, from the pooled spell shapes (nothing built here; data/elements.json)
+			_fx = SpellFX.instance.projectile(_bolt, fx_element)
+			return
 		if style == "gale":
 			# Mika's training spiral: a small weaving current of air shedding leaves - no glowing ball
 			var head := FX.quad("res://shaders/magic/wind_arcs.gdshader", 0.55, {"color": color, "arcs": 3, "intensity": 2.6, "draw_progress": 1.0, "spin": 5.5}, false)
@@ -377,6 +383,11 @@ func _finish(struck: Array, at: Vector3) -> void:
 	done = true
 	remove_from_group("attack_hazard")
 	resolved.emit(self, struck)
+	if _fx and SpellFX.instance:
+		# a burst of her element where it ended; a real hit is a big one (impact frame)
+		SpellFX.instance.stop_projectile(_fx, at, not struck.is_empty())
+		_fx = null
+		return
 	if kind == "projectile":
 		match style:
 			"stone":
@@ -413,3 +424,9 @@ func _mages() -> Array:
 
 func set_exclude(rids: Array) -> void:
 	_exclude = rids
+
+
+func _exit_tree() -> void:
+	if _fx and is_instance_valid(_fx) and SpellFX.instance:
+		SpellFX.instance.stop_projectile(_fx)        # (freed mid-flight: the duel ended) - back to the pool
+		_fx = null

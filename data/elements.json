@@ -1,0 +1,41 @@
+{
+ "_note": "The elements of every spell effect (scripts/vfx/spell_fx.gd). A spell SHAPE (projectile, beam, burst, shield, aura, slash) is built once; an element only recolours and re-textures it: three colours (core = the white-hot centre, body = the element's colour, edge = the dark falloff), its particle sprite, its motif and magic circle (assets/vfx/masks/<name>.png, greyscale), a glow strength and a sound family (assets/audio/synth/spell_<family>_<phase>.ogg, phases charge / release / impact / dissipate; a missing one falls back to arcane). A new element = a new entry here, no new effect work. 'mages': each mage's elements in the order she masters them - her spells use the last one she has mastered (progress.elements), else the first.",
+ "elements": {
+  "wind": {
+   "name": "Wind",
+   "core": "#FFFFFF", "body": "#B9C4FF", "edge": "#1E2A78",
+   "glow": 2.4,
+   "particle": "petal", "spark": "glint", "motif": "slash_wind", "circle": "circle_flower", "wisp": "wisp",
+   "sound": "wind",
+   "motion": "swirl"
+  },
+  "star": {
+   "name": "Starlight",
+   "core": "#FFFFFF", "body": "#8C9EFF", "edge": "#141A5C",
+   "glow": 3.0,
+   "particle": "starflower", "spark": "glint", "motif": "slash_wind", "circle": "circle_flower", "wisp": "glint",
+   "sound": "arcane",
+   "motion": "twinkle"
+  },
+  "moon": {
+   "name": "Moonlight",
+   "core": "#FFF6E0", "body": "#FFC85A", "edge": "#5A2AA8",
+   "glow": 2.8,
+   "particle": "glint", "spark": "glint", "motif": "slash_crescent", "circle": "circle_moon", "wisp": "wisp",
+   "sound": "umbral",
+   "motion": "orbit"
+  },
+  "shadow": {
+   "name": "Shadow",
+   "core": "#F1E6FF", "body": "#8A5BFF", "edge": "#2A0F4A",
+   "glow": 2.2,
+   "particle": "wisp", "spark": "glint", "motif": "slash_crescent", "circle": "circle_moon", "wisp": "wisp",
+   "sound": "umbral",
+   "motion": "rise"
+  }
+ },
+ "mages": {
+  "mika": {"elements": ["wind", "star"]},
+  "luna": {"elements": ["moon", "shadow"]}
+ }
+}

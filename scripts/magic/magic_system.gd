@@ -178,7 +178,7 @@ func cast(caster: WorldCharacter, id: String, target_id := "") -> Dictionary:
 		res["outcome"] = "refused"
 		res["reason"] = "already casting"
 		return _finish(res)
-	if not caster.is_on_floor():
+	if not caster.is_on_floor() and not (caster.flight and caster.flight.airborne):      # on her wings she can cast in the air
 		res["outcome"] = "refused"
 		res["reason"] = "not standing on the ground"
 		return _finish(res)

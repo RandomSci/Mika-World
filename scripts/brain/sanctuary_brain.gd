@@ -929,6 +929,8 @@ func _journal() -> Dictionary:
 		return {"ok": false, "detail": "the journal is in the sanctuary"}
 	if it:
 		await _walk(it.approach_point())
+		if not is_instance_valid(it):
+			return {"ok": false, "detail": "the journal is in the sanctuary"}      # (a journey unloaded it mid-walk)
 	var entry := Journal.compose(mind)
 	if entry.is_empty():
 		return {"ok": false, "detail": "nothing new to write"}
@@ -1651,11 +1653,20 @@ func _use(id: String) -> Dictionary:
 	var it: Interactable = main.world.interactables.get(id)
 	if it == null:
 		return {"ok": false, "detail": "no '%s' in %s" % [id, main.streaming.current_id]}
+	var label := it.label
+	var area := String(main.streaming.current_id)
 	if not await _walk(it.approach_point()):
-		return {"ok": false, "detail": "could not reach %s" % it.label}
+		return {"ok": false, "detail": "could not reach %s" % label}
+	# the walk can outlive the place: a journey unloads the area and frees its interactables while she walks (after a
+	# permanent transformation she resumes her interrupted activity; touching the freed one crashed Godot at the
+	# journey's last "arrived" - 6 of 11 runs, GDScript backtrace _use -> it.in_reach, 2026-10-16/17)
+	if not is_instance_valid(it) or String(main.streaming.current_id) != area:
+		return {"ok": false, "detail": "%s is no longer here" % label}
 	if not it.in_reach(me.global_position):
 		# the walk tolerance is looser than the interaction reach: close the last metre
 		await _walk(it.approach_point())
+		if not is_instance_valid(it) or String(main.streaming.current_id) != area:
+			return {"ok": false, "detail": "%s is no longer here" % label}
 	return await it.perform(me)
 
 

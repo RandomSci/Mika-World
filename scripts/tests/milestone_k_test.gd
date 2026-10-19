@@ -140,6 +140,9 @@ func _run() -> void:
 		"pacing": await _pacing()
 		"discoveries": await _discoveries()
 		"braziers": await _braziers()
+		"lvl10": await _lvl10()
+		"lvl10day": await _lvl10day()
+		"spellshow": await _spellshow()
 		_: _check(false, "unknown mode " + mode)
 	_finish()
 
@@ -4530,3 +4533,263 @@ func _discoveries() -> void:
 			_check(au.violations.size() == v0, "%s: no visible defect while doing it" % d.id, au.violations.slice(v0))
 			await _wait(0.3)
 
+
+# ------------------------------------------------------------------ the real Level 10 transformation, by levelling up (Selwyn 2026-10-17)
+## Mika at Level 9 just short of Level 10, her Orbit Gate honestly met in this TEST save (three trials, a won fight
+## against a medium creature; two spells she already has): a little XP through the normal path -> Level 10 ->
+## form_unlocked -> the director's queue -> the cutscene when it is safe to start. Checks the outfit, the exact spot
+## and every frame's time; shots before, mid-video and after. --place=<area id> transforms somewhere else.
+func _lvl10() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("test")
+	var who := String(RenderProfile.options.get("who", "mika"))
+	var c: WorldCharacter = main.characters[who]
+	var m := WorldState.mind(who)
+	var place := String(RenderProfile.options.get("place", ""))
+	if place != "" and main.streaming.current_id != place:
+		await main.streaming.travel(place, c)
+		await _wait(4.0)
+	for r in WorldState.sanctuary.get("ranks", []):
+		if r.name == "Apprentice":
+			for tr in WorldState.sanctuary.get("trials", []).slice(0, int(r.trials)):
+				m.trials_done[tr.id] = true
+	m.knowledge["defeated:thornback"] = 1
+	for sp in ["arcane_orb", "gale_spiral"]:       # (the live save: 14.2 and 2.7; a fresh test save has 0)
+		m.skills[sp] = maxf(float(m.skills.get(sp, 0.0)), 0.5)
+	# whatever this mage's own Level 10 gate asks (Luna's differs from Mika's), met in the test save
+	for r in Progression.mages.get(who, {}).get("orbit_gates", {}).get("10", []):
+		match String(r.kind):
+			"skill_at_least":
+				m.skills[String(r.value)] = maxf(float(m.skills.get(String(r.value), 0.0)), float(r.min) + 0.01)
+			"reactions_seen":
+				for i in int(r.value):
+					m.knowledge["reaction:test_%d" % i] = 1
+			"knowledge":
+				m.knowledge[String(r.value)] = 1
+			"knowledge_count":
+				for i in int(r.min):
+					m.knowledge[String(r.value) + "test_%d" % i] = 1
+			"spells_at_tier":
+				for i in int(r.value):
+					m.skills["test_spell_%d" % i] = maxf(float(m.skills.get("test_spell_%d" % i, 0.0)), float(r.get("tier", 0.05)) + 0.01)
+	m.progress["played_s"] = 3600.0 * 2000.0        # (the pacing curve would bank XP gained this fast)
+	m.progress.level = 9
+	m.progress.xp = Progression.xp_for(10) - 3.0
+	var gate: Dictionary = Progression.gate_status(who, 10)
+	print("[mktest] lvl10: %s Level %d, gate met %s %s" % [who, m.level(), gate.met, str(gate.requirements)])
+	_check(gate.met, "the Level 10 Orbit Gate is met in the test save")
+	# as on stream: the camera director films, and the other mage is near enough to see it and react
+	main.director.enabled = true
+	main.director.set_subject(c)
+	var other_id := "luna" if who == "mika" else "mika"
+	if main.characters.has(other_id):
+		var o: WorldCharacter = main.characters[other_id]
+		var map: RID = c.get_world_3d().navigation_map
+		var f := -c.global_transform.basis.z
+		f.y = 0.0
+		if main.teleport_guard:
+			main.teleport_guard.allow(o)
+		o.global_position = NavigationServer3D.map_get_closest_point(map, c.global_position + f.normalized() * 3.0 + Vector3(f.z, 0, -f.x).normalized() * 2.5) + Vector3(0, 0.05, 0)
+		o.look_at_point(c.global_position)
+	if not RenderProfile.options.has("by-day"):
+		WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 22.5 * 60.0     # night falls before it (the look settles)
+		if main.get("weather") and main.weather:
+			main.weather.set_weather("clear", 6.0)
+		# (the world's night LOOK is a profile / toggle, not the clock: switched on to match the clock here)
+		WorldState.night = true
+		if main.world and main.world.has_method("set_night"):
+			main.world.set_night(true)
+	await _wait(3.0)
+	var before_path := c.avatar_path
+	var before_pos := c.global_position
+	_shot("before")
+	var frames: Array = []
+	var last := {"t": Time.get_ticks_usec()}
+	var samp := func():
+		var now := Time.get_ticks_usec()
+		frames.append({"ms": (now - int(last.t)) / 1000.0, "playing": main.transformer.playing != ""})
+		last.t = now
+	get_tree().process_frame.connect(samp)
+	if not RenderProfile.options.has("by-day"):
+		WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 22.0 * 60.0     # transformations happen at night
+	main.progression.gain(who, 6.0, "test: the last step to Level 10")
+	print("[mktest] lvl10: after the XP: Level %d, forms %s, queue %s" % [m.level(), str(m.progress.forms_unlocked), str(main.transformer.queue)])
+	var t0 := _game_t
+	while main.transformer.playing == "" and _game_t - t0 < 40.0:
+		await get_tree().process_frame
+	var started_after := _game_t - t0
+	print("[mktest] lvl10: transformation started %.1f s after the level-up (playing '%s')" % [started_after, main.transformer.playing])
+	var t1 := _game_t
+	var landed_pos := c.global_position
+	var shots := {3.0: "build_up", 6.5: "build_up_late", 9.0: "rising", 11.0: "light", 13.6: "swap", 15.0: "burst", 16.6: "reveal_dissolve", 19.0: "descent", 22.0: "landing"}
+	while main.transformer.playing != "" and _game_t - t1 < 120.0:
+		await get_tree().process_frame
+		for k in shots.keys():
+			if RenderProfile.options.has("clip"):
+				break                                    # (a clip for the developer: no 1080p PNG saves mid-scene)
+			if _game_t - t1 > float(k):
+				_shot(String(shots[k]))
+				shots.erase(k)
+		if not shots.has(999.0) and not main.transformer.sequence.log.is_empty() and String(main.transformer.sequence.log.back().get("beat", "")) == "06_back_in_the_world":
+			if not RenderProfile.options.has("clip"):
+				_shot("back_in_the_world")
+			shots[999.0] = "done"
+			landed_pos = c.global_position              # (where she is when the scene gives her back; after it she may walk on)
+	var dur := _game_t - t1
+	await _wait(2.5)
+	_shot("after")
+	await _wait(6.0)          # (the recording keeps her back in the world for a few seconds)
+	get_tree().process_frame.disconnect(samp)
+	var during := frames.filter(func(f): return f.playing)
+	var hitches := during.filter(func(f): return float(f.ms) > 50.0)
+	var worst := 0.0
+	for f in during:
+		worst = maxf(worst, float(f.ms))
+	var moved := Vector2(landed_pos.x - before_pos.x, landed_pos.z - before_pos.z).length()
+	print("[mktest] lvl10: played %.1f s, %d frames, %d over 50 ms (worst %.0f ms), avatar %s -> %s, moved %.3f m, log %s" % [dur, during.size(), hitches.size(), worst,
+		before_path.get_file(), c.avatar_path.get_file(), moved, str(main.transformer.log.back() if not main.transformer.log.is_empty() else {}).left(300)])
+	_check(m.level() == 10, "she reached Level 10 (%d)" % m.level())
+	_check(started_after < 40.0, "the transformation started by itself after the level-up (%.1f s)" % started_after)
+	_check(c.avatar_path != before_path and c.avatar_path.contains("10"), "she wears her Level 10 outfit (%s)" % c.avatar_path.get_file())
+	_check(moved < 0.05, "she is back on the exact spot (%.3f m)" % moved)
+	var beats: Array = main.transformer.sequence.log.filter(func(e): return e.has("beat")).map(func(e): return String(e.beat))
+	print("[mktest] lvl10 beats: %s" % str(beats))
+	for b in ["00_before_flash", "01_build_up", "02_rise", "03_body_of_light", "04_swap", "05_burst", "06_reveal", "06_descend", "06_landed", "06_back_in_the_world", "07_reactions_done"]:
+		_check(beats.has(b), "beat %s" % b)
+	var tf_res: Dictionary = main.transformer.log.back() if not main.transformer.log.is_empty() else {}
+	_check(String(tf_res.get("mode", "")) == "realtime", "played in real time in the world, no video (%s)" % String(tf_res.get("mode", "?")))
+	report["tf_hitches"] = main.transformer.sequence._rt_hitches
+	_check(hitches.size() <= 4, "the scene holds its frame rate (%d frames over 50 ms: %s)" % [hitches.size(), str(main.transformer.sequence._rt_hitches)])
+	_check(not is_equal_approx(Engine.time_scale, 0.0) and absf(Engine.time_scale - 1.0) < 0.01, "slow motion ended (time scale %.2f)" % Engine.time_scale)
+
+# ------------------------------------------------------------------ a form reached by day waits for nightfall (Selwyn 2026-10-17)
+func _lvl10day() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("test")
+	var who := "mika"
+	var c: WorldCharacter = main.characters[who]
+	var m := WorldState.mind(who)
+	for r in WorldState.sanctuary.get("ranks", []):
+		if r.name == "Apprentice":
+			for tr in WorldState.sanctuary.get("trials", []).slice(0, int(r.trials)):
+				m.trials_done[tr.id] = true
+	m.knowledge["defeated:thornback"] = 1
+	for sp in ["arcane_orb", "gale_spiral"]:
+		m.skills[sp] = maxf(float(m.skills.get(sp, 0.0)), 0.5)
+	m.progress["played_s"] = 3600.0 * 2000.0
+	m.progress.level = 9
+	m.progress.xp = Progression.xp_for(10) - 3.0
+	main.director.enabled = true
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 12.0 * 60.0         # noon
+	await _wait(2.0)
+	var fs_lines: Array = []
+	main.progression.gain(who, 6.0, "test: Level 10 by day")
+	await _wait(12.0)
+	print("[mktest] lvl10day: noon, Level %d, playing '%s', queue %s, pending %s" % [m.level(), main.transformer.playing, str(main.transformer.queue), str(m.progress.get("tf_pending", {}))])
+	_check(m.level() == 10 and main.transformer.playing == "", "by day the transformation waits (Level %d, playing '%s')" % [m.level(), main.transformer.playing])
+	_check(bool((m.progress.get("tf_pending", {}) as Dictionary).get("10", false)), "the pending transformation is saved")
+	# a restart by day keeps it: the queue is rebuilt from the save
+	main.transformer.queue.clear()
+	main.transformer._restore_pending()
+	_check(main.transformer.queue.any(func(q): return q.who == who and int(q.level) == 10), "after a restart it is queued again", str(main.transformer.queue))
+	# dusk: she winds down and it starts
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 19.6 * 60.0
+	var t0 := _game_t
+	while main.transformer.playing == "" and _game_t - t0 < 30.0:
+		await get_tree().process_frame
+	print("[mktest] lvl10day: dusk (daylight %.2f): started after %.1f s" % [WorldState.daylight(), _game_t - t0])
+	_check(main.transformer.playing == who, "at dusk the transformation starts by itself (%.1f s)" % (_game_t - t0))
+	while main.transformer.playing != "" and _game_t - t0 < 120.0:
+		await get_tree().process_frame
+	_check(not (m.progress.get("tf_pending", {}) as Dictionary).has("10"), "once played it is no longer pending")
+
+
+# ------------------------------------------------------------------ signature spell showcase (SpellFX, data/elements.json)
+## Mika and Luna face each other, a wide two-shot; each casts every shape in her element (aura, shield, slash, a
+## projectile that strikes the other with a burst and an impact frame, a beam, a burst), then the same with the next
+## element she could master (Mika: star, Luna: shadow) - the same shapes, recoloured by data alone. Counts every FX
+## node built after the pre-warm (must be 0: nothing is built during the show) and every frame's time.
+func _spellshow() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("test")
+	var fx: SpellFX = main.spell_fx
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var map: RID = mika.get_world_3d().navigation_map
+	for c in [mika, luna]:
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+	var mid := NavigationServer3D.map_get_closest_point(map, SanctuaryTerrain.TRAINING_CENTER_3D)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, mid + Vector3(-3.5, 0, 0)) + Vector3(0, 0.05, 0)
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, mid + Vector3(3.5, 0, 0)) + Vector3(0, 0.05, 0)
+	await _wait(1.0)
+	mika.look_at_point(luna.global_position)
+	luna.look_at_point(mika.global_position)
+	if RenderProfile.options.has("night"):
+		WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 21.5 * 60.0
+	main.director.enabled = true
+	var cam_pos := mid + Vector3(0, 1.9, 6.2)
+	main.director.begin_scene(func(_d: float) -> Dictionary: return {"pos": cam_pos, "look": mid + Vector3(0, 1.2, 0), "fov": 52.0, "rate": 3.0, "exact": true})
+	await fx.prewarm(["wind", "moon", "star", "shadow"])
+	var built_before := fx.made
+	var frames: Array = []
+	var last := {"t": Time.get_ticks_usec()}
+	var samp := func():
+		var now := Time.get_ticks_usec()
+		frames.append((now - int(last.t)) / 1000.0)
+		last.t = now
+	get_tree().process_frame.connect(samp)
+	for rnd in [{"mika": "wind", "luna": "moon"}, {"mika": "star", "luna": "shadow"}]:
+		for pair in [[mika, luna], [luna, mika]]:
+			var me: WorldCharacter = pair[0]
+			var foe: WorldCharacter = pair[1]
+			var el := String(rnd[me.character_id])
+			print("[spellshow] %s casts in %s" % [me.character_id, el])
+			var au := fx.aura(me, el, 3)
+			me.play_gesture("wide_arm_spell", 0.3, 0.5)
+			await _wait(1.6)
+			fx.shield(me, el, 1.2)
+			await _wait(1.4)
+			var xf := Transform3D(me.global_transform.basis, me.global_position + Vector3(0, 1.2, 0) - me.global_transform.basis.z * 0.9)
+			me.play_gesture("cast_quick", 0.2, 0.4)
+			fx.slash(xf, el, 1.0, false)
+			await _wait(0.9)
+			# a projectile that flies to the other and strikes her - a big hit: burst + impact frame
+			var bolt := Node3D.new()
+			main.world.add_child(bolt)
+			bolt.global_position = me.global_position + Vector3(0, 1.3, 0)
+			me.play_gesture("cast_quick", 0.2, 0.4)
+			await fx.charge(me.right_hand if me.right_hand else me, el, 0.35)
+			bolt.global_position = (me.right_hand.global_position if me.right_hand else me.global_position + Vector3(0, 1.3, 0))
+			var p := fx.projectile(bolt, el)
+			var target := foe.global_position + Vector3(0, 1.2, 0)
+			var tw := create_tween()
+			tw.tween_property(bolt, "global_position", target, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			await tw.finished
+			fx.stop_projectile(p, target, true)
+			foe.take_hit(me.global_position, false)
+			bolt.queue_free()
+			await _wait(1.0)
+			await fx.charge(me.right_hand if me.right_hand else me, el, 0.35)
+			fx.beam(me.global_position + Vector3(0, 1.3, 0) - me.global_transform.basis.z * 0.6, foe.global_position + Vector3(0, 1.1, 0), el, 0.9)
+			await _wait(1.3)
+			fx.burst(me.global_position + Vector3(0, 1.0, 0), el, 1.4, false)
+			await _wait(1.0)
+			fx.stop_aura(au)
+			await _wait(0.8)
+	get_tree().process_frame.disconnect(samp)
+	main.director.end_scene()
+	var hitches := frames.filter(func(ms): return float(ms) > 50.0)
+	var worst := 0.0
+	for ms in frames:
+		worst = maxf(worst, float(ms))
+	var built_during := fx.made - built_before
+	print("[spellshow] %d frames, %d over 50 ms (worst %.0f ms), FX nodes built during the show: %d" % [frames.size(), hitches.size(), worst, built_during])
+	_check(built_during == 0, "nothing is built during the show (pooled, pre-warmed): %d" % built_during)
+	_check(hitches.size() <= 3, "the show holds its frame rate (%d frames over 50 ms)" % hitches.size())

@@ -279,7 +279,7 @@ func _process(delta: float) -> void:
 		return
 	var want := _choose()
 	if want != mode:
-		var urgent := want in ["spell", "activity", "signature", "combat"]
+		var urgent := want in ["spell", "activity", "signature", "combat", "scene"]      # (a scripted scene starts at once)
 		if _since_change < MIN_SHOT and not urgent and mode != "off":
 			want = mode  # hold the current shot a little longer
 		else:
@@ -344,7 +344,9 @@ func _frame(delta: float) -> void:
 				return
 			if bool(sh.get("cut", false)):
 				_since_change = 0.0
+			_exact = bool(sh.get("exact", false))
 			_apply(sh.pos, sh.look, float(sh.get("fov", 50.0)), delta, float(sh.get("rate", 3.0)))
+			_exact = false
 			return
 		"stargaze":
 			var ca: WorldCharacter = _stargaze.a
@@ -584,8 +586,11 @@ const WIDE_FOV := 1.12
 const PULL_BACK := 1.18
 
 
+var _exact := false     # a scene shot framed to the centimetre (the transformation's wide shot): no widening / pull-back
+
+
 func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) -> void:
-	if mika and not (mode in ["combat", "signature"]) and not RenderProfile.options.has("no-wide"):
+	if mika and not (mode in ["combat", "signature"]) and not _exact and not RenderProfile.options.has("no-wide"):
 		fov = minf(fov * WIDE_FOV, 66.0)
 		pos = _clear_line(look, look + (pos - look) * PULL_BACK) if (pos - look).length() > 0.7 else pos
 	# never inside something solid, whatever shot asked for it (a ray from inside a rock reports nothing: the overlap

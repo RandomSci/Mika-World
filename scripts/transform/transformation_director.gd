@@ -73,13 +73,70 @@ func setup(m: Node) -> void:
 	_title.modulate.a = 0.0
 	_overlay.add_child(_title)
 	if main.progression:
-		main.progression.form_unlocked.connect(func(who, level, _f): queue.append({"who": who, "level": level}))
+		main.progression.form_unlocked.connect(func(who, level, _f): _enqueue(String(who), int(level)))
 	sequence = TransformationSequence.new()
 	sequence.name = "TransformationSequence"
 	add_child(sequence)
 	sequence.setup(main, self)
 	for who in ["mika", "luna"]:
 		WeaponArsenal.sync(who)            # saves from before the arsenal: weapons of forms she already wears
+	_restore_pending.call_deferred()
+
+
+# ------------------------------------------------------------------ transformations happen only at night
+## A level that brings a new form during the day is queued for nightfall (world dusk) and saved (progress.tf_pending),
+## so a restart during the day keeps it. Until night: foreshadowing every 20-40 min - a brief glow in her hands, wind or
+## petals round her, and the other mage noticing it aloud. At dusk she winds down and it starts.
+const NIGHT_DAYLIGHT := 0.3            # WorldState.daylight() below this: dusk has fallen (about 19:25 - 05:35)
+var _foreshadow_at := {}
+
+
+func _enqueue(who: String, level: int) -> void:
+	if queue.any(func(q): return q.who == who and int(q.level) == level):
+		return
+	queue.append({"who": who, "level": level})
+	var m := WorldState.mind(who)
+	var pend: Dictionary = m.progress.get("tf_pending", {})
+	pend[str(level)] = true
+	m.progress["tf_pending"] = pend
+	WorldState._dirty = true
+	if sequence:
+		sequence.prefetch_lines(who, level)          # her build-up and reaction lines are voiced ahead
+	if not is_night():
+		print("[transform] %s reached Level %d by day: her transformation waits for nightfall" % [who, level])
+
+
+func _restore_pending() -> void:
+	for who in WorldState.minds:
+		var pend: Dictionary = WorldState.mind(who).progress.get("tf_pending", {})
+		for lv in pend:
+			if bool(pend[lv]):
+				_enqueue(String(who), int(lv))
+
+
+static func clear_pending(who: String, level: int) -> void:
+	var m := WorldState.mind(who)
+	var pend: Dictionary = m.progress.get("tf_pending", {})
+	pend.erase(str(level))
+	m.progress["tf_pending"] = pend
+	WorldState._dirty = true
+
+
+func is_night() -> bool:
+	return RenderProfile.options.has("tf-any-time") or WorldState.daylight() < NIGHT_DAYLIGHT
+
+
+func _foreshadow_tick(who: String) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var every := float(RenderProfile.options.get("tf-foreshadow-s", 0.0))
+	if not _foreshadow_at.has(who):
+		_foreshadow_at[who] = now + (every if every > 0.0 else randf_range(1200.0, 2400.0))
+		return
+	if now < float(_foreshadow_at[who]):
+		return
+	_foreshadow_at[who] = now + (every if every > 0.0 else randf_range(1200.0, 2400.0))
+	if sequence:
+		sequence.foreshadow(who)
 
 
 func spec(who: String, level := 10) -> Dictionary:
@@ -133,9 +190,39 @@ func _process(delta: float) -> void:
 		return
 	_check = SAFE_CHECK_S
 	var q: Dictionary = queue[0]
+	if not is_night():
+		_foreshadow_tick(q.who)
+		return
 	if _safe_to_start(q.who):
 		queue.pop_front()
+		_release(q.who)
 		play(q.who, "full", false, int(q.level))
+	else:
+		_hurry(q.who)
+
+
+## Her level-up transformation waits for a safe moment - but she is asked to wind down for it: her current walk
+## or activity ends ("transform" interrupt) and she starts nothing new (held) until it plays; a conversation already
+## under way finishes first. Without this it waited minutes behind talks and outings (2026-10-17 test).
+var _hurried := {}
+
+
+func _hurry(who: String) -> void:
+	var b = main.mage_brains.get(who)
+	if b == null or _hurried.has(who):
+		return
+	_hurried[who] = true
+	b.hold = true
+	b.interrupt("transform")
+	print("[transform] %s: her transformation is due - she winds down for it" % who)
+
+
+func _release(who: String) -> void:
+	if _hurried.has(who):
+		_hurried.erase(who)
+		var b = main.mage_brains.get(who)
+		if b:
+			b.hold = false
 
 
 ## Not mid-cast, not in a conversation, not mid-fight with a creature on her, Sanctuary loaded and idle.

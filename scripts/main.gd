@@ -39,6 +39,7 @@ var progression: Progression
 var spawner: Spawner
 var mage_talk: MageTalk
 var transformer: TransformationDirector
+var spell_fx: SpellFX
 var overlay_ui: MageOverlay
 var attention: AttentionDirector
 var affect: Affect
@@ -258,6 +259,12 @@ func _ready() -> void:
 	transformer.name = "Transformations"
 	add_child(transformer)
 	transformer.setup(self)
+	# reusable spell shapes recoloured by element (data/elements.json), pooled; anime impact frames for big hits
+	spell_fx = SpellFX.new()
+	spell_fx.name = "SpellFXPool"
+	add_child(spell_fx)
+	spell_fx.setup(self)
+	add_child(ImpactFrame.new())
 	for who in mages:
 		var got := progression.backfill(who)
 		if got > 0.0:
@@ -440,6 +447,16 @@ func _ready() -> void:
 		var tv = load("res://scripts/tests/transform_video.gd").new()
 		tv.main = self
 		add_child(tv)
+	elif RenderProfile.options.has("wingcheck"):
+		travel._cooldown_until = 1e12
+		var wc = load("res://scripts/tests/wing_check_test.gd").new()
+		wc.main = self
+		add_child(wc)
+	elif RenderProfile.options.has("outfitmotion"):
+		travel._cooldown_until = 1e12
+		var om = load("res://scripts/tests/outfit_motion_test.gd").new()
+		om.main = self
+		add_child(om)
 	elif RenderProfile.options.has("outfittest"):
 		travel._cooldown_until = 1e12
 		var ot = load("res://scripts/tests/outfit_test.gd").new()

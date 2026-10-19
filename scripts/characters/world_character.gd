@@ -57,6 +57,15 @@ const CLIPS := {
 	"victory_nod": ["ual:Yes", false, true],
 	"lift_off": ["ual:Jump_Start", false, true],       # Rising Air: the push off the ground
 	"land_soft": ["ual:Jump_Land", false, true],       # and setting down again
+	# the real-time transformation: her arms opened wide, held (the widest moment of the wide-arm spell)
+	"tf_arms_open": ["wide_arm_spell_casting.fbx@1.6", true, true],
+	# flight on her own wings (WingFlight; winged forms only): UAL 1 + 2 (CC0), pack ual_flight.glb
+	"fly_hover": ["ual_fly:NinjaJump_Idle", true, true],
+	"fly_glide": ["ual_fly:Jump", true, true],
+	"fly_takeoff": ["ual_fly:NinjaJump_Start", false, true],
+	"fly_land": ["ual_fly:NinjaJump_Land", false, true],
+	"fly_hover_alt": ["ual_fly:Swim_Idle", true, true],
+	"fly_glide_alt": ["ual_fly:Swim_Fwd", true, true],
 	# Milestone K (V3) rest set: Quaternius Universal Animation Library (CC0), second pack. "@t" freezes a clip at
 	# time t (a held pose), "~rev" plays it backwards (the get-up becomes the lie-down).
 	"sit_ground_enter": ["ual_rest:Sitting_Enter", false, true],
@@ -88,13 +97,13 @@ const CLIPS := {
 	"rx_crouch_help": ["ual_rest:Crouch_Idle", true, true],
 	"rx_reach_help": ["ual_react:Interact", false, true],
 	# body language (data/motion_profiles.json): Luna's poised formal walk; a few idles
-	"walk_formal": ["ual_react:Walk_Formal_Loop", true, true],
-	"idle_folded": ["ual_react:Idle_FoldArms_Loop", true, true],
+	"walk_formal": ["ual_react:Walk_Formal", true, true],
+	"idle_folded": ["ual_react:Idle_FoldArms", true, true],
 	"consume": ["ual_react:Consume", false, true],
 }
 const UAL_PACK := "res://assets/animations/ual/ual_combat.glb"
 const UAL_PACKS := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_rest": "res://assets/animations/ual/ual_rest.glb",
-	"ual_react": "res://assets/animations/ual/ual_react.glb"}
+	"ual_react": "res://assets/animations/ual/ual_react.glb", "ual_fly": "res://assets/animations/ual/ual_flight.glb"}
 
 @export var character_id := "mika"
 @export var display_name := "Mika"
@@ -117,6 +126,7 @@ var aura_fx: Array = []        # the look's soft ambient effects (appearance pro
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
 var cloth_clearance: ClothClearance   # hands kept out of her clothes (profile.clearance)
 var wing_layer: WingLayer             # feathered wings with their own bones (profile.wings)
+var flight: WingFlight                # she flies on those wings (take off, glide, hover, land)
 var foot_guard: FootGuard              # feet kept on top of the floor (a dance carrying her hips over a raised floor)
 var head_look: LookAtModifier3D  # eases her head toward what she reads / inspects
 var eye_looks: Array[LookAtModifier3D] = []
@@ -225,6 +235,9 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 		cloth_clearance.enabled = false
 	var wcfg: Dictionary = AppearanceRegistry.stage_for_avatar(character_id, avatar_path).get("profile", {}).get("wings", {})
 	wing_layer = WingLayer.attach(skeleton, avatar, wcfg) if not wcfg.is_empty() else null
+	if flight and flight.airborne:
+		flight.airborne = false                       # a new body mid-air (a transformation): she starts on the ground
+	flight = WingFlight.new(self) if wing_layer and WingFlight.supported(self) else null
 	foot_guard = FootGuard.new()
 	foot_guard.name = "FootGuard"
 	skeleton.add_child(foot_guard)
@@ -350,7 +363,12 @@ func stage_profile() -> Dictionary:
 
 ## Change her appearance to another VRM of the same humanoid (a transformation form, or back to base).
 ## Refused while casting or holding something. `scene` may be a preloaded PackedScene (no hitch).
-func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = null) -> bool:
+## keep_old: the old avatar is not freed but handed to the caller (released_avatar, out of the tree, its last pose
+## kept) - the real-time transformation burns it away as light while the new one stands in its place.
+var released_avatar: Node3D
+
+
+func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = null, keep_old := false) -> bool:
 	if casting or (handler and handler.held != null):
 		return false
 	if scene == null and instance == null:
@@ -360,8 +378,13 @@ func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = nul
 		scene = load(path)
 	var old := avatar
 	old.name = "AvatarOld"
+	if keep_old:
+		old.set_meta("released_xf", old.global_transform)
 	remove_child(old)
-	old.queue_free()
+	if keep_old:
+		released_avatar = old
+	else:
+		old.queue_free()
 	_expr.clear()
 	_expr_weight.clear()
 	_expr_target.clear()
@@ -1014,10 +1037,35 @@ static func _hip_curve(anim: Animation) -> PackedVector2Array:
 
 
 func skeleton_signature() -> String:
+	return signature_of(avatar, skeleton)
+
+
+static func signature_of(av: Node, sk: Skeleton3D) -> String:
 	var names := PackedStringArray()
-	for i in skeleton.get_bone_count():
-		names.append(skeleton.get_bone_name(i))
-	return String(avatar.get_path_to(skeleton)) + "|" + str(hash(",".join(names)))
+	for i in sk.get_bone_count():
+		names.append(sk.get_bone_name(i))
+	return String(av.get_path_to(sk)) + "|" + str(hash(",".join(names)))
+
+
+## A new avatar's clip library built ahead, off the main thread (the real-time transformation, during its build-up):
+## `inst` is the new avatar, instantiated but not in the tree. Returns [signature, library, root curves]; the caller
+## puts it in the cache on the main thread (adopt_library) so the swap itself finds it built.
+static func prebuild_library(inst: Node) -> Array:
+	var sk := inst.find_child("GeneralSkeleton", true, false) as Skeleton3D
+	if sk == null:
+		return []
+	var sig := signature_of(inst, sk)
+	if _lib_cache.has(sig):
+		return []
+	var curves := {}
+	return [sig, _build_library_for(inst, sk, curves), curves]
+
+
+static func adopt_library(pre: Array) -> void:
+	if pre.size() == 3 and not _lib_cache.has(String(pre[0])):
+		_lib_cache[String(pre[0])] = pre[1]
+		for k in (pre[2] as Dictionary):
+			root_curves[k] = pre[2][k]
 
 
 func _setup_animation() -> void:
@@ -1035,8 +1083,12 @@ func _setup_animation() -> void:
 
 
 func _build_library() -> AnimationLibrary:
+	return _build_library_for(avatar, skeleton, root_curves)
+
+
+static func _build_library_for(av: Node, sk: Skeleton3D, curves: Dictionary) -> AnimationLibrary:
 	var lib := AnimationLibrary.new()
-	var skel_path := String(avatar.get_path_to(skeleton))
+	var skel_path := String(av.get_path_to(sk))
 	var packs := {}        # pack id -> AnimationPlayer
 	var pack_srcs := []
 	for pid in UAL_PACKS:
@@ -1086,8 +1138,8 @@ func _build_library() -> AnimationLibrary:
 		elif rng_a >= 0.0:
 			anim = _bake_variant(anim, "range", rng_a, rng_b)
 		if clip_name.begins_with("rx_"):
-			root_curves[clip_name] = _hip_curve(anim)
-		_retarget_paths(anim, skel_path, spec[2])
+			curves[clip_name] = _hip_curve(anim)
+		_retarget_paths_on(anim, skel_path, spec[2], sk)
 		anim.loop_mode = Animation.LOOP_LINEAR if spec[1] else Animation.LOOP_NONE
 		lib.add_animation(clip_name, anim)
 	for src_node in pack_srcs:
@@ -1205,10 +1257,14 @@ func _build_tree() -> void:
 
 ## Point tracks at Mika's skeleton, drop bones she doesn't have, and make clips in-place.
 func _retarget_paths(anim: Animation, skel_path: String, in_place: bool) -> void:
+	_retarget_paths_on(anim, skel_path, in_place, skeleton)
+
+
+static func _retarget_paths_on(anim: Animation, skel_path: String, in_place: bool, sk: Skeleton3D) -> void:
 	for t in range(anim.get_track_count() - 1, -1, -1):
 		var path := String(anim.track_get_path(t))
 		var bone := path.get_slice(":", 1)
-		if bone == "" or skeleton.find_bone(bone) == -1:
+		if bone == "" or sk.find_bone(bone) == -1:
 			anim.remove_track(t)
 			continue
 		anim.track_set_path(t, NodePath(skel_path + ":" + bone))
@@ -1393,7 +1449,7 @@ func cast_spell(spell_scene: Script, clip := "prepare_and_cast") -> Node:
 	if reaction and reaction.blocks_actions():
 		action_finished.emit("cast_spell", false, "recovering from a blow")
 		return null
-	if casting or not is_on_floor():
+	if casting or not (is_on_floor() or (flight and flight.airborne)):
 		action_finished.emit("cast_spell", false, "already casting" if casting else "not on the ground")
 		return null
 	_finish_action(false, "superseded by cast")
@@ -1540,12 +1596,14 @@ func _physics_process(delta: float) -> void:
 		cloth_clearance.seated = pose_adjust.influence > 0.5 and pose_adjust.mode == ""
 		cloth_clearance.allow = not casting and not (handler and handler.held != null) and not (sword and sword.drawn) \
 			and (pose_adjust.influence < 0.05 or cloth_clearance.seated) and spd < walk_speed * 1.35 \
-			and not (reaction and reaction.active) and not lifted \
+			and not (reaction and reaction.active) and not lifted and not (flight and flight.airborne) \
 			and not bool(anim_tree.get("parameters/cast/active") if anim_tree else false)   # a gesture / dance owns her arms
 	if wing_layer:
 		# folded while she sits or lies (or is knocked down), spread while she casts, fights or transforms
 		wing_layer.seated = (pose_adjust and pose_adjust.influence > 0.5) or (reaction != null and reaction.active) or lifted
 		wing_layer.spread = casting or (sword != null and sword.drawn) or bool(get_meta("transforming", false))
+		wing_layer.flying = flight != null and flight.airborne
+		wing_layer.moving = not wing_layer.flying and Vector2(velocity.x, velocity.z).length() > 0.6     # tucked while she walks or runs
 	if reaction:
 		reaction.physics(delta)
 		if reaction.active:
@@ -1553,6 +1611,9 @@ func _physics_process(delta: float) -> void:
 	if lifted:
 		velocity = Vector3.ZERO
 		anim_tree.set("parameters/loco/blend_position", 0.0)
+		return
+	if flight and flight.airborne:
+		flight.physics(delta)            # her wings carry her: no gravity, no walking
 		return
 	var now := _gclock
 	var desired := _move_input
@@ -1707,4 +1768,7 @@ func observe() -> Dictionary:
 		"current_action": current_action,
 		"action_detail": action_detail,
 		"casting": casting,
+		"wings": flight != null,
+		"flying": flight.state if flight and flight.airborne else "",
+		"altitude_m": snappedf(flight.altitude(), 0.1) if flight and flight.airborne else 0.0,
 	}

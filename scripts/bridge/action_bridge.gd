@@ -193,6 +193,32 @@ func handle(req: Dictionary) -> Dictionary:
 					reply.merge({"ok": true, "status": "started", "target": _v(target)})
 				else:
 					reply.merge({"ok": false, "status": "error", "error": c.last_rejection if c.last_rejection != "" else "refused", "target": _v(target)})
+		"fly_to", "take_off", "land", "hover":
+			# on her own wings (winged forms only): fly_to {target} = take off, fly over what is in the way, land there
+			if c.flight == null:
+				reply.merge({"ok": false, "status": "error", "error": "%s has no wings in this form" % cid})
+			elif cmd == "fly_to":
+				var ft = _resolve_target(req.get("target"))
+				if ft == null:
+					reply.merge({"ok": false, "status": "error", "error": "unknown target %s" % str(req.get("target"))})
+				else:
+					var fr: Dictionary = await c.flight.fly_to(ft)
+					reply.merge(fr)
+					reply["status"] = "done" if fr.get("ok", false) else "error"
+			elif cmd == "take_off":
+				var tr: Dictionary = await c.flight.take_off(float(req.get("height", 4.0)))
+				reply.merge(tr)
+				reply["status"] = "done" if tr.get("ok", false) else "error"
+			elif cmd == "land":
+				var lr: Dictionary = await c.flight.land()
+				reply.merge(lr)
+				reply["status"] = "done" if lr.get("ok", false) else "error"
+			else:
+				var ht = _resolve_target(req.get("target"))
+				var hp: Vector3 = (ht if ht != null else c.global_position) + Vector3(0, float(req.get("height", 3.0)), 0)
+				var hr: Dictionary = await c.flight.hover_at(hp)
+				reply.merge(hr)
+				reply["status"] = "done" if hr.get("ok", false) else "error"
 		"look_at", "face":
 			var target = _resolve_target(req.get("target"))
 			if target == null:
@@ -509,6 +535,8 @@ func interactions(cid: String) -> Array:
 	var out := ["observe", "navigate_to", "look_at", "stop", "travel_to", "list_locations", "landmarks"]
 	if c.is_on_floor() and not c.casting and world.has_space_for_magic(c.global_position):
 		out.append("cast_spell:arcane_orb")
+	if c.flight:
+		out.append_array(["land", "hover", "fly_to"] if c.flight.airborne else ["take_off", "fly_to"])
 	for d in nearby_interactables(cid, 4.0):
 		if d.in_reach and d.available:
 			out.append("interact:" + d.id)

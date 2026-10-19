@@ -2407,5 +2407,9 @@
     "name": "Gilded Trident"
    }
   }
+ },
+ "video_lead_in_s": {
+  "_note": "black frames at the start of each video (ffmpeg blackdetect): hidden under the launch flash",
+  "mika_10": 1.21
  }
 }
