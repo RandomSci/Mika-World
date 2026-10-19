@@ -376,11 +376,18 @@ func _box(nm: String, size: Vector3, at: Vector3, mat: Material) -> void:
 
 func _pines() -> void:
 	var variants := ["RealSpruce_A", "RealSpruce_B", "RealFir", "RealPineYoung"]
+	# the colour pass: autumn and blossom trees among the pines along the shore, every crown its own colour
+	var broad := [] if RealKit.enabled() == false or RenderProfile.options.has("plain-trees") else ["RealMaple", "RealBeech_A", "RealBeech_B", "RealOak", "RealYoung"]
+	var all_v: Array = variants + broad
 	var near := {}
 	var far := {}
-	for v in variants:
+	var near_c := {}
+	var far_c := {}
+	for v in all_v:
 		near[v] = []
 		far[v] = []
+		near_c[v] = []
+		far_c[v] = []
 	var focus := Vector2(PIER_X, 0.0)
 	var placed := 0
 	var tries := 0
@@ -404,21 +411,30 @@ func _pines() -> void:
 			continue
 		var v: String = variants[_rng.randi() % variants.size()] if e > 6.0 else (["RealPineYoung", "RealSpruce_B"][_rng.randi() % 2])
 		var s := _rng.randf_range(0.75, 1.25) * (0.7 if v == "RealPineYoung" else 1.0)
+		var roll := _rng.randf()
+		if not broad.is_empty() and roll < 0.55 * (1.0 - smoothstep(18.0, 60.0, e)) + 0.12:
+			v = broad[_rng.randi() % broad.size()]
+			s = _rng.randf_range(0.62, 0.95) * (1.25 if v == "RealYoung" else 1.0)
 		var b := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * s)
 		var xf := Transform3D(b, Vector3(x, h(x, z) - 0.2, z))
+		var col := _crown_color(v)
 		if d < 110.0:
 			near[v].append(xf)
+			near_c[v].append(col)
 		else:
 			far[v].append(xf)
+			far_c[v].append(col)
 		placed += 1
 	var nn := 0
 	var nf := 0
-	for v in variants:
-		for pass_i in [[near, false], [far, true]]:
+	for v in all_v:
+		for pass_i in [[near, false, near_c], [far, true, far_c]]:
 			var list: Array = (pass_i[0] as Dictionary)[v]
 			if list.is_empty():
 				continue
 			var mesh: ArrayMesh = RealKit._tree(v, pass_i[1], 1.0, "bark_brown_02")
+			if not broad.is_empty():
+				_colour_crowns(mesh, broad.has(v), pass_i[1])
 			var tris := 0
 			for si in mesh.get_surface_count():
 				tris += mesh.surface_get_array_index_len(si) / 3
@@ -426,13 +442,55 @@ func _pines() -> void:
 			var xs: Array[Transform3D] = []
 			xs.assign(list)
 			# the mesh keeps its own bark / needle materials: no override
-			_multimesh_tiled("Pines_%s_%s" % [v, "far" if pass_i[1] else "near"], mesh, null, xs, [] as Array[Color], 40.0 if not pass_i[1] else 90.0)
+			var cs: Array[Color] = []
+			cs.assign((pass_i[2] as Dictionary)[v] if not broad.is_empty() else [])
+			_multimesh_tiled("Pines_%s_%s" % [v, "far" if pass_i[1] else "near"], mesh, null, xs, cs, 40.0 if not pass_i[1] else 90.0)
 			if pass_i[1]:
 				nf += list.size()
 			else:
 				nn += list.size()
+			if broad.has(v):
+				counts["broadleaf"] = int(counts.get("broadleaf", 0)) + list.size()
 	counts["pines_near"] = nn
 	counts["pines_far"] = nf
+
+
+## A crown's colour (multimesh custom data: rgb, a = how far its leaves take it). The pines stay evergreen but deep
+## and jewel-like (emerald to teal); the broadleaf trees are the colour: crimson and scarlet maples, golden beeches,
+## copper oaks, and young trees in blossom (sakura pink to plum).
+func _crown_color(v: String) -> Color:
+	var pal: Array
+	match v:
+		"RealMaple":
+			pal = [Color(0.86, 0.08, 0.12), Color(0.95, 0.24, 0.07), Color(0.78, 0.05, 0.28)]
+		"RealBeech_A", "RealBeech_B":
+			pal = [Color(1.0, 0.68, 0.08), Color(0.98, 0.5, 0.05), Color(0.95, 0.8, 0.2)]
+		"RealOak":
+			pal = [Color(0.92, 0.36, 0.06), Color(0.8, 0.22, 0.05), Color(0.98, 0.56, 0.12)]
+		"RealYoung":
+			pal = [Color(1.0, 0.55, 0.75), Color(0.98, 0.7, 0.86), Color(0.82, 0.36, 0.78)]
+		_:
+			pal = [Color(0.1, 0.5, 0.3), Color(0.06, 0.42, 0.4), Color(0.16, 0.56, 0.22)]
+	var c: Color = pal[_rng.randi() % pal.size()]
+	c = c.lerp(pal[_rng.randi() % pal.size()], _rng.randf() * 0.5)
+	return Color(c.r, c.g, c.b, 1.0 if not (v.begins_with("RealSpruce") or v == "RealFir" or v == "RealPineYoung") else 0.75)
+
+
+## The colour pass on one tree mesh's leaves (its own duplicated material): richer colour, moonlit crown tops, a
+## little light of their own so the colours read at night, and a few softly glowing, twinkling twigs (spirit
+## blossoms) - more on the broadleaf trees, fewer far away.
+func _colour_crowns(mesh: ArrayMesh, broadleaf: bool, far_lod: bool) -> void:
+	for si in mesh.get_surface_count():
+		var m := mesh.surface_get_material(si) as ShaderMaterial
+		if m == null or m.shader == null or not m.shader.resource_path.ends_with("real_leaf.gdshader"):
+			continue
+		m.set_shader_parameter("saturation", 0.6)
+		m.set_shader_parameter("specular", 0.12)            # (the sky's violet sheen washed the colours to pastel)
+		m.set_shader_parameter("self_lit", 0.3 if broadleaf else 0.1)
+		m.set_shader_parameter("sheen", 0.12)
+		m.set_shader_parameter("sheen_color", Color(0.5, 0.65, 1.0))
+		m.set_shader_parameter("glow_amount", 0.012 if broadleaf and not far_lod else 0.0)
+		m.set_shader_parameter("glow_energy", 1.2)
 
 
 func _reed_mesh(blades: int, heads: int, height: float, width: float, seed_v: int, droop := 0.45) -> ArrayMesh:
