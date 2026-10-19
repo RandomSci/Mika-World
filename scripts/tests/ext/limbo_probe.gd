@@ -14,9 +14,13 @@ static func run(t) -> void:
 	bt.root_task = seq
 	var player := BTPlayer.new()
 	player.behavior_tree = bt
+	player.scene_root_hint = host                      # (a player built in code must be told its scene root)
 	host.add_child(player)
 	for i in 6:
 		await t.get_tree().process_frame
+	print("[limbo] player active %s update_mode %s instance %s agent %s bt %s" % [player.active, player.update_mode, str(player.get_bt_instance()), str(player.agent_node), str(player.behavior_tree)])
+	if player.get_bt_instance():
+		print("[limbo] instance status %s" % player.get_bt_instance().get_last_status())
 	var ticks: int = player.blackboard.get_var(&"ticks", 0)
 	t._check(ticks >= 3, "behaviour tree ran a GDScript task (%d ticks)" % ticks)
 	var hsm := LimboHSM.new()

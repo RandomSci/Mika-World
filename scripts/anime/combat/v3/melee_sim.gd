@@ -17,6 +17,7 @@ const GRAVITY := 9.8
 
 var d: FightDirector
 var vfx: CombatVFX
+var magic: MagicCaster                    # spells and conjured weapons (gesture -> gather at the hand -> release)
 var rng := RandomNumberGenerator.new()
 var F := {}                              # id -> MeleeFighter
 var S := {}                              # id -> live state
@@ -60,6 +61,7 @@ func _setup(director: FightDirector, opts: Dictionary) -> void:
 	length = float(opts.get("length", 15.0))
 	demo = bool(opts.get("demo", false))
 	vfx = CombatVFX.make(d.main.world if d.main.get("world") else d.main)
+	magic = MagicCaster.make(self)
 	var teams: Dictionary = opts.get("teams", {"mika": 0, "luna": 1})
 	var ids: Array = teams.keys()
 	var gap := float(opts.get("start_gap", 1.2))
@@ -73,7 +75,7 @@ func _setup(director: FightDirector, opts: Dictionary) -> void:
 		var pz: Dictionary = PERSONA.get(id, PERSONA.mika)
 		S[id] = {"id": id, "team": teams[id], "state": "free", "until": 0.0, "atk": {}, "def": {}, "threat": {}, "next_at": rng.randf_range(0.3, 0.8),
 			"recent": [], "last_def": "", "hp": 100.0, "stam": 100.0, "glide": {}, "vel": Vector3.ZERO, "circ": 1.0 if rng.randf() < 0.5 else -1.0,
-			"circ_until": 0.0, "pref": float(pz.pref), "p": pz.duplicate(), "counter": false, "air": false}
+			"circ_until": 0.0, "pref": float(pz.pref), "p": pz.duplicate(), "counter": false, "air": false, "energy": 100.0}
 
 
 var _hidden: Array = []
@@ -100,6 +102,7 @@ func _hide_props() -> void:
 
 
 func start() -> void:
+	SpellVFX.fight_glow(d.main, true)                # (only magic blooms while they fight)
 	_hide_props()
 	for id in S:
 		F[id] = MeleeFighter.make(d, id)
@@ -686,6 +689,9 @@ func _respond(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 	if rng.randf() < float(s.p.late):
 		atk.defence = "late"
 		return
+	if atk.has("spell"):
+		_respond_spell(s, o, atk)
+		return
 	var m: Dictionary = atk.m
 	var left := float(atk.t_hit) - t
 	# she reads the strike off the attacker's real limb: where the striking hand / foot is and how it moves, plus where
@@ -744,6 +750,51 @@ func _respond(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 		atk.defence = "too_late"
 		return
 	_defend(s, o, pick, atk)
+
+
+## A spell coming: she answers what she reads - over spikes and waves (a jump), out of a bolt's or a beam's line (a
+## sidestep, a step back), a barrier from her hands, or under a high one (a duck); the dodge starts when she SEES the
+## release (it flies at where she stands then), a barrier can go up early.
+func _respond_spell(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
+	var sp: Dictionary = atk.spell
+	var kind := String(sp.kind)
+	var opts := {}
+	match kind:
+		"spikes", "wave":
+			opts = {"jump": 0.65, "sidestep": 0.25, "barrier": 0.1}
+		"beam":
+			opts = {"sidestep": 0.55, "barrier": 0.45}
+		"weapon":
+			opts = {"cover": 0.35, "block_mid": 0.25, "backstep": 0.4} if not sp.get("throw", false) else {"sidestep": 0.6, "barrier": 0.4}
+		_:
+			opts = {"sidestep": 0.45, "backstep": 0.15, "barrier": 0.25, "duck": 0.15 if String(sp.get("height", "mid")) == "high" else 0.0}
+	if float(s.get("energy", 0.0)) < float(SpellBook.SPELLS.barrier.energy):
+		opts.erase("barrier")
+	opts["barrier"] = float(opts.get("barrier", 0.0)) * float(s.p.get("magic", 1.0))
+	var names: Array = []
+	var ws: Array = []
+	for k in opts:
+		if float(opts[k]) > 0.0:
+			names.append(k)
+			ws.append(float(opts[k]))
+	var pick := _weighted(names, ws)
+	if pick == "":
+		atk.defence = "too_late"
+		return
+	atk.defence = pick
+	var t_rel := float(atk.get("t_release", float(atk.t0) + 0.14 + float(sp.get("gather", 0.2)) + 0.09))   # when it leaves her
+	if pick == "barrier":
+		var wait_b := maxf(float(atk.t_hit) - t - 0.55, 0.0) if kind != "weapon" else 0.0
+		at(wait_b, func():
+			if String(atk.outcome) == "" and String(s.state) in ["free", "defend"]:
+				magic.cast(s, o, "barrier"))
+		return
+	var wait := maxf(t_rel - t, 0.0) + rng.randf_range(0.04, 0.11)
+	if kind == "weapon" and not sp.get("throw", false):
+		wait = maxf(t_rel - t, 0.0)
+	at(wait, func():
+		if String(atk.outcome) == "" and String(s.state) in ["free", "defend"]:
+			_defend(s, o, pick, atk))
 
 
 func _defend(s: Dictionary, o: Dictionary, kind: String, atk: Dictionary) -> void:
@@ -812,7 +863,7 @@ func _defend(s: Dictionary, o: Dictionary, kind: String, atk: Dictionary) -> voi
 	segs.append({"dur": 0.14, "ease": "inout", "pose": {}, "start": func(): f.palm["lh"] = "guard"})
 	f.play(segs)
 	var dirv := _flat(d.pos(o.id) - d.pos(s.id)).normalized()
-	if g.get("evade", false):
+	if g.get("evade", false) and not atk.has("spell"):
 		# out of the way: from here on the strike flies at the empty air where she was
 		var surf_from: Vector3 = (F[o.id] as MeleeFighter).trace.get("RightUpperArm" if atk.limb in ["rh", "rf"] else "LeftUpperArm", d.chest(o.id))
 		var pt: Vector3 = f.target_point(String(m.aim), surf_from)
@@ -827,6 +878,18 @@ func _defend(s: Dictionary, o: Dictionary, kind: String, atk: Dictionary) -> voi
 				f.skim(rise + 0.14)
 			"jump":
 				d.hop(s.id, float(g.lift), 0.46)
+	if g.get("evade", false) and atk.has("spell"):
+		match kind:
+			"backstep":
+				s.glide = {"from": d.pos(s.id), "to": d.clamp_arena(d.pos(s.id) - dirv * 0.9 * f.k), "t": 0.0, "dur": rise + 0.14, "ease": "out"}
+				f.skim(rise + 0.16)
+			"sidestep":
+				var sv2 := dirv.cross(Vector3.UP) * sgn
+				s.glide = {"from": d.pos(s.id), "to": d.clamp_arena(d.pos(s.id) + sv2 * 1.0 - dirv * 0.15), "t": 0.0, "dur": rise + 0.14, "ease": "out"}
+				f.skim(rise + 0.16)
+				d.fx.afterimages(f.c, s.id, 3, 0.04)
+			"jump":
+				d.hop(s.id, float(g.lift) * 1.2, 0.5)
 	events.append([snappedf(t, 0.01), "defend", s.id, kind])
 
 
@@ -927,6 +990,7 @@ func result() -> Dictionary:
 
 
 func teardown() -> void:
+	SpellVFX.fight_glow(d.main, false)
 	for n in _hidden:
 		if is_instance_valid(n):
 			(n as Node3D).visible = true

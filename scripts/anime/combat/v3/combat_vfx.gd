@@ -312,7 +312,7 @@ func _process(delta: float) -> void:
 			if float(h.left) > 0.0:
 				var pts: Array = (h.src as Callable).call()
 				(h.hist as Array).append(pts)
-				if (h.hist as Array).size() > 7:
+				if (h.hist as Array).size() > int(h.get("hist_max", 7)):
 					(h.hist as Array).pop_front()
 			else:
 				h.fade = float(h.fade) - delta / 0.09
