@@ -2,6 +2,7 @@
 ## (no chest-locked frame left on), the strand tips really swing (their motion relative to her head, in the final pose
 ## after the springs), and no hair vertex sinks into her body or into Mika. Tearing is tear_check's job.
 
+const DEEP := 0.85                      # a hair vertex counts as inside her when deeper than 15% of her own radius
 const MIN_SWING := 0.02                  # m: the tips' mean motion (std, head frame) must be at least this
 
 
@@ -78,7 +79,9 @@ static func _inside(c: WorldCharacter, poses: Array, o: WorldCharacter, oposes: 
 	var B := func(s: Skeleton3D, ps: Array, n: String) -> Vector3:
 		var bi := s.find_bone(n)
 		return s.global_transform * (ps[bi] as Transform3D).origin if bi >= 0 and bi < ps.size() else Vector3.INF
-	var mine := [[B.call(sk, poses, "Hips"), B.call(sk, poses, "UpperChest"), 0.1], [B.call(sk, poses, "LeftUpperLeg"), B.call(sk, poses, "LeftLowerLeg"), 0.06],
+	var hp: Vector3 = B.call(sk, poses, "Hips")
+	var uc: Vector3 = B.call(sk, poses, "UpperChest")
+	var mine := [[hp, uc, _torso_r(c, poses, hp, uc)], [B.call(sk, poses, "LeftUpperLeg"), B.call(sk, poses, "LeftLowerLeg"), 0.06],
 		[B.call(sk, poses, "RightUpperLeg"), B.call(sk, poses, "RightLowerLeg"), 0.06]]
 	var theirs := []
 	if not oposes.is_empty():
@@ -95,7 +98,7 @@ static func _inside(c: WorldCharacter, poses: Array, o: WorldCharacter, oposes: 
 		for vi in range(0, S.size(), 3):
 			var wp := sk.global_transform * S[vi]
 			for cp in mine:
-				if cp[0] != Vector3.INF and cp[1] != Vector3.INF and wp.distance_to(Geometry3D.get_closest_point_to_segment(wp, cp[0], cp[1])) < float(cp[2]) - 0.01:
+				if cp[0] != Vector3.INF and cp[1] != Vector3.INF and wp.distance_to(Geometry3D.get_closest_point_to_segment(wp, cp[0], cp[1])) < float(cp[2]) * DEEP:
 					n_self += 1
 					break
 			for cp in theirs:
@@ -103,3 +106,27 @@ static func _inside(c: WorldCharacter, poses: Array, o: WorldCharacter, oposes: 
 					n_other += 1
 					break
 	return Vector2i(n_self, n_other)
+
+
+## Her own torso radius round the hips -> upper chest line: the median distance of her body mesh's vertices there
+## (a fixed 10 cm counted hair lying ON her slim back as inside).
+static func _torso_r(c: WorldCharacter, poses: Array, a: Vector3, b: Vector3) -> float:
+	var sk := c.skeleton
+	var ds := []
+	for mi in c.avatar.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if not String(m.name).contains("Body") or m.mesh == null:
+			continue
+		var r := InvCommon.skin(m, sk, poses, 0)
+		var S: PackedVector3Array = r[0]
+		for vi in range(0, S.size(), 7):
+			var wp := sk.global_transform * S[vi]
+			var q := Geometry3D.get_closest_point_to_segment(wp, a, b)
+			if q.distance_to(a) > 0.02 and q.distance_to(b) > 0.02:
+				ds.append(wp.distance_to(q))
+	if ds.size() < 50:
+		return 0.1
+	ds.sort()
+	var r0: float = ds[ds.size() / 2]
+	print("[hair] %s torso radius %.3f m (%d body samples)" % [c.character_id, r0, ds.size()])
+	return r0

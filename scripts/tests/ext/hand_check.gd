@@ -86,7 +86,7 @@ static func _hand_mid(c: WorldCharacter) -> Vector3:
 	var a := sk.global_transform * sk.get_bone_global_pose(sk.find_bone("LeftHand")).origin
 	var b := sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightHand")).origin
 	var h := sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Head")).origin
-	return (a + b + h) / 3.0
+	return ((a if a.distance_to(h) < b.distance_to(h) else b) + h) * 0.5      # the hand nearest her face, and the face
 
 
 static func _aim(pin: CameraPin, v: String, spot: Vector3, chars: Dictionary) -> void:
@@ -107,6 +107,6 @@ static func _aim(pin: CameraPin, v: String, spot: Vector3, chars: Dictionary) ->
 		"luna_hands", "mika_hands":
 			var c: WorldCharacter = chars["luna" if v == "luna_hands" else "mika"]
 			var hm := _hand_mid(c)
-			pin.fov = 34.0
-			pin.pos = hm + Vector3(0.35, 0.05, 0.85)
+			pin.fov = 40.0
+			pin.pos = hm + Vector3(0.4, 0.05, 1.05)
 			pin.look = hm

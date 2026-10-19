@@ -56,21 +56,26 @@ static func skin(m: MeshInstance3D, sk: Skeleton3D, poses: Array, si := 0) -> Ar
 	return [out, V]
 
 
-## The worst triangle stretch of a skinned surface: max over edges of (skinned length / rest length), ignoring tiny
-## rest edges.
-static func stretch(m: MeshInstance3D, skinned: PackedVector3Array, rest: PackedVector3Array, si := 0) -> float:
+## The worst triangle stretch of a skinned surface: [worst ratio (skinned / rest length) over edges at least
+## MIN_EDGE long at rest, worst absolute opening in metres over every edge]. (A ratio on 3 mm edges at a joint
+## crease or a panel seam reads 8x for a 3 cm opening nobody can see: tiny edges only count by how far they open.)
+const MIN_EDGE := 0.01
+
+static func stretch(m: MeshInstance3D, skinned: PackedVector3Array, rest: PackedVector3Array, si := 0) -> Vector2:
 	var arr := m.mesh.surface_get_arrays(si)
 	var I = arr[Mesh.ARRAY_INDEX]
 	if I == null:
-		return 1.0
+		return Vector2(1.0, 0.0)
 	var idx: PackedInt32Array = I
 	var worst := 1.0
+	var open := 0.0
 	for t in range(0, idx.size(), 3):
 		for e in 3:
 			var a: int = idx[t + e]
 			var b: int = idx[t + (e + 1) % 3]
 			var r := rest[a].distance_to(rest[b])
-			if r < 0.003:
-				continue
-			worst = maxf(worst, skinned[a].distance_to(skinned[b]) / r)
-	return worst
+			var l := skinned[a].distance_to(skinned[b])
+			open = maxf(open, l - r)
+			if r >= MIN_EDGE:
+				worst = maxf(worst, l / r)
+	return Vector2(worst, open)

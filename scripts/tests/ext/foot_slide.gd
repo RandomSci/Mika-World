@@ -13,6 +13,7 @@ class Probe extends Node:
 	var t: Node
 	var chars: Array = []
 	var rec := {}
+	var caps := {}               # id -> InvCommon.capture box (the FINAL poses, FootGuard included)
 
 	func _process(_d: float) -> void:
 		for c in chars:
@@ -26,7 +27,18 @@ class Probe extends Node:
 				"R": gt * sk.get_bone_global_pose(sk.find_bone("RightFoot")).origin,
 				"b": float(wc.anim_tree.get("parameters/loco/blend_position")),
 				"s": float(wc.anim_tree.get("parameters/loco_speed/scale")),
-				"g": bool(wc.anim_tree.get("parameters/cast/active"))})
+				"g": bool(wc.anim_tree.get("parameters/cast/active")),
+				"LT": _final(wc, "LeftToes", "LeftFoot"), "RT": _final(wc, "RightToes", "RightFoot")})
+
+	## A bone's world position in the final pose (after every modifier), or the pre-modifier one before it is captured.
+	func _final(wc: WorldCharacter, bone: String, fallback: String) -> Vector3:
+		var sk := wc.skeleton
+		var bi := sk.find_bone(bone)
+		if bi < 0:
+			bi = sk.find_bone(fallback)          # (a rig without toe joints: the ankle)
+		var ps: Array = caps.get(wc.character_id, {}).get("poses", [])
+		var tr: Transform3D = ps[bi] if bi >= 0 and bi < ps.size() else sk.get_bone_global_pose(bi)
+		return sk.global_transform * tr.origin
 
 
 static var _probe: Probe
@@ -53,6 +65,7 @@ static func run(t) -> void:
 	_probe.t = t
 	_probe.chars = [mika, luna]
 	_probe.rec = {"mika": [], "luna": []}
+	_probe.caps = {"mika": InvCommon.capture(mika), "luna": InvCommon.capture(luna)}
 	t.add_child(_probe)
 	if RenderProfile.options.has("fs-sweep"):
 		await _sweep(mika, luna)
@@ -116,6 +129,28 @@ static func _stats(id: String, t0: float, t1: float, t_stop := -1.0) -> Dictiona
 				var dt2 := float(s[i + 1].t) - float(s[i - 1].t)
 				if dt2 > 0.0:
 					contact.append(_hz(s[i + 1][k] - s[i - 1][k]).length() / dt2)
+	# drift per step (v1 item 9): each stretch a foot's ball (the toe joint, final pose) stays planted (within 1.5 cm
+	# of its lowest, 3+ frames), how far it slides along the ground from the first frame of the stretch to the last.
+	# (The ankle travels several cm during a clean heel-to-toe roll: the ball is the point that must not slide.)
+	var drift := []
+	for k in ["LT", "RT"]:
+		var ys := s.map(func(x): return (x[k] as Vector3).y - (x.p as Vector3).y)
+		var srt := ys.duplicate()
+		srt.sort()
+		var floor_y: float = srt[int(srt.size() * 0.05)]
+		var i0 := -1
+		for i in s.size() + 1:
+			var down: bool = i < s.size() and float(ys[i]) < floor_y + 0.015
+			if down and i0 < 0:
+				i0 = i
+			elif not down and i0 >= 0:
+				if i - i0 >= 3:
+					drift.append(_hz(s[i - 1][k] - s[i0][k]).length())
+				i0 = -1
+	drift.sort()
+	out["steps"] = drift.size()
+	out["drift_med"] = snappedf(float(drift[drift.size() / 2]), 0.001) if not drift.is_empty() else -1.0
+	out["drift_p90"] = snappedf(float(drift[int(drift.size() * 0.9)]), 0.001) if not drift.is_empty() else -1.0
 	# treading: standing still for over 0.45 s while the blend still plays a walk
 	var tread := 0
 	var still_since := -1.0
@@ -158,8 +193,10 @@ static func _report(state: String, ok: bool, st: Dictionary, why := "") -> void:
 
 
 ## A walk / run is clean when the planted foot barely moves next to the body (<= 25 % of body speed + 3 cm/s).
+## v1 item 9: and a planted foot drifts at most 2 cm per step (90th percentile over the state's steps).
 static func _feet_ok(st: Dictionary) -> bool:
-	return float(st.get("foot", -1.0)) >= 0.0 and float(st.foot) <= float(st.body) * 0.25 + 0.03
+	return float(st.get("foot", -1.0)) >= 0.0 and float(st.foot) <= float(st.body) * 0.25 + 0.03 \
+		and float(st.get("drift_p90", -1.0)) <= 0.02
 
 
 # ------------------------------------------------------------------ the home area

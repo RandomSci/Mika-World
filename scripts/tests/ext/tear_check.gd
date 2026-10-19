@@ -2,6 +2,7 @@
 ## rest size, in the final pose (after the springs), while both girls dance (his clips) and while they sit in the boat.
 
 const LIMIT := 1.5
+const MAX_OPEN := 0.04                   # m: no edge may open wider than this (a visible tear / shard)
 const PARTS := ["Skirt", "Sleeve", "BackBow", "Hair"]
 
 
@@ -36,12 +37,14 @@ static func run(t) -> void:
 	boat.trail_hand("stern", "Left", true)
 	await _sample(t, chars, caps, worst, "boat", 8.0)
 	var ok := true
+	var bad := []
 	for k in worst:
-		var w: float = worst[k]
-		print("[tear] %s worst stretch %.2f" % [k, w])
-		if w > LIMIT:
+		var w: Vector2 = worst[k]
+		print("[tear] %s worst stretch %.2fx (edges >= 1 cm), widest opening %.3f m" % [k, w.x, w.y])
+		if w.x > LIMIT or w.y > MAX_OPEN:
 			ok = false
-	t._check(ok, "no cloth or hair triangle stretched past %.1fx (worst %s)" % [LIMIT, str(worst)])
+			bad.append(k)
+	t._check(ok, "no cloth or hair torn: stretch <= %.1fx on edges >= 1 cm, no edge opening > %.0f cm (over: %s)" % [LIMIT, MAX_OPEN * 100.0, str(bad)])
 
 
 static func _sample(t, chars: Dictionary, caps: Dictionary, worst: Dictionary, phase: String, secs: float) -> void:
@@ -67,4 +70,5 @@ static func _sample(t, chars: Dictionary, caps: Dictionary, worst: Dictionary, p
 					var sk_r := InvCommon.skin(m, c.skeleton, poses, si)
 					var s := InvCommon.stretch(m, sk_r[0], sk_r[1], si)
 					var key := "%s_%s_%s" % [id, phase, part]
-					worst[key] = snappedf(maxf(float(worst.get(key, 1.0)), s), 0.01)
+					var w0: Vector2 = worst.get(key, Vector2(1.0, 0.0))
+					worst[key] = Vector2(snappedf(maxf(w0.x, s.x), 0.01), snappedf(maxf(w0.y, s.y), 0.001))

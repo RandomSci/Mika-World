@@ -166,8 +166,14 @@ static func run(t) -> void:
 		var gp: Array = grabs.mika.poses
 		var hb := mika.skeleton.find_bone("Head")
 		var hd: Vector3 = mika.skeleton.global_transform * (gp[hb] as Transform3D).origin + Vector3(0, 0.05, 0) if gp.size() > hb else st.origin + Vector3(0, 0.62, 0)
-		pin.fov = 32.0
-		pin.pos = hd + st.basis.z * 0.75 + st.basis.x * (0.45 * side) + Vector3(0, -0.05, 0)
+		pin.fov = 38.0
+		# her real facing (hips -> her feet, level): the seat's own axes put the lens behind her head
+		var fb := func(n: String) -> Vector3: return mika.skeleton.global_transform * (gp[mika.skeleton.find_bone(n)] as Transform3D).origin if gp.size() > mika.skeleton.find_bone(n) else st.origin
+		var fwd: Vector3 = ((fb.call("LeftToes") + fb.call("RightToes")) * 0.5 - fb.call("Hips"))
+		fwd.y = 0.0
+		fwd = fwd.normalized() if fwd.length() > 0.05 else -st.basis.z
+		var sidev := fwd.cross(Vector3.UP).normalized()
+		pin.pos = hd + fwd * 1.3 + sidev * (0.6 * side) + Vector3(0, 0.02, 0)
 		pin.look = hd + Vector3(0, -0.06, 0)
 		await t._wait(0.6)
 		var gd := 0.0
