@@ -75,6 +75,18 @@ static func run(t) -> void:
 			hits += 1
 	for id in sim.F:
 		print("[kicklab] audited frames by pose, %s: %s" % [id, JSON.stringify((sim.F[id] as MeleeFighter).frames_by_pose)])
+		var bf: MeleeFighter = sim.F[id]
+		print("[kicklab] balance %s: centre of mass > 3 cm outside her feet on %d of %d planted frames (worst %.3f m) %s" % [id, bf.bal_out_frames, bf.bal_frames, bf.bal_worst, JSON.stringify(bf.bal_by)])
+		print("[kicklab] balance events %s: %s" % [id, JSON.stringify(bf.bal_events)])
+	var bout := 0
+	var ball := 0
+	var bworst := 0.0
+	for id in sim.F:
+		bout += (sim.F[id] as MeleeFighter).bal_out_frames
+		ball += (sim.F[id] as MeleeFighter).bal_frames
+		bworst = maxf(bworst, (sim.F[id] as MeleeFighter).bal_worst)
+	t._check(ball > 0 and float(bout) / float(ball) < 0.04 and bworst < 0.08,
+		"balance: centre of mass more than 3 cm outside her feet on %d of %d standing frames (%.1f %%, under 4 %%), worst %.3f m (under 0.08)" % [bout, ball, 100.0 * bout / maxf(ball, 1), bworst])
 	t._check(frames > 300, "joint audit ran on %d frames (both girls)" % frames)
 	t._check(faults.is_empty(), "no knee or elbow ever bends backwards (%d faults)" % faults.size())
 	t._check(hits >= moves.size(), "%d strikes connected" % hits)

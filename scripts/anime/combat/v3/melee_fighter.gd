@@ -124,6 +124,7 @@ func _build() -> void:
 	_trace.name = "TraceFight"
 	_trace.fighter = self
 	sk.add_child(_trace)
+	phys = FightPhysics.make(sk, k)                 # (partial physics on hits; arranges the pipeline itself)
 	PosePipeline.arrange_for(sk)
 	# what would fight the rig: her walking-feet helpers, the hand pushes, the clip's look-at
 	for n in OFF_WHILE_FIGHTING:
@@ -143,6 +144,8 @@ func _build() -> void:
 
 
 func teardown() -> void:
+	if phys:
+		phys.teardown()
 	for n in [_body, _post, _trace]:
 		if is_instance_valid(n):
 			n.queue_free()
@@ -162,6 +165,11 @@ func teardown() -> void:
 const STANCE_FRONT := 20.0               # deg: her front knee in the athletic fighting stance
 const STANCE_REAR := 27.5                # deg: her rear knee (the weight sits a little back, on it)
 var stance_corr := 0.0                    # m added to every hip height so HER front knee sits at STANCE_FRONT
+var phys: FightPhysics                    # partial physics on the struck chain (HitReactions)
+var _lift_hold := 0.0                      # life_t until which a kick's foot stays planted (weight transfer first)
+var react_grace := 0.0                     # life_t until which a just-ended reaction is still recovering (QA)
+var kick_support := ""                     # a kick from its windup on: the foot she stands on (her weight goes over it early)
+var _bal := Vector3.ZERO                   # world m: the hips' slide that keeps her centre of mass over her feet
 var rise := 0.0                           # m she is up on the ball of her support foot (a high kick)
 var quiet_t := 0.0                        # s she has stood still in her stance (no move, no step, no reaction)
 var stance_shift := 0.0                   # m her hips sit back (-) / forward (+) so the rear knee sits at STANCE_REAR
@@ -319,12 +327,26 @@ func update(dt: float) -> void:
 			var br := bend_of("rf" if fl == "lf" else "lf")
 			stance_corr = clampf(stance_corr + (bf - STANCE_FRONT) * 0.0006 * k, -0.16, 0.06)
 			stance_shift = clampf(stance_shift + ((br - bf) - (STANCE_REAR - STANCE_FRONT)) * 0.0004 * k, -0.08 * k, 0.04 * k)
+	# balance: her centre of mass is kept over her planted feet - when it drifts outside (one foot up in a kick, a long
+	# reach), the hips slide toward the support a little each frame (the torso's mass follows); inside, it eases off
+	if traced > 3 and rig_w >= 0.5 and not move_tag.begins_with("react:"):
+		var bv := balance_vec()
+		if bv.x != INF and bv.length() > 0.005:
+			_bal += Vector3(bv.x, 0.0, bv.y) * minf(dt * 24.0, 0.8)
+			if _bal.length() > 0.22 * k:
+				_bal = _bal.normalized() * 0.22 * k
+		else:
+			_bal = _bal.move_toward(Vector3.ZERO, dt * 0.25)
+	else:
+		_bal = _bal.move_toward(Vector3.ZERO, dt * 0.4)
 	_rig = move_toward(_rig, rig_w, dt / 0.15)
 	_body.influence = _rig
 	_post.influence = _rig
 	for l in _ik:
 		(_ik[l] as TwoBoneIK3D).influence = _rig
 	_feet(dt)
+	if phys:
+		phys.update(dt)
 	if c.get("_head_target") and look_at != Vector3.INF:
 		(c._head_target as Node3D).global_position = look_at
 
@@ -404,12 +426,20 @@ func _feet(dt: float) -> void:
 		var ww: Vector3 = gx * Vector3(wl.x, 0.0, wl.z)
 		ww.y = gy
 		var air: bool = wl.y > 0.03 * k or lift > 0.03 or bool(ft.free) or skimming
+		if air and not skimming and lift <= 0.03 and kick_support != "" and side != kick_support and life_t < _lift_hold:
+			air = false                                  # (her weight moves over the support foot before this one leaves)
 		if air:
 			var sk_h := 0.0
 			if skimming:
 				var u := 1.0 - (_skim_until - life_t) / _skim_len
 				sk_h = sin(PI * clampf(u, 0.0, 1.0)) * (0.05 if side == "lf" else 0.07) * k
-			ft.pos = ww + Vector3(0, wl.y + lift + sk_h, 0)
+			var to_air := ww + Vector3(0, wl.y + lift + sk_h, 0)
+			if not bool(ft.air):
+				ft.lift_t = 0.0                          # (just leaving the ground: ease up from where it stood)
+				ft.lift_from = ft.pos
+			ft.lift_t = float(ft.get("lift_t", 1.0)) + dt
+			var lu := smoothstep(0.0, 0.07, float(ft.lift_t))
+			ft.pos = (ft.get("lift_from", to_air) as Vector3).lerp(to_air, lu) if lu < 1.0 else to_air
 			ft.plant = ww
 			ft.step = {}
 			ft.air = true
@@ -424,6 +454,7 @@ func _feet(dt: float) -> void:
 			st.t = float(st.t) + dt
 			var u := clampf(float(st.t) / float(st.dur), 0.0, 1.0)
 			var to: Vector3 = ww + (st.get("lead", Vector3.ZERO) as Vector3)       # (lands where the body is going)
+			st.to = to
 			var e := ease_k(u, "inout")
 			ft.pos = (st.from as Vector3).lerp(to, e) + Vector3(0, sin(PI * u) * float(st.h), 0)
 			if u >= 1.0:
@@ -468,7 +499,7 @@ func apply(s: Skeleton3D) -> void:
 		var ctrl: Vector3 = (a + bl) * 0.5 + (dy.arc as Vector3)
 		P[limb] = a.lerp(ctrl, e).lerp(ctrl.lerp(bl, e), e)
 	var bob := sin(life_t * TAU * 1.7) * 0.0025 * k
-	var hip_off: Vector3 = (P.hip as Vector3) + (_sp.hip[0] as Vector3) + Vector3(0, bob + stance_corr, stance_shift)
+	var hip_off: Vector3 = (P.hip as Vector3) + (_sp.hip[0] as Vector3) + Vector3(0, bob + stance_corr, stance_shift) + gx.basis.inverse() * _bal
 	if vibrate and d._freeze > 0:
 		hip_off.x += (0.012 if Engine.get_frames_drawn() % 2 == 0 else -0.012) * k
 	var hi: int = _ids.Hips
@@ -508,6 +539,10 @@ func apply(s: Skeleton3D) -> void:
 		s.set_bone_pose_position(hi, s.get_bone_pose_position(hi) - Vector3(0, sink, 0))
 	last_sink = sink
 	var sp: Vector3 = P.spine
+	if _bal.length() > 0.01:
+		# the chest leans the other way a little (a counter-balance), so the head stays over her feet
+		var bl := gx.basis.inverse() * _bal
+		sp += Vector3(-bl.z * 60.0, 0.0, bl.x * 60.0) / maxf(k, 0.5)
 	var chest_a := Vector3.ZERO
 	var fr := {"Spine": 0.3, "Chest": 0.3, "UpperChest": 0.4}
 	for b in fr:
@@ -827,6 +862,16 @@ func _fix_twist(s: Skeleton3D, limb: String) -> void:
 			tau = tau2
 	if absf(tau) > lim or _knee_behind(s, limb):
 		_scan_swing(s, limb, ri, u, lim)
+		var tw := anat_twist(s, limb)
+		if absf(tw) > lim + 2.0:
+			# no swing keeps the end AND the hip / shoulder human (a fast arc through an odd frame): turn the bone back
+			# inside its range about itself - the hand / foot moves a little for this frame instead
+			var R := s.get_bone_global_pose(ri)
+			var ax := (s.get_bone_global_pose(_ids[bones[1]]).origin - R.origin).normalized()
+			var dl := deg_to_rad(clampf(tw, -lim, lim) - tw)
+			s.set_bone_global_pose(ri, Transform3D(Basis(ax, dl) * R.basis, R.origin))
+			if absf(anat_twist(s, limb)) > absf(tw):
+				s.set_bone_global_pose(ri, Transform3D(Basis(ax, -dl) * R.basis, R.origin))
 	twist[limb] = anat_twist(s, limb)
 
 
@@ -908,6 +953,11 @@ func _align_hinge(s: Skeleton3D, limb: String) -> void:
 var joint_faults: Array = []
 var twist := {"lf": 0.0, "rf": 0.0, "lh": 0.0, "rh": 0.0}
 var joint_frames := 0
+var bal_frames := 0                       # QA: frames with a foot planted
+var bal_out_frames := 0                   # ... with her centre of mass > 3 cm outside her feet
+var bal_worst := 0.0
+var bal_by := {}
+var bal_events := []                      # QA: [t, pose, m out, frame, stepping] of the first balance faults
 var frames_by_pose := {}                  # QA: audited frames per kind of pose (stance / move / guard / react:...)
 
 
@@ -921,6 +971,19 @@ func audit(s: Skeleton3D) -> void:
 	if _hinge.is_empty() or life_t < 0.5:
 		return
 	joint_frames += 1
+	if move_tag.begins_with("react:"):
+		react_grace = life_t + 0.25                 # (the steps after a reaction catch her balance)
+	# (a reaction, the steps right after it and a knock-back slide are dynamic balance: not judged as standing)
+	var bo := balance_out() if rig_w >= 0.5 and not move_tag.begins_with("react:") and life_t >= react_grace and _root_vel.length() < 0.5 else -1.0
+	if bo >= 0.0:
+		bal_frames += 1
+		if bo > 0.03 * k:
+			bal_out_frames += 1
+			bal_worst = maxf(bal_worst, bo)
+			var tg := move_tag if move_tag != "" else "stance"
+			bal_by[tg] = int(bal_by.get(tg, 0)) + 1
+			if bal_events.size() < 40:
+				bal_events.append([snappedf(life_t, 0.01), tg, snappedf(bo, 0.001), Engine.get_frames_drawn(), not (feet.lf.step as Dictionary).is_empty() or not (feet.rf.step as Dictionary).is_empty()])
 	var kind := "stance" if move_tag == "" else move_tag.get_slice(":", 0)
 	if move_tag.begins_with("react:"):
 		kind = "react:" + move_tag.get_slice(":", 1).get_slice("_", 0)       # (react:high / mid / low / knockdown)
@@ -966,6 +1029,83 @@ func audit(s: Skeleton3D) -> void:
 			why = "%s turned %.0f deg about itself (human limit %.0f)" % ["thigh" if limb in ["lf", "rf"] else "upper arm", float(twist[limb]), float(TWIST_LIMIT[limb])]
 		if bad:
 			_fault(limb, why, bend)
+
+
+## Her centre of mass now (final pose): segment masses after de Leva (head, trunk in four, upper arms, forearms + hands,
+## thighs, shanks + feet), on the traced bones.
+const MASS := [["Head", "", 0.081], ["UpperChest", "", 0.16], ["Chest", "", 0.16], ["Spine", "", 0.12], ["Hips", "", 0.11],
+	["LeftUpperArm", "LeftLowerArm", 0.027], ["RightUpperArm", "RightLowerArm", 0.027], ["LeftLowerArm", "LeftHand", 0.022],
+	["RightLowerArm", "RightHand", 0.022], ["LeftUpperLeg", "LeftLowerLeg", 0.14], ["RightUpperLeg", "RightLowerLeg", 0.14],
+	["LeftLowerLeg", "LeftFoot", 0.06], ["RightLowerLeg", "RightFoot", 0.06]]
+
+
+func com() -> Vector3:
+	var acc := Vector3.ZERO
+	var m := 0.0
+	for seg in MASS:
+		if not trace.has(seg[0]):
+			continue
+		var p: Vector3 = trace[seg[0]]
+		if String(seg[1]) != "" and trace.has(seg[1]):
+			p = (p + (trace[seg[1]] as Vector3)) * 0.5
+		acc += p * float(seg[2])
+		m += float(seg[2])
+	return acc / maxf(m, 0.001)
+
+
+## How far (m, on the ground) her centre of mass is outside the support of her planted feet (each foot heel -> toe,
+## 9 cm wide); 0 inside. -1 when no foot is planted (in the air: not judged).
+func balance_out() -> float:
+	var v := balance_vec(false)
+	return -1.0 if v.x == INF else v.length()
+
+
+## From her centre of mass to the nearest point of her support (ground plane, world x / z); zero inside the support,
+## (INF, INF) with no foot planted. `anticipate`: in a kick's windup only the foot she will stand on counts (the
+## correction moves her weight over it early); the audit judges the real support.
+func balance_vec(anticipate := true) -> Vector2:
+	var pts := PackedVector2Array()
+	for limb in ["lf", "rf"]:
+		if limb == strike_limb or bool(feet[limb].air) or (anticipate and kick_support != "" and limb != kick_support):
+			continue
+		var stp: Dictionary = feet[limb].step
+		if not anticipate and not stp.is_empty() and stp.has("to"):
+			# a step under way counts where it lands (dynamic balance: the step catches her centre of mass)
+			var to: Vector3 = stp.to
+			var fy := deg_to_rad(foot_yaw(limb))
+			var fw := sk.global_transform.basis * Vector3(sin(fy), 0, cos(fy))
+			var fw2 := Vector2(fw.x, fw.z).normalized()
+			var ac := Vector2(-fw2.y, fw2.x) * 0.045 * k
+			for q in [Vector2(to.x, to.z) - fw2 * 0.08 * k, Vector2(to.x, to.z) + fw2 * 0.14 * k]:
+				pts.append(q + ac)
+				pts.append(q - ac)
+			continue
+		var side := "Left" if limb == "lf" else "Right"
+		var heel: Vector3 = trace.get(side + "Foot", Vector3.INF)
+		var toe: Vector3 = trace.get(side + "Toes", heel)
+		if heel == Vector3.INF:
+			continue
+		var along := Vector2(toe.x - heel.x, toe.z - heel.z)
+		var across := Vector2(-along.y, along.x).normalized() * 0.045 * k
+		var back := along.normalized() * 0.05 * k
+		for q in [Vector2(heel.x, heel.z) - back, Vector2(toe.x, toe.z) + along.normalized() * 0.04 * k]:
+			pts.append(q + across)
+			pts.append(q - across)
+	if pts.is_empty():
+		return Vector2(INF, INF)
+	var c3 := com()
+	var c := Vector2(c3.x, c3.z)
+	var hull := Geometry2D.convex_hull(pts)
+	if hull.size() >= 3 and Geometry2D.is_point_in_polygon(c, hull):
+		return Vector2.ZERO
+	var best := Vector2(INF, INF)
+	for i in hull.size():
+		var a: Vector2 = hull[i]
+		var b: Vector2 = hull[(i + 1) % hull.size()]
+		var q := Geometry2D.get_closest_point_to_segment(c, a, b) - c
+		if q.length() < best.length():
+			best = q
+	return best
 
 
 ## Her knee / elbow bend now (deg, final pose), for QA.

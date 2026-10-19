@@ -1514,7 +1514,24 @@ func set_gesture_speed(scale: float) -> void:
 
 
 func has_clip(clip: String) -> bool:
-	return body_player.has_animation("mx/" + clip)
+	return body_player.has_animation("mx/" + clip) or _bake_movelib(clip)
+
+
+## A Move Library clip that is not in CLIPS (the 133 of v2 / v2 ultimates / v3, MoveCatalog): baked for her skeleton
+## the first time anything asks for it, then kept in her library like the others (no load-time cost).
+func _bake_movelib(clip: String) -> bool:
+	if not clip.begins_with("ml_") or body_player == null or not body_player.has_animation_library("mx"):
+		return false
+	var n := clip.trim_prefix("ml_")
+	if not MoveCatalog.CLIPS.has(n) or not FileAccess.file_exists(MOCAP_DIR + n + ".json"):
+		return false
+	var anim := MocapBake.bake(skeleton, MOCAP_DIR + n + ".json")
+	if anim == null:
+		return false
+	_retarget_paths(anim, String(avatar.get_path_to(skeleton)), true)
+	anim.loop_mode = Animation.LOOP_LINEAR if "loop" in (MoveCatalog.CLIPS[n].tags as Array) else Animation.LOOP_NONE
+	body_player.get_animation_library("mx").add_animation(clip, anim)
+	return true
 
 
 func animation_length(clip: String) -> float:
@@ -1716,7 +1733,7 @@ func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
 	if RenderProfile.options.has("trace-gaze") or RenderProfile.options.has("mktest"):
 		var st0 := get_stack()
 		gesture_trace = {"clip": clip, "by": ("%s:%d %s" % [String(st0[1].source).get_file(), int(st0[1].line), String(st0[1].function)]) if st0.size() > 1 else "?", "t": Time.get_ticks_msec()}
-	if (reaction and reaction.blocks_actions()) or casting or not CLIPS.has(clip) or not has_clip(clip):
+	if (reaction and reaction.blocks_actions()) or casting or not (CLIPS.has(clip) or MoveCatalog.CLIPS.has(clip.trim_prefix("ml_"))) or not has_clip(clip):
 		return false
 	# lying / sitting on the ground: only the ground's own clips (and reactions, waking). A wave or a point replaced the
 	# lying loop and she was drawn standing beside her friend for the rest of a stargaze (stage check 2026-10-17)

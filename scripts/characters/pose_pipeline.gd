@@ -21,7 +21,7 @@ extends Node
 
 const STAGES := {
 	"DanceDeck": 10, "FightDeck": 11, "BodyLanguage": 12, "PoseAdjust": 13, "BodyLife": 14, "SoftArms": 15,
-	"FightBody": 16, "FightIK": 17, "FightBodyPost": 18,
+	"FightBody": 16, "FightIK": 17, "FightBodyPost": 18, "FightPhysics": 19,
 	"SeatPose": 20, "ClothClearance": 21, "FootGuard": 22, "FootLock": 22, "HeadLook": 23, "EyeLook_LeftEye": 24, "EyeLook_RightEye": 25,
 	"HeadPosture": 26, "RightArmIK": 27, "LeftArmIK": 28, "EarController": 29,
 	"HandGuard": 30,

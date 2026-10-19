@@ -135,6 +135,7 @@ func _process(delta: float) -> void:
 		(ch as Callable).call()
 	_checks.clear()
 	for id in S:
+		_track_limbs(id, dt)
 		_tick(S[id], dt)
 	for id in S:
 		var f: MeleeFighter = F[id]
@@ -146,6 +147,26 @@ func _process(delta: float) -> void:
 		_camera()
 	if t >= length and _quiet():
 		done = true
+
+
+## Each hand's / foot's velocity on her final pose (what a defender can read during a windup), smoothed.
+var limb_vel := {}                        # "<id>:<limb>" -> Vector3 m/s
+var _limb_last := {}
+
+
+func _track_limbs(id: String, dt: float) -> void:
+	if dt <= 0.0005:
+		return
+	var f: MeleeFighter = F[id]
+	for limb in ["lh", "rh", "lf", "rf"]:
+		var b := ("Left" if limb in ["lh", "lf"] else "Right") + ("Hand" if limb in ["lh", "rh"] else "Foot")
+		var p: Vector3 = f.trace.get(b, Vector3.INF)
+		if p == Vector3.INF:
+			continue
+		var key: String = id + ":" + String(limb)
+		if _limb_last.has(key):
+			limb_vel[key] = (limb_vel.get(key, Vector3.ZERO) as Vector3).lerp((p - (_limb_last[key] as Vector3)) / dt, 0.5)
+		_limb_last[key] = p
 
 
 func _quiet() -> bool:
@@ -296,6 +317,8 @@ func _choose_attack(s: Dictionary, o: Dictionary, dist: float) -> void:
 			w *= 0.05
 		if float(s.stam) < 25.0 and m.weight == "heavy":
 			w *= 0.2
+		# motion matching: a move that starts from the pose she is in flows on, one that needs a reset is less likely
+		w *= lerpf(0.35, 1.0, MotionMatch.weight(MotionMatch.move_cost(F[s.id], m)))
 		names.append(n)
 		weights.append(w)
 	s.counter = false
@@ -362,13 +385,18 @@ func _attack(s: Dictionary, o: Dictionary, name: String, pre := []) -> void:
 	f.palm[limb] = String(m.get("palm", "down")) if limb in ["lh", "rh"] else f.palm.get(limb, "guard")
 	var fn := func() -> Vector3: return _limb_target(s, o, atk)
 	var segs: Array = pre.duplicate()
-	segs.append({"dur": wind, "ease": "inout", "pose": m.keys[0], "arc": m.get("wind_arc", {}), "start": func(): atk.phase = "wind"})
+	segs.append({"dur": wind, "ease": "inout", "pose": m.keys[0], "arc": m.get("wind_arc", {}), "start": func():
+		atk.phase = "wind"
+		if limb in ["lf", "rf"]:
+			f.kick_support = "rf" if limb == "lf" else "lf"
+			f._lift_hold = f.life_t + minf(0.1, wind * 0.5)})
 	segs.append({"dur": act, "ease": "snap", "pose": m.keys[1], "dyn": {limb: fn}, "arc": m.get("arc", {}),
 		"start": func(): _active(s, o, atk), "end": func(): _impact(s, o, atk)})
 	segs.append({"dur": 0.04 / sp, "ease": "hold", "pose": m.keys[1], "dyn": {limb: fn}})
 	segs.append({"dur": rec, "ease": "inout", "pose": m.get("recover_pose", {}), "arc": m.get("recover_arc", {}), "start": func():
 		atk.phase = "recover"
 		f.strike_limb = ""
+		f.kick_support = ""
 		f.palm[limb] = "guard",
 		"end": func(): _attack_done(s, o, atk)})
 	f.play(segs)
@@ -392,7 +420,7 @@ func _limb_target(s: Dictionary, o: Dictionary, atk: Dictionary) -> Vector3:
 	var m: Dictionary = atk.m
 	if atk.locked != Vector3.INF:
 		contact = atk.locked
-	elif not df.is_empty() and df.get("atk") == atk and String(df.get("arm", "")) != "" and String(m.height) in (MeleeBook.GUARDS[df.kind].vs as Array):
+	elif not df.is_empty() and df.get("atk") == atk and bool(df.get("read_ok", true)) and String(df.get("arm", "")) != "" and String(m.height) in (MeleeBook.GUARDS[df.kind].vs as Array):
 		contact = of.forearm_point(String(df.arm), src)
 	elif not df.is_empty() and df.get("atk") == atk and String(df.kind) == "check" and String(m.height) == "low":
 		contact = of.surface("lf", "shin")
@@ -405,7 +433,7 @@ func _limb_target(s: Dictionary, o: Dictionary, atk: Dictionary) -> Vector3:
 			var hjr: Vector3 = src + Vector3(0, 0.07 * f.k, 0)
 			var aim := String(m.aim)
 			var tries := 0
-			while hjr.distance_to(contact) > lmax and AIM_DOWN.has(aim) and tries < 4:
+			while hjr.distance_to(contact) > lmax and AIM_DOWN.has(aim) and aim != "chest" and tries < 3:
 				aim = AIM_DOWN[aim]
 				contact = of.target_point(aim, src)
 				tries += 1
@@ -490,64 +518,57 @@ func _active(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 
 ## The moment of contact: was it blocked, dodged, parried - or did it land?
 func _impact(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
+	if String(atk.outcome) != "":
+		return
 	var m: Dictionary = atk.m
 	var df: Dictionary = o.def if (String(o.state) == "defend" and o.def.get("atk") == atk) else {}
+	# what the striking limb really touches (capsules on the final pose): her guard's forearm is a block, any other
+	# part of her a hit (its zone picks the reaction), nothing at all a miss (she got out of the way, or it fell short)
+	var ct := BodyAwareness.contact(F[s.id], String(atk.limb), F[o.id])
 	var outcome := "hit"
-	if not df.is_empty():
-		var g: Dictionary = MeleeBook.GUARDS[df.kind]
-		var ok_h: bool = String(m.height) in (g.vs as Array)
-		if g.get("evade", false) and ok_h and t - float(df.start) >= 0.04:
-			outcome = "miss"
-		elif g.get("parry", false) and t >= float(df.ready) - 0.02:
-			outcome = "parry"
-		elif not g.get("evade", false) and ok_h and t >= float(df.ready) - 0.02:
-			outcome = "block"
+	if not df.is_empty() and MeleeBook.GUARDS[df.kind].get("parry", false) and t >= float(df.ready) - 0.02:
+		outcome = "parry"
+	elif ct.is_empty():
+		outcome = "miss"
+	elif String(ct.part).begins_with("forearm") and not df.is_empty() and not MeleeBook.GUARDS[df.kind].get("evade", false):
+		outcome = "block"
 	atk.outcome = outcome
+	atk.zone = String(ct.get("zone", ""))
+	atk.part = String(ct.get("part", ""))
+	atk.touch = ct.get("point", atk.contact)              # (where the capsules met: the sparks go there)
 	o.threat = {}
 	var power: float = {"light": 0.5, "medium": 0.72, "heavy": 1.0}.get(String(m.weight), 0.6)
 	var dir: Vector3 = atk.dir if atk.dir != Vector3.ZERO else _flat(d.pos(o.id) - d.pos(s.id)).normalized()
 	var flat_dir := _flat(dir).normalized()
 	var of: MeleeFighter = F[o.id]
-	var contact: Vector3 = atk.contact
+	var contact: Vector3 = atk.touch
 	match outcome:
 		"hit":
 			o.hp = float(o.hp) - float(m.dmg)
-			of.react(dir, String(m.height), power)
 			of.vibrate = true
 			d.impact(power, false)
 			d.shake(0.35 + power * 0.55)
 			vfx.impact(contact, dir, s.id, power, "hit")
 			d.face_fx(o.id, "hurt", 1.0, 0.5)
 			_interrupt(o)
-			of.move_tag = "react:%s_%s" % [String(m.height), String(m.weight)]     # (the audit names the reaction)
-			if m.get("down", false):
-				_knockdown(o, flat_dir)
-			else:
-				o.state = "react"
-				o.until = t + {"light": 0.2, "medium": 0.3, "heavy": 0.42}.get(String(m.weight), 0.3)
-				var kn := float(m.get("knock", 0.25 + power * 0.35))
-				o.vel = flat_dir * sqrt(2.0 * 7.5 * kn)
-				if kn > 0.3:
-					of.skim(minf(0.12 + kn * 0.12, 0.4))   # (driven back: her feet skid with her)
+			# the receiver sells it: zone x strength (HitReactions), partial physics on the struck part, hair whip
+			atk.reaction = HitReactions.hit(self, o, String(atk.zone) if String(atk.zone) != "" else "chest", dir, power, m)
 			s.counter = false
 			s.next_at = t + float(atk.m.recover) * 0.6 + (rng.randf_range(0.0, 0.08) if rng.randf() < 0.55 else rng.randf_range(0.2, 0.35))
 		"block":
-			of.absorb(dir, String(df.get("arm", "both")), power)
 			d.impact(0.28 if power < 0.9 else 0.5, false)
 			d.shake(0.22 + power * 0.3)
 			vfx.impact(contact, dir, s.id, power, "block")
-			var kn2 := 0.12 + (0.9 if m.weight == "heavy" else 0.15) * power
-			o.vel = flat_dir * sqrt(2.0 * 7.5 * kn2)
-			if kn2 > 0.3:
-				of.skim(minf(0.12 + kn2 * 0.12, 0.4))
-			o.until = t + 0.12 + power * 0.08
+			atk.reaction = HitReactions.block(self, o, dir, power, m, String(df.get("arm", "both")))
+			if String(atk.reaction) != "guard_break":
+				o.until = t + 0.12 + power * 0.08
 			o.last_def = df.kind
 			if rng.randf() < 0.55:
 				o.counter = true
 				o.next_at = float(o.until) + rng.randf_range(0.02, 0.1)
 			s.next_at = t + float(atk.m.recover) + rng.randf_range(0.05, 0.2)
 		"miss":
-			o.last_def = df.kind
+			o.last_def = String(df.get("kind", ""))
 			if rng.randf() < 0.65:
 				o.counter = true
 				o.next_at = t + rng.randf_range(0.02, 0.1)
@@ -565,7 +586,7 @@ func _impact(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 				s.state = "react"
 				s.until = t + 0.32
 				(F[s.id] as MeleeFighter).play([{"dur": 0.3, "ease": "out", "pose": {"hip_rot": Vector3(-2, 10, 0), "spine": Vector3(-6, 40, 0)}}, {"dur": 0.16, "ease": "inout", "pose": {}}]))
-	attacks.append({"t": snappedf(float(atk.t0), 0.01), "by": s.id, "move": atk.name, "outcome": outcome, "defence": atk.defence,
+	attacks.append({"t": snappedf(float(atk.t0), 0.01), "by": s.id, "move": atk.name, "outcome": outcome, "defence": atk.defence, "part": atk.part, "zone": atk.zone, "reaction": String(atk.get("reaction", "")),
 		"react_delay": snappedf(float(atk.react_delay), 0.001), "frame": Engine.get_frames_drawn(), "err": -1.0})
 	var rec_i := attacks.size() - 1
 	print("[melee] %s %s by %s at %.2f s at frame %d (defence %s, seen after %.2f s)" % [outcome.to_upper(), atk.name, s.id, t, Engine.get_frames_drawn(), atk.defence, float(atk.react_delay)])
@@ -574,7 +595,8 @@ func _impact(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 		_checks.append(func():
 			var af: MeleeFighter = F[s.id]
 			var surf: Vector3 = af.surface(atk.limb, atk.surf)
-			attacks[rec_i].err = snappedf(surf.distance_to(atk.contact), 0.001)
+			# (a strike locked on the air she left measures nothing: where it touched her is the capsules' business)
+			attacks[rec_i].err = snappedf(surf.distance_to(atk.contact), 0.001) if atk.locked == Vector3.INF else -1.0
 			if float(attacks[rec_i].err) > 0.09:
 				var sd0 := "Left" if atk.limb in ["lh", "lf"] else "Right"
 				print("[melee] DBG miss %s: surf %s contact %s wrist %s ik %s phase %s" % [atk.name, str(surf.snappedf(0.001)), str((atk.contact as Vector3).snappedf(0.001)),
@@ -611,6 +633,7 @@ func _interrupt(s: Dictionary) -> void:
 		s.atk = {}
 	s.def = {}
 	(F[s.id] as MeleeFighter).strike_limb = ""
+	(F[s.id] as MeleeFighter).kick_support = ""
 	(F[s.id] as MeleeFighter).palm = {"lh": "guard", "rh": "guard"}
 	(F[s.id] as MeleeFighter).play([{"dur": 0.12, "ease": "out", "pose": {"hip": Vector3(0, -0.12, -0.06), "spine": Vector3(-8, 10, 0)}}, {"dur": 0.2, "ease": "inout", "pose": {}}])
 
@@ -657,13 +680,38 @@ func _respond(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 		else:
 			return
 	atk.react_delay = t - float(atk.t0)
+	if t < float(s.get("guard_broken_until", 0.0)):
+		atk.defence = "guard_broken"                 # (her guard was just broken: she cannot answer this one)
+		return
 	if rng.randf() < float(s.p.late):
 		atk.defence = "late"
 		return
 	var m: Dictionary = atk.m
 	var left := float(atk.t_hit) - t
-	var h: String = m.height
-	var from: String = m.from
+	# she reads the strike off the attacker's real limb: where the striking hand / foot is and how it moves, plus where
+	# the hips and shoulders aim it (a good reader trusts the aim more; a poor one the moving limb, and guesses wrong)
+	var af: MeleeFighter = F[o.id]
+	var vf: MeleeFighter = F[s.id]
+	var pr := BodyAwareness.predict(af, String(atk.limb), vf, left, limb_vel.get(o.id + ":" + String(atk.limb), Vector3.ZERO))
+	var aim_p: Vector3 = vf.target_point(String(m.aim), af.trace.get("Chest", d.pos(o.id)))
+	var w_aim := clampf(0.35 + float(s.p.read) * 0.6 + rng.randf_range(-0.15, 0.15), 0.0, 1.0)
+	var guess: Vector3 = (pr.point as Vector3).lerp(aim_p, w_aim)
+	var hd: Vector3 = vf.trace.get("Head", guess)
+	var ch: Vector3 = vf.trace.get("Chest", guess)
+	var hp: Vector3 = vf.trace.get("Hips", guess)
+	var h := "mid"
+	if guess.y > (hd.y + ch.y) * 0.5:
+		h = "high"
+	elif guess.y < hp.y - 0.05 * vf.k:
+		h = "low"
+	var bs: Basis = vf.trace.get("basis", vf.sk.global_transform.basis)
+	var lateral := (guess - ch).dot((bs * Vector3(1, 0, 0)).normalized())
+	var from := "C"
+	if lateral > 0.12 * vf.k:
+		from = "L"
+	elif lateral < -0.12 * vf.k:
+		from = "R"
+	atk.read = {"height": h, "from": from, "true_height": String(m.height), "true_from": String(m.from)}
 	var read := rng.randf() < float(s.p.read)
 	var opts := {}
 	if h == "high":
@@ -707,9 +755,11 @@ func _defend(s: Dictionary, o: Dictionary, kind: String, atk: Dictionary) -> voi
 	var pose: Dictionary = (g.pose as Dictionary).duplicate()
 	var arm := ""
 	var sgn := 1.0
-	if String(m.from) == "R":
+	var rd: Dictionary = atk.get("read", {})
+	var from := String(rd.get("from", m.from))              # (the side SHE read it coming from)
+	if from == "R":
 		sgn = -1.0
-	elif String(m.from) == "C":
+	elif from == "C":
 		sgn = 1.0 if rng.randf() < 0.5 else -1.0
 	match String(g.get("arm", "")):
 		"side":
@@ -733,7 +783,17 @@ func _defend(s: Dictionary, o: Dictionary, kind: String, atk: Dictionary) -> voi
 	var rise := float(g.rise)
 	var hold := maxf(float(atk.t_hit) - (t + rise), 0.0) + 0.08
 	s.state = "defend"
-	s.def = {"kind": gname, "start": t, "ready": t + rise, "arm": arm, "atk": atk}
+	# a read on the wrong side or height leaves her guard where the blow is not (it lands on her instead)
+	var read_ok: bool = rd.is_empty() or (String(rd.height) == String(m.height) and (String(m.from) == "C" or from == "C" or from == String(m.from)))
+	s.def = {"kind": gname, "start": t, "ready": t + rise, "arm": arm, "atk": atk, "read_ok": read_ok}
+	if gname == "check":
+		# a shin check lifts the lead leg: her weight goes onto the rear foot first, as in a kick
+		var lead := f.front_leg()
+		f.kick_support = "rf" if lead == "lf" else "lf"
+		f._lift_hold = f.life_t + minf(0.08, rise * 0.5)
+		at(rise + hold + 0.12, func():
+			if f.move_tag.begins_with("guard:check") or f.move_tag == "":
+				f.kick_support = "")
 	s.until = t + rise + hold
 	atk.defence = kind
 	action_starts.append(t)
