@@ -25,8 +25,12 @@ import onnxruntime as ort
 import soundfile as sf
 from kokoro_onnx import Kokoro
 
+import tts_text  # the text cleanup every line goes through (tools/voice/tts_text.py, data/tts_pronunciations.json)
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MAX_CHARS = 1200
+# every word Kokoro would still read letter by letter (H M, B R B) during a stream, for the dictionary
+SPELL_LOG = os.environ.get("TTS_SPELL_LOG", os.path.expanduser("~/Downloads/TTS_spelled_words.log"))
 
 
 class Engine:
@@ -81,7 +85,29 @@ class Engine:
             total = vec if total is None else total + vec
         return total
 
+    def _log_spelled(self, text, lang):
+        """Words in the cleaned line that espeak would still spell out (acronyms on purpose excepted)."""
+        d = tts_text._load()
+        plain = tts_text._INLINE.sub(" ", text)
+        for w in set(tts_text.re.findall(r"[A-Za-z]{2,}", plain)):
+            if w in d["acronyms"] or w.upper() in d["acronyms"]:
+                continue
+            if not (w.isupper() or not (set(w) & tts_text._VOWELS)):
+                continue                                  # (only shouted or vowel-less words can be read as letters)
+            if tts_text.spelled_out(w, self.kokoro.tokenizer, lang):
+                try:
+                    with open(SPELL_LOG, "a", encoding="utf-8") as fh:
+                        fh.write("%s\t%s\t%s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), w, text[:160]))
+                except OSError:
+                    pass
+
     def synthesize(self, text, voice, lang, speed, phonemes=False, gain=1.0):
+        if not phonemes and lang.startswith("en"):
+            raw = text
+            text, phonemes = tts_text.prepare(text, self.kokoro.tokenizer, lang)
+            self._log_spelled(tts_text.normalize(raw), lang)
+            if not text.strip():
+                text, phonemes = "...", False             # (a line that was only emoji: a breath, never an error)
         with self.lock:
             started = time.perf_counter()
             audio, rate = self.kokoro.create(text, voice=self.style(voice), speed=speed, lang=lang, is_phonemes=phonemes)
