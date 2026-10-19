@@ -57,17 +57,13 @@ static func weight(cost: float) -> float:
 static func best_start(f: MeleeFighter, clip: String, anim: Animation) -> float:
 	var key := str(f.sk.get_instance_id()) + ":" + clip
 	if not _clip_cache.has(key):
-		var bare := JointAudit.bare_copy(f.sk)
-		var root := (Engine.get_main_loop() as SceneTree).root
-		root.add_child(bare)
+		var bare := PoseSkel.from(f.sk)
 		var rows := []
 		var n := int(anim.length * 0.35 * 15.0) + 1
 		for i in n:
 			var t := float(i) / 15.0
 			JointAudit.pose_at(bare, anim, t)
 			rows.append([t, _bare_features(bare)])
-		root.remove_child(bare)
-		bare.free()
 		_clip_cache[key] = rows
 	var cur := _bare_features_from_trace(f)
 	var best := 0.0
@@ -83,7 +79,7 @@ static func best_start(f: MeleeFighter, clip: String, anim: Animation) -> float:
 	return best
 
 
-static func _bare_features(sk: Skeleton3D) -> Dictionary:
+static func _bare_features(sk: PoseSkel) -> Dictionary:
 	var hips := sk.get_bone_global_pose(sk.find_bone("Hips")).origin
 	var out := {}
 	for pair in [["lh", "LeftHand"], ["rh", "RightHand"], ["lf", "LeftFoot"], ["rf", "RightFoot"]]:

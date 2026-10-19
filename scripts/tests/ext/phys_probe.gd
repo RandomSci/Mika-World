@@ -53,5 +53,33 @@ static func run(t) -> void:
 			line2 += " %s %.3f" % [b, stretch]
 		print(line2)
 	t._check(worst2 < 0.05, "no bone pulled from its parent while sliding (worst %.3f m, %s)" % [worst2, who])
+	# the clip bake's joint fix works on a skeleton outside the tree (clips are also baked while characters spawn)
+	var anim := MocapBake.bake(f.sk, "res://assets/animations/movelib/cartwheel_evade.json")
+	var raw := MocapBake.bake(f.sk, "res://assets/animations/movelib/cartwheel_evade.json")
+	var bare := PoseSkel.from(f.sk)
+	var bad := 0
+	for i in int(anim.length * 30.0):
+		JointAudit.pose_at(bare, anim, float(i) / 30.0)
+		if not JointAudit.check(bare).is_empty():
+			bad += 1
+	# positive control: a knee bent backwards on that out-of-tree skeleton must be caught
+	for bi in bare.get_bone_count():
+		bare.set_bone_pose(bi, bare.get_bone_rest(bi))
+	var kn := bare.find_bone("LeftLowerLeg")
+	for ang in [1.0, -1.0]:
+		bare.set_bone_pose_rotation(kn, bare.get_bone_rest(kn).basis.get_rotation_quaternion() * Quaternion(Vector3.RIGHT, 0.9 * ang))
+		bare.force_update_all_bone_transforms()
+		bare.force_update_bone_child_transform(0)
+		print("[phys] control knee %+.1f rad: %s" % [0.9 * ang, JSON.stringify(JointAudit.check(bare))])
+	bare.set_bone_pose_rotation(kn, bare.get_bone_rest(kn).basis.get_rotation_quaternion() * Quaternion(Vector3.RIGHT, 0.9))
+	bare.force_update_all_bone_transforms()
+	bare.force_update_bone_child_transform(0)
+	var c1 := JointAudit.check(bare).size()
+	bare.set_bone_pose_rotation(kn, bare.get_bone_rest(kn).basis.get_rotation_quaternion() * Quaternion(Vector3.RIGHT, -0.9))
+	bare.force_update_all_bone_transforms()
+	bare.force_update_bone_child_transform(0)
+	var c2 := JointAudit.check(bare).size()
+	t._check((c1 > 0) != (c2 > 0), "plain-data audit catches the backwards knee (one of +/-0.9 rad flagged: %d / %d)" % [c1, c2])
+	t._check(bad <= 12, "the baked cartwheel is human (%d frames with any fault, legs included)" % bad)
 	sim.teardown()
 	d.teardown()

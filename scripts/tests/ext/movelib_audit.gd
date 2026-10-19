@@ -19,8 +19,7 @@ static func run(t) -> void:
 	var missing := []
 	for id in ["mika", "luna"]:
 		var c: WorldCharacter = main.characters[id]
-		var bare := JointAudit.bare_copy(c.skeleton)
-		main.add_child(bare)
+		var bare := PoseSkel.from(c.skeleton)
 		for n in MoveCatalog.CLIPS:
 			if only != "" and n != only:
 				continue
@@ -61,7 +60,6 @@ static func run(t) -> void:
 			var r: Dictionary = report.get(n, {"lib": MoveCatalog.CLIPS[n].lib, "use": use, "frames": frames})
 			r[id] = {"bad_frames": bad_frames, "faults": bad, "first": worst}
 			report[n] = r
-		bare.queue_free()
 	# the source landmarks: leg-length steadiness and forward depth of the hands
 	for n in report:
 		var data = JSON.parse_string(FileAccess.get_file_as_string(WorldCharacter.MOCAP_DIR + String(n) + ".json"))
