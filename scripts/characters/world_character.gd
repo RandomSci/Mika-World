@@ -10,6 +10,7 @@ signal action_finished(action: String, ok: bool, detail: String)
 signal cast_event(event: String)
 
 const MIXAMO_DIR := "res://assets/animations/mixamo/"
+const MOCAP_DIR := "res://assets/animations/movelib/"
 ## name -> [file, loop, in_place]
 const CLIPS := {
 	"idle": ["standing_idle.fbx", true, true],
@@ -17,6 +18,11 @@ const CLIPS := {
 	# runway walk and turn (Selwyn's Mixamo clips, 2026-10-19): "walk_goddess" = a phase-aligned 50/50 blend of the
 	# catwalk and the normal walk (elegant, not sassy); "catwalk_turn" plays with its hip yaw moved to her root
 	"catwalk": ["catwalk_walking.fbx", true, true],
+	# Move Library activities (Selwyn's reference videos, mocapped: tools/mocap, MocapBake fits each girl's skeleton)
+	"ml_rowing": ["mocap:rowing_seated", true, true],
+	"ml_release_lantern": ["mocap:release_lantern", false, true],
+	"ml_stargaze_point": ["mocap:stargaze_point", false, true],
+	"ml_sit_gaze": ["mocap:sit_lean_back_gaze", false, true],
 	# held poses for cinematics (probe candidates for the Starlit Harp)
 	"hold_wide_a": ["wide_arm_spell_casting.fbx@0.9", true, true],
 	"hold_wide_b": ["wide_arm_spell_casting.fbx@1.7", true, true],
@@ -1182,7 +1188,11 @@ func _build_library() -> AnimationLibrary:
 		if src_spec.ends_with("~rev"):
 			reverse = true
 			src_spec = src_spec.trim_suffix("~rev")
-		if src_spec.contains(":") and not src_spec.ends_with(".fbx"):
+		if src_spec.begins_with("mocap:"):
+			anim = MocapBake.bake(skeleton, MOCAP_DIR + src_spec.trim_prefix("mocap:") + ".json")
+			if anim == null:
+				continue
+		elif src_spec.contains(":") and not src_spec.ends_with(".fbx"):
 			var pid := src_spec.get_slice(":", 0)
 			var an := src_spec.get_slice(":", 1)
 			var ual: AnimationPlayer = packs.get(pid)

@@ -650,6 +650,14 @@ func _stargaze() -> void:
 	main.director.enabled = true
 	main.director.set_subject(mika)
 	main.companionship.force_accept = true
+	if main.performance:
+		# (the night dance may start on its own at night: "a dance is on" refused the invitation)
+		main.performance.set_process(false)
+		if main.performance.busy():
+			main.performance.interrupt("test")
+		var tb := _gms()
+		while main.performance.busy() and _gms() - tb < 4000:
+			await get_tree().process_frame
 	var lines := []
 	main.voice.line_started.connect(func(spk, text): lines.append([spk, text]))
 	var brain = main.mage_brains["mika"]
@@ -662,6 +670,9 @@ func _stargaze() -> void:
 	var modes := {}
 	var shots := 0
 	var box := {"done": false, "result": {}}   # a Dictionary: lambdas capture locals by value
+	for w2 in main.mage_brains:
+		main.mage_brains[w2].hold = false      # (_hold_all held them: "Luna is held for something else")
+		main.mage_brains[w2].set_enabled(false)
 	var runner := func() -> void:
 		box.result = await main.companionship.invite(brain, "luna", "stargaze_together", target)
 		box.done = true

@@ -8,7 +8,7 @@ static func run(t) -> void:
 	var set: Dictionary = await t._lake_setup({"luna": -0.8, "mika": 0.8})
 	if set.is_empty():
 		return
-	var luna: WorldCharacter = set.chars.luna
+	var luna: WorldCharacter = set.chars[String(RenderProfile.options.get("tp-who", "luna"))]      # (named luna: either girl)
 	var cap := InvCommon.capture(luna)
 	if RenderProfile.options.has("tp-dance"):
 		var dk: DanceDeck = t._dance_stack(luna)
@@ -64,6 +64,9 @@ static func run(t) -> void:
 			var wa := -1
 			var wb := -1
 			var ratios := []
+			var wo := 0.0
+			var oa := -1
+			var ob := -1
 			for tt in range(0, idx.size(), 3):
 				for e in 3:
 					var a: int = idx[tt + e]
@@ -71,6 +74,11 @@ static func run(t) -> void:
 					var rl := R[a].distance_to(R[b])
 					if rl < 0.003:
 						continue
+					var op := S[a].distance_to(S[b]) - rl
+					if op > wo:
+						wo = op
+						oa = a
+						ob = b
 					var q := S[a].distance_to(S[b]) / rl
 					ratios.append(q)
 					if q > worst:
@@ -80,6 +88,10 @@ static func run(t) -> void:
 			ratios.sort()
 			var med: float = ratios[ratios.size() / 2] if not ratios.is_empty() else 0.0
 			print("[tearprobe] %s s%d: %d verts, median ratio %.3f, worst %.2f" % [m.name, si, R.size(), med, worst])
+			print("[tearprobe] %s s%d: widest opening %.3f m" % [m.name, si, wo])
+			if oa >= 0 and wo > 0.04:
+				wa = oa
+				wb = ob
 			if wa >= 0:
 				var BI = arr[Mesh.ARRAY_BONES]
 				var BW = arr[Mesh.ARRAY_WEIGHTS]

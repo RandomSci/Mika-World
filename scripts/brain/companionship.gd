@@ -491,7 +491,12 @@ func _stargaze_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary
 	lead.look_at_point(lead.global_position + facing * 3.0)
 	fol.look_at_point(fol.global_position + facing * 3.0)
 	await get_tree().create_timer(0.8).timeout
+	# the lead points up at the sky as she says it (Move Library: stargaze_point, mocapped), then they lie down
+	var pointing := lead.has_clip("ml_stargaze_point") and lead.play_gesture("ml_stargaze_point", 0.3, 0.6)
 	await _say(a.agent_id, line(a.agent_id, "stargaze_arrive"))
+	if pointing:
+		lead.end_gesture()
+		await get_tree().create_timer(0.4).timeout
 	if main.director:
 		main.director.begin_stargaze(lead, fol)
 	lead.lie_down()
