@@ -19,7 +19,10 @@ import re
 import unicodedata
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DICT_PATH = os.path.join(ROOT, "data", "tts_pronunciations.json")
+# the dictionary: $TTS_DICT, else the game's data/tts_pronunciations.json, else a copy next to this file (Mika-Live)
+DICT_PATH = next((p for p in (os.environ.get("TTS_DICT", ""), os.path.join(ROOT, "data", "tts_pronunciations.json"),
+                              os.path.join(os.path.dirname(os.path.abspath(__file__)), "tts_pronunciations.json")) if p and os.path.exists(p)),
+                 os.path.join(ROOT, "data", "tts_pronunciations.json"))
 
 _ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
 _TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()

@@ -47,6 +47,7 @@ class Engine:
             except Exception as exc:  # noqa: BLE001 - falls back to the CPU below
                 print(json.dumps({"cuda_preload": str(exc)[:200]}), flush=True)
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        self._model, self._voices = model, voices
         session = ort.InferenceSession(model, options, providers=providers)
         self.provider = session.get_providers()[0]
         self.kokoro = Kokoro.from_session(session, voices)
@@ -104,13 +105,28 @@ class Engine:
     def synthesize(self, text, voice, lang, speed, phonemes=False, gain=1.0):
         if not phonemes and lang.startswith("en"):
             raw = text
-            text, phonemes = tts_text.prepare(text, self.kokoro.tokenizer, lang)
-            self._log_spelled(tts_text.normalize(raw), lang)
+            try:
+                text, phonemes = tts_text.prepare(text, self.kokoro.tokenizer, lang)
+                self._log_spelled(tts_text.normalize(raw), lang)
+            except Exception as exc:  # noqa: BLE001 - a cleanup bug never silences a line
+                print(json.dumps({"tts_text_error": str(exc)[:200]}), flush=True)
+                text, phonemes = raw, False
             if not text.strip():
                 text, phonemes = "...", False             # (a line that was only emoji: a breath, never an error)
         with self.lock:
             started = time.perf_counter()
-            audio, rate = self.kokoro.create(text, voice=self.style(voice), speed=speed, lang=lang, is_phonemes=phonemes)
+            try:
+                audio, rate = self.kokoro.create(text, voice=self.style(voice), speed=speed, lang=lang, is_phonemes=phonemes)
+            except Exception as exc:  # noqa: BLE001 - the GPU failed on this line: the CPU from now on, the line retried
+                if self.provider == "CPUExecutionProvider":
+                    raise
+                print(json.dumps({"gpu_failed": str(exc)[:200], "now": "CPUExecutionProvider"}), flush=True)
+                options = ort.SessionOptions()
+                options.intra_op_num_threads = self.info["threads"]
+                options.inter_op_num_threads = 1
+                self.kokoro = Kokoro.from_session(ort.InferenceSession(self._model, options, providers=["CPUExecutionProvider"]), self._voices)
+                self.provider = self.info["provider"] = "CPUExecutionProvider"
+                audio, rate = self.kokoro.create(text, voice=self.style(voice), speed=speed, lang=lang, is_phonemes=phonemes)
             audio = audio * float(gain)
             # Short fades: Kokoro trims silence, so a clause can start or stop on
             # a non-zero sample, which clicks at chunk boundaries.
