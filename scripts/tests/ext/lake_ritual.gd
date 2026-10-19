@@ -79,12 +79,18 @@ static func run(t) -> void:
 	print("[lakeritual-test] visit score %s" % str(mb.score(lake_opt[0])))
 	var res := {}
 	var job := func(): res["r"] = await mb.run_activity(lake_opt[0])
+	print("[lakeritual-test] the walk down starts at frame %d" % Engine.get_frames_drawn())
 	job.call()
 	var t0: float = t._game_t
 	while not res.has("r") and t._game_t - t0 < 200.0:
 		await t.get_tree().process_frame
 	t._check(main.streaming.current_id == "lantern_lake" and luna.visible, "they walked down to Lantern Lake together (%s)" % str(res.get("r", {})).left(120))
 	if main.streaming.current_id != "lantern_lake":
+		return
+	if RenderProfile.options.has("lr-arrive-only"):
+		# (a clip of the walk down: stop a few seconds after they arrive)
+		await t._wait(5.0)
+		print("[lakeritual-test] arrived, clip ends at frame %d" % Engine.get_frames_drawn())
 		return
 	await t._wait(2.5)
 	# the story's next step stays reachable from here (home is one walk away, the books there are on offer)
