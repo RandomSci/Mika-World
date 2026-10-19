@@ -15,6 +15,11 @@ var skip := {"Left": false, "Right": false}   # set by the PosePipeline: a hand 
 var _ids := {}
 var _frame := Basis()
 var _ok := false
+# the push, smoothed: in fast, out slower. Applied raw it snapped the arm for single frames whenever a hand brushed
+# past her body in a dance (the push switching on at 2 mm, its direction flipping between shapes): 13-16 deg jitter
+const PUSH_IN_S := 0.03
+const PUSH_OUT_S := 0.12
+var _push_s := {"Left": Vector3.ZERO, "Right": Vector3.ZERO}
 
 
 static func attach(sk: Skeleton3D) -> HandGuard:
@@ -153,6 +158,9 @@ func _process_modification() -> void:
 		return
 	if not _ok:
 		_setup()
+	if RenderProfile.options.has("no-hand-guard"):
+		return
+	var dt := maxf(get_process_delta_time() if is_inside_tree() else 0.016, 0.001)
 	last_depth = 0.0
 	var theirs := _others_shapes(sk)
 	for side in ["Left", "Right"]:
@@ -160,20 +168,28 @@ func _process_modification() -> void:
 		if ids.has(-1) or bool(skip.get(side, false)):
 			continue
 		var shapes := _shapes(sk, side) + theirs
+		var hand := sk.get_bone_global_pose(ids[2]).origin
+		var push := Vector3.ZERO
 		for it in 2:
-			var hand := sk.get_bone_global_pose(ids[2]).origin
-			var push := _push(hand, shapes)
+			var p := _push(hand + push, shapes)
 			for tip in ["MiddleDistal", "IndexDistal", "LittleDistal", "ThumbDistal"]:
 				var bi: int = _ids.get(side + tip, -1)
 				if bi >= 0:
-					var tp := sk.get_bone_global_pose(bi).origin + push
-					var tpush := _push(tp, shapes)
+					var tpush := _push(sk.get_bone_global_pose(bi).origin + push + p, shapes)
 					if tpush.length() > 0.0:
-						push += tpush
-			if push.length() < 0.002:
+						p += tpush
+			if p.length() < 0.0005:
 				break
-			pushes += 1
-			_reach(ids, hand + push)
+			push += p
+		# smoothed toward the push this frame needs (fast in, slower out), so the arm glides, never snaps
+		var cur: Vector3 = _push_s[side]
+		var rate := PUSH_IN_S if push.length() > cur.length() else PUSH_OUT_S
+		cur = cur.lerp(push, 1.0 - exp(-dt / rate))
+		_push_s[side] = cur
+		if cur.length() < 0.0005:
+			continue
+		pushes += 1
+		_reach(ids, hand + cur)
 
 
 ## Two-bone IK: the hand to `target` (skeleton space); its own global rotation kept.

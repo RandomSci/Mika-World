@@ -11,7 +11,7 @@ const CURL := {"Thumb": 0.2, "Index": 0.14, "Middle": 0.24, "Ring": 0.32, "Littl
 
 var elbow_min := deg_to_rad(18.0)
 var wrist_follow := 9.0                  # 1/s: how fast the hand catches up with its arm (lower = more drag)
-var wrist_max := deg_to_rad(26.0)
+var wrist_max := deg_to_rad(14.0)
 var finger_weight := 0.7
 var finger_angle := 1.15                 # radians per joint at curl 1 (as FingerPose)
 var grip := {"Left": 0.0, "Right": 0.0}  # 0..1: the fingers close round something held (an oar)
@@ -19,6 +19,7 @@ var grip := {"Left": 0.0, "Right": 0.0}  # 0..1: the fingers close round somethi
 var _dt := 1.0 / 30.0
 var _t := 0.0
 var _smooth := {}
+var _axis := {}                          # side -> the elbow's bend axis, smoothed
 var _arm := {}                           # side -> [upper, lower, hand]
 var _fingers := {}                       # side -> [[bone, curl, rest rotation, k]]
 var _fwd := Vector3.FORWARD
@@ -91,21 +92,32 @@ func _process_modification() -> void:
 		var ang := a.angle_to(b)
 		var need := sqrt(ang * ang + elbow_min * elbow_min) - ang
 		if need > 0.002:
-			var axis := a.cross(b)
-			if axis.length() < 0.05:
-				axis = a.cross(_fwd)                          # straight: bend toward her front
+			# the bend axis: the arm's own, blended into "toward her front" as the arm straightens, and smoothed
+			# over frames (a hard switch when nearly straight - where a.cross(b) is tiny and noisy - flicked the
+			# elbow, forearm and hand 13-16 deg for single frames in the dances)
+			var own := a.cross(b)
+			var front := a.cross(_fwd)
+			var wgt := smoothstep(0.03, 0.15, own.length())
+			var axis := own.normalized() * wgt + (front.normalized() if front.length() > 0.0001 else Vector3.ZERO) * (1.0 - wgt)
+			var prev: Vector3 = _axis.get(side, axis)
+			if prev.dot(axis) < 0.0:
+				prev = -prev
+			axis = prev.lerp(axis, 1.0 - exp(-_dt * 18.0))
+			_axis[side] = axis
 			if axis.length() > 0.0001:
 				sk.set_bone_global_pose(ids[1], Transform3D(Basis(Quaternion(axis.normalized(), need)) * gl.basis, gl.origin))
 		# wrist: the hand trails its arm a little and flows after it
+		# (relative to the forearm: dragged in world space, hands lagged up to 26 deg in a spin - a broken wrist)
 		gh = sk.get_bone_global_pose(ids[2])
-		var qa := gh.basis.get_rotation_quaternion()
+		var gf := sk.get_bone_global_pose(ids[1]).basis.orthonormalized()
+		var qa := (gf.inverse() * gh.basis.orthonormalized()).get_rotation_quaternion()
 		var s: Quaternion = _smooth.get(side, qa)
 		s = s.slerp(qa, 1.0 - exp(-_dt * wrist_follow))
 		var d := s.angle_to(qa)
 		if d > wrist_max:
 			s = qa.slerp(s, wrist_max / d)
 		_smooth[side] = s
-		sk.set_bone_global_pose(ids[2], Transform3D(Basis(s).scaled(gh.basis.get_scale()), gh.origin))
+		sk.set_bone_global_pose(ids[2], Transform3D((gf * Basis(s)).scaled(gh.basis.get_scale()), gh.origin))
 		# fingers: a relaxed dancer's hand, gently alive
 		for f in _fingers[side]:
 			var c: float = float(f[1]) + 0.05 * sin(_t * 1.3 + float(f[3]) * 0.7)

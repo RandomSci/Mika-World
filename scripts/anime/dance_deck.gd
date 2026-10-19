@@ -20,6 +20,19 @@ var _cur := {}                          # {clip, t, speed}
 var _prev := {}
 var _fade := 1.0
 var _fade_len := 1.0
+# her face while she dances (Selwyn: "the expressions when dancing are so bad, like they are not enjoying it"): a held
+# smile in her own manner, and every few seconds a burst of joy - a laugh, a wink, a spark at each new move
+const FACE := {
+	"mika": {"hold": ["happy", 0.85], "bursts": [["excited", 0.9], ["laughing", 0.8], ["playful", 0.9], ["happy", 1.0], ["proud", 0.8]]},
+	"luna": {"hold": ["happy", 0.6], "bursts": [["relaxed", 0.9], ["proud", 0.8], ["playful", 0.8], ["happy", 0.9], ["laughing", 0.55]]},
+}
+const DESPIKE_H := 1.0 / 30.0
+const DESPIKE_RAD := 0.06               # ~3.4 deg of out-and-back is motion; more is a bad key
+const WRAP_FADE := 0.45                 # s: a clip that runs past its end crossfades into its start (they are not loops)
+var face_on := true
+var _face_held := false
+var _next_burst := 1.5
+var _rng := RandomNumberGenerator.new()
 
 
 static func clip_anim(clip: String) -> Animation:
@@ -50,6 +63,8 @@ func play(clip: String, start := 0.0, speed := 1.0, fade := 0.8) -> void:
 	_cur = {"clip": clip, "t": start, "speed": speed}
 	_fade = 0.0
 	_fade_len = maxf(fade, 0.001)
+	if influence > 0.5 and not _prev.is_empty() and String(_prev.get("clip", "")) != clip:
+		_burst(["excited", 0.9])                       # (a new move: a spark of joy)
 
 
 ## Puts the current clip at `t` s (after slow motion, at a cut: back in step with the music).
@@ -88,6 +103,49 @@ func _process(delta: float) -> void:
 		if not p.is_empty():
 			p.t = float(p.t) + delta * float(p.speed)
 	_fade = minf(_fade + delta / _fade_len, 1.0)
+	if not _cur.is_empty() and float(_cur.t) >= clip_length(String(_cur.clip)) and _fade >= 1.0:
+		# the end of a clip that is not a loop: a crossfade back to its start, never a snap to its first frame
+		_prev = _cur.duplicate()
+		_cur.t = float(_cur.t) - clip_length(String(_cur.clip))
+		_fade = 0.0
+		_fade_len = WRAP_FADE
+	_face(delta)
+
+
+func _dancer() -> WorldCharacter:
+	var n := get_parent()
+	while n != null and not (n is WorldCharacter):
+		n = n.get_parent()
+	return n as WorldCharacter
+
+
+## Her face while she dances; given back the moment the dance ends.
+func _face(delta: float) -> void:
+	var c := _dancer()
+	if c == null or c.face == null:
+		return
+	var dancing := face_on and influence > 0.5 and not _cur.is_empty()
+	if not dancing:
+		if _face_held:
+			_face_held = false
+			c.face.set_hold("")
+		return
+	var cfg: Dictionary = FACE.get(c.character_id, FACE.luna)
+	if not _face_held or c.face.hold.is_empty():
+		_face_held = true
+		c.face.set_hold(String(cfg.hold[0]), float(cfg.hold[1]))
+	_next_burst -= delta
+	if _next_burst <= 0.0:
+		var bursts: Array = cfg.bursts
+		_burst(bursts[_rng.randi() % bursts.size()])
+
+
+func _burst(b: Array) -> void:
+	var c := _dancer()
+	if c == null or c.face == null:
+		return
+	_next_burst = _rng.randf_range(2.0, 4.5)
+	c.face.pulse(String(b[0]), float(b[1]), _rng.randf_range(0.8, 1.6), 0.18, 0.7)
 
 
 func _sample(p: Dictionary) -> Dictionary:
@@ -108,7 +166,15 @@ func _sample(p: Dictionary) -> Dictionary:
 			var sway := Vector3(v.x - avg.x, 0.0, v.z - avg.z).limit_length(0.22)
 			out[-1 - int(m[1])] = Vector3(v0.x + sway.x, v.y, v0.z + sway.z) * ms        # (positions keyed by -1 - bone)
 		else:
-			out[int(m[1])] = a.rotation_track_interpolate(int(m[0]), t)
+			# despiked: a frame either side; a keyframe that jumps out and straight back (the Mixamo clips have a
+			# few: 9-13 deg on the feet and shins of dancing_b every loop) gives way to the path between them
+			var q := a.rotation_track_interpolate(int(m[0]), t)
+			var q0 := a.rotation_track_interpolate(int(m[0]), fposmod(t - DESPIKE_H, a.length))
+			var q1 := a.rotation_track_interpolate(int(m[0]), fposmod(t + DESPIKE_H, a.length))
+			var excess := q0.angle_to(q) + q.angle_to(q1) - q0.angle_to(q1)
+			if excess > DESPIKE_RAD:
+				q = q.slerp(q0.slerp(q1, 0.5), clampf((excess - DESPIKE_RAD) / DESPIKE_RAD, 0.0, 1.0))
+			out[int(m[1])] = q
 	return out
 
 
