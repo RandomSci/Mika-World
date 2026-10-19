@@ -63,6 +63,16 @@ const MIN_GAP_UP := 8.0            # s of comfortable headroom before one step o
 var GPU_HEAVY := BUDGET_MS * 0.82        # (60 FPS) 13.7 ms of GPU work: little room left for spikes / an encoder
 var GPU_LIGHT := BUDGET_MS * 0.6         # (60 FPS) 10.0 ms: room to restore a step
 const HOLD_AFTER_LOAD := 3.0
+# heat and video memory budget (live safety, 2026-10-19): effects must never overheat the laptop or fill VRAM
+const HOT_C := 80.0                # CPU package or GPU at/over this: step down even with frames on time
+const CRIT_C := 90.0               # CPU (the GPU's: CRIT_GPU_C): faster steps, cinematics no exception
+const CRIT_GPU_C := 87.0
+const COOL_C := 74.0               # quality comes back only below this
+const VRAM_HOT := 0.85
+const VRAM_CRIT := 0.92
+const VRAM_COOL := 0.78
+const SENSE_EVERY := 4.0
+const PERF_LOG_EVERY := 60.0
 
 var main: Node
 var enabled := false
@@ -101,6 +111,13 @@ var _base := {}                    # captured base values per node instance id
 var memory := {}                   # situation (area, or area:fight) -> the level that held 60 there
 var _sit := ""
 var _ok_since := 0.0
+var sensors := {"cpu_c": -1.0, "gpu_c": -1.0, "vram_used": -1.0, "vram_total": -1.0, "gpu_util": -1.0}
+var pressure := "cool"             # cool / warm / hot / critical (heat or VRAM)
+var _cpu_temp_path := ""
+var _sense_t := 99.0
+var _sensing := false
+var _perf_t := 0.0
+var _perf_path := ""
 
 
 ## Adaptive at 60 (16.7 ms) or 30 (33.3 ms, the stream profile).
@@ -135,6 +152,87 @@ func setup(m: Node) -> void:
 				_apply_all())
 	get_tree().node_added.connect(_on_node_added)
 	_protect_characters()
+	_find_cpu_sensor()
+	if not RenderProfile.options.has("no-perf-log"):
+		_perf_path = String(RenderProfile.options.get("perf-log", "user://perf_log.csv"))
+		if not FileAccess.file_exists(_perf_path):
+			var f := FileAccess.open(_perf_path, FileAccess.WRITE)
+			if f:
+				f.store_line("unix,area,fps,avg_ms,p95_ms,gpu_ms,level,pressure,cpu_c,gpu_c,gpu_util,vram_used_mb,vram_total_mb,static_mb,nodes,objects")
+
+
+# ------------------------------------------------------------------ heat and video memory
+## The CPU package temperature file (coretemp / k10temp), read directly: no process to start.
+func _find_cpu_sensor() -> void:
+	for d in DirAccess.get_directories_at("/sys/class/hwmon"):
+		var base := "/sys/class/hwmon/" + d
+		var nm := FileAccess.get_file_as_string(base + "/name").strip_edges()
+		if nm in ["coretemp", "k10temp", "zenpower"]:
+			_cpu_temp_path = base + "/temp1_input"
+			return
+
+
+## Every SENSE_EVERY s: the CPU temperature (a file read) and, on a worker thread, the GPU's temperature, load and
+## video memory (nvidia-smi) - never a stall on the frame. --gfx-fake-temp=C / --gfx-fake-vram=F test the budget.
+func _sense(delta: float) -> void:
+	_sense_t += delta
+	if _sense_t < SENSE_EVERY:
+		return
+	_sense_t = 0.0
+	if _cpu_temp_path != "":
+		var raw := FileAccess.get_file_as_string(_cpu_temp_path).strip_edges()
+		if raw.is_valid_int():
+			sensors.cpu_c = float(raw) / 1000.0
+	if not _sensing:
+		_sensing = true
+		WorkerThreadPool.add_task(_read_gpu)
+	if RenderProfile.options.has("gfx-fake-temp"):
+		sensors.cpu_c = float(RenderProfile.options.get("gfx-fake-temp"))
+	if RenderProfile.options.has("gfx-fake-vram"):
+		sensors.vram_total = 8151.0
+		sensors.vram_used = 8151.0 * float(RenderProfile.options.get("gfx-fake-vram"))
+	var vram := float(sensors.vram_used) / float(sensors.vram_total) if float(sensors.vram_total) > 0.0 else 0.0
+	var hot := maxf(float(sensors.cpu_c), float(sensors.gpu_c))
+	if float(sensors.cpu_c) >= CRIT_C or float(sensors.gpu_c) >= CRIT_GPU_C or vram >= VRAM_CRIT:
+		pressure = "critical"
+	elif hot >= HOT_C or vram >= VRAM_HOT:
+		pressure = "hot"
+	elif hot >= COOL_C or vram >= VRAM_COOL:
+		pressure = "warm"
+	else:
+		pressure = "cool"
+
+
+func _read_gpu() -> void:
+	var out := []
+	var code := OS.execute("nvidia-smi", ["--query-gpu=temperature.gpu,memory.used,memory.total,utilization.gpu", "--format=csv,noheader,nounits"], out)
+	if code == 0 and not out.is_empty():
+		var parts := String(out[0]).strip_edges().split(",")
+		if parts.size() >= 4:
+			sensors.gpu_c = float(parts[0])
+			sensors.vram_used = float(parts[1])
+			sensors.vram_total = float(parts[2])
+			sensors.gpu_util = float(parts[3])
+	_sensing = false
+
+
+## One line a minute: what the stream's machine is doing (fps, frame times, quality level, heat, memory) - leaks and
+## creeping heat show up here long before they crash anything.
+func _perf_log(delta: float) -> void:
+	_perf_t += delta
+	if _perf_path == "" or _perf_t < PERF_LOG_EVERY:
+		return
+	_perf_t = 0.0
+	var w := window(10.0)
+	var f := FileAccess.open(_perf_path, FileAccess.READ_WRITE)
+	if f == null or w.is_empty():
+		return
+	f.seek_end()
+	f.store_line("%d,%s,%.1f,%.1f,%.1f,%.1f,%d,%s,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%d,%d" % [int(Time.get_unix_time_from_system()), _situation(),
+		Performance.get_monitor(Performance.TIME_FPS), float(w.avg_ms), float(w.p95_ms), float(w.gpu_ms), level, pressure,
+		float(sensors.cpu_c), float(sensors.gpu_c), float(sensors.gpu_util), float(sensors.vram_used), float(sensors.vram_total),
+		Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		int(Performance.get_monitor(Performance.OBJECT_COUNT))])
 
 
 ## Behind the travel card, every travel: the new area drawn once under the ladder's extremes (full quality; the
@@ -206,6 +304,8 @@ func _process(delta: float) -> void:
 				hitchy[int(history.back().get("idx", -1))] = snappedf(_post_worst, 0.1)
 	if _frames.size() > 640:
 		_frames.pop_front()
+	_sense(delta)
+	_perf_log(delta)
 	_eval_t += delta
 	if _eval_t >= EVAL_EVERY:
 		_eval_t = 0.0
@@ -302,7 +402,7 @@ func _evaluate() -> void:
 			return
 	if over:
 		_ok_since = _now()
-	elif _now() - _ok_since > SETTLED_S:
+	elif _now() - _ok_since > SETTLED_S and pressure in ["cool", "warm"]:
 		memory[sit] = level
 		if sit.ends_with(":fight"):
 			memory["*:fight"] = level
@@ -310,6 +410,17 @@ func _evaluate() -> void:
 	var since := _now() - _last_change
 	var gap := MIN_GAP_DOWN_SEVERE if float(w3.avg_ms) > BUDGET_MS * 1.35 else MIN_GAP_DOWN
 	var fighting := in_fight()
+	# heat / video memory over budget: one step down even with the frames on time (fewer pixels, particles and
+	# shadows = less heat and memory), faster when critical; nothing comes back until it is cool again
+	if pressure in ["hot", "critical"] and level < STEPS.size():
+		var crit := pressure == "critical"
+		# (a cinematic - a dance with all its effects - is where heat builds most: it steps there too, only slower)
+		if since >= (MIN_GAP_DOWN_SEVERE if crit else MIN_GAP_DOWN * (3.0 if cinematic else 2.0)):
+			if fighting and bool(STEPS[level].get("realloc", false)) and not crit:
+				return
+			_step(1, "%s: CPU %.0f C, GPU %.0f C, VRAM %.0f / %.0f MB" % [pressure, float(sensors.cpu_c), float(sensors.gpu_c), float(sensors.vram_used), float(sensors.vram_total)], w3)
+			_ok_since = _now()
+		return
 	if over and bottleneck in ["gpu", "contention"] and level < STEPS.size() and since >= gap:
 		if cinematic and float(w3.low1_fps) > 50.0:
 			return                       # a cut mid-cinematic only when it is really struggling
@@ -321,7 +432,7 @@ func _evaluate() -> void:
 		reason = ("CPU-bound (%.1f ms of CPU work per frame)" % w3.cpu_ms if bottleneck == "cpu" else
 			"late frames with the GPU at %.1f ms (not graphics: scripts / streaming / the OS)" % w3.gpu_ms) + ": graphics changes would not help"
 		return
-	if level > steady_floor and not cinematic and not w8.is_empty():
+	if level > steady_floor and not cinematic and not w8.is_empty() and pressure == "cool":
 		# restore only with clear headroom, one step at a time, more patiently for a step that keeps coming back;
 		# quickly when the scene has become much lighter (a calm place after a fight)
 		var osc := float(oscillation.get(level - 1, 0))
@@ -547,5 +658,6 @@ func _protect_characters() -> void:
 
 func describe() -> Dictionary:
 	return {"enabled": enabled, "level": level, "of": STEPS.size(), "knobs": knobs, "bottleneck": bottleneck, "reason": reason, "hitchy": hitchy.duplicate(),
+		"pressure": pressure, "sensors": sensors.duplicate(),
 		"stats": stats.duplicate(), "stutters": stutters.duplicate(), "step_gain": step_gain.duplicate(),
 		"last": history.back() if not history.is_empty() else {}}
