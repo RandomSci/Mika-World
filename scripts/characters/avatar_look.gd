@@ -68,6 +68,8 @@ static func calm_springs(avatar: Node) -> int:
 		if cm.begins_with("Hair") or cm.begins_with("Sleeve") or cm.begins_with("Skirt") or cm.contains("Bow") or cm.contains("Ribbon"):
 			sb.set("drag_force_scale", clampf(float(sb.get("drag_force_scale")) * 1.35, 0.0, 0.92))
 			sb.set("stiffness_scale", float(sb.get("stiffness_scale")) * 1.2)
-			sb.set("hit_radius_scale", float(sb.get("hit_radius_scale")) * 0.8)
+			if not cm.begins_with("Hair"):
+				sb.set("hit_radius_scale", float(sb.get("hit_radius_scale")) * 0.8)   # (hair keeps its full radius: smaller let strands dip into her body)
 			n += 1
 	return n
+

@@ -79,3 +79,42 @@ static func stretch(m: MeshInstance3D, skinned: PackedVector3Array, rest: Packed
 			if r >= MIN_EDGE:
 				worst = maxf(worst, l / r)
 	return Vector2(worst, open)
+
+
+## Like skin(), with the normals too: [PackedVector3Array positions, PackedVector3Array normals] (skeleton space).
+static func skin_n(m: MeshInstance3D, sk: Skeleton3D, poses: Array, si := 0) -> Array:
+	var arr := m.mesh.surface_get_arrays(si)
+	var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var N: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	var BI = arr[Mesh.ARRAY_BONES]
+	var BW = arr[Mesh.ARRAY_WEIGHTS]
+	var P := PackedVector3Array()
+	var Q := PackedVector3Array()
+	P.resize(V.size())
+	Q.resize(V.size())
+	if BI == null or BW == null or m.skin == null or poses.is_empty() or N.size() != V.size():
+		return [V, N]
+	var per: int = (BI as PackedInt32Array).size() / maxi(V.size(), 1) if BI is PackedInt32Array else (BI as Array).size() / maxi(V.size(), 1)
+	var bind_bone := []
+	for bi in m.skin.get_bind_count():
+		var b := m.skin.get_bind_bone(bi)
+		bind_bone.append(b if b >= 0 else sk.find_bone(m.skin.get_bind_name(bi)))
+	for vi in V.size():
+		var p := Vector3.ZERO
+		var n := Vector3.ZERO
+		var tw := 0.0
+		for k in per:
+			var w: float = BW[vi * per + k]
+			if w <= 0.0001:
+				continue
+			var bidx: int = BI[vi * per + k]
+			var bb: int = bind_bone[bidx]
+			if bb < 0 or bb >= poses.size():
+				continue
+			var xf: Transform3D = (poses[bb] as Transform3D) * m.skin.get_bind_pose(bidx)
+			p += (xf * V[vi]) * w
+			n += (xf.basis * N[vi]) * w
+			tw += w
+		P[vi] = p / tw if tw > 0.0 else V[vi]
+		Q[vi] = n.normalized() if n.length() > 1e-6 else N[vi]
+	return [P, Q]
