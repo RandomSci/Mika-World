@@ -1587,6 +1587,9 @@ func navigate_to(target: Vector3, run := false) -> void:
 	if casting:
 		action_finished.emit("navigate_to", false, "busy casting")
 		return
+	if RenderProfile.options.has("trace-nav"):
+		var st1 := get_stack()
+		print("[trace-nav] %s navigate_to %s by %s" % [character_id, str(target.snappedf(0.1)), " < ".join(st1.slice(1, 4).map(func(f): return "%s:%d %s" % [String(f.source).get_file(), int(f.line), String(f.function)]))])
 	_finish_action(false, "superseded by navigate_to")
 	var map := get_world_3d().navigation_map
 	if NavigationServer3D.map_get_iteration_id(map) == 0:
@@ -1669,6 +1672,10 @@ func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
 	# lying / sitting on the ground: only the ground's own clips (and reactions, waking). A wave or a point replaced the
 	# lying loop and she was drawn standing beside her friend for the rest of a stargaze (stage check 2026-10-17)
 	if ground_pose != "" and not (clip.begins_with(ground_pose) or clip.begins_with("rx_") or clip == "waking"):
+		return false
+	# seated (a bench, the boat): only the seat's own clips and reactions. A level-up dance replaced Luna's sitting loop
+	# in the boat and she hovered 21 cm over the cushion, hands off the oars (boat check 2026-10-19)
+	if seated and not (clip.begins_with("sit") or clip.begins_with("rx_")):
 		return false
 	var bt := anim_tree.tree_root as AnimationNodeBlendTree
 	var shot := bt.get_node("cast") as AnimationNodeOneShot

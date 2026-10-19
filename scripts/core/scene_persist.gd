@@ -312,6 +312,7 @@ func _restore_mage(who: String, e: Dictionary, parts: Dictionary, area: String) 
 		var ng: Array = e.get("nav_goal", [])
 		if String(e.get("action", "")) == "navigate_to" and ng.size() == 3:
 			c.navigate_to(Vector3(float(ng[0]), float(ng[1]), float(ng[2])), bool(e.get("nav_run", false)))
+			c.set_meta("resumed_walk", true)          # (her brain lets this walk finish before it plans anything new)
 			r["walking_to"] = ng
 	if parts.has(who):
 		c.set_meta("persist_activity", String(parts[who]))

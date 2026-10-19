@@ -123,7 +123,7 @@ static func _phase2(t) -> void:
 		var ang := deg_to_rad(lerpf(-12.0, 12.0, k / 4.0))
 		cams.append(spot + Vector3(sin(ang), 0, cos(ang)) * 3.9 + Vector3(0, 0.9, 0))
 	# the night look must come back by itself (DanceSession.restore rebuilds the stage)
-	var stages := t.get_tree().root.find_children("*", "DanceStage", true, false)
+	var stages: Array = (t.get_tree() as SceneTree).get_nodes_in_group("env_owner").filter(func(n): return n is DanceStage)
 	t._check(stages.size() == 1, "the dance's night look restored (%d stage)" % stages.size())
 	var pin := C.pin_camera(t)
 	_aim(pin, spot)

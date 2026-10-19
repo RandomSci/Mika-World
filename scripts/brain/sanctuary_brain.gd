@@ -818,6 +818,13 @@ func _loop() -> void:
 		if main.streaming.state != "idle" or not main.travel.journey.is_empty():
 			await get_tree().create_timer(0.5).timeout
 			continue
+		if me.has_meta("resumed_walk"):
+			# a walk carried over a restart (ScenePersist): it finishes first, then she plans as usual
+			if me.current_action == "navigate_to":
+				current = {"kind": "walk", "label": "carry on walking", "stage": "resumed after a restart"}
+				await get_tree().create_timer(0.3).timeout
+				continue
+			me.remove_meta("resumed_walk")
 		if main.sim_mode(agent_id) == "background":
 			await _background_step()       # her area is not loaded: honest abstract simulation (no free rewards)
 			continue
@@ -1970,6 +1977,11 @@ func _use(id: String) -> Dictionary:
 func _walk(target: Vector3, ignore_threat := false) -> bool:
 	if _interrupt.begins_with("the show") and not ignore_threat:
 		return false                 # the show asked for her: no new errand steps (each one used to start and stop at once)
+	# a walk carried over a restart finishes first (an errand chosen just before the resume must not replace it)
+	while me.has_meta("resumed_walk") and me.current_action == "navigate_to" and not _cancel:
+		await get_tree().process_frame
+	if me.has_meta("resumed_walk"):
+		me.remove_meta("resumed_walk")
 	for attempt in 2:
 		# she always walks (2026-10-17 live: trips over 45 m ran at 4.1 m/s - the altar to Starfall Hill is 44-50 m,
 		# so every crossing of the sanctuary looked like a dash). A run belongs to a fight, never to an errand.

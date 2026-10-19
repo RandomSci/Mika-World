@@ -11,6 +11,7 @@ var roll := 0.0                          # radians: + toward her right
 var twist := 0.0                         # radians: + turns her chest to her left
 var arm := {"Left": {"target": Vector3.INF, "w": 0.0, "goal": 0.0, "pole": Vector3(-0.4, -0.6, -0.5)},
 	"Right": {"target": Vector3.INF, "w": 0.0, "goal": 0.0, "pole": Vector3(0.4, -0.6, -0.5)}}
+var _palm_off := {"Left": Vector3.ZERO, "Right": Vector3.ZERO}     # skeleton space, wrist -> palm centre
 var leg := {"Left": {"target": Vector3.INF, "w": 0.0, "goal": 0.0, "pole": Vector3(0.0, 0.3, 1.0)},
 	"Right": {"target": Vector3.INF, "w": 0.0, "goal": 0.0, "pole": Vector3(0.0, 0.3, 1.0)}}
 var ease_rate := 3.0                     # 1/s: how fast weights move toward their goals
@@ -31,9 +32,12 @@ static func make(sk: Skeleton3D, at := 0) -> SeatPose:
 	return p
 
 
-func reach(side: String, target: Vector3, w := 1.0, pole := Vector3.INF) -> void:
+## palm: the target is where her PALM closes (an oar grip), not her wrist - the wrist is aimed short of it by the
+## wrist-to-palm offset measured after last frame's solve (the hand turns with the forearm, so it is only known then).
+func reach(side: String, target: Vector3, w := 1.0, pole := Vector3.INF, palm := false) -> void:
 	arm[side].target = target
 	arm[side].goal = w
+	arm[side].palm = palm
 	if pole != Vector3.INF:
 		arm[side].pole = pole
 
@@ -139,4 +143,11 @@ func _process_modification() -> void:
 	for s in ["Left", "Right"]:
 		var am: Dictionary = arm[s]
 		if am.target != Vector3.INF:
-			_two_bone(_ids[s + "Arm"], inv * (am.target as Vector3), _frame * (am.pole as Vector3), float(am.w))
+			var palm := bool(am.get("palm", false))
+			var tgt: Vector3 = inv * (am.target as Vector3) - ((_palm_off[s] as Vector3) if palm else Vector3.ZERO)
+			_two_bone(_ids[s + "Arm"], tgt, _frame * (am.pole as Vector3), float(am.w))
+			if palm:
+				var mp := sk.find_bone(s + "MiddleProximal")
+				if mp >= 0:
+					var off := (sk.get_bone_global_pose(mp).origin - sk.get_bone_global_pose(int(_ids[s + "Arm"][2])).origin) * 0.5
+					_palm_off[s] = (_palm_off[s] as Vector3).lerp(off, 0.5)

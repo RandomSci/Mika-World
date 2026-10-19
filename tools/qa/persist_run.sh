@@ -15,7 +15,7 @@ mkdir -p "$OUT"
 echo "out dir: $OUT"
 echo "save:    $SAVE"
 COMMON=(--profile=stream --no-bridge --luna --no-scene-light "--mktest=$MODE" "--save-path=$SAVE"
-	--live-link=ws://127.0.0.1:9/test-none --persist --game-clock)
+	--live-link=ws://127.0.0.1:9/test-none --persist --game-clock ${PERSIST_EXTRA:-})
 cd "$PROJ" || exit 2
 
 disp() {   # $1 = phase

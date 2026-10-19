@@ -140,6 +140,15 @@ static func run(t) -> void:
 					w[key] = maxi(int(w[key]), int(r[key]))
 				w.total = int(r.total)
 				worst[c.character_id] = w
+			if fmod(tt, 1.0) < 0.034:
+				for pr in [["luna", luna, "bow"], ["mika", mika, "stern"]]:
+					var hc: WorldCharacter = pr[1]
+					var hst := boat.seat_xform(String(pr[2]))
+					var hbi := hc.skeleton.find_bone("Hips")
+					var gps: Array = grabs[pr[0]].poses
+					var fin := (hc.skeleton.global_transform * (gps[hbi] as Transform3D).origin).y - hst.origin.y if gps.size() > hbi else -9.0
+					var pre := (hc.skeleton.global_transform * hc.skeleton.get_bone_global_pose(hbi).origin).y - hst.origin.y
+					print("[boathips] t %.1f %s gesture '%s' (by %s) root_dy %.3f hips above seat: pre %.3f final %.3f" % [tt, pr[0], hc.current_gesture, str(hc.gesture_trace.get("by", "?")), float(boat.rider(String(pr[2])).root_dy), pre, fin])
 			var ct := _contacts(boat, luna, grabs.luna.poses, mika, grabs.mika.poses) if tt > 5.0 else {}
 			for key in ct:
 				var prev = contacts.get(key, null)
@@ -173,7 +182,7 @@ static func run(t) -> void:
 		print("[boatcloth] %s: %d cloth vertices checked x %d samples - worst: %d outside the hull, %d below its floor, %d inside the other girl" % [id, w.total, checked, w.outside, w.below, w.in_other])
 		t._check(int(w.outside) == 0 and int(w.below) == 0 and int(w.in_other) == 0, "%s cloth inside the boat and clear of the other girl (%d / %d / %d)" % [id, w.outside, w.below, w.in_other])
 	print("[boatcloth] contacts (worst over the ride): %s" % str(contacts))
-	t._check(float(contacts.get("grip_L", 9.0)) <= 0.04 and float(contacts.get("grip_R", 9.0)) <= 0.04, "Luna's hands on the oar grips while rowing (%.3f / %.3f m)" % [float(contacts.get("grip_L", 9.0)), float(contacts.get("grip_R", 9.0))])
+	t._check(float(contacts.get("grip_L", 9.0)) <= 0.025 and float(contacts.get("grip_R", 9.0)) <= 0.025, "Luna's hands on the oar grips while rowing (%.3f / %.3f m)" % [float(contacts.get("grip_L", 9.0)), float(contacts.get("grip_R", 9.0))])
 	t._check(float(contacts.get("hips_luna", 9.0)) <= 0.03 and float(contacts.get("hips_mika", 9.0)) <= 0.03, "both sit on the cushions (hips %.3f / %.3f m off)" % [float(contacts.get("hips_luna", 9.0)), float(contacts.get("hips_mika", 9.0))])
 	t._check(float(contacts.get("feet_luna", 9.0)) <= 0.03 and float(contacts.get("feet_mika", 9.0)) <= 0.03, "feet on the floor (%.3f / %.3f m off)" % [float(contacts.get("feet_luna", 9.0)), float(contacts.get("feet_mika", 9.0))])
 	t._check(float(contacts.get("mika_hand_rest", 9.0)) <= 0.04, "Mika's free hand rests on something real (%.3f m)" % float(contacts.get("mika_hand_rest", 9.0)))

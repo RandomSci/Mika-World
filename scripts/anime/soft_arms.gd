@@ -50,9 +50,26 @@ func _setup() -> void:
 			for j in (["Metacarpal", "Proximal", "Distal"] if f == "Thumb" else ["Proximal", "Intermediate", "Distal"]):
 				var bi := sk.find_bone(side + f + j)
 				if bi >= 0:
-					list.append([bi, float(CURL[f]) * (0.7 if f == "Thumb" else 1.0), sk.get_bone_rest(bi).basis.get_rotation_quaternion(), k])
+					list.append([bi, float(CURL[f]) * (0.7 if f == "Thumb" else 1.0), sk.get_bone_rest(bi).basis.get_rotation_quaternion(), k, _curl_axis(sk, bi)])
 			k += 1
 		_fingers[side] = list
+
+
+## The axis (in the bone's own frame) a finger joint bends about to close toward the palm: from the rest pose (VRM
+## T-pose, palms down), perpendicular to the finger and the palm's facing. (A fixed local Z was the sideways spread
+## on these retargeted skeletons: the oar hands fanned open instead of closing, boat check 2026-10-19.)
+static func _curl_axis(sk: Skeleton3D, bi: int) -> Vector3:
+	var g := sk.get_bone_global_rest(bi)
+	var kids := sk.get_bone_children(bi)
+	var dir: Vector3
+	if not kids.is_empty():
+		dir = sk.get_bone_global_rest(kids[0]).origin - g.origin
+	else:
+		dir = g.origin - sk.get_bone_global_rest(sk.get_bone_parent(bi)).origin
+	var ax := dir.normalized().cross(Vector3.DOWN)
+	if ax.length() < 0.2:
+		return Vector3(0, 0, 1)
+	return (g.basis.orthonormalized().inverse() * ax).normalized()
 
 
 func _process_modification() -> void:
@@ -90,10 +107,9 @@ func _process_modification() -> void:
 		_smooth[side] = s
 		sk.set_bone_global_pose(ids[2], Transform3D(Basis(s).scaled(gh.basis.get_scale()), gh.origin))
 		# fingers: a relaxed dancer's hand, gently alive
-		var sgn := -1.0 if side == "Right" else 1.0
 		for f in _fingers[side]:
 			var c: float = float(f[1]) + 0.05 * sin(_t * 1.3 + float(f[3]) * 0.7)
 			var g := float(grip[side])
 			c = lerpf(c, 1.05, g)                  # (a held grip: the fingers close right round the handle)
-			var target := (f[2] as Quaternion) * Quaternion(Vector3(0, 0, 1), c * finger_angle * sgn)
+			var target := (f[2] as Quaternion) * Quaternion(f[4] as Vector3, c * finger_angle)
 			sk.set_bone_pose_rotation(int(f[0]), sk.get_bone_pose_rotation(int(f[0])).slerp(target, lerpf(finger_weight, 1.0, g)))

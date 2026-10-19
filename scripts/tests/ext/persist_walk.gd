@@ -75,6 +75,9 @@ static func _phase2(t) -> void:
 	await t._wait(3.0)
 	var g1 := luna.global_position.distance_to(goal)
 	t._check(g1 < g0 - 0.5, "she walks on toward the same destination (%.1f -> %.1f m)" % [g0, g1])
+	var ng: Vector3 = luna.get("_nav_goal")
+	t._check(luna.current_action == "navigate_to" and ng.distance_to(goal) < 0.3, "nothing replaced the resumed walk (goal %.2f m from the saved one)" % ng.distance_to(goal))
 	var lx := C.level_xp("luna")
-	t._check(lx == tr.mages.luna, "level and XP unchanged (%s vs %s)" % [str(lx), str(tr.mages.luna)])
+	var lt: Dictionary = tr.mages.luna
+	t._check(int(lx.level) == int(lt.level) and absf(float(lx.xp) - float(lt.xp)) < 1e-4, "level and XP unchanged (%s vs %s)" % [str(lx), str(lt)])
 	C.still(t, "after_resume_3s")

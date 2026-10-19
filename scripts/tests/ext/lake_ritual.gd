@@ -131,6 +131,9 @@ static func run(t) -> void:
 			link._on_message({"type": "youtube-live-member", "author": "Kenji"})
 			link._on_message({"type": "youtube-live-selected-message", "active": true, "id": "sc1", "author": "Sora", "message": "(sent $5.00)", "paid": true, "amount": "$5.00", "to": ["mika"]})
 			link._on_message({"type": "youtube-live-selected-message", "active": true, "id": "c1", "author": "Mei", "message": "I wish for a calm night", "paid": false, "to": ["mika"]})
+			# (v1 item 3: five at once - a subscriber and a second wish too)
+			link._on_message({"type": "youtube-live-subscriber", "author": "Hana"})
+			link._on_message({"type": "youtube-live-selected-message", "active": true, "id": "c2", "author": "Ren", "message": "!wish to see the stars together", "paid": false, "to": ["luna"]})
 		if fired and not day_set and t._game_t - t1 > 0.0 and launches.size() >= 1:
 			day_set = true
 			main.day_night.set_override(false)          # dawn comes mid-ritual: the ritual finishes as it began
@@ -156,6 +159,10 @@ static func run(t) -> void:
 	t._check(not snap_mid.is_empty() and String(snap_mid.get("step", "")) == "lanterns" and (snap_mid.get("participants", []) as Array).size() == 2,
 		"the ritual's step is persistent (ScenePersist contract) %s" % str(snap_mid))
 	var names := lr.log.filter(func(e): return e.has("lantern_at")).map(func(e): return "%s@%s" % [e.name, e.where])
+	var order := launches.map(func(l): return String(l[0]))
+	var want := ["Kenji", "Sora", "Mei", "Hana", "Ren"]
+	var got := order.filter(func(n): return n in want)
+	t._check(got == want, "five events at once all rose, in the order they came (%s)" % str(got))
 	t._check(names.has("Aiko@pier") and names.has("Kenji@boat") and names.has("Sora@boat") and names.has("Mei@boat"),
 		"every viewer's lantern rose with its name: Aiko's (waiting) on arrival at the pier, the others beside the boat (%s)" % str(names))
 	var gaps := []

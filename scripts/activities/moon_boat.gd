@@ -59,7 +59,7 @@ static func spawn(parent: Node, at: Vector3, yaw: float, water: float) -> MoonBo
 func _build() -> void:
 	var sc: Node3D = (load(SCENE) as PackedScene).instantiate()
 	add_child(sc)
-	_ring_shader = load("res://shaders/anime/dance/ripple.gdshader")
+	_ring_shader = load("res://shaders/anime/boat/water_ripple.gdshader")
 	for mi in sc.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		var nm := String(m.name)
@@ -575,9 +575,8 @@ func ring(p: Vector3, size := 1.0, col := Color(0.8, 0.86, 1.0), energy := 0.9) 
 	var m := ShaderMaterial.new()
 	m.shader = _ring_shader
 	m.set_shader_parameter("color", col)
-	m.set_shader_parameter("core", col * 0.5)
-	m.set_shader_parameter("energy", energy * 0.3)
-	m.set_shader_parameter("sharp", 0.3)
+	m.set_shader_parameter("strength", clampf(energy * 0.25, 0.03, 0.09))  # (a swell of the water, never a glow)
+	m.set_shader_parameter("width", 0.11)
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	get_parent().add_child(mi)
@@ -636,8 +635,8 @@ func _process(delta: float) -> void:
 		if seat_name == "bow" and rowing:
 			var ph := _row_phase * TAU
 			pose.lean = deg_to_rad(10.0) * cos(ph)
-			pose.reach("Left", grip("L"), 1.0, Vector3(-0.6, -0.5, -0.4))
-			pose.reach("Right", grip("R"), 1.0, Vector3(0.6, -0.5, -0.4))
+			pose.reach("Left", grip("L"), 1.0, Vector3(-0.6, -0.5, -0.4), true)
+			pose.reach("Right", grip("R"), 1.0, Vector3(0.6, -0.5, -0.4), true)
 		var mode := String(r.mode)
 		if mode.begins_with("trail_"):
 			var side := mode.trim_prefix("trail_")
