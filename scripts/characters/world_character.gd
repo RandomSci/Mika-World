@@ -230,7 +230,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_lab_hair_fix()
 	_skin_tone()
 	_face_shadows()
-	AvatarLook.apply(self)                         # no body outline shards; hair and cloth opaque with alpha scissor
+	if not RenderProfile.options.has("no-avatar-look"):
+		AvatarLook.apply(self)                         # no body outline shards; hair and cloth opaque with alpha scissor
 	_light_balance = Vector2(-1, -1)          # a new avatar's materials need the balance again
 	_setup_animation()
 	_setup_expressions()

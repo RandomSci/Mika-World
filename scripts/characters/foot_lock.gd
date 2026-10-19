@@ -10,6 +10,7 @@ extends SkeletonModifier3D
 const PLANT := 0.025            # m above its standing height: the ball is down
 const LIFT := 0.045             # m: the clip lifts it - let go
 const LET_GO := 0.18            # m between the clip's foot and the lock: let go rather than stretch the leg
+const LET_GO_SLOW := 0.08       # m: stopping or turning on the spot - a step comes sooner
 const IN_S := 0.06              # s to blend a lock in / out
 const OUT_S := 0.12
 const SETTLE_AFTER := 1.0      # s standing still before the feet ease into the idle stance
@@ -24,11 +25,12 @@ var _rest_h := {}               # side -> the ball's height above her origin whe
 var _lock := {}                 # side -> world point (or absent)
 var _w := {"Left": 0.0, "Right": 0.0}
 var _last_pos := Vector3.INF
+var _last_yaw := NAN
 var _moving := 0.0
 var _still := 0.0
 var _floor := {}                # side -> the lowest this foot's planted point has been lately (above her origin)
 var _held := {}                 # side -> the locked spot, kept while the lock fades out
-var _stepping := ""             # the side taking its settle step
+var _stepping := {}             # side -> true while it takes a step (a settle, or a let-go with the foot still down)
 
 
 func _wc() -> WorldCharacter:
@@ -58,8 +60,12 @@ func _process_modification() -> void:
 	var jumped := _last_pos != Vector3.INF and at.distance_to(_last_pos) > 1.0
 	var spd := 0.0 if _last_pos == Vector3.INF else Vector2(at.x - _last_pos.x, at.z - _last_pos.z).length() / dt
 	_last_pos = at
-	_moving = 0.6 if spd > 0.05 else maxf(_moving - dt, 0.0)
-	_still = 0.0 if spd > 0.05 else _still + dt
+	var yaw := c.global_rotation.y
+	var turn := 0.0 if is_nan(_last_yaw) else absf(wrapf(yaw - _last_yaw, -PI, PI)) / dt
+	_last_yaw = yaw
+	var busy := spd > 0.05 or turn > 0.6                 # (turning on the spot counts: feet step round, never swivel)
+	_moving = 0.6 if busy else maxf(_moving - dt, 0.0)
+	_still = 0.0 if busy else _still + dt
 	# a lock is kept through a stop (dropping it at once slid the foot to the idle clip's spot: 12 cm on the pier);
 	# new locks only while she moves; after a second standing still the feet settle into the idle stance slowly
 	var keep := enabled and not jumped and not c.seated and c.ground_pose == "" and not c.lifted \
@@ -73,7 +79,7 @@ func _process_modification() -> void:
 		if not (_ids[s] as Array).has(-1):
 			balls[s] = gsk * sk.get_bone_global_pose(int(_ids[s][3])).origin
 	# settling after a stop: one foot at a time takes a small step to where the idle clip has it (never a slide)
-	if settle and _stepping == "" and keep:
+	if settle and _stepping.is_empty() and keep:
 		var far := ""
 		var far_d := 0.0
 		for s in _lock:
@@ -84,7 +90,7 @@ func _process_modification() -> void:
 				far = s
 				far_d = off
 		if far != "":
-			_stepping = far
+			_stepping[far] = true
 			_lock.erase(far)
 	for s in balls:
 		var ids: Array = _ids[s]
@@ -99,27 +105,34 @@ func _process_modification() -> void:
 			_lock.erase(s)
 			if jumped:
 				_w[s] = 0.0                              # (moved far in one frame: never reach back to the old spot)
-				_stepping = ""
+				_stepping.erase(s)
 		elif _lock.has(s):
 			var lk: Vector3 = _lock[s]
-			if h > fl + LIFT or Vector2(ball_w.x - lk.x, ball_w.z - lk.z).length() > LET_GO:
+			if h > fl + LIFT:
 				_lock.erase(s)
-		elif on and h < fl + PLANT and float(_w[s]) < 0.05 and _stepping != s:
+			elif Vector2(ball_w.x - lk.x, ball_w.z - lk.z).length() > (LET_GO if spd >= 0.3 else LET_GO_SLOW):
+				_lock.erase(s)
+				if spd < 0.3:                            # (also every step of a turn on the spot)
+					_stepping[s] = true                  # (a stop: the clip moved it along the ground - step, never slide)
+		elif on and h < fl + PLANT and float(_w[s]) < 0.05 and not _stepping.has(s):
 			_lock[s] = ball_w
 			_held[s] = ball_w
 			locks += 1
 		var goal := 1.0 if _lock.has(s) else 0.0
-		var rate := IN_S if goal > 0.5 else (SETTLE_S if _stepping == s else OUT_S)
+		var rate := IN_S if goal > 0.5 else (SETTLE_S if _stepping.has(s) else OUT_S)
 		_w[s] = move_toward(float(_w[s]), goal, dt / rate)
 		var w: float = _w[s]
-		if _stepping == s and w <= 0.0:
-			_stepping = ""
+		if _stepping.has(s) and w <= 0.0:
+			_stepping.erase(s)
 		if w < 0.001:
 			continue
 		var held: Vector3 = _held.get(s, ball_w)          # (kept through the fade-out: no snap on release)
-		var shift := Vector3(held.x - ball_w.x, 0.0, held.z - ball_w.z) * w     # (height: the clip's, over the floor)
-		if _stepping == s:
-			shift.y = STEP_UP * sin(PI * (1.0 - w))      # the settle step lifts the foot on its way
+		var off := Vector3(held.x - ball_w.x, 0.0, held.z - ball_w.z)
+		var shift := off * w                              # (height: the clip's, over the floor)
+		if _stepping.has(s):
+			# a step: up first, across while it is up, down last - nothing of it drags along the floor
+			shift = off * (w * w * (3.0 - 2.0 * w))
+			shift.y = clampf(off.length() * 0.25, STEP_UP * 0.6, STEP_UP * 1.6) * sin(PI * (1.0 - w))
 		if shift.length() < 0.0005:
 			continue
 		var foot_t: Vector3 = inv * (gsk * sk.get_bone_global_pose(int(ids[2])).origin + shift)
