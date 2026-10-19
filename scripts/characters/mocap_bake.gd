@@ -5,13 +5,24 @@ extends RefCounted
 ## step. Every bone of her humanoid rig is aimed, parents first, along the direction the matching landmarks give
 ## (shoulder -> elbow, elbow -> wrist, hip -> knee ...), its twist carried from its parent; the hips and the torso take
 ## their full orientation from the hip and shoulder lines; the head from the ears and nose. Her hips sit as high above
-## the floor as the actor's do, scaled by leg length (so seated clips sit). Fingers keep their rest (SoftArms curls them).
+## the floor as the actor's do, scaled by leg length (so seated clips sit). The hands (2026-10-20): where
+## tools/mocap/extract_hands.py read the actor's 21 hand points (<clip>.hands.json next to the clip), the palm takes its
+## full orientation from them (roll included) and every finger joint is aimed along its own knuckle -> knuckle line;
+## frames the hand tracker was unsure of blend back to the forearm-aimed hand and resting fingers.
 
 const LM_LEFT := {"Shoulder": 11, "Elbow": 13, "Wrist": 15, "Pinky": 17, "Index": 19, "Hip": 23, "Knee": 25, "Ankle": 27, "Heel": 29, "FootIdx": 31}
 ## The knee / elbow hinge of each upper limb bone in skeleton space at rest (a knee folds about her left axis, the
 ## left elbow about -Y, the right about +Y - the fight rig's convention), and its landmarks root, middle, end.
 const HINGE := {"LeftUpperLeg": Vector3(1, 0, 0), "RightUpperLeg": Vector3(1, 0, 0), "LeftUpperArm": Vector3(0, -1, 0), "RightUpperArm": Vector3(0, 1, 0)}
 const HINGE_LM := {"LeftUpperLeg": [23, 25, 27], "RightUpperLeg": [24, 26, 28], "LeftUpperArm": [11, 13, 15], "RightUpperArm": [12, 14, 16]}
+## Each finger bone and the two hand points it runs between (MediaPipe Hands: 0 wrist, 1-4 thumb, 5-8 index ...).
+const FINGER_LM := {"ThumbMetacarpal": [1, 2], "ThumbProximal": [2, 3], "ThumbDistal": [3, 4],
+	"IndexProximal": [5, 6], "IndexIntermediate": [6, 7], "IndexDistal": [7, 8],
+	"MiddleProximal": [9, 10], "MiddleIntermediate": [10, 11], "MiddleDistal": [11, 12],
+	"RingProximal": [13, 14], "RingIntermediate": [14, 15], "RingDistal": [15, 16],
+	"LittleProximal": [17, 18], "LittleIntermediate": [18, 19], "LittleDistal": [19, 20]}
+const WRIST_MAX := 80.0                 # deg the hand may turn away from the forearm's carried rest
+const FINGER_MAX := 105.0               # deg one finger joint may turn from its parent's carried rest
 const LM_RIGHT := {"Shoulder": 12, "Elbow": 14, "Wrist": 16, "Pinky": 18, "Index": 20, "Hip": 24, "Knee": 26, "Ankle": 28, "Heel": 30, "FootIdx": 32}
 
 
@@ -53,6 +64,35 @@ static func bake(sk: Skeleton3D, json_path: String) -> Animation:
 	var drive := ["Hips", "Spine", "Chest", "UpperChest", "Neck", "Head"]
 	for l in limbs:
 		drive.append(l[0])
+	# the hands: 21 points per hand per frame (or null), a confidence per frame
+	var hands := {}
+	var hpath := json_path.get_basename() + ".hands.json"
+	if FileAccess.file_exists(hpath):
+		var hd = JSON.parse_string(FileAccess.get_file_as_string(hpath))
+		if typeof(hd) == TYPE_DICTIONARY and hd.has("l"):
+			hands = hd
+	var finger_d0 := {}                   # finger bone -> its rest direction (skeleton space)
+	if not hands.is_empty():
+		for side in ["Left", "Right"]:
+			for fb in FINGER_LM:
+				var bi_f: int = B.call(side + fb)
+				if bi_f < 0:
+					continue
+				var nxt := ""
+				var keys := FINGER_LM.keys()
+				var ki := keys.find(fb)
+				if ki + 1 < keys.size() and String(keys[ki + 1]).substr(0, 4) == fb.substr(0, 4):
+					nxt = side + String(keys[ki + 1])
+				var o: Vector3 = rest_pos.call(side + fb)
+				var dir := Vector3.ZERO
+				if nxt != "" and B.call(nxt) >= 0:
+					dir = (rest_pos.call(nxt) as Vector3) - o
+				else:
+					var par_f := sk.get_bone_parent(bi_f)
+					dir = o - sk.get_bone_global_rest(par_f).origin
+				if dir.length() > 1e-5:
+					finger_d0[side + fb] = dir.normalized()
+					drive.append(side + fb)
 	for n in drive:
 		if B.call(n) >= 0:
 			var t := anim.add_track(Animation.TYPE_ROTATION_3D)
@@ -76,6 +116,13 @@ static func bake(sk: Skeleton3D, json_path: String) -> Animation:
 		var chestC := _frame(_v(P, 11) - _v(P, 12), mid_sh - mid_hip)
 		var ears := (_v(P, 7) + _v(P, 8)) * 0.5
 		var headC := _frame(_v(P, 7) - _v(P, 8), (ears - mid_sh) + (_v(P, 0) - ears).project(Vector3.UP) * 0.0, _v(P, 0) - ears)
+		var HL := {}                                      # side -> [21 points, weight] this frame
+		if not hands.is_empty():
+			for sd in [["Left", "l"], ["Right", "r"]]:
+				var arr: Array = hands[sd[1]]
+				if fi < arr.size() and arr[fi] != null:
+					var q := float((hands[sd[1] + "q"] as Array)[fi]) if fi < (hands[sd[1] + "q"] as Array).size() else 0.0
+					HL[sd[0]] = [arr[fi], smoothstep(0.15, 0.5, q)]
 		var R := {}                                       # bone -> rotation delta from rest (skeleton space)
 		var rot_of := func(C: Basis) -> Basis: return F * C * Fi
 		var G := {}                                       # bone -> new global basis
@@ -152,6 +199,8 @@ static func bake(sk: Skeleton3D, json_path: String) -> Animation:
 							else:
 								var cur := D * d0
 								d = Basis(Quaternion(cur.normalized(), aim.normalized())) * D
+			if not HL.is_empty():
+				d = _hand_bone(sk, n, d, D, HL, finger_d0, F, rest_pos)
 			R[bi] = d.orthonormalized()
 			G[bi] = (d * rest_b).orthonormalized()
 		for n in tracks:
@@ -172,6 +221,58 @@ static func bake(sk: Skeleton3D, json_path: String) -> Animation:
 	# past a human twist or a knee points behind her is made human (JointAudit.fix_anim)
 	JointAudit.fix_anim(sk, anim)
 	return anim
+
+
+## The hand and its fingers from the hand tracker: the palm's full frame (wrist -> middle knuckle, index knuckle ->
+## little knuckle) replaces the forearm-aimed hand, each finger joint swings onto its knuckle line; both weighted by how
+## sure the tracker was, and held inside a human wrist / finger range.
+static func _hand_bone(sk: Skeleton3D, n: String, d: Basis, D: Basis, HL: Dictionary, finger_d0: Dictionary, F: Basis,
+		rest_pos: Callable) -> Basis:
+	var side := "Left" if n.begins_with("Left") else ("Right" if n.begins_with("Right") else "")
+	if side == "" or not HL.has(side):
+		return d
+	var pts: Array = HL[side][0]
+	var w: float = HL[side][1]
+	if w <= 0.001:
+		return d
+	var hv := func(i: int) -> Vector3: return F * _v(pts, i)
+	if n == side + "Hand":
+		var a_r: Vector3 = (rest_pos.call(side + "MiddleProximal") as Vector3) - (rest_pos.call(side + "Hand") as Vector3)
+		var c_r: Vector3 = (rest_pos.call(side + "IndexProximal") as Vector3) - (rest_pos.call(side + "LittleProximal") as Vector3)
+		var a_t: Vector3 = (hv.call(9) as Vector3) - (hv.call(0) as Vector3)
+		var c_t: Vector3 = (hv.call(5) as Vector3) - (hv.call(17) as Vector3)
+		if a_r.length() < 1e-5 or c_r.length() < 1e-5 or a_t.length() < 1e-5 or c_t.length() < 1e-5:
+			return d
+		var dm := _frame2(a_t, c_t) * _frame2(a_r, c_r).inverse()
+		# a human wrist: never more than WRIST_MAX from the forearm's carried rest
+		var rel := Quaternion((D.inverse() * dm).orthonormalized())
+		var ang := rad_to_deg(rel.get_angle())
+		if ang > WRIST_MAX:
+			rel = Quaternion.IDENTITY.slerp(rel, WRIST_MAX / ang)
+		dm = D * Basis(rel)
+		return Basis(d.get_rotation_quaternion().slerp(dm.get_rotation_quaternion(), w))
+	var fb := n.trim_prefix(side)
+	if not FINGER_LM.has(fb) or not finger_d0.has(n):
+		return d
+	var lm: Array = FINGER_LM[fb]
+	var aim: Vector3 = (hv.call(int(lm[1])) as Vector3) - (hv.call(int(lm[0])) as Vector3)
+	if aim.length() < 1e-5:
+		return d
+	var cur: Vector3 = (D * (finger_d0[n] as Vector3)).normalized()
+	aim = aim.normalized()
+	var ang2 := cur.angle_to(aim)
+	if ang2 < 1e-4:
+		return d
+	var turn := minf(ang2, deg_to_rad(FINGER_MAX))
+	var axis := cur.cross(aim).normalized()
+	var dm2 := Basis(axis, turn) * D
+	return Basis(D.get_rotation_quaternion().slerp(dm2.get_rotation_quaternion(), w))
+
+
+static func _frame2(a: Vector3, c: Vector3) -> Basis:
+	var x := a.normalized()
+	var z := (c - x * c.dot(x)).normalized()
+	return Basis(x, z.cross(x), z).orthonormalized()
 
 
 ## A thigh / upper arm's delta rotation: swung from its parent's delta onto shoulder -> elbow (S -> E, canonical

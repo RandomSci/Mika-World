@@ -3,6 +3,8 @@ extends RefCounted
 ## for her: MocapBake + the joint fix pass) full body, filmed from the front like the source videos, a still lens, so
 ## each clip can be laid side by side with its source at the same moments. Luna stands on the camera's side, hidden
 ## (the duel keeps them facing). Marks "[movelib] <clip> show from frame A to frame B". Option --libs=v2,v2u,v3 / --clip=x.
+## --girl=luna plays them on Luna instead (Mika hidden); --framing=mid films closer (knees up, the hands and fingers
+## readable at 720p). Any softness pass on her fingers is held off, so the clip's own (mocapped) fingers show.
 
 static func run(t) -> void:
 	var main = t.main
@@ -28,21 +30,29 @@ static func run(t) -> void:
 	d.setup(main, "duel", {"seed": 3, "axis_deg": 0.0, "bare": true})
 	d.set_process(true)
 	var c0: Vector3 = d.center
-	d.F.mika.pos = c0
-	d.F.luna.pos = c0 + Vector3(9.0, 0, 0)          # (she keeps Mika facing the lens; hidden, the arena clamp brings her close)
+	var who := String(RenderProfile.options.get("girl", "mika"))
+	var other := "luna" if who == "mika" else "mika"
+	d.F[who].pos = c0
+	d.F[other].pos = c0 + Vector3(9.0, 0, 0)        # (she keeps the shown girl facing the lens; hidden, the arena clamp brings her close)
 	await t._wait(0.6)
-	(d.F.luna.c as Node3D).visible = false
+	(d.F[other].c as Node3D).visible = false
 	# her everyday helpers would fight the clip (BodyLanguage folds her arms, the foot / hand guards pull her limbs):
 	# off, as the fight rig turns them off
-	var mc: WorldCharacter = d.F.mika.c
+	var mc: WorldCharacter = d.F[who].c
+	for n in mc.skeleton.find_children("*", "SkeletonModifier3D", false, false):
+		if n is SoftArms:
+			(n as SoftArms).finger_weight = 0.0
 	for n in MeleeFighter.OFF_WHILE_FIGHTING:
 		var m := mc.skeleton.get_node_or_null(n) as SkeletonModifier3D
 		if m:
 			m.active = false
 	if mc.head_look:
 		mc.head_look.influence = 0.0
-	var gy := FightDirector.ground_y(d.F.mika.c, c0)
-	d.cut(d.ft + 0.001, "fixed", "mika", {"pos": Vector3(c0.x + 3.7, gy + 0.95, c0.z), "look": Vector3(c0.x, gy + 0.85, c0.z), "fov": 38.0})
+	var gy := FightDirector.ground_y(d.F[who].c, c0)
+	if String(RenderProfile.options.get("framing", "")) == "mid":
+		d.cut(d.ft + 0.001, "fixed", who, {"pos": Vector3(c0.x + 2.3, gy + 1.15, c0.z), "look": Vector3(c0.x, gy + 1.0, c0.z), "fov": 40.0})
+	else:
+		d.cut(d.ft + 0.001, "fixed", who, {"pos": Vector3(c0.x + 3.7, gy + 0.95, c0.z), "look": Vector3(c0.x, gy + 0.85, c0.z), "fov": 38.0})
 	await t._wait(0.8)
 	var libs := String(RenderProfile.options.get("libs", "v2,v2u,v3")).split(",")
 	var only := String(RenderProfile.options.get("clip", ""))
@@ -56,16 +66,16 @@ static func run(t) -> void:
 		if only == "" and some.is_empty() and not (String(MoveCatalog.CLIPS[n].lib) in libs):
 			continue
 		var clip := "ml_" + String(n)
-		var c: WorldCharacter = d.F.mika.c
+		var c: WorldCharacter = d.F[who].c
 		if not c.has_clip(clip):
 			print("[movelib] %s MISSING" % n)
 			continue
-		d.F.mika.pos = c0
+		d.F[who].pos = c0
 		var a0 := Engine.get_frames_drawn()
-		var dur: float = d.anim("mika", clip, 0.0, -1.0, 1.0, 0.05)
+		var dur: float = d.anim(who, clip, 0.0, -1.0, 1.0, 0.05)
 		await t._wait(dur)
 		print("[movelib] %s show from frame %d to frame %d" % [n, a0, Engine.get_frames_drawn()])
-		d.anim("mika", "combat_idle", 0.0, -1.0, 1.0, 0.1, true)
+		d.anim(who, "combat_idle", 0.0, -1.0, 1.0, 0.1, true)
 		await t._wait(0.35)
 		shown += 1
 	t._check(shown > 0, "%d clips shown" % shown)
