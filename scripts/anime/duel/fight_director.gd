@@ -427,6 +427,45 @@ func slowmo(scale: float, dur: float) -> void:
 	Engine.time_scale = scale
 
 
+## An ultimate's domain: the world dims and takes her colour (the grade darker and colder or more violet, a tinted fog
+## low over the ground), eased in over `fade`; off restores what was there.
+func domain(who: String, on: bool, fade := 0.8) -> void:
+	var we: WorldEnvironment = null
+	for n in get_tree().root.find_children("*", "WorldEnvironment", true, false):
+		we = n
+		break
+	if we == null or we.environment == null:
+		return
+	var e := we.environment
+	if on:
+		if not e.has_meta("domain_saved"):
+			e.set_meta("domain_saved", [e.adjustment_enabled, e.adjustment_brightness, e.adjustment_saturation, e.fog_enabled, e.fog_light_color,
+				e.fog_density, e.ambient_light_color, e.ambient_light_energy])
+		var col: Color = CombatVFX.pal(who).edge
+		e.adjustment_enabled = true
+		e.fog_enabled = true
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(e, "adjustment_brightness", 0.55, fade)
+		tw.tween_property(e, "adjustment_saturation", 0.85, fade)
+		tw.tween_property(e, "fog_light_color", col.darkened(0.55), fade)
+		tw.tween_property(e, "fog_density", 0.025, fade)
+		tw.tween_property(e, "ambient_light_color", col.lerp(Color.WHITE, 0.3), fade)
+		tw.tween_property(e, "ambient_light_energy", 0.6, fade)
+	elif e.has_meta("domain_saved"):
+		var sv: Array = e.get_meta("domain_saved")
+		e.remove_meta("domain_saved")
+		var tw2 := create_tween().set_parallel(true)
+		tw2.tween_property(e, "adjustment_brightness", float(sv[1]), fade)
+		tw2.tween_property(e, "adjustment_saturation", float(sv[2]), fade)
+		tw2.tween_property(e, "fog_light_color", sv[4], fade)
+		tw2.tween_property(e, "fog_density", float(sv[5]), fade)
+		tw2.tween_property(e, "ambient_light_color", sv[6], fade)
+		tw2.tween_property(e, "ambient_light_energy", float(sv[7]), fade)
+		tw2.chain().tween_callback(func():
+			e.adjustment_enabled = bool(sv[0])
+			e.fog_enabled = bool(sv[3]))
+
+
 func shake(k: float) -> void:
 	_lens.shake = maxf(float(_lens.shake), k)
 
@@ -598,6 +637,20 @@ func shot_cam(kind: String, who: String, u: float, len_: float, o: Dictionary) -
 			var sk_ := float(o.get("side", 0.38))
 			var p4 := hd + fa * lerpf(1.05, 0.9, e) * (1.0 - sk_ * 0.45) + sa * sk_ - up * 0.04
 			return {"pos": p4, "look": hd, "fov": 30.0, "focus": hd, "far": 0.35, "amount": 0.14}
+		"eyes":
+			# an extreme close-up on her eyes (an ultimate's opening): the lens just in front of her face, slightly off
+			# axis, slowly pushing in
+			var ey: Vector3 = _sm("hd", bone(a, "Head") + up * 0.06 * float(o.get("k", 1.0)), 0.5)
+			var p_e := ey + fa * lerpf(0.62, 0.5, e) + sa * 0.08 + up * 0.01
+			return {"pos": p_e, "look": ey, "fov": float(o.get("fov", 18.0)), "focus": ey, "far": 0.25, "amount": 0.18}
+		"pullback":
+			# from close on her to wide over the shot (an ultimate's release: the camera pulled back by the blast)
+			var c6: Vector3 = _sm("mid", mid + up * 1.1, 0.25)
+			var ch3 := chest(a)
+			var near_p := ch3 + fa * 1.6 + sa * 1.0 + up * 0.1
+			var far_p := c6 + perp * float(o.get("dist", 10.0)) + up * float(o.get("high", 3.2)) - ax * 1.5
+			var ee := 1.0 - pow(1.0 - e, 3.0)
+			return {"pos": near_p.lerp(far_p, ee), "look": ch3.lerp(c6, ee), "fov": lerpf(38.0, 52.0, ee), "focus": ch3.lerp(c6, ee), "far": 3.0, "amount": 0.03}
 		"face_ots":
 			# over the other's shoulder onto her face
 			var hd2: Vector3 = _sm("hd", bone(a, "Head") + up * 0.0, 0.35)

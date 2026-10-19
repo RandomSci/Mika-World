@@ -65,6 +65,47 @@ func _star_mesh() -> ArrayMesh:
 	return st.commit()
 
 
+# ------------------------------------------------------------------------------------------------ light
+## A real light that follows `src` (a world point or a Callable -> point: her hand, a shape in flight) in her colour:
+## grows in over `rise`, holds, fades over `fade` (the gathering energy lights her face, her body and the ground).
+func glow(src, who: String, energy := 3.0, rng := 3.0, dur := 1.0, rise := 0.2, fade := 0.35) -> OmniLight3D:
+	var l := OmniLight3D.new()
+	l.light_color = _col(who, "edge").lerp(_col(who, "core"), 0.35)
+	l.light_energy = 0.0
+	l.omni_range = rng
+	l.omni_attenuation = 1.4
+	l.light_specular = 0.6
+	l.shadow_enabled = false
+	add_child(l)
+	l.global_position = (src as Callable).call() if src is Callable else src
+	if src is Callable:
+		_follow.append([l, src])
+	var tw := l.create_tween()
+	tw.tween_property(l, "light_energy", energy, maxf(rise, 0.01)).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(maxf(dur - rise - fade, 0.0))
+	tw.tween_property(l, "light_energy", 0.0, maxf(fade, 0.01)).set_ease(Tween.EASE_IN)
+	tw.tween_callback(l.queue_free)
+	return l
+
+
+## The floor floods with her colour at a release or an impact (a broad low light over the ground point, as the
+## reference's arena lights up in the caster's colour on every big cast): a fast rise and a slower fall.
+func flood(at: Vector3, who: String, energy := 5.0, rng := 9.0, dur := 0.7) -> void:
+	var l := OmniLight3D.new()
+	l.light_color = _col(who, "edge")
+	l.light_energy = 0.0
+	l.omni_range = rng
+	l.omni_attenuation = 0.8
+	l.light_specular = 0.2
+	l.shadow_enabled = false
+	add_child(l)
+	l.global_position = at + Vector3.UP * 1.2
+	var tw := l.create_tween()
+	tw.tween_property(l, "light_energy", energy, 0.06)
+	tw.tween_property(l, "light_energy", 0.0, maxf(dur, 0.05)).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	tw.tween_callback(l.queue_free)
+
+
 # ------------------------------------------------------------------------------------------------ motes
 ## Twinkling star motes. mode: "burst" (thrown out from the point, then drifting and slowly falling), "swirl" (orbiting
 ## round the point as they drift up), "gather" (pulled in toward the point), "drift" (a slow hanging cloud).

@@ -18,6 +18,8 @@ const GRAVITY := 9.8
 var d: FightDirector
 var vfx: CombatVFX
 var magic: MagicCaster                    # spells and conjured weapons (gesture -> gather at the hand -> release)
+var ult_at := {}                          # id -> fight second her ultimate comes (opts "ult_at")
+var ult_pick := {}                        # id -> which ultimate (opts "ult_pick"; else one of hers at random)
 var rng := RandomNumberGenerator.new()
 var F := {}                              # id -> MeleeFighter
 var S := {}                              # id -> live state
@@ -62,6 +64,8 @@ func _setup(director: FightDirector, opts: Dictionary) -> void:
 	demo = bool(opts.get("demo", false))
 	vfx = CombatVFX.make(d.main.world if d.main.get("world") else d.main)
 	magic = MagicCaster.make(self)
+	ult_at = opts.get("ult_at", {})
+	ult_pick = opts.get("ult_pick", {})
 	var teams: Dictionary = opts.get("teams", {"mika": 0, "luna": 1})
 	var ids: Array = teams.keys()
 	var gap := float(opts.get("start_gap", 1.2))
@@ -214,15 +218,25 @@ func _tick(s: Dictionary, dt: float) -> void:
 		_lunge(s, o, dt)
 	match String(s.state):
 		"free":
-			if demo and not footwork:
-				pass
+			if (demo and not footwork) or (magic and magic.performing(String(s.id))):
+				pass                                      # (a gesture clip owns her body: no stepping under it)
 			else:
 				_footwork(s, o, dist, fwd, side, dt)
-			if not demo and t >= float(s.next_at) and (String(o.state) != "down" or t >= float(o.until) - 0.45):   # (she may set off as the other rises)
+			if not demo and magic and magic.performing(String(s.id)):
+				pass
+			elif not demo and _ult_due(s, o):
+				pass
+			elif not demo and t >= float(s.next_at) and (String(o.state) != "down" or t >= float(o.until) - 0.45):   # (she may set off as the other rises)
 				if mode == "close":
-					_choose_attack(s, o, dist)
-				elif mode == "range" and t >= mode_until and float(s.p.aggr) + rng.randf() * 0.4 > 0.6:
-					_rush(s, o)
+					if magic and rng.randf() < 0.12 * float(s.p.get("magic", 1.0)) and _cast_any(s, o, dist, true):
+						pass
+					else:
+						_choose_attack(s, o, dist)
+				elif mode == "range" and t >= mode_until:
+					if magic and rng.randf() < 0.7 * float(s.p.get("magic", 1.0)) and _cast_any(s, o, dist, false):
+						pass
+					elif float(s.p.aggr) + rng.randf() * 0.4 > 0.6:
+						_rush(s, o)
 		"defend":
 			if t >= float(s.until):
 				s.state = "free"
@@ -328,6 +342,54 @@ func _choose_attack(s: Dictionary, o: Dictionary, dist: float) -> void:
 	var pick := _weighted(names, weights)
 	if pick != "":
 		_attack(s, o, pick)
+
+
+## Magic from where she stands (a stand-in until the fight brain, step e): one of her spells that fits the distance
+## and her energy, not the one she just used; close in only her conjured blades. Then the range mode resumes after it.
+func _cast_any(s: Dictionary, o: Dictionary, dist: float, close: bool) -> bool:
+	var names: Array = []
+	var ws: Array = []
+	for n in SpellBook.spells_of(String(s.id)):
+		var sp: Dictionary = SpellBook.SPELLS[n]
+		if String(sp.kind) == "barrier" or not magic.can_cast(s, n, dist):
+			continue
+		if close != (String(sp.kind) == "weapon" and not sp.get("throw", false)):
+			continue
+		var w := 1.0
+		var rec: Array = s.recent
+		if n in rec.slice(maxi(rec.size() - 4, 0)):
+			w *= 0.1
+		names.append(n)
+		ws.append(w)
+	var pick := _weighted(names, ws)
+	if pick == "":
+		return false
+	magic.cast(s, o, pick)
+	var g := GestureBook.of(String(SpellBook.SPELLS[pick].clip))
+	s.next_at = t + GestureBook.length(g) + rng.randf_range(0.2, 0.6)
+	for x in S.values():
+		if x != s:
+			x.next_at = maxf(float(x.next_at), t + rng.randf_range(0.6, 1.4))
+	events.append([snappedf(t, 0.01), "spell", s.id, pick])
+	return true
+
+
+## Her ultimate (once a fight): when the fight's clock reaches her moment (opts "ult_at" {id: s}) or the other is low.
+func _ult_due(s: Dictionary, o: Dictionary) -> bool:
+	if bool(s.get("ult_done", false)) or String(o.state) == "down" or String(s.state) != "free":
+		return false
+	var due: float = float(ult_at.get(s.id, 9999.0))
+	if t < due and float(o.hp) > 30.0:
+		return false
+	var mine := MoveCatalog.ultimates_of(String(s.id)).filter(func(u): return String(MoveCatalog.ULTIMATES[u].owner) == String(s.id))
+	var u := String(ult_pick.get(s.id, mine[rng.randi() % mine.size()]))
+	s.ult_done = true
+	var L := UltimateCast.perform(self, String(s.id), String(o.id), u)
+	s.next_at = t + L + 0.6
+	for x in S.values():
+		x.next_at = maxf(float(x.next_at), t + L + 0.4)
+	events.append([snappedf(t, 0.01), "ultimate", s.id, u])
+	return true
 
 
 func _weighted(names: Array, weights: Array) -> String:
@@ -627,6 +689,8 @@ func _attack_done(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 
 ## Her attack is broken off (she was hit first).
 func _interrupt(s: Dictionary) -> void:
+	if magic and magic.performing(String(s.id)):
+		magic.abort(String(s.id))                 # (a blow breaks her gesture: the clip stops, the charge fizzles)
 	if String(s.state) == "attack":
 		var atk: Dictionary = s.atk
 		atk.outcome = "interrupted"
@@ -768,7 +832,7 @@ func _respond_spell(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 			opts = {"cover": 0.35, "block_mid": 0.25, "backstep": 0.4} if not sp.get("throw", false) else {"sidestep": 0.6, "barrier": 0.4}
 		_:
 			opts = {"sidestep": 0.45, "backstep": 0.15, "barrier": 0.25, "duck": 0.15 if String(sp.get("height", "mid")) == "high" else 0.0}
-	if float(s.get("energy", 0.0)) < float(SpellBook.SPELLS.barrier.energy):
+	if float(s.get("energy", 0.0)) < float(SpellBook.SPELLS[SpellBook.barrier_of(String(s.id))].energy):
 		opts.erase("barrier")
 	opts["barrier"] = float(opts.get("barrier", 0.0)) * float(s.p.get("magic", 1.0))
 	var names: Array = []
@@ -787,7 +851,7 @@ func _respond_spell(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 		var wait_b := maxf(float(atk.t_hit) - t - 0.55, 0.0) if kind != "weapon" else 0.0
 		at(wait_b, func():
 			if String(atk.outcome) == "" and String(s.state) in ["free", "defend"]:
-				magic.cast(s, o, "barrier"))
+				magic.cast(s, o, SpellBook.barrier_of(String(s.id))))
 		return
 	var wait := maxf(t_rel - t, 0.0) + rng.randf_range(0.04, 0.11)
 	if kind == "weapon" and not sp.get("throw", false):

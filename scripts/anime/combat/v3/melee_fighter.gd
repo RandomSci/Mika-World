@@ -26,6 +26,8 @@ var trace := {}                          # final bone positions (TraceFight)
 var traced := 0
 var look_at := Vector3.INF               # world point her eyes and head follow
 var rig_w := 1.0                         # 1 = this rig, 0 = the clip (knock-down / get-up)
+var upper_clip := 0.0                    # 1 = the clip owns her torso, head, arms, hands and fingers; the rig keeps hips and legs
+var _up := 0.0                           # (eased toward upper_clip)
 var palm := {"lh": "guard", "rh": "guard"}
 var vibrate := false                     # shaken during hit-stop (the one who was hit)
 var feet := {}
@@ -341,10 +343,11 @@ func update(dt: float) -> void:
 	else:
 		_bal = _bal.move_toward(Vector3.ZERO, dt * 0.4)
 	_rig = move_toward(_rig, rig_w, dt / 0.15)
+	_up = move_toward(_up, upper_clip, dt / 0.15)
 	_body.influence = _rig
 	_post.influence = _rig
 	for l in _ik:
-		(_ik[l] as TwoBoneIK3D).influence = _rig
+		(_ik[l] as TwoBoneIK3D).influence = _rig * ((1.0 - _up) if l in ["lh", "rh"] else 1.0)
 	_feet(dt)
 	if phys:
 		phys.update(dt)
@@ -486,7 +489,16 @@ func _feet(dt: float) -> void:
 
 # ------------------------------------------------------------------------------------------------ the pose stages
 ## FightBody: hips, spine, shoulders, head; the four IK targets.
+const UPPER_BONES := ["Spine", "Chest", "UpperChest", "Neck", "Head", "LeftShoulder", "RightShoulder"]
+
+
 func apply(s: Skeleton3D) -> void:
+	var clip_rot := {}
+	if _up > 0.001:
+		# a gesture clip owns her upper body: what the clip put there is kept (blended in by _up) over the rig's torso
+		for b in UPPER_BONES:
+			if int(_ids.get(b, -1)) >= 0:
+				clip_rot[b] = s.get_bone_pose_rotation(_ids[b])
 	var gx := s.global_transform
 	var inv := gx.affine_inverse()
 	if _apply_root != Vector3.INF and (gx.origin - _apply_root).length() > 0.6:
@@ -581,6 +593,8 @@ func apply(s: Skeleton3D) -> void:
 					s.set_bone_global_pose(bi4, Transform3D(Basis(axis, turn) * g2.basis, g2.origin))
 	var hd: int = _ids.Head
 	s.set_bone_pose_rotation(hd, s.get_bone_pose_rotation(hd) * _q((P.head as Vector3) + (_sp.head[0] as Vector3)))
+	for b in clip_rot:
+		s.set_bone_pose_rotation(_ids[b], s.get_bone_pose_rotation(_ids[b]).slerp(clip_rot[b], _up))
 	# the IK targets
 	# a hand that is not striking stays where it is ON HER BODY: hand targets are authored for the guard's torso and
 	# carried by how her hips and spine turn, lean and drop from it (a spin takes the guard round with her, a deep
@@ -659,8 +673,15 @@ func apply(s: Skeleton3D) -> void:
 func post(s: Skeleton3D) -> void:
 	if _hinge.is_empty():
 		_hinges(s)
-	for limb in ["lf", "rf", "lh", "rh"]:
+	for limb in (["lf", "rf"] if _up > 0.5 else ["lf", "rf", "lh", "rh"]):
 		_fix_twist(s, limb)
+	var clip_hand := {}
+	if _up > 0.001 or rig_w < 0.5:
+		# the gesture's own hands and mocapped fingers (the clip's): kept over the fist / open hand of the rig
+		for b in _ids:
+			if (String(b).ends_with("Hand") or String(b).contains("Proximal") or String(b).contains("Intermediate") or String(b).contains("Distal")
+					or String(b).contains("Metacarpal")) and int(_ids[b]) >= 0:
+				clip_hand[b] = s.get_bone_pose_rotation(_ids[b])
 	for side in ["Left", "Right"]:
 		var limb := "lh" if side == "Left" else "rh"
 		var hi: int = _ids[side + "Hand"]
@@ -700,6 +721,9 @@ func post(s: Skeleton3D) -> void:
 			var bi2: int = _ids.get(nm2, -1)
 			if bi2 >= 0:
 				s.set_bone_pose_rotation(bi2, (_rest[nm2] as Transform3D).basis.get_rotation_quaternion() * Quaternion(Vector3.RIGHT, deg_to_rad(lerpf(4.0, 28.0, fist) * (1.0 if i2 > 0 else 0.5))))
+	var hw := maxf(_up, 1.0 - clampf(rig_w, 0.0, 1.0))
+	for b in clip_hand:
+		s.set_bone_pose_rotation(_ids[b], s.get_bone_pose_rotation(_ids[b]).slerp(clip_hand[b], hw))
 	for limb in ["lf", "rf"]:
 		var side2 := "Left" if limb == "lf" else "Right"
 		var fi: int = _ids[side2 + "Foot"]

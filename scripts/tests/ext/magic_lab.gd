@@ -5,8 +5,10 @@ extends RefCounted
 ## barrier. Filmed from the side. Marks "[magiclab] <spell> <round> from frame A to frame B". Checks: each spell
 ## resolves (hit / block / miss), the defended round avoids or blocks most, the joint audit stays at 0.
 
-const MIKA := ["star_bolt", "frost_orb", "ice_spikes", "star_beam", "ice_blade", "star_spear"]
-const LUNA := ["moon_crescent", "violet_orb", "moon_thorns", "violet_wave", "lunar_beam", "violet_scythe", "moon_whip"]
+## (2026-10-20) Every spell is cast with its gesture clip (SpellBook clip, GestureBook timing). Options --spell=name
+## (one), --spells=a,b,c (several), --who=mika|luna, --rounds=open|open,defended, --view=front (a front three-quarter
+## view of the caster, to lay beside the source clip). Marks "[magiclab] cast <spell> clip <clip> frame A gather G
+## release R end E" (frames drawn) for the contact sheets.
 
 
 static func run(t) -> void:
@@ -36,28 +38,68 @@ static func run(t) -> void:
 	await t.get_tree().process_frame
 	sim.start()
 	var only := String(RenderProfile.options.get("spell", ""))
+	var some := String(RenderProfile.options.get("spells", "")).split(",", false)
+	var whos := String(RenderProfile.options.get("who", "mika,luna")).split(",", false)
+	var rounds := String(RenderProfile.options.get("rounds", "open,defended")).split(",", false)
+	var front := String(RenderProfile.options.get("view", "")) == "front"
 	var results := []
-	for rnd in ["open", "defended"]:
-		for who in ["mika", "luna"]:
+	var ults := String(RenderProfile.options.get("ult", "")).split(",", false)
+	if not ults.is_empty():
+		# the ultimates, with their cinematics (UltimateCast): each from a fresh placement, the caster's camera off
+		for u in ults:
+			var owner := String(MoveCatalog.ULTIMATES.get(u, {}).get("owner", "mika"))
+			var who_u := "luna" if owner == "luna" else "mika"
+			var other_u := "luna" if who_u == "mika" else "mika"
+			await _place(t, d, sim, who_u, 4.5, true)
+			for id in sim.S:
+				sim.S[id].energy = 100.0
+			var a0 := Engine.get_frames_drawn()
+			var n0 := sim.attacks.size()
+			var L := UltimateCast.perform(sim, who_u, other_u, u)
+			var g := GestureBook.of(u)
+			var rel: float = GestureBook.at(g, float((g.release as Array)[(g.release as Array).size() - 1]))
+			print("[magiclab] ult %s frame %d gather %d release %d end %d" % [u, a0, a0 + int(round(GestureBook.at(g, float(g.gather[0])) * 30.0)),
+				a0 + int(round(rel * 30.0)), a0 + int(round(L * 30.0))])
+			var w0: float = t._game_t
+			while sim.magic.performing(who_u) and t._game_t - w0 < 12.0:
+				await t.get_tree().process_frame
+			await t._wait(2.6)
+			var outs := []
+			for a in sim.attacks.slice(n0):
+				outs.append(String(a.outcome))
+			print("[magiclab] ult %s outcomes %s" % [u, JSON.stringify(outs)])
+		sim.teardown()
+		d.teardown()
+		return
+	for rnd in rounds:
+		for who in whos:
 			var other := "luna" if who == "mika" else "mika"
 			sim.S[other].p.late = 1.0 if rnd == "open" else 0.0
 			sim.S[other].p.magic = 1.0
-			for spell in (MIKA if who == "mika" else LUNA):
+			for spell in SpellBook.spells_of(who):
 				if only != "" and spell != only:
+					continue
+				if not some.is_empty() and not (spell in some):
 					continue
 				var sp: Dictionary = SpellBook.SPELLS[spell]
 				var r: Array = sp.range
 				var gap := clampf((float(r[0]) + float(r[1])) * 0.5, float(r[0]) + 0.1, 5.5)
-				await _place(t, d, sim, who, gap)
+				await _place(t, d, sim, who, gap, front)
 				for id in sim.S:
 					sim.S[id].energy = 100.0
 				var a0 := Engine.get_frames_drawn()
 				var n0 := sim.attacks.size()
+				var nc: int = sim.magic.log_casts.size()
 				sim.magic.cast(sim.S[who], sim.S[other], spell)
+				if sim.magic.log_casts.size() > nc:
+					var lc: Array = sim.magic.log_casts[nc]
+					var t0: float = lc[0]
+					print("[magiclab] cast %s clip %s frame %d gather %d release %d end %d" % [spell, lc[3], a0, a0 + int(round((float(lc[4]) - t0) * 30.0)),
+						a0 + int(round((float(lc[5]) - t0) * 30.0)), a0 + int(round((float(lc[6]) - t0) * 30.0))])
 				var w0: float = t._game_t
-				while (String(sim.S[who].state) == "attack" or sim.attacks.size() == n0) and t._game_t - w0 < 4.0:
+				while (sim.magic.performing(who) or String(sim.S[who].state) == "attack" or sim.attacks.size() == n0) and t._game_t - w0 < 7.0:
 					await t.get_tree().process_frame
-				await t._wait(0.9)
+				await t._wait(1.0)
 				var outs := []
 				for a in sim.attacks.slice(n0):
 					outs.append(String(a.outcome))
@@ -90,7 +132,7 @@ static func run(t) -> void:
 	d.teardown()
 
 
-static func _place(t, d: FightDirector, sim: MeleeSim, who: String, gap: float) -> void:
+static func _place(t, d: FightDirector, sim: MeleeSim, who: String, gap: float, front := false) -> void:
 	var c0: Vector3 = d.center
 	for id in sim.F:
 		(sim.F[id] as MeleeFighter).audit_hold = 4
@@ -112,5 +154,9 @@ static func _place(t, d: FightDirector, sim: MeleeSim, who: String, gap: float) 
 	var tgt_p: Vector3 = d.F["luna" if who == "mika" else "mika"].pos
 	var fw := Vector3(tgt_p.x - caster.x, 0, tgt_p.z - caster.z).normalized()
 	var sd := fw.cross(Vector3.UP).normalized()
-	d.cut(d.ft + 0.001, "fixed", "mika", {"pos": Vector3(caster.x, gy + 1.6, caster.z) - fw * 1.0 + sd * 4.6, "look": Vector3(caster.x, gy, caster.z).lerp(Vector3(tgt_p.x, gy, tgt_p.z), 0.4) + Vector3.UP * 1.1, "fov": 50.0})
+	if front:
+		# her front three-quarter (as the source clips film the actor), the spell leaving toward the frame's side
+		d.cut(d.ft + 0.001, "fixed", "mika", {"pos": Vector3(caster.x, gy + 1.35, caster.z) + fw * 2.6 + sd * 3.4, "look": Vector3(caster.x, gy, caster.z).lerp(Vector3(tgt_p.x, gy, tgt_p.z), 0.3) + Vector3.UP * 1.1, "fov": 52.0})
+	else:
+		d.cut(d.ft + 0.001, "fixed", "mika", {"pos": Vector3(caster.x, gy + 1.6, caster.z) - fw * 1.0 + sd * 4.6, "look": Vector3(caster.x, gy, caster.z).lerp(Vector3(tgt_p.x, gy, tgt_p.z), 0.4) + Vector3.UP * 1.1, "fov": 50.0})
 	await t._wait(0.45)

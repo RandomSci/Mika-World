@@ -5,7 +5,8 @@ extends SkeletonModifier3D
 
 const BONES := ["Hips", "Spine", "Chest", "UpperChest", "Neck", "Head", "LeftUpperArm", "LeftLowerArm", "LeftHand",
 	"RightUpperArm", "RightLowerArm", "RightHand", "LeftMiddleProximal", "RightMiddleProximal", "LeftUpperLeg",
-	"LeftLowerLeg", "LeftFoot", "LeftToes", "RightUpperLeg", "RightLowerLeg", "RightFoot", "RightToes"]
+	"LeftLowerLeg", "LeftFoot", "LeftToes", "RightUpperLeg", "RightLowerLeg", "RightFoot", "RightToes", "LeftIndexDistal", "RightIndexDistal", "LeftMiddleDistal",
+	"RightMiddleDistal"]
 
 var fighter: Object
 var _ids := {}

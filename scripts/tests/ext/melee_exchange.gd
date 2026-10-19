@@ -39,7 +39,14 @@ static func run(t) -> void:
 	var d := FightDirector.new()
 	main.add_child(d)
 	d.setup(main, "duel", {"seed": seed, "axis_deg": float(seed * 37 % 360), "bare": true})
-	var sim := MeleeSim.make(d, {"seed": seed, "length": float(RenderProfile.options.get("fight-length", "15"))})
+	# --ult-at=mika=14,luna=22 (fight seconds of each girl's ultimate), --ult-pick=mika=ult_x,luna=ult_y
+	var ua := {}
+	for kv in String(RenderProfile.options.get("ult-at", "")).split(",", false):
+		ua[kv.get_slice("=", 0)] = float(kv.get_slice("=", 1))
+	var up := {}
+	for kv in String(RenderProfile.options.get("ult-pick", "")).split(",", false):
+		up[kv.get_slice("=", 0)] = kv.get_slice("=", 1)
+	var sim := MeleeSim.make(d, {"seed": seed, "length": float(RenderProfile.options.get("fight-length", "15")), "ult_at": ua, "ult_pick": up})
 	d.cut(0.0, "duo", "mika", {"k": 1.0, "high": 0.35})
 	d.set_process(true)
 	await t.get_tree().process_frame

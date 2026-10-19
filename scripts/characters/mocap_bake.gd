@@ -21,6 +21,17 @@ const FINGER_LM := {"ThumbMetacarpal": [1, 2], "ThumbProximal": [2, 3], "ThumbDi
 	"MiddleProximal": [9, 10], "MiddleIntermediate": [10, 11], "MiddleDistal": [11, 12],
 	"RingProximal": [13, 14], "RingIntermediate": [14, 15], "RingDistal": [15, 16],
 	"LittleProximal": [17, 18], "LittleIntermediate": [18, 19], "LittleDistal": [19, 20]}
+## Clips where a hand holds a prop (Selwyn: replace the tracked fingers there with a grip fitted to it), per side:
+## grip (a hilt, a spear shaft, a staff, the bow), draw (the bow string hand), lantern (a ring handle). Every other
+## hand falls back to a relaxed curl on frames the tracker is unsure of.
+const GRIPS := {
+	"stick_sword_play": {"r": "grip"}, "ult_heaven_spear": {"r": "grip"}, "ult_sky_rending_slash": {"l": "grip", "r": "grip"},
+	"ult_star_archer": {"l": "grip", "r": "draw"}, "bow_draw_release": {"l": "grip", "r": "draw"},
+	"iaido_draw_slash": {"r": "grip"}, "sword_combo_invisible": {"r": "grip"}, "dance_lantern_lift": {"l": "lantern", "r": "lantern"},
+}
+## Step 2 of the body pass (One Euro filter, foot lock, hips held in the gather, fitted grips): OFF until Selwyn has
+## seen the trembling's root cause (2026-10-20).
+const CLEANUP := false
 const WRIST_MAX := 80.0                 # deg the hand may turn away from the forearm's carried rest
 const FINGER_MAX := 105.0               # deg one finger joint may turn from its parent's carried rest
 const LM_RIGHT := {"Shoulder": 12, "Elbow": 14, "Wrist": 16, "Pinky": 18, "Index": 20, "Hip": 24, "Knee": 26, "Ankle": 28, "Heel": 30, "FootIdx": 32}
@@ -66,6 +77,7 @@ static func bake(sk: Skeleton3D, json_path: String) -> Animation:
 		drive.append(l[0])
 	# the hands: 21 points per hand per frame (or null), a confidence per frame
 	var hands := {}
+	var grips: Dictionary = GRIPS.get(json_path.get_file().get_basename(), {})
 	var hpath := json_path.get_basename() + ".hands.json"
 	if FileAccess.file_exists(hpath):
 		var hd = JSON.parse_string(FileAccess.get_file_as_string(hpath))
@@ -116,13 +128,16 @@ static func bake(sk: Skeleton3D, json_path: String) -> Animation:
 		var chestC := _frame(_v(P, 11) - _v(P, 12), mid_sh - mid_hip)
 		var ears := (_v(P, 7) + _v(P, 8)) * 0.5
 		var headC := _frame(_v(P, 7) - _v(P, 8), (ears - mid_sh) + (_v(P, 0) - ears).project(Vector3.UP) * 0.0, _v(P, 0) - ears)
-		var HL := {}                                      # side -> [21 points, weight] this frame
+		var HL := {}                                      # side -> [21 points or null, weight, fallback hand shape] this frame
 		if not hands.is_empty():
 			for sd in [["Left", "l"], ["Right", "r"]]:
 				var arr: Array = hands[sd[1]]
-				if fi < arr.size() and arr[fi] != null:
-					var q := float((hands[sd[1] + "q"] as Array)[fi]) if fi < (hands[sd[1] + "q"] as Array).size() else 0.0
-					HL[sd[0]] = [arr[fi], smoothstep(0.15, 0.5, q)]
+				var shape := String(grips.get(sd[1], "relaxed"))
+				var q := float((hands[sd[1] + "q"] as Array)[fi]) if fi < (hands[sd[1] + "q"] as Array).size() else 0.0
+				var pts_f = arr[fi] if fi < arr.size() else null
+				# a hand on a prop (hilt, bow, staff) keeps a fitted grip: the tracker cannot see fingers round a handle
+				var w_f := 0.0 if (pts_f == null or (CLEANUP and shape != "relaxed")) else smoothstep(0.15, 0.5, q)
+				HL[sd[0]] = [pts_f, w_f, shape]
 		var R := {}                                       # bone -> rotation delta from rest (skeleton space)
 		var rot_of := func(C: Basis) -> Basis: return F * C * Fi
 		var G := {}                                       # bone -> new global basis
@@ -231,10 +246,18 @@ static func _hand_bone(sk: Skeleton3D, n: String, d: Basis, D: Basis, HL: Dictio
 	var side := "Left" if n.begins_with("Left") else ("Right" if n.begins_with("Right") else "")
 	if side == "" or not HL.has(side):
 		return d
-	var pts: Array = HL[side][0]
 	var w: float = HL[side][1]
-	if w <= 0.001:
-		return d
+	var fb0 := n.trim_prefix(side)
+	var d_fb := d
+	if FINGER_LM.has(fb0) and CLEANUP:
+		# the fallback hand shape (no tracking, a weak frame, or a prop): each joint curled about its own closing axis
+		var bi := sk.find_bone(n)
+		var amt := _grip_curl(String(HL[side][2]), fb0)
+		var ax_g := (sk.get_bone_global_rest(bi).basis.orthonormalized() * SoftArms._curl_axis(sk, bi)).normalized()
+		d_fb = D * Basis(ax_g, amt * 1.15)
+	if w <= 0.001 or HL[side][0] == null:
+		return d_fb
+	var pts: Array = HL[side][0]
 	var hv := func(i: int) -> Vector3: return F * _v(pts, i)
 	if n == side + "Hand":
 		var a_r: Vector3 = (rest_pos.call(side + "MiddleProximal") as Vector3) - (rest_pos.call(side + "Hand") as Vector3)
@@ -266,7 +289,21 @@ static func _hand_bone(sk: Skeleton3D, n: String, d: Basis, D: Basis, HL: Dictio
 	var turn := minf(ang2, deg_to_rad(FINGER_MAX))
 	var axis := cur.cross(aim).normalized()
 	var dm2 := Basis(axis, turn) * D
-	return Basis(D.get_rotation_quaternion().slerp(dm2.get_rotation_quaternion(), w))
+	return Basis(d_fb.get_rotation_quaternion().slerp(dm2.get_rotation_quaternion(), w))
+
+
+## How far a finger joint closes (0 open .. 1 a fist) in a fallback hand shape.
+static func _grip_curl(shape: String, bone: String) -> float:
+	var f := "Thumb" if bone.begins_with("Thumb") else ("Index" if bone.begins_with("Index") else ("Middle" if bone.begins_with("Middle")
+		else ("Ring" if bone.begins_with("Ring") else "Little")))
+	match shape:
+		"grip":
+			return 0.45 if f == "Thumb" else 0.95
+		"draw":
+			return {"Thumb": 0.35, "Index": 0.6, "Middle": 0.65, "Ring": 0.9, "Little": 0.95}[f]
+		"lantern":
+			return 0.4 if f == "Thumb" else 0.8
+	return {"Thumb": 0.15, "Index": 0.14, "Middle": 0.24, "Ring": 0.32, "Little": 0.4}[f]
 
 
 static func _frame2(a: Vector3, c: Vector3) -> Basis:
@@ -333,3 +370,227 @@ static func _frame(x: Vector3, y: Vector3, fwd := Vector3.ZERO) -> Basis:
 		return Basis(xx, zz.cross(xx), zz).orthonormalized()
 	var yy := (y - xx * y.dot(xx)).normalized()
 	return Basis(xx, yy, xx.cross(yy)).orthonormalized()
+
+# ------------------------------------------------------------------------------------------------ cleaning
+## One Euro filter settings per body region [min cutoff Hz, beta (Hz per rad/s)] (Casiez et al. 2012): slow motion is
+## smoothed hard (MediaPipe's noise lives there), fast motion lets the cutoff rise so a cast keeps its snap. Fingers
+## filtered hardest, the spine lightest. Tuned by eye at 10 fps (Selwyn's start: 1.2 Hz, 0.02).
+const EURO := {"finger": [0.8, 0.01], "hand": [1.0, 0.015], "arm": [1.2, 0.02], "spine": [1.6, 0.02], "head": [1.4, 0.02],
+	"hips": [1.0, 0.02], "leg": [1.2, 0.02], "foot": [1.0, 0.02]}
+const EURO_DCUT := 1.0                  # Hz, the speed estimate's own smoothing
+
+
+static func region_of(bone: String) -> String:
+	for f in ["Thumb", "Index", "Middle", "Ring", "Little"]:
+		if f in bone:
+			return "finger"
+	if bone.ends_with("Hand"):
+		return "hand"
+	if "Arm" in bone or "Shoulder" in bone:
+		return "arm"
+	if bone in ["Spine", "Chest", "UpperChest", "Neck"]:
+		return "spine"
+	if bone == "Head":
+		return "head"
+	if bone == "Hips":
+		return "hips"
+	if "Leg" in bone:
+		return "leg"
+	return "foot"
+
+
+static func _alpha(cut: float, dt: float) -> float:
+	var tau := 1.0 / (TAU * maxf(cut, 0.001))
+	return 1.0 / (1.0 + tau / maxf(dt, 1e-4))
+
+
+## One Euro over a rotation key list, forward then backward (zero phase: no lag on releases). Slerp based.
+static func euro_rot(qs: Array, ts: PackedFloat32Array, mincut: float, beta: float) -> Array:
+	var out := qs.duplicate()
+	for pass_i in 2:
+		var idx := range(out.size()) if pass_i == 0 else range(out.size() - 1, -1, -1)
+		var xf: Quaternion = out[idx[0]]
+		var dxf := 0.0
+		var prev_t: float = ts[idx[0]]
+		for k in range(1, idx.size()):
+			var i: int = idx[k]
+			var dt := absf(ts[i] - prev_t)
+			prev_t = ts[i]
+			var q: Quaternion = out[i]
+			if xf.dot(q) < 0.0:
+				q = -q
+			var dx := xf.angle_to(q) / maxf(dt, 1e-4)
+			dxf = lerpf(dxf, dx, _alpha(EURO_DCUT, dt))
+			xf = xf.slerp(q, _alpha(mincut + beta * dxf, dt)).normalized()
+			out[i] = xf
+	return out
+
+
+## Every rotation track of a baked clip through its region's One Euro filter (and the hips' height with the hips').
+static func clean(anim: Animation, scale := 1.0) -> void:
+	for ti in anim.get_track_count():
+		var ty := anim.track_get_type(ti)
+		var bone := String(anim.track_get_path(ti)).get_slice(":", 1)
+		var n := anim.track_get_key_count(ti)
+		if n < 4:
+			continue
+		var ts := PackedFloat32Array()
+		for k in n:
+			ts.append(anim.track_get_key_time(ti, k))
+		var pr: Array = EURO[region_of(bone)]
+		if ty == Animation.TYPE_ROTATION_3D:
+			var qs := []
+			for k in n:
+				qs.append(anim.track_get_key_value(ti, k))
+			var f := euro_rot(qs, ts, float(pr[0]) / scale, float(pr[1]))
+			for k in n:
+				anim.track_set_key_value(ti, k, f[k])
+		elif ty == Animation.TYPE_POSITION_3D:
+			# (the hips: each axis as a scalar One Euro, metres)
+			var vs := []
+			for k in n:
+				vs.append(anim.track_get_key_value(ti, k))
+			for pass_i in 2:
+				var idx := range(n) if pass_i == 0 else range(n - 1, -1, -1)
+				var xf: Vector3 = vs[idx[0]]
+				var dxf := 0.0
+				for kk in range(1, n):
+					var i: int = idx[kk]
+					var dt := absf(ts[i] - ts[idx[kk - 1]])
+					var v: Vector3 = vs[i]
+					var dx := xf.distance_to(v) / maxf(dt, 1e-4)
+					dxf = lerpf(dxf, dx, _alpha(EURO_DCUT, dt))
+					xf = xf.lerp(v, _alpha(float(pr[0]) / scale + 2.0 * dxf, dt))
+					vs[i] = xf
+			for k in n:
+				anim.track_set_key_value(ti, k, vs[k])
+
+
+## A gesture's gather is a still body (Selwyn): through GestureBook's gather window the hips hold where they are at its
+## start (eased in and out over 0.15 s) unless the source clearly moves them there (more than 10 degrees or 4 cm).
+static func hold_hips(anim: Animation, clip: String) -> void:
+	var g := GestureBook.of(clip)
+	if g.is_empty():
+		return
+	var a := float(g.gather[0])
+	var b := float(g.gather[1])
+	var rt := anim.find_track(NodePath("X:Hips"), Animation.TYPE_ROTATION_3D)
+	var pt := anim.find_track(NodePath("X:Hips"), Animation.TYPE_POSITION_3D)
+	if rt < 0 or b - a < 0.3:
+		return
+	var q0 := anim.rotation_track_interpolate(rt, a)
+	var p0: Vector3 = anim.position_track_interpolate(pt, a) if pt >= 0 else Vector3.ZERO
+	var moved := 0.0
+	var lift := 0.0
+	for k in anim.track_get_key_count(rt):
+		var t := anim.track_get_key_time(rt, k)
+		if t >= a and t <= b:
+			moved = maxf(moved, rad_to_deg((anim.track_get_key_value(rt, k) as Quaternion).angle_to(q0)))
+			if pt >= 0:
+				lift = maxf(lift, absf((anim.position_track_interpolate(pt, t) as Vector3).y - p0.y))
+	if moved > 10.0 or lift > 0.04:
+		return
+	var ramp := 0.15
+	for tr in [rt, pt]:
+		if tr < 0:
+			continue
+		for k in anim.track_get_key_count(tr):
+			var t := anim.track_get_key_time(tr, k)
+			var w := smoothstep(a - ramp, a, t) * (1.0 - smoothstep(b, b + ramp, t))
+			if w <= 0.0:
+				continue
+			if tr == rt:
+				anim.track_set_key_value(tr, k, (anim.track_get_key_value(tr, k) as Quaternion).slerp(q0, w))
+			else:
+				anim.track_set_key_value(tr, k, (anim.track_get_key_value(tr, k) as Vector3).lerp(p0, w))
+
+
+## Planted feet stay put (Selwyn: lock feet to the ground when foot speed is under 5 cm per second): each run of frames
+## where an ankle moves slower than that holds the ankle at the run's start, the leg re-solved with a two-bone solve in
+## its own bend plane, the foot keeping its angle; 3 frames of blend at each end of a run.
+static func lock_feet(src: Skeleton3D, anim: Animation) -> int:
+	var ps := PoseSkel.from(src)
+	var ref := anim.find_track(NodePath("X:Hips"), Animation.TYPE_ROTATION_3D)
+	if ref < 0:
+		return 0
+	var n := anim.track_get_key_count(ref)
+	var fps := float(n - 1) / maxf(anim.length, 0.01)
+	var locked := 0
+	for side in ["Left", "Right"]:
+		var ids := [ps.find_bone(side + "UpperLeg"), ps.find_bone(side + "LowerLeg"), ps.find_bone(side + "Foot")]
+		var trs := []
+		for bn in [side + "UpperLeg", side + "LowerLeg", side + "Foot"]:
+			trs.append(anim.find_track(NodePath("X:" + bn), Animation.TYPE_ROTATION_3D))
+		if ids.has(-1) or trs.has(-1):
+			continue
+		var ank := []
+		for k in n:
+			JointAudit.pose_at(ps, anim, anim.track_get_key_time(ref, k))
+			ank.append(ps.get_bone_global_pose(ids[2]).origin)
+		# the planted runs
+		var plant := []
+		for k in n:
+			var v := 0.0 if k == 0 else (ank[k] as Vector3).distance_to(ank[k - 1]) * fps
+			plant.append(v < 0.05)
+		var k0 := 0
+		while k0 < n:
+			if not plant[k0]:
+				k0 += 1
+				continue
+			var k1 := k0
+			while k1 + 1 < n and plant[k1 + 1]:
+				k1 += 1
+			if k1 - k0 >= 2:
+				var tgt: Vector3 = ank[k0]
+				for k in range(maxi(k0 - 3, 0), mini(k1 + 4, n)):
+					var w := 1.0
+					if k < k0:
+						w = float(k - (k0 - 4)) / 4.0
+					elif k > k1:
+						w = float((k1 + 4) - k) / 4.0
+					var t := anim.track_get_key_time(ref, k)
+					JointAudit.pose_at(ps, anim, t)
+					var want: Vector3 = (ank[k] as Vector3).lerp(tgt, clampf(w, 0.0, 1.0))
+					if (want - (ank[k] as Vector3)).length() < 0.0005:
+						continue
+					_leg_to(ps, ids, want)
+					for j in 3:
+						var kk := anim.track_find_key(trs[j], t, Animation.FIND_MODE_APPROX)
+						if kk >= 0:
+							anim.track_set_key_value(trs[j], kk, ps.get_bone_pose_rotation(ids[j]))
+					locked += 1
+			k0 = k1 + 1
+	return locked
+
+
+## Two-bone leg solve on a posed PoseSkel: the ankle onto `want`, the knee kept in its current bend plane, the foot's
+## world orientation kept.
+static func _leg_to(ps: PoseSkel, ids: Array, want: Vector3) -> void:
+	var Hg := ps.get_bone_global_pose(ids[0])
+	var Kg := ps.get_bone_global_pose(ids[1])
+	var Ag := ps.get_bone_global_pose(ids[2])
+	var H := Hg.origin
+	var K := Kg.origin
+	var A := Ag.origin
+	var l1 := H.distance_to(K)
+	var l2 := K.distance_to(A)
+	var to := want - H
+	var dd := clampf(to.length(), absf(l1 - l2) + 1e-4, l1 + l2 - 1e-4)
+	var dir := to.normalized()
+	var nrm := (K - H).cross(A - K)
+	if nrm.length() < 1e-5:
+		nrm = Hg.basis.x
+	var up := nrm.normalized().cross(dir).normalized()
+	if (K - H).dot(up) < 0.0:
+		up = -up
+	var a := (l1 * l1 - l2 * l2 + dd * dd) / (2.0 * dd)
+	var h := sqrt(maxf(l1 * l1 - a * a, 0.0))
+	var K2 := H + dir * a + up * h
+	var q1 := Quaternion((K - H).normalized(), (K2 - H).normalized())
+	ps.set_bone_global_pose(ids[0], Transform3D(Basis(q1) * Hg.basis, H))
+	var Kg2 := ps.get_bone_global_pose(ids[1])
+	var A2 := ps.get_bone_global_pose(ids[2]).origin
+	var q2 := Quaternion((A2 - Kg2.origin).normalized(), (H + dir * dd - Kg2.origin).normalized())
+	ps.set_bone_global_pose(ids[1], Transform3D(Basis(q2) * Kg2.basis, Kg2.origin))
+	var A3 := ps.get_bone_global_pose(ids[2]).origin
+	ps.set_bone_global_pose(ids[2], Transform3D(Ag.basis, A3))
