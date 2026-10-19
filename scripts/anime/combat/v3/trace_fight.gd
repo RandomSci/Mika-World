@@ -18,6 +18,8 @@ func _process_modification() -> void:
 	if _ids.is_empty():
 		for b in BONES:
 			_ids[b] = sk.find_bone(b)
+	if fighter.get("phys"):
+		fighter.phys.keep_lengths()
 	var gx := sk.global_transform
 	var tr: Dictionary = fighter.trace
 	for b in BONES:

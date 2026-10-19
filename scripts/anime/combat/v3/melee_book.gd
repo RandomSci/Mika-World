@@ -59,6 +59,15 @@ const MOVES := {
 			{"hip": Vector3(0.0, -0.03, 0.07), "hip_rot": Vector3(2.0, 16.0, 4.0), "spine": Vector3(-4.0, 24.0, 6.0), "rsh": 12.0,
 				"rp": Vector3(-0.3, -1.0, 0.6), "rfp": 30.0, "rfy": -15.0},
 		]},
+	# launcher: a deep rising uppercut that lifts her off her feet (the start of an air combo)
+	"launcher": {"limb": "rh", "aim": "chin", "height": "high", "weight": "heavy", "from": "C", "reach": 0.64, "range": [0.6, 1.2],
+		"wind": 0.2, "active": 0.09, "recover": 0.22, "palm": "back", "dmg": 9.0, "launch": true,
+		"keys": [
+			{"hip": Vector3(0.0, -0.26, 0.0), "hip_rot": Vector3(14.0, -28.0, -6.0), "spine": Vector3(18.0, -6.0, -10.0), "rh": Vector3(-0.14, 0.92, 0.16),
+				"rp": Vector3(-0.2, -1.0, 0.4)},
+			{"hip": Vector3(0.0, 0.03, 0.08), "hip_rot": Vector3(-2.0, 18.0, 4.0), "spine": Vector3(-8.0, 26.0, 6.0), "rsh": 14.0,
+				"rp": Vector3(-0.3, -1.0, 0.6), "rfp": 40.0, "rfy": -15.0, "lfp": 25.0},
+		]},
 	"body_hook": {"limb": "rh", "aim": "ribs_l", "height": "mid", "weight": "medium", "from": "L", "reach": 0.68, "range": [0.65, 1.25],
 		"wind": 0.16, "active": 0.08, "recover": 0.17, "palm": "in", "dmg": 7.0, "arc": {"rh": Vector3(-0.28, -0.04, -0.04)},
 		"keys": [

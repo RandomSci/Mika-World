@@ -340,8 +340,11 @@ func clamp_arena(p: Vector3) -> Vector3:
 ## A hop: her body lifted by `h` m over dur (a jump the clip leaves on the ground).
 func hop(id: String, h: float, dur: float) -> void:
 	var f: Dictionary = F[id]
+	if f.get("hop_tw") and (f.hop_tw as Tween).is_valid():
+		(f.hop_tw as Tween).kill()                   # (a new arc replaces the one she is in)
 	var tw := create_tween()
 	tw.tween_method(func(k: float): f.lift = h * sin(PI * k), 0.0, 1.0, maxf(dur, 0.01))
+	f.hop_tw = tw
 
 
 func pos(id: String) -> Vector3:

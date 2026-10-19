@@ -1,131 +1,139 @@
 class_name FightPhysics
 extends RefCounted
-## Combat v3 partial physics on hits: a PhysicalBoneSimulator3D on each fighter (pose stage "FightPhysics", 19 - after
-## the rig, before the final-pose trace) with physical bones on her spine, neck, head and shoulders (kinematic hips
-## as the anchor). A blow simulates only the struck chain for 0.2 - 0.4 s: an impulse at the hit, the simulator's
-## influence rising to a peak and blending back to the animation - so no two hits look the same. The bodies collide
-## with nothing (layer / mask 0): pure joint dynamics, the cone joints keep every bone inside a human range.
+## Combat v3 partial physics on hits: the struck chain (head / chest / stomach / a side / the legs) goes loose for
+## 0.2 - 0.4 s and blends back to the animation, so no two hits look alike.
+##
+## Each bone of the chain is a damped angular spring (a pendulum about its joint): the blow is an impulse on the struck
+## bone (half on its neighbours) turning it away from the blow, with a random share of twist and strength; the springs
+## ring out (8 Hz, damping 0.35) inside a cone per joint, and the whole layer fades back to the animation. Applied as a
+## pose stage ("FightPhysics", 19: after the rig, before the trace) that only TURNS bones about their joints - nothing
+## is moved or stretched.
+##
+## (Tried first and dropped, 2026-10-20: Godot's PhysicalBoneSimulator3D with partial simulation. Standing still it
+## worked, but during knock-backs and launches its write-back jolted the hips / spine for a frame and the skirt and
+## hair springs - which follow those bones - flew out like planks in every moving reaction. This layer keeps the same
+## idea - real dynamics on the struck part only - inside our own pose pipeline.)
 
-## bone -> [child bone (its length), radius m at k = 1, cone swing deg, twist deg, mass kg]
+## bone -> [cone deg, inertia factor]
 const BONES := {
-	"Hips": ["Spine", 0.13, 0.0, 0.0, 10.0],
-	"Spine": ["Chest", 0.12, 14.0, 8.0, 6.0],
-	"Chest": ["UpperChest", 0.12, 12.0, 8.0, 6.0],
-	"UpperChest": ["Neck", 0.12, 12.0, 8.0, 5.0],
-	"Neck": ["Head", 0.05, 22.0, 18.0, 1.5],
-	"Head": ["", 0.09, 26.0, 22.0, 4.5],
-	"LeftShoulder": ["LeftUpperArm", 0.05, 16.0, 6.0, 1.5],
-	"RightShoulder": ["RightUpperArm", 0.05, 16.0, 6.0, 1.5],
+	"Spine": [14.0, 1.6], "Chest": [12.0, 1.4], "UpperChest": [12.0, 1.2], "Neck": [20.0, 0.6], "Head": [26.0, 0.8],
+	"LeftShoulder": [14.0, 0.6], "RightShoulder": [14.0, 0.6], "LeftUpperArm": [22.0, 0.7], "RightUpperArm": [22.0, 0.7],
 }
-## the zone a blow landed on -> the chain that goes loose
 const CHAINS := {
 	"head": ["Neck", "Head"],
 	"chest": ["Chest", "UpperChest", "Neck", "Head"],
 	"stomach": ["Spine", "Chest", "UpperChest", "Neck", "Head"],
-	"left": ["Chest", "UpperChest", "LeftShoulder", "Neck", "Head"],
-	"right": ["Chest", "UpperChest", "RightShoulder", "Neck", "Head"],
-	"legs": ["Spine", "Chest"],
+	"left": ["Chest", "UpperChest", "LeftShoulder", "LeftUpperArm", "Neck", "Head"],
+	"right": ["Chest", "UpperChest", "RightShoulder", "RightUpperArm", "Neck", "Head"],
+	"legs": ["Spine", "Chest", "Head"],
 }
+const ORDER := ["Spine", "Chest", "UpperChest", "LeftShoulder", "RightShoulder", "LeftUpperArm", "RightUpperArm", "Neck", "Head"]
+const FREQ := 8.0                         # Hz: how fast a struck bone rings
+const DAMP := 0.35
 
-var sim: PhysicalBoneSimulator3D
 var sk: Skeleton3D
 var k := 1.0
-var pb := {}                              # bone -> PhysicalBone3D
-var _t := 0.0                             # time into the current blow (-1: idle)
+var mod: Mod
+var rng := RandomNumberGenerator.new()
+var state := {}                           # bone -> [angle vector (skeleton space, rad), angular velocity]
+var _t := -1.0
 var _len := 0.3
-var _peak := 0.5
-var _impulse := {}                        # applied on the first physics frame of a blow
+var sim: Mod:                             # (QA probes read sim.influence)
+	get:
+		return mod
+
+
+class Mod extends SkeletonModifier3D:
+	var owner_ref: FightPhysics
+
+	func _process_modification() -> void:
+		if owner_ref:
+			owner_ref._apply(get_skeleton())
 
 
 static func make(skel: Skeleton3D, scale_k: float) -> FightPhysics:
 	var f := FightPhysics.new()
 	f.sk = skel
 	f.k = scale_k
-	f._build()
+	f.rng.randomize()
+	f.mod = Mod.new()
+	f.mod.name = "FightPhysics"
+	f.mod.owner_ref = f
+	f.mod.influence = 0.0
+	skel.add_child(f.mod)
+	PosePipeline.arrange_for(skel)
 	return f
 
 
-func _build() -> void:
-	sim = PhysicalBoneSimulator3D.new()
-	sim.name = "FightPhysics"
-	sim.influence = 0.0
-	sk.add_child(sim)
-	for bone in BONES:
-		var bi := sk.find_bone(bone)
-		if bi < 0:
-			continue
-		var spec: Array = BONES[bone]
-		var origin := sk.get_bone_global_rest(bi).origin
-		var length := 0.12 * k
-		if String(spec[0]) != "" and sk.find_bone(spec[0]) >= 0:
-			length = maxf(origin.distance_to(sk.get_bone_global_rest(sk.find_bone(spec[0])).origin), 0.04 * k)
-		var r := float(spec[1]) * k
-		var b := PhysicalBone3D.new()
-		b.name = "PB_" + bone
-		b.bone_name = bone
-		b.collision_layer = 0
-		b.collision_mask = 0
-		b.mass = float(spec[4])
-		b.gravity_scale = 0.25
-		b.linear_damp = 4.0
-		b.angular_damp = 7.0
-		# the body sits half way along the bone (local +Y runs along every VRM bone); the joint at the bone's root
-		b.body_offset = Transform3D(Basis(), Vector3(0, length * 0.5, 0))
-		var cs := CollisionShape3D.new()
-		var cap := CapsuleShape3D.new()
-		cap.radius = r
-		cap.height = maxf(length, r * 2.0 + 0.001)
-		cs.shape = cap
-		b.add_child(cs)
-		if bone != "Hips":
-			b.joint_type = PhysicalBone3D.JOINT_TYPE_CONE
-			b.joint_offset = Transform3D(Basis(), Vector3(0, -length * 0.5, 0))
-			b.set("joint_constraints/swing_span", float(spec[2]))
-			b.set("joint_constraints/twist_span", float(spec[3]))
-			b.set("joint_constraints/bias", 0.6)
-			b.set("joint_constraints/softness", 0.8)
-			b.set("joint_constraints/relaxation", 1.0)
-		sim.add_child(b)
-		pb[bone] = b
-	PosePipeline.arrange_for(sk)
-	_t = -1.0
-
-
-## A blow on `zone` from world direction `dir` (where it travels), power 0..1: the chain goes loose for 0.2 - 0.4 s.
+## A blow on `zone` travelling `dir` (world), power 0..1: the chain gets an impulse and rings for 0.2 - 0.4 s.
 func hit(zone: String, dir: Vector3, power: float) -> void:
 	var chain: Array = CHAINS.get(zone, CHAINS.chest)
-	var names: Array[StringName] = []
-	for b in chain:
-		if pb.has(b):
-			names.append(StringName(b))
-	if names.is_empty():
-		return
-	sim.physical_bones_stop_simulation()
-	sim.physical_bones_start_simulation(names)
-	_len = lerpf(0.2, 0.4, clampf(power, 0.0, 1.0))
-	_peak = lerpf(0.35, 0.7, clampf(power, 0.0, 1.0))
+	var p := clampf(power, 0.0, 1.0)
+	_len = lerpf(0.2, 0.4, p)
 	_t = 0.0
-	var top: String = chain[chain.size() - 1] if zone == "head" else chain[0]
-	_impulse = {"bone": top, "v": dir.normalized() * lerpf(1.2, 3.2, power) * float((pb[top] as PhysicalBone3D).mass if pb.has(top) else 1.0)}
+	var ld := sk.global_transform.basis.inverse() * Vector3(dir.x, 0.0, dir.z).normalized()
+	var struck: String = chain[chain.size() - 1] if zone == "head" else chain[0]
+	for b in chain:
+		var bi := sk.find_bone(b)
+		if bi < 0:
+			continue
+		var spec: Array = BONES.get(b, [16.0, 1.0])
+		# the bone turns away from the blow: about (its up) x (the blow), plus a random share of twist
+		var up := (sk.get_bone_global_pose(bi).basis * Vector3.UP).normalized()
+		var axis := up.cross(ld)
+		if axis.length() < 0.05:
+			axis = Vector3(1, 0, 0)
+		axis = (axis.normalized() + up * rng.randf_range(-0.35, 0.35)).normalized()
+		var share := 1.0 if b == struck else 0.5
+		var speed := deg_to_rad(lerpf(160.0, 420.0, p)) * share * rng.randf_range(0.8, 1.2) / float(spec[1])
+		var st: Array = state.get(b, [Vector3.ZERO, Vector3.ZERO])
+		st[1] = (st[1] as Vector3) + axis * speed
+		state[b] = st
 
 
 func update(dt: float) -> void:
 	if _t < 0.0:
 		return
-	if not _impulse.is_empty() and pb.has(_impulse.bone):
-		(pb[_impulse.bone] as PhysicalBone3D).apply_central_impulse(_impulse.v)
-		_impulse = {}
 	_t += dt
+	var w0 := TAU * FREQ
+	for b in state:
+		var st: Array = state[b]
+		var th: Vector3 = st[0]
+		var om: Vector3 = st[1]
+		om += (-th * w0 * w0 - om * 2.0 * DAMP * w0) * dt
+		th += om * dt
+		var lim := deg_to_rad(float(BONES.get(b, [16.0])[0]))
+		if th.length() > lim:
+			th = th.normalized() * lim                  # (the joint's cone: it stops there, the push dies)
+			om -= th.normalized() * maxf(om.dot(th.normalized()), 0.0)
+		st[0] = th
+		st[1] = om
 	var u := _t / _len
-	# rises fast (a third of the time), falls back smoothly to the animation
-	sim.influence = _peak * (smoothstep(0.0, 0.33, u) if u < 0.33 else 1.0 - smoothstep(0.33, 1.0, u))
+	mod.influence = 1.0 - smoothstep(0.55, 1.0, u)
 	if u >= 1.0:
-		sim.influence = 0.0
-		sim.physical_bones_stop_simulation()
+		mod.influence = 0.0
+		state.clear()
 		_t = -1.0
 
 
+func _apply(s: Skeleton3D) -> void:
+	# parents first, so a loose spine carries the chest, the chest the neck ...
+	for b in ORDER:
+		if not state.has(b):
+			continue
+		var th: Vector3 = state[b][0]
+		if th.length() < 0.0005:
+			continue
+		var bi := s.find_bone(b)
+		var g := s.get_bone_global_pose(bi)
+		s.set_bone_global_pose(bi, Transform3D(Basis(th.normalized(), th.length()) * g.basis, g.origin))
+
+
+## (kept for the trace: nothing to do - this layer never moves a bone)
+func keep_lengths() -> void:
+	pass
+
+
 func teardown() -> void:
-	if is_instance_valid(sim):
-		sim.physical_bones_stop_simulation()
-		sim.queue_free()
+	if is_instance_valid(mod):
+		mod.queue_free()

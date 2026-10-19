@@ -86,7 +86,7 @@ static func hit(sim: MeleeSim, o: Dictionary, zone: String, dir: Vector3, power:
 		{"dur": float(spec[3]), "ease": "inout", "pose": {}}])
 	o.state = "react"
 	o.until = sim.t + float(spec[1]) + float(spec[2]) + float(spec[3]) * 0.6
-	var kn: float = float(m.get("knock", float(spec[4]) * lerpf(0.7, 1.2, power)))
+	var kn: float = minf(float(m.get("knock", float(spec[4]) * lerpf(0.7, 1.2, power))), 1.3 if m.get("separator", false) else 0.8)
 	if kn > 0.01:
 		o.vel = flat * sqrt(2.0 * 7.5 * kn)
 		if kn > 0.3:
@@ -121,7 +121,15 @@ static func _launch(sim: MeleeSim, o: Dictionary, f: MeleeFighter, flat: Vector3
 static func _juggle(sim: MeleeSim, o: Dictionary, f: MeleeFighter, flat: Vector3, power: float) -> void:
 	var d: FightDirector = sim.d
 	var lift := float(d.F[o.id].lift)
-	d.hop(o.id, lift + 0.35 * power + 0.15, 0.55)
+	# the arc goes on from where she is in the air: up a little more, then down to the ground
+	var fd: Dictionary = d.F[o.id]
+	var top := lift + 0.3 * power + 0.12
+	if fd.get("hop_tw") and (fd.hop_tw as Tween).is_valid():
+		(fd.hop_tw as Tween).kill()
+	var tw := d.create_tween()
+	fd.hop_tw = tw
+	tw.tween_method(func(v: float): fd.lift = v, lift, top, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_method(func(v: float): fd.lift = v, top, 0.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	o.vel = flat * 2.6
 	o.state = "react"
 	o.until = sim.t + 0.85
@@ -182,16 +190,17 @@ static func whip(c: WorldCharacter, dir: Vector3, power: float) -> void:
 	var flat := Vector3(dir.x, 0, dir.z).normalized()
 	for n in c.find_children("*", "Node3D", true, false):
 		if n.get("springbone_add_force") != null:
-			n.set("springbone_add_force", flat * 0.9 * power + Vector3.UP * 0.15 * power)
+			# (world space, added to the springs' gravity every frame: a small nudge - the springs' own gravity is ~0.1-0.5)
+			n.set("springbone_add_force", flat * 0.12 * power)
 			var tw := n.create_tween()
-			tw.tween_interval(0.12)
+			tw.tween_interval(0.08)
 			tw.tween_callback(func(): if is_instance_valid(n): n.set("springbone_add_force", Vector3.ZERO))
 		elif n is SpringBoneSimulator3D:
 			var sb := n as SpringBoneSimulator3D
 			var dirs := []
 			for i in sb.setting_count:
 				dirs.append(sb.get_gravity_direction(i))
-				sb.set_gravity_direction(i, (Vector3.DOWN + flat * 1.4 * power).normalized())
+				sb.set_gravity_direction(i, (Vector3.DOWN + flat * 0.5 * power).normalized())
 			var tw2 := sb.create_tween()
 			tw2.tween_interval(0.15)
 			tw2.tween_callback(func():

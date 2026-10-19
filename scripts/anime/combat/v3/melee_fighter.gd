@@ -124,7 +124,8 @@ func _build() -> void:
 	_trace.name = "TraceFight"
 	_trace.fighter = self
 	sk.add_child(_trace)
-	phys = FightPhysics.make(sk, k)                 # (partial physics on hits; arranges the pipeline itself)
+	if not RenderProfile.options.has("no-physics"):
+		phys = FightPhysics.make(sk, k)             # (partial physics on hits; arranges the pipeline itself)
 	PosePipeline.arrange_for(sk)
 	# what would fight the rig: her walking-feet helpers, the hand pushes, the clip's look-at
 	for n in OFF_WHILE_FIGHTING:
