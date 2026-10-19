@@ -193,6 +193,9 @@ func _sense(delta: float) -> void:
 		sensors.vram_used = 8151.0 * float(RenderProfile.options.get("gfx-fake-vram"))
 	var vram := float(sensors.vram_used) / float(sensors.vram_total) if float(sensors.vram_total) > 0.0 else 0.0
 	var hot := maxf(float(sensors.cpu_c), float(sensors.gpu_c))
+	if RenderProfile.options.has("no-heat-budget"):
+		pressure = "cool"                                 # (measurement A/B: frame time only, as before)
+		return
 	if float(sensors.cpu_c) >= CRIT_C or float(sensors.gpu_c) >= CRIT_GPU_C or vram >= VRAM_CRIT:
 		pressure = "critical"
 	elif hot >= HOT_C or vram >= VRAM_HOT:
