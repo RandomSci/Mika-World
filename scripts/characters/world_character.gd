@@ -1525,6 +1525,8 @@ var _movelib_wait: Array = []
 
 func _preload_movelib() -> void:
 	_movelib_wait.clear()
+	if RenderProfile.options.has("no-prebake"):
+		return
 	var key := MocapBake.rest_key(skeleton)
 	for n in MoveCatalog.CLIPS:
 		var p := MocapBake.cache_path(key, String(n))
@@ -1544,7 +1546,7 @@ func _poll_movelib() -> void:
 		if st == ResourceLoader.THREAD_LOAD_LOADED:
 			ResourceLoader.load_threaded_get(e[1])
 			if not body_player.has_animation("mx/ml_" + String(e[0])):
-				_bake_movelib("ml_" + String(e[0]))       # (now a cache hit: the resource is loaded)
+				_bake_movelib("ml_" + String(e[0]), false)   # (a cache hit now; never a live bake from here)
 		done += 1
 		if done >= 4:
 			break
@@ -1552,7 +1554,7 @@ func _poll_movelib() -> void:
 
 ## A Move Library clip that is not in CLIPS (the 133 of v2 / v2 ultimates / v3, MoveCatalog): baked for her skeleton
 ## the first time anything asks for it, then kept in her library like the others (no load-time cost).
-func _bake_movelib(clip: String) -> bool:
+func _bake_movelib(clip: String, live := true) -> bool:
 	if not clip.begins_with("ml_") or body_player == null or not body_player.has_animation_library("mx"):
 		return false
 	var n := clip.trim_prefix("ml_")
@@ -1561,6 +1563,8 @@ func _bake_movelib(clip: String) -> bool:
 	var anim := MocapBake.cached(skeleton, MOCAP_DIR + n + ".json")
 	if anim != null:
 		anim = anim.duplicate(true)
+	elif not live:
+		return false
 	else:
 		push_warning("[mocap] %s: %s was not prebaked for this skeleton; baking it now (a hitch)" % [character_id, n])
 		anim = MocapBake.bake(skeleton, MOCAP_DIR + n + ".json")

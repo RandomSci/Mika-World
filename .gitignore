@@ -21,3 +21,6 @@ assets/audio/music/library/*/*.wav
 *.avi
 *.mkv
 /recordings/
+
+# prebaked Move Library clips (MocapBake cache): a build output, made by --mktest=movelib_prebake before a build goes live
+assets/animations/movelib_baked/

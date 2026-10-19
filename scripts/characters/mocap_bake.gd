@@ -718,6 +718,8 @@ static func cache_path(key: String, clip: String) -> String:
 
 ## The prebaked clip for this skeleton, or null when there is none or it is stale.
 static func cached(sk, json_path: String) -> Animation:
+	if RenderProfile.options.has("no-prebake"):
+		return null                               # (QA: measure the live bake it replaces)
 	var p := cache_path(rest_key(sk), json_path.get_file().get_basename())
 	if not ResourceLoader.exists(p):
 		return null
