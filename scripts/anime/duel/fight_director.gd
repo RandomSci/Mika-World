@@ -14,7 +14,8 @@ extends Node
 signal finished(result: Dictionary)
 
 const LANE := 4.4                         # metres between them at their marks
-const ARENA_R := 3.4                      # they never leave this radius round the centre (the rune targets stand at 5 m)
+var ARENA_R := 3.4
+var no_comic := false                     # (CombatSim: no speed lines / inverted frames)                        # they never leave this radius round the centre (the staged duel; CombatSim widens it)
 
 var main: Node
 var mode := "duel"
@@ -125,6 +126,11 @@ func setup(m: Node, fight_mode: String, opts := {}) -> void:
 		var c: WorldCharacter = f.c
 		face(c, _flat(F[f.other].pos - f.pos))
 		f.deck = FightDeck.make(c)
+		if bool(opts.get("bare", false)):
+			# Combat v3 (MeleeFighter) owns the body: no softness pass, no reach, no camera-facing hand trails
+			f.probe = FightProbe.make(c.skeleton)
+			(f.deck as FightDeck).play("combat_idle", 0.0, -1.0, 1.0, 0.01, true)
+			continue
 		var life := BodyLife.make(c.skeleton, 1)
 		life.look_weight = 0.5
 		var other: String = f.other
@@ -141,7 +147,8 @@ func setup(m: Node, fight_mode: String, opts := {}) -> void:
 	fx = FightFX.make(main.world if main.get("world") else main)
 	fx.level = intensity
 	for id in F:
-		fx.hand_trails(F[id].c, id)
+		if not bool(opts.get("bare", false)):
+			fx.hand_trails(F[id].c, id)
 	sfx = ScreenFX.get_for(main)
 	_moves = FightMoves.new()
 	_moves.d = self
@@ -384,9 +391,19 @@ func sound(name: String, at: Vector3, db := 0.0, pitch := 1.0) -> void:
 
 ## The impact feel: hit-stop frames, a flash (white for a touch; burst + inverted frames for a big one), a chromatic
 ## pulse, camera shake, speed lines only on the big ones.
-func impact(power: float, big := false) -> void:
+func impact(power: float, big := false, decisive := false) -> void:
 	var p := clampf(power, 0.0, 1.0) * (1.0 if mode == "duel" else 0.7)
 	_freeze = maxi(_freeze, int(round(lerpf(2.0, 6.0, p))))
+	if no_comic:
+		# the live fight (CombatSim): no comic speed lines; one ink-burst frame only on the decisive blow
+		if decisive:
+			sfx.flash_seq([["burst", 1], ["white", 1]], rng.randf_range(0.2, 1.2))
+			sfx.chroma(0.8, 0.3)
+		elif big or p > 0.6:
+			sfx.chroma(0.5, 0.2)
+		_lens.shake = maxf(float(_lens.shake), lerpf(0.3, 1.1, p))
+		hit_log.append([snappedf(ft, 0.01), "big" if big else "hit", snappedf(power, 0.01)])
+		return
 	if big and mode != "duel":
 		big = false                               # (training stays light: no flash frames, no speed lines)
 		sfx.chroma(0.4, 0.25)
@@ -554,6 +571,17 @@ func shot_cam(kind: String, who: String, u: float, len_: float, o: Dictionary) -
 			var c0: Vector3 = _sm("mid", mid + up * 1.0, 0.2)
 			var p := c0 + perp * float(o.get("dist", 6.6)) + up * 0.45 + ax * lerpf(-0.5, 0.5, e) * float(o.get("drift", 1.0))
 			return {"pos": p, "look": c0, "fov": float(o.get("fov", 44.0)), "focus": c0, "far": 4.0, "amount": 0.03}
+		"duo":
+			# the live fight's follow shot: both in frame however far apart, from her side of the line (180-degree rule)
+			var sep := _flat(pos("luna") - pos("mika")).length()
+			var cd: Vector3 = _sm("mid", mid + up * (1.0 + float(o.get("lift", 0.0))), 0.18)
+			var dist := clampf(2.4 + sep * 0.72, float(o.get("min", 4.0)), 11.0) * float(o.get("k", 1.0))
+			var pd: Vector3 = _sm("duo", cd + perp * dist + up * (0.35 + sep * 0.08 + float(o.get("high", 0.0))) - ax * float(o.get("lead", 0.0)), 0.12)
+			return {"pos": pd, "look": cd, "fov": float(o.get("fov", 46.0)), "focus": cd, "far": 5.0, "amount": 0.025}
+		"fixed":
+			# a locked lens (labs and checks): a world position and a point to look at
+			var lk: Vector3 = o.get("look", mid)
+			return {"pos": o.get("pos", mid + perp * 4.0), "look": lk, "fov": float(o.get("fov", 40.0)), "focus": lk, "far": 6.0, "amount": 0.0}
 		"wide_low":
 			var c1: Vector3 = _sm("mid", mid + up * 1.2, 0.2)
 			var p2 := mid + perp * 5.2 + up * 0.28 + ax * lerpf(0.4, -0.4, e)
