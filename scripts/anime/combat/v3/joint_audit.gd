@@ -250,3 +250,155 @@ static func fix_anim(src: Skeleton3D, anim: Animation) -> int:
 		if any:
 			fixed += 1
 	return fixed
+
+
+# ------------------------------------------------------------------------------------------------ the full body rules
+## Selwyn's limits (2026-10-20): the old audit only checked folds against the hinge, upper arm / thigh twist and knees
+## behind her; bent back wrists, candy wrapped elbows and a forearm inside her waist all passed.
+const LIM := {
+	"elbow_flex": 150.0, "elbow_hyper": 5.0, "knee_flex": 150.0, "knee_hyper": 5.0,
+	"wrist_flex": 75.0, "wrist_ext": 70.0, "wrist_radial": 20.0, "wrist_ulnar": 35.0,
+	# no twist bones in the VRMs: the forearm's turn shows as a twist of the lower arm (wrapping at the elbow) or of
+	# the hand (wrapping at the wrist); past these the skin visibly wraps like a sweet wrapper
+	"elbow_twist": 45.0, "wrist_twist": 50.0,
+	"finger_back_proximal": 25.0, "finger_back_distal": 10.0,
+	"penetration": 0.01,
+}
+const FINGERS := ["Thumb", "Index", "Middle", "Ring", "Little"]
+
+
+## Every measure of the pose per side, and the faults past LIM: {"values": {...}, "faults": [{rule, side, value, limit}]}.
+## `surface` (a BodySurface, optional) adds the penetration of her forearms, hands and fingertips into her body.
+static func measure(sk, surface = null, curl_axis := {}) -> Dictionary:
+	var vals := {}
+	var faults := []
+	var gpose := func(bi: int) -> Transform3D: return sk.get_bone_global_pose(bi)
+	var add := func(rule: String, side: String, v: float, lim: float):
+		var sv := snappedf(v, 0.001 if rule == "penetration" else 0.1)
+		vals[side + "_" + rule] = sv
+		if v > lim:
+			faults.append({"rule": rule, "side": side, "value": sv, "limit": lim})
+	for side in ["Left", "Right"]:
+		var ua: int = sk.find_bone(side + "UpperArm")
+		var la: int = sk.find_bone(side + "LowerArm")
+		var ha: int = sk.find_bone(side + "Hand")
+		if ua < 0 or la < 0 or ha < 0:
+			continue
+		var limb := "lh" if side == "Left" else "rh"
+		# elbow: flex 0 - 150, at most 5 of hyperextension (a bend against the hinge)
+		var U: Vector3 = gpose.call(ua).origin
+		var L: Vector3 = gpose.call(la).origin
+		var H: Vector3 = gpose.call(ha).origin
+		var bend := rad_to_deg((L - U).angle_to(H - L))
+		var hinge: Vector3 = ((gpose.call(ua) as Transform3D).basis.orthonormalized() * (sk.get_bone_global_rest(ua).basis.orthonormalized().inverse() * (HINGE[limb] as Vector3))).normalized()
+		var against := (L - U).cross(H - L).dot(hinge) < 0.0 and bend > 2.0
+		add.call("elbow_flex", side, 0.0 if against else bend, LIM.elbow_flex)
+		add.call("elbow_hyper", side, bend if against else 0.0, LIM.elbow_hyper)
+		add.call("elbow_twist", side, absf(twist(sk, la)), LIM.elbow_twist)
+		add.call("wrist_twist", side, absf(twist(sk, ha)), LIM.wrist_twist)
+		# wrist: the hand's direction in the forearm's own rest frame - flexion toward the palm, extension away,
+		# radial toward the thumb, ulnar toward the little finger
+		var mp: int = sk.find_bone(side + "MiddleProximal")
+		var tp: int = sk.find_bone(side + "ThumbProximal")
+		if mp >= 0 and tp >= 0:
+			var Lr: Transform3D = sk.get_bone_global_rest(la)
+			var Hr: Transform3D = sk.get_bone_global_rest(ha)
+			var f := (Hr.origin - Lr.origin).normalized()
+			var t: Vector3 = sk.get_bone_global_rest(tp).origin - Hr.origin
+			t = (t - f * t.dot(f)).normalized()
+			var n := f.cross(t).normalized()
+			if n.y > 0.0:
+				n = -n                                  # (the palm faces down in the T-pose)
+			var n0 := n                                 # (the rest palm normal, carried by the hand itself for the fingers)
+			var carry: Basis = (gpose.call(la) as Transform3D).basis.orthonormalized() * Lr.basis.orthonormalized().inverse()
+			var hcarry: Basis = (gpose.call(ha) as Transform3D).basis.orthonormalized() * Hr.basis.orthonormalized().inverse()
+			# the hand's roll about the forearm (pronation / supination carried by the hand bone) turns the frame the
+			# wrist bends in: flexion is toward the rolled palm, not toward where the palm faced at rest
+			var qr := Quaternion((carry.inverse() * hcarry).orthonormalized())
+			var tau := 2.0 * atan2(Vector3(qr.x, qr.y, qr.z).dot(f), qr.w)
+			n = n.rotated(f, tau)
+			t = t.rotated(f, tau)
+			var h: Vector3 = carry.inverse() * (((gpose.call(mp) as Transform3D).origin - H).normalized())
+			var h0: Vector3 = (sk.get_bone_global_rest(mp).origin - Hr.origin).normalized().rotated(f, tau)
+			var flex := rad_to_deg(atan2(h.dot(n), h.dot(f))) - rad_to_deg(atan2(h0.dot(n), h0.dot(f)))
+			var dev := rad_to_deg(atan2(h.dot(t), h.dot(f))) - rad_to_deg(atan2(h0.dot(t), h0.dot(f)))
+			add.call("wrist_flex", side, maxf(flex, 0.0), LIM.wrist_flex)
+			add.call("wrist_ext", side, maxf(-flex, 0.0), LIM.wrist_ext)
+			add.call("wrist_radial", side, maxf(dev, 0.0), LIM.wrist_radial)
+			add.call("wrist_ulnar", side, maxf(-dev, 0.0), LIM.wrist_ulnar)
+			# fingers: never bent backwards. Each joint's own rotation from rest, its part about the joint's closing
+			# axis (SoftArms._curl_axis, the axis the rig and the bake curl fingers about): negative = toward the back
+			var worst_p := 0.0
+			var worst_d := 0.0
+			for fn in FINGERS:
+				if fn == "Thumb":
+					continue
+				var chain := ["Proximal", "Intermediate", "Distal"]
+				for j in chain.size():
+					var a2: int = sk.find_bone(side + fn + chain[j])
+					if a2 < 0:
+						continue
+					var ax: Vector3 = curl_axis.get(a2, Vector3.ZERO)
+					if ax == Vector3.ZERO:
+						continue
+					var qrel: Quaternion = sk.get_bone_rest(a2).basis.get_rotation_quaternion().inverse() * sk.get_bone_pose_rotation(a2)
+					if qrel.w < 0.0:
+						qrel = -qrel
+					var curl := rad_to_deg(2.0 * atan2(Vector3(qrel.x, qrel.y, qrel.z).dot(ax), qrel.w))
+					if j == 0:
+						worst_p = maxf(worst_p, -curl)
+					else:
+						worst_d = maxf(worst_d, -curl)
+			add.call("finger_back_proximal", side, worst_p, LIM.finger_back_proximal)
+			add.call("finger_back_distal", side, worst_d, LIM.finger_back_distal)
+		# legs
+		var ul: int = sk.find_bone(side + "UpperLeg")
+		var ll: int = sk.find_bone(side + "LowerLeg")
+		var fo: int = sk.find_bone(side + "Foot")
+		if ul >= 0 and ll >= 0 and fo >= 0:
+			var A: Vector3 = gpose.call(ul).origin
+			var K: Vector3 = gpose.call(ll).origin
+			var F: Vector3 = gpose.call(fo).origin
+			var kb := rad_to_deg((K - A).angle_to(F - K))
+			var lf := "lf" if side == "Left" else "rf"
+			var kh: Vector3 = ((gpose.call(ul) as Transform3D).basis.orthonormalized() * (sk.get_bone_global_rest(ul).basis.orthonormalized().inverse() * (HINGE[lf] as Vector3))).normalized()
+			var k_against := (K - A).cross(F - K).dot(kh) < 0.0 and kb > 2.0
+			add.call("knee_flex", side, 0.0 if k_against else kb, LIM.knee_flex)
+			add.call("knee_hyper", side, kb if k_against else 0.0, LIM.knee_hyper)
+		# penetration: forearm line, hand centre and the fingertips against her body (torso, legs, head, clothing)
+		if surface != null:
+			var worst := 0.0
+			var where := ""
+			var probes := []
+			for k in 5:
+				probes.append([L.lerp(H, 0.2 + 0.18 * k), float(surface.radius.get(side + "LowerArm", 0.03))])
+			var mpp: int = sk.find_bone(side + "MiddleProximal")
+			if mpp >= 0:
+				probes.append([H.lerp((gpose.call(mpp) as Transform3D).origin, 0.5), float(surface.radius.get(side + "Hand", 0.02)) * 0.7])
+			for fn in FINGERS:
+				var tip: int = sk.find_bone(side + fn + "Distal")
+				if tip >= 0:
+					probes.append([(gpose.call(tip) as Transform3D).origin, 0.008])
+			for pr in probes:
+				var r: Array = surface.signed(pr[0], sk, gpose)
+				var depth := float(pr[1]) - float(r[0])
+				if depth > worst:
+					worst = depth
+					where = String(r[1])
+			add.call("penetration", side, worst, LIM.penetration)
+			for fl in faults:
+				if String(fl.rule) == "penetration" and String(fl.side) == side:
+					fl["into"] = where
+	return {"values": vals, "faults": faults}
+
+
+## Each finger joint's closing axis in its own frame (bone index -> axis), from her rest skeleton (Skeleton3D).
+static func finger_axes(sk: Skeleton3D) -> Dictionary:
+	var out := {}
+	for side in ["Left", "Right"]:
+		for fn in FINGERS:
+			for seg in ["Proximal", "Intermediate", "Distal"]:
+				var bi := sk.find_bone(side + fn + seg)
+				if bi >= 0:
+					out[bi] = SoftArms._curl_axis(sk, bi)
+	return out

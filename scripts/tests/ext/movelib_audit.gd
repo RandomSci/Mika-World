@@ -17,9 +17,22 @@ static func run(t) -> void:
 	var ref_faults := 0
 	var baked := 0
 	var missing := []
+	var full_bad := 0
+	var full_frames := 0
 	for id in ["mika", "luna"]:
 		var c: WorldCharacter = main.characters[id]
 		var bare := PoseSkel.from(c.skeleton)
+		# the full body rules (Selwyn, 2026-10-20): wrist range, elbow and knee range and hyperextension, the twist
+		# that candy-wraps an elbow or a wrist, fingers bent backwards, and her forearms, hands and fingertips inside
+		# her own body or clothes - judged at 10 fps, as he judges by eye
+		var surf := BodySurface.of(c, c.skeleton)
+		var rest_back := JointAudit.finger_axes(c.skeleton)
+		# sanity: her rest pose (the T-pose) must measure clean
+		var rs := PoseSkel.from(c.skeleton)
+		for i in rs.get_bone_count():
+			rs.set_bone_pose_rotation(i, rs.get_bone_rest(i).basis.get_rotation_quaternion())
+		var rm: Dictionary = JointAudit.measure(rs, surf, rest_back)
+		print("[full] %s rest pose: %d faults %s  arm radii %s  surface bones %s" % [id, (rm.faults as Array).size(), JSON.stringify(rm.faults), JSON.stringify(surf.radius), str(surf.cloud.keys())])
 		for n in MoveCatalog.CLIPS:
 			if only != "" and n != only:
 				continue
@@ -57,8 +70,32 @@ static func run(t) -> void:
 				ref_faults += bad_frames
 			else:
 				played_faults += bad_frames
+			var full := {}
+			var full_bad_frames := 0
+			if use != "ref":
+				for fi2 in range(0, frames, 3):
+					var tt := float(fi2) / 30.0
+					JointAudit.pose_at(bare, anim, tt)
+					var me: Dictionary = JointAudit.measure(bare, surf, rest_back)
+					var any := false
+					for fl2 in me.faults:
+						if String(fl2.rule).begins_with("knee") and use != "body":
+							continue                          # (an upper clip's legs are the rig's)
+						any = true
+						var key2: String = "%s %s" % [String(fl2.side).left(1), fl2.rule]
+						var cur: Dictionary = full.get(key2, {"worst": 0.0, "t": 0.0, "frames": 0, "into": ""})
+						cur.frames = int(cur.frames) + 1
+						if float(fl2.value) > float(cur.worst):
+							cur.worst = fl2.value
+							cur.t = snappedf(tt, 0.01)
+							cur.into = String(fl2.get("into", ""))
+						full[key2] = cur
+					if any:
+						full_bad_frames += 1
+					full_frames += 1
+				full_bad += full_bad_frames
 			var r: Dictionary = report.get(n, {"lib": MoveCatalog.CLIPS[n].lib, "use": use, "frames": frames})
-			r[id] = {"bad_frames": bad_frames, "faults": bad, "first": worst}
+			r[id] = {"bad_frames": bad_frames, "faults": bad, "first": worst, "full_bad": full_bad_frames, "full": full}
 			report[n] = r
 	# the source landmarks: leg-length steadiness and forward depth of the hands
 	for n in report:
@@ -90,6 +127,13 @@ static func run(t) -> void:
 			continue                                  # (its mocap landed between the two girls' passes)
 		print("[movelib] %-26s %-3s %-5s %3d f  mika %3d bad %s  luna %3d bad %s  leg_cv %.3f  hand_depth %.2f m  seen %s" % [n, r.lib, r.use, r.frames,
 			int(r.mika.bad_frames), JSON.stringify(r.mika.faults), int(r.luna.bad_frames), JSON.stringify(r.luna.faults), float(r.leg_cv), float(r.hand_depth), r.detected])
+		for who2 in ["mika", "luna"]:
+			if int(r[who2].get("full_bad", 0)) > 0:
+				var parts := []
+				for k2 in r[who2].full:
+					var f2: Dictionary = r[who2].full[k2]
+					parts.append("%s %s at %.2fs (%d f)%s" % [k2, str(f2.worst), float(f2.t), int(f2.frames), (" into " + String(f2.into)) if String(f2.into) != "" else ""])
+				print("[full] %-26s %s %3d bad frames at 10 fps: %s" % [n, who2, int(r[who2].full_bad), "; ".join(parts)])
 	var dump := String(RenderProfile.options.get("dump", ""))
 	if dump != "":
 		var fh := FileAccess.open(dump, FileAccess.WRITE)
@@ -99,3 +143,4 @@ static func run(t) -> void:
 	t._check(baked >= 2 * (report.size()), "%d clip bakes (both girls)" % baked)
 	t._check(played_faults == 0, "played clips: no knee / elbow folding backwards, no impossible twist, no knee behind her (%d bad frames)" % played_faults)
 	print("[movelib] reference-only clips (IK strikes re-create them): %d bad frames, not played as poses" % ref_faults)
+	t._check(full_bad == 0, "full body rules (wrist, elbow, knee, twist, fingers, penetration) at 10 fps: %d of %d frames bad" % [full_bad, full_frames])
