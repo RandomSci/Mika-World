@@ -73,9 +73,18 @@ static func run(t) -> void:
 		print("[kicklab]   ", JSON.stringify(a))
 		if String(a.outcome) in ["hit", "block"]:
 			hits += 1
+	for id in sim.F:
+		print("[kicklab] audited frames by pose, %s: %s" % [id, JSON.stringify((sim.F[id] as MeleeFighter).frames_by_pose)])
 	t._check(frames > 300, "joint audit ran on %d frames (both girls)" % frames)
 	t._check(faults.is_empty(), "no knee or elbow ever bends backwards (%d faults)" % faults.size())
 	t._check(hits >= moves.size(), "%d strikes connected" % hits)
+	var worst := 0.0
+	var worst_m := ""
+	for a in sim.attacks:
+		if float(a.get("err", -1.0)) > worst:
+			worst = float(a.err)
+			worst_m = String(a.move)
+	t._check(worst < 0.09, "every strike lands on (or is blocked at) the real limb: worst %.3f m (%s)" % [worst, worst_m])
 	sim.teardown()
 	d.teardown()
 
@@ -83,6 +92,8 @@ static func run(t) -> void:
 static func _one(t, d: FightDirector, sim: MeleeSim, name: String, view: String) -> void:
 	var m: Dictionary = MeleeBook.MOVES[name]
 	var gap := float(m.reach) + 0.1
+	for id in sim.F:
+		(sim.F[id] as MeleeFighter).audit_hold = 4          # (the lab places them by hand: no audit until replanted)
 	var c0: Vector3 = d.center
 	d.F.mika.pos = c0 - Vector3(gap * 0.5, 0, 0)
 	d.F.luna.pos = c0 + Vector3(gap * 0.5, 0, 0)

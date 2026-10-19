@@ -159,12 +159,21 @@ func teardown() -> void:
 
 
 # ------------------------------------------------------------------------------------------------ poses
-const STANCE_FLEX := 13.0                # deg: the straighter knee of her fighting stance (the other bends a little more)
-var stance_corr := 0.0                    # m added to every hip height so HER legs sit at STANCE_FLEX in the guard
+const STANCE_FRONT := 20.0               # deg: her front knee in the athletic fighting stance
+const STANCE_REAR := 27.5                # deg: her rear knee (the weight sits a little back, on it)
+var stance_corr := 0.0                    # m added to every hip height so HER front knee sits at STANCE_FRONT
+var rise := 0.0                           # m she is up on the ball of her support foot (a high kick)
+var quiet_t := 0.0                        # s she has stood still in her stance (no move, no step, no reaction)
+var stance_shift := 0.0                   # m her hips sit back (-) / forward (+) so the rear knee sits at STANCE_REAR
+
+
+## The front foot of the stance (the one further toward the opponent).
+func front_leg() -> String:
+	return "lf" if float((MeleeBook.GUARD.lf as Vector3).z) >= float((MeleeBook.GUARD.rf as Vector3).z) else "rf"
 
 
 ## Her own legs decide how high her hips sit in the stance: from her skeleton's rest lengths, the guard's foot
-## spots and hip turn, the hip height at which the straighter leg bends STANCE_FLEX deg (law of cosines).
+## spots and hip turn, the hip height at which each leg bends its stance angle (law of cosines); the lower wins.
 func _calibrate_stance() -> void:
 	var g: Dictionary = MeleeBook.GUARD
 	var H0 := sk.get_bone_global_rest(_ids.Hips).origin
@@ -175,7 +184,8 @@ func _calibrate_stance() -> void:
 		var j := sk.get_bone_global_rest(sk.find_bone(b[0])).origin - H0
 		var a := sk.get_bone_global_rest(sk.find_bone(b[0])).origin.distance_to(sk.get_bone_global_rest(sk.find_bone(b[1])).origin)
 		var c2 := sk.get_bone_global_rest(sk.find_bone(b[1])).origin.distance_to(sk.get_bone_global_rest(sk.find_bone(b[2])).origin)
-		var dstar := sqrt(a * a + c2 * c2 + 2.0 * a * c2 * cos(deg_to_rad(STANCE_FLEX)))
+		var flex := STANCE_FRONT if limb == front_leg() else STANCE_REAR
+		var dstar := sqrt(a * a + c2 * c2 + 2.0 * a * c2 * cos(deg_to_rad(flex)))
 		var hip_xz := Vector3((g.hip as Vector3).x, 0.0, (g.hip as Vector3).z) * k
 		var jr := rot * j
 		var joint_xz := Vector3(H0.x, 0, H0.z) + hip_xz + Vector3(jr.x, 0, jr.z)
@@ -184,7 +194,7 @@ func _calibrate_stance() -> void:
 		var dv := sqrt(maxf(dstar * dstar - horiz * horiz, 0.01))
 		var joint_y := _ankle_h + dv                       # where this leg wants its hip joint
 		var hip_y := joint_y - jr.y - H0.y                 # -> the hips offset for it
-		best = hip_y if best == -INF else minf(best, hip_y)   # (the lower of the two: neither knee straighter than STANCE_FLEX)
+		best = hip_y if best == -INF else minf(best, hip_y)   # (the lower of the two: neither knee straighter than its angle)
 	stance_corr = best - float((g.hip as Vector3).y) * k
 
 
@@ -223,7 +233,8 @@ func _next() -> void:
 	if _segs.is_empty():
 		_cur = {}
 		_dyn.clear()
-		move_tag = ""                            # back in her stance
+		if not move_tag.begins_with("react:"):
+			move_tag = ""                        # back in her stance (a reaction's tag is the sim's to end)
 		return
 	var seg: Dictionary = _segs.pop_front()
 	var to := scaled(seg.get("pose", {}))
@@ -270,7 +281,10 @@ func update(dt: float) -> void:
 				_dyn[key] = {"fn": b, "from": from[key], "e": e, "arc": (arc.get(key, Vector3.ZERO) as Vector3) * k}
 				continue
 			var a = from[key]
-			if a is Vector3:
+			if a is Vector3 and arc.has(key):
+				var ctrl: Vector3 = ((a as Vector3) + (b as Vector3)) * 0.5 + (arc[key] as Vector3) * k   # (a curved path)
+				P[key] = (a as Vector3).lerp(ctrl, e).lerp(ctrl.lerp(b, e), e)
+			elif a is Vector3:
 				P[key] = (a as Vector3).lerp(b, e)
 			else:
 				P[key] = lerpf(float(a), float(b), e)
@@ -286,16 +300,25 @@ func update(dt: float) -> void:
 		s[1] = (s[1] as Vector3) + acc * dt
 		s[0] = (s[0] as Vector3) + (s[1] as Vector3) * dt
 	_guard_drop = maxf(_guard_drop - dt / 0.3, 0.0)
-	# the stance holds its knees at STANCE_FLEX: in a quiet stance frame, measure the straighter knee on the final
-	# pose and move the hips a hair toward the bend (a slow loop; every pose is an offset from the stance)
+	var still := move_tag == "" and _cur.is_empty() and _root_vel.length() < 0.2 and rs_hip_len() < 0.02
+	for side in feet:
+		if not (feet[side].step as Dictionary).is_empty() or bool(feet[side].air):
+			still = false
+	quiet_t = quiet_t + dt if still else 0.0
+	# the stance holds its knees at STANCE_FRONT / STANCE_REAR: in a quiet stance frame, measure both knees on the
+	# final pose; the front knee moves the hips up / down, the rear-front difference moves them back / forward (a slow
+	# loop; every pose is an offset from the stance)
 	if move_tag == "" and _cur.is_empty() and dt > 0.0005 and traced > 3 and rs_hip_len() < 0.01:
 		var quiet := true
 		for side in feet:
 			if not (feet[side].step as Dictionary).is_empty() or bool(feet[side].air):
 				quiet = false
 		if quiet:
-			var bmin := minf(bend_of("lf"), bend_of("rf"))
-			stance_corr = clampf(stance_corr + (bmin - STANCE_FLEX) * 0.0006 * k, -0.12, 0.06)
+			var fl := front_leg()
+			var bf := bend_of(fl)
+			var br := bend_of("rf" if fl == "lf" else "lf")
+			stance_corr = clampf(stance_corr + (bf - STANCE_FRONT) * 0.0006 * k, -0.16, 0.06)
+			stance_shift = clampf(stance_shift + ((br - bf) - (STANCE_REAR - STANCE_FRONT)) * 0.0004 * k, -0.08 * k, 0.04 * k)
 	_rig = move_toward(_rig, rig_w, dt / 0.15)
 	_body.influence = _rig
 	_post.influence = _rig
@@ -321,6 +344,7 @@ func replant() -> void:
 		w.y = c.global_position.y - float(d.F[id].lift)
 		feet[side] = {"plant": w, "pos": w, "step": {}, "air": false, "free": false}
 	_last_root = gx.origin
+	quiet_t = 0.0
 
 
 ## A blow from world direction `dir` (where it travels): the head snaps away, the spine gives, the hips are shoved,
@@ -416,6 +440,11 @@ func _feet(dt: float) -> void:
 		var thr := 0.11 * k
 		if move_tag == "" and _root_vel.length() < 0.2:
 			thr = 0.035 * k                              # (a quiet stance: small settling steps keep her feet on their spots)
+			# near a straight leg a 2 cm slip is 10 deg of knee: a foot whose knee is off its stance angle and that
+			# is off its spot at all settles too
+			var want := STANCE_FRONT if side == front_leg() else STANCE_REAR
+			if traced > 3 and absf(bend_of(side) - want) > 5.0 and off > 0.012 * k:
+				off = maxf(off, thr + 0.001)
 		if off > thr and (not stepping or bool(ft.get("urgent", false)) or _root_vel.length() > 0.9):
 			var dur := clampf(off / 2.6, 0.07, 0.15)
 			ft.step = {"from": ft.plant, "t": 0.0, "dur": dur, "h": clampf(off * 0.25, 0.025, 0.08), "lead": _root_vel * dur * 0.7}
@@ -439,20 +468,35 @@ func apply(s: Skeleton3D) -> void:
 		var ctrl: Vector3 = (a + bl) * 0.5 + (dy.arc as Vector3)
 		P[limb] = a.lerp(ctrl, e).lerp(ctrl.lerp(bl, e), e)
 	var bob := sin(life_t * TAU * 1.7) * 0.0025 * k
-	var hip_off: Vector3 = (P.hip as Vector3) + (_sp.hip[0] as Vector3) + Vector3(0, bob + stance_corr, 0)
+	var hip_off: Vector3 = (P.hip as Vector3) + (_sp.hip[0] as Vector3) + Vector3(0, bob + stance_corr, stance_shift)
 	if vibrate and d._freeze > 0:
 		hip_off.x += (0.012 if Engine.get_frames_drawn() % 2 == 0 else -0.012) * k
 	var hi: int = _ids.Hips
 	var rest_h: Transform3D = _rest.Hips
 	s.set_bone_pose_position(hi, rest_h.origin + hip_off)
 	s.set_bone_pose_rotation(hi, rest_h.basis.get_rotation_quaternion() * _q(P.hip_rot as Vector3))
+	# a high kick: when the kicking foot's point is above what her leg reaches from here, she rises onto the ball of
+	# her support foot (the heel lifts, up to 7 cm) - the hips go up with it
+	var want_rise := 0.0
+	if strike_limb in ["lf", "rf"] and _dyn.has(strike_limb):
+		var tl: Vector3 = P[strike_limb]
+		var hj0 := s.get_bone_global_pose(_ids[LEG_BONES[strike_limb][0]]).origin
+		var lmax := limb_len(strike_limb) * 0.99
+		var hz := Vector2(tl.x - hj0.x, tl.z - hj0.z).length()
+		var dy := tl.y - hj0.y
+		if (tl - hj0).length() > lmax and dy > 0.0:
+			want_rise = dy - sqrt(maxf(lmax * lmax - hz * hz, 0.0)) if hz < lmax else dy
+			want_rise = clampf(want_rise, 0.0, 0.07 * k)
+	rise = move_toward(rise, want_rise, 1.8 * k * maxf(get_process_delta_time(), 0.001))
+	if rise > 0.0005:
+		s.set_bone_pose_position(hi, s.get_bone_pose_position(hi) + Vector3(0, rise, 0))
 	# balance: a planted foot never ends beyond her reach - she sinks onto the leg (hips lower, up to 8 cm) rather
 	# than lock the knee
 	var sink := 0.0
 	for limb in ["lf", "rf"]:
 		if limb == strike_limb or bool(feet[limb].air):
 			continue
-		var ank_l: Vector3 = inv * ((feet[limb].pos as Vector3) + Vector3(0, _ankle_h, 0))
+		var ank_l: Vector3 = inv * ((feet[limb].pos as Vector3) + Vector3(0, _ankle_h + rise, 0))
 		var hj := s.get_bone_global_pose(_ids[LEG_BONES[limb][0]]).origin
 		var dm := reach_max(limb) * 0.995
 		var v := hj - ank_l
@@ -528,10 +572,32 @@ func apply(s: Skeleton3D) -> void:
 	for limb in ["lf", "rf"]:
 		var ft: Dictionary = feet[limb]
 		var ankle: Vector3 = (ft.pos as Vector3) + Vector3(0, _ankle_h, 0)
+		if limb != strike_limb and not bool(ft.air):
+			ankle.y += rise                             # (up on the ball of the support foot)
 		if _dyn.has(limb):
 			ankle = gx * (P[limb] as Vector3)
 		var al: Vector3 = inv * ankle
 		var hipj := s.get_bone_global_pose(_ids[LEG_BONES[limb][0]]).origin
+		# a planted foot the body was shoved away from (a hit, a block, a knock-back) skids along the ground after
+		# it - the sole stays down and the knee keeps its bend - until the step it triggers lands
+		if limb != strike_limb and not _dyn.has(limb) and not bool(ft.air):
+			var dsk := reach_max(limb) * 0.99
+			var vv := al - hipj
+			if vv.length() > dsk:
+				var hz := Vector2(vv.x, vv.z)
+				var allow := sqrt(maxf(dsk * dsk - vv.y * vv.y, 0.0))
+				if hz.length() > 0.0001 and allow > 0.0:
+					var nh := hz.normalized() * allow
+					var al2 := Vector3(hipj.x + nh.x, al.y, hipj.z + nh.y)
+					var w2: Vector3 = gx * al2
+					ft.pos = Vector3(w2.x, (ft.pos as Vector3).y, w2.z)
+					if (ft.step as Dictionary).is_empty():
+						ft.plant = ft.pos
+					else:
+						ft.step.from = ft.pos
+					al = al2
+					ankle = gx * al
+					feet[limb].reach = true                 # (and a step follows on the next frame)
 		# never further than the leg can reach with its knee still bent MIN_FLEX deg: a planted foot left behind by
 		# the body is held at that reach (the heel rises) and steps on the next frame; a kick reaches fully
 		var dmax := reach_max(limb) if limb != strike_limb else limb_len(limb) * 0.995
@@ -604,6 +670,8 @@ func post(s: Skeleton3D) -> void:
 		var fg := s.get_bone_global_pose(fi)
 		var yaw := deg_to_rad(foot_yaw(limb))
 		var pitch := deg_to_rad(float(P.lfp if limb == "lf" else P.rfp))
+		if limb != strike_limb and not bool(feet[limb].air) and rise > 0.002:
+			pitch += asin(clampf(rise / (0.14 * k), 0.0, 0.9))        # (heel up, the ball stays down)
 		var fwd := Vector3(sin(yaw), 0, cos(yaw))
 		var yv := (fwd * cos(pitch) - Vector3.UP * sin(pitch)).normalized()
 		var up := (Vector3.UP * cos(pitch) + fwd * sin(pitch)).normalized()
@@ -614,6 +682,52 @@ func post(s: Skeleton3D) -> void:
 			up = (up - yv * up.dot(yv)).normalized()
 		var fb := Basis(yv.cross(up), yv, up).orthonormalized()
 		s.set_bone_global_pose(fi, Transform3D(fb, fg.origin))
+	_land(s)
+
+
+## The last few cm of a punch: the IK put the WRIST on its target, but the knuckles sit wherever the wrist and
+## fingers put them - two CCD passes (elbow about its hinge, then the shoulder) bring the real front of the fist
+## onto the contact point, eased in over the end of the strike.
+var land_at := {}                         # limb -> world contact point of the strike (set by the sim each frame)
+
+
+func _land(s: Skeleton3D) -> void:
+	if not (strike_limb in ["lh", "rh"]) or not _dyn.has(strike_limb) or not land_at.has(strike_limb):
+		return
+	var w := smoothstep(0.8, 1.0, float(_dyn[strike_limb].e))
+	if w <= 0.0:
+		return
+	var side := "Left" if strike_limb == "lh" else "Right"
+	var tgt: Vector3 = s.global_transform.affine_inverse() * (land_at[strike_limb] as Vector3)
+	var ui: int = _ids[side + "UpperArm"]
+	var li: int = _ids[side + "LowerArm"]
+	var hi: int = _ids[side + "Hand"]
+	var mi: int = _ids.get(side + "MiddleProximal", -1)
+	if mi < 0:
+		return
+	for it in 2:
+		for j in [li, ui]:
+			var hp := s.get_bone_global_pose(hi).origin
+			var mp := s.get_bone_global_pose(mi).origin
+			var fist := mp + (mp - hp).normalized() * 0.03
+			var jg := s.get_bone_global_pose(j)
+			var a := fist - jg.origin
+			var b := tgt - jg.origin
+			if j == li:
+				var ax := (jg.basis.orthonormalized() * (_hinge[strike_limb][1] as Vector3)).normalized()
+				a -= ax * a.dot(ax)
+				b -= ax * b.dot(ax)
+				if a.length() < 0.01 or b.length() < 0.01:
+					continue
+				var ang := clampf(a.signed_angle_to(b, ax), -0.35, 0.35) * w
+				s.set_bone_global_pose(j, Transform3D(Basis(ax, ang) * jg.basis, jg.origin))
+			else:
+				if a.length() < 0.01 or b.length() < 0.01:
+					continue
+				var q := Quaternion(a.normalized(), b.normalized())
+				var ang2 := minf(q.get_angle(), 0.35) * w
+				if ang2 > 0.0005:
+					s.set_bone_global_pose(j, Transform3D(Basis(q.get_axis().normalized(), ang2) * jg.basis, jg.origin))
 
 
 ## Which way her knee must point for the hip -> ankle line `u` (skeleton space): u x hinge, the hinge being the
@@ -711,7 +825,50 @@ func _fix_twist(s: Skeleton3D, limb: String) -> void:
 			if absf(phi) > 0.001:
 				slope = clampf(wrapf(tau2 - tau, -180.0, 180.0) / rad_to_deg(phi), -3.0, 3.0)
 			tau = tau2
+	if absf(tau) > lim or _knee_behind(s, limb):
+		_scan_swing(s, limb, ri, u, lim)
 	twist[limb] = anat_twist(s, limb)
+
+
+## How bad the limb is now: degrees of twist past the limit, plus a big penalty for a knee pointing behind her.
+func _limb_cost(s: Skeleton3D, limb: String, lim: float) -> float:
+	return maxf(absf(anat_twist(s, limb)) - lim, 0.0) + (200.0 if _knee_behind(s, limb) else 0.0)
+
+
+func _knee_behind(s: Skeleton3D, limb: String) -> bool:
+	if not (limb in ["lf", "rf"]):
+		return false
+	var b: Array = LEG_BONES[limb]
+	var R := s.get_bone_global_pose(_ids[b[0]]).origin
+	var M := s.get_bone_global_pose(_ids[b[1]]).origin
+	var E := s.get_bone_global_pose(_ids[b[2]]).origin
+	var line := E - R
+	var off := M - (R + line * 0.5)
+	off -= line.normalized() * off.dot(line.normalized())
+	return off.length() > 0.004 and off.normalized().dot(knee_dir(s, limb, line)) < 0.0
+
+
+## Try the whole swing circle (10 deg steps) about the root -> end line and keep the most human one (the end stays).
+func _scan_swing(s: Skeleton3D, limb: String, ri: int, u: Vector3, lim: float) -> void:
+	var bones: Array = ARM_BONES[limb] if ARM_BONES.has(limb) else LEG_BONES[limb]
+	var mi: int = _ids[bones[1]]
+	var q0 := s.get_bone_pose_rotation(ri)
+	var q1 := s.get_bone_pose_rotation(mi)
+	var best := 0.0
+	var best_c := _limb_cost(s, limb, lim)
+	for i in range(1, 36):
+		var phi := deg_to_rad(float(i) * 10.0 - (360.0 if i > 18 else 0.0))
+		s.set_bone_pose_rotation(ri, q0)
+		s.set_bone_pose_rotation(mi, q1)
+		_swing(s, ri, u, phi, limb)
+		var cst := _limb_cost(s, limb, lim)
+		if cst < best_c - 0.01 or (absf(cst - best_c) <= 0.01 and absf(phi) < absf(best)):
+			best_c = cst
+			best = phi
+	s.set_bone_pose_rotation(ri, q0)
+	s.set_bone_pose_rotation(mi, q1)
+	if best != 0.0:
+		_swing(s, ri, u, best, limb)
 
 
 func _swing(s: Skeleton3D, ri: int, u: Vector3, phi: float, limb: String) -> void:
@@ -751,12 +908,27 @@ func _align_hinge(s: Skeleton3D, limb: String) -> void:
 var joint_faults: Array = []
 var twist := {"lf": 0.0, "rf": 0.0, "lh": 0.0, "rh": 0.0}
 var joint_frames := 0
+var frames_by_pose := {}                  # QA: audited frames per kind of pose (stance / move / guard / react:...)
+
+
+var audit_hold := 0                       # frames the audit skips: a test harness is placing her by hand
 
 
 func audit(s: Skeleton3D) -> void:
+	if audit_hold > 0:
+		audit_hold -= 1
+		return
 	if _hinge.is_empty() or life_t < 0.5:
 		return
 	joint_frames += 1
+	var kind := "stance" if move_tag == "" else move_tag.get_slice(":", 0)
+	if move_tag.begins_with("react:"):
+		kind = "react:" + move_tag.get_slice(":", 1).get_slice("_", 0)       # (react:high / mid / low / knockdown)
+	elif move_tag != "" and not move_tag.contains(":"):
+		kind = "strike"
+	if rig_w < 0.5:
+		kind += " (clip)"
+	frames_by_pose[kind] = int(frames_by_pose.get(kind, 0)) + 1
 	for limb in ["lf", "rf", "lh", "rh"]:
 		var bones: Array = ARM_BONES[limb] if ARM_BONES.has(limb) else LEG_BONES[limb]
 		var R := s.get_bone_global_pose(_ids[bones[0]])
@@ -769,11 +941,13 @@ func audit(s: Skeleton3D) -> void:
 		var planted: bool = leg and not bool(feet[limb].air) and limb != strike_limb
 		if planted and float(reach_ratio[limb]) > 1.0:
 			_fault(limb, "foot target %.0f%% of her leg away from the hip (out of reach)" % (100.0 * float(reach_ratio[limb])), bend)
-		if planted and bend < 5.0:
+		if planted and bend < MIN_FLEX - 0.5:
 			_fault(limb, "knee locked straight (%.1f deg)" % bend, bend)
 			continue
-		if planted and move_tag == "" and (feet[limb].step as Dictionary).is_empty() and absf(float(rs_hip_len())) < 0.02 and (bend < 5.0 or bend > 30.0):
-			_fault(limb, "stance knee %.0f deg (5-30)" % bend, bend)
+		if leg and planted and quiet_t > 0.3:              # (standing in her stance - after the settling steps)
+			var want := STANCE_FRONT if limb == front_leg() else STANCE_REAR
+			if absf(bend - want) > 8.0:
+				_fault(limb, "stance knee %.0f deg (%.0f-%.0f)" % [bend, want - 8.0, want + 8.0], bend)
 		if bend < 3.0:
 			continue
 		var n := up.cross(fo).normalized()

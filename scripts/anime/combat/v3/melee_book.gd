@@ -93,6 +93,7 @@ const MOVES := {
 	# outside crescent: the rear leg rises across her body and sweeps out through the side of the head
 	"crescent_kick": {"limb": "rf", "aim": "temple_l", "height": "high", "weight": "heavy", "from": "L", "reach": 0.95, "range": [0.8, 1.4],
 		"wind": 0.18, "active": 0.10, "recover": 0.22, "dmg": 10.0, "knock": 1.2, "arc": {"rf": Vector3(0.35, 0.35, 0.05)},
+		"recover_arc": {"rf": Vector3(-0.32, 0.05, 0.22)},        # (the leg carries on across and drops outside, never folds back through her hip)
 		"keys": [
 			{"hip": Vector3(0.0, -0.03, -0.04), "hip_rot": Vector3(-8.0, -10.0, -10.0), "spine": Vector3(-10.0, 8.0, 6.0), "rf": Vector3(0.12, 0.55, 0.32),
 				"rfy": 20.0, "lfy": -30.0, "lh": Vector3(0.12, 1.32, 0.22), "rh": Vector3(-0.18, 1.18, 0.05)},
@@ -102,6 +103,8 @@ const MOVES := {
 	# axe: the straight rear leg goes up above her head, then chops down onto the crown / collarbone
 	"axe_kick": {"limb": "rf", "aim": "crown", "height": "high", "weight": "heavy", "from": "C", "reach": 0.9, "range": [0.75, 1.35],
 		"wind": 0.22, "active": 0.09, "recover": 0.22, "dmg": 12.0, "knock": 0.6, "arc": {"rf": Vector3(0.0, 0.25, -0.15)},
+		"recover_arc": {"rf": Vector3(0.0, -0.25, 0.22)},         # (the chop carries the foot down in front, then it steps back)
+		"wind_arc": {"rf": Vector3(0.0, -0.3, 0.38)},             # (the leg swings up in front of her, never through her hip)
 		"keys": [
 			{"hip": Vector3(0.0, -0.02, -0.06), "hip_rot": Vector3(-16.0, -8.0, -6.0), "spine": Vector3(-12.0, 6.0, 0.0), "rf": Vector3(-0.05, 1.6, 0.42),
 				"rfy": 0.0, "lfp": 0.0, "lh": Vector3(0.16, 1.25, 0.25), "rh": Vector3(-0.20, 1.15, 0.05)},

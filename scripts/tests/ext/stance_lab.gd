@@ -3,7 +3,7 @@ extends RefCounted
 ## guard (cover, block high both sides, block mid, duck, slip, shin check, back step, jump and its landing), footwork
 ## (circling, stepping in and out), the dash - filmed from the side across the line. The joint audit runs on both
 ## girls every frame: locked or backwards knees, shins angled behind the knee, foot targets out of reach, thighs /
-## upper arms twisted past a human hip / shoulder, stance knees outside 5 - 30 deg. Marks "[stancelab] <what> <who>
+## upper arms twisted past a human hip / shoulder, stance knees more than 8 deg off front 20 / rear 27.5. Marks "[stancelab] <what> <who>
 ## from frame A to frame B" for stills and 10 fps strips.
 
 const GUARDS := [["cover", "jab"], ["block_high", "hook"], ["block_high", "crescent_kick"], ["block_mid", "body_hook"], ["duck", "hook"],
@@ -51,7 +51,7 @@ static func run(t) -> void:
 			for side in ["lf", "rf"]:
 				var ft: Dictionary = fm.feet[side]
 				st.append("%s b%.0f r%.3f %s%s" % [side, fm.bend_of(side), float(fm.reach_ratio[side]), "S" if not (ft.step as Dictionary).is_empty() else "-", "A" if ft.air else "-"])
-			print("[stancelab] ts %.2f corr %.3f vel %.2f root %s | %s | tag '%s'" % [fm.life_t, fm.stance_corr, fm._root_vel.length(), str((fm.sk.global_transform.origin).snappedf(0.001)), " ".join(st), fm.move_tag])
+			print("[stancelab] ts %.2f corr %.3f shift %.3f vel %.2f root %s | %s | tag '%s'" % [fm.life_t, fm.stance_corr, fm.stance_shift, fm._root_vel.length(), str((fm.sk.global_transform.origin).snappedf(0.001)), " ".join(st), fm.move_tag])
 	var knees := {}
 	for id in ["mika", "luna"]:
 		var f: MeleeFighter = sim.F[id]
@@ -59,8 +59,8 @@ static func run(t) -> void:
 	print("[stancelab] stance both from frame %d to frame %d" % [a0, Engine.get_frames_drawn()])
 	print("[stancelab] stance knees (front, rear deg; foot reach front, rear in leg lengths): ", JSON.stringify(knees))
 	for id in knees:
-		t._check(float(knees[id][0]) >= 5.0 and float(knees[id][0]) <= 20.0 and float(knees[id][1]) >= 5.0 and float(knees[id][1]) <= 20.0,
-			"%s's stance knees bend %.0f / %.0f deg (front / rear, 5 - 20)" % [id, float(knees[id][0]), float(knees[id][1])])
+		t._check(absf(float(knees[id][0]) - MeleeFighter.STANCE_FRONT) <= 3.0 and absf(float(knees[id][1]) - MeleeFighter.STANCE_REAR) <= 3.0,
+			"%s's stance knees bend %.0f / %.0f deg (front 17 - 23 / rear 24.5 - 30.5)" % [id, float(knees[id][0]), float(knees[id][1])])
 	# 2. every guard, Luna then Mika
 	for who in ["luna", "mika"]:
 		var other := "mika" if who == "luna" else "luna"
@@ -87,6 +87,8 @@ static func run(t) -> void:
 	sim.footwork = false
 	# 4. the dash in (a rush) and her landing after a jump
 	await _reset(t, d, sim)
+	for id in sim.F:
+		(sim.F[id] as MeleeFighter).audit_hold = 4
 	d.F.mika.pos = c0 - Vector3(2.6, 0, 0)
 	d.F.luna.pos = c0 + Vector3(2.6, 0, 0)
 	await t.get_tree().process_frame
@@ -114,6 +116,8 @@ static func run(t) -> void:
 			groups[key][0] = int(groups[key][0]) + 1
 	for key in groups:
 		print("[stancelab] FAULT x%d %s  e.g. %s" % [groups[key][0], key, JSON.stringify(groups[key][1])])
+	for id in sim.F:
+		print("[stancelab] audited frames by pose, %s: %s" % [id, JSON.stringify((sim.F[id] as MeleeFighter).frames_by_pose)])
 	t._check(frames > 300, "joint audit ran on %d frames (both girls)" % frames)
 	t._check(total == 0, "every pose: no locked or backwards knee, no shin behind a knee, no foot out of reach, no impossible twist (%d faults)" % total)
 	sim.teardown()
@@ -121,6 +125,8 @@ static func run(t) -> void:
 
 
 static func _reset(t, d: FightDirector, sim: MeleeSim) -> void:
+	for id in sim.F:
+		(sim.F[id] as MeleeFighter).audit_hold = 4          # (the lab places them by hand: no audit until replanted)
 	var c0: Vector3 = d.center
 	d.F.mika.pos = c0 - Vector3(0.7, 0, 0)
 	d.F.luna.pos = c0 + Vector3(0.7, 0, 0)

@@ -194,7 +194,7 @@ func _tick(s: Dictionary, dt: float) -> void:
 				pass
 			else:
 				_footwork(s, o, dist, fwd, side, dt)
-			if not demo and t >= float(s.next_at) and String(o.state) != "down":
+			if not demo and t >= float(s.next_at) and (String(o.state) != "down" or t >= float(o.until) - 0.45):   # (she may set off as the other rises)
 				if mode == "close":
 					_choose_attack(s, o, dist)
 				elif mode == "range" and t >= mode_until and float(s.p.aggr) + rng.randf() * 0.4 > 0.6:
@@ -206,11 +206,17 @@ func _tick(s: Dictionary, dt: float) -> void:
 		"react":
 			if t >= float(s.until):
 				s.state = "free"
-				(F[s.id] as MeleeFighter).vibrate = false
+				var rf: MeleeFighter = F[s.id]
+				rf.vibrate = false
+				if rf.move_tag.begins_with("react:"):
+					rf.move_tag = ""
 		"down":
 			if t >= float(s.until):
 				s.state = "free"
-				(F[s.id] as MeleeFighter).rig_w = 1.0
+				var df_: MeleeFighter = F[s.id]
+				df_.rig_w = 1.0
+				if df_.move_tag.begins_with("react:"):
+					df_.move_tag = ""
 				d.anim(s.id, "combat_idle", 0.0, -1.0, 1.0, 0.2, true)
 	# root motion: an eased glide (lunges, steps, dashes) plus a sliding velocity (knock-backs)
 	var g: Dictionary = s.glide
@@ -356,17 +362,21 @@ func _attack(s: Dictionary, o: Dictionary, name: String, pre := []) -> void:
 	f.palm[limb] = String(m.get("palm", "down")) if limb in ["lh", "rh"] else f.palm.get(limb, "guard")
 	var fn := func() -> Vector3: return _limb_target(s, o, atk)
 	var segs: Array = pre.duplicate()
-	segs.append({"dur": wind, "ease": "inout", "pose": m.keys[0], "start": func(): atk.phase = "wind"})
+	segs.append({"dur": wind, "ease": "inout", "pose": m.keys[0], "arc": m.get("wind_arc", {}), "start": func(): atk.phase = "wind"})
 	segs.append({"dur": act, "ease": "snap", "pose": m.keys[1], "dyn": {limb: fn}, "arc": m.get("arc", {}),
 		"start": func(): _active(s, o, atk), "end": func(): _impact(s, o, atk)})
 	segs.append({"dur": 0.04 / sp, "ease": "hold", "pose": m.keys[1], "dyn": {limb: fn}})
-	segs.append({"dur": rec, "ease": "inout", "pose": m.get("recover_pose", {}), "start": func():
+	segs.append({"dur": rec, "ease": "inout", "pose": m.get("recover_pose", {}), "arc": m.get("recover_arc", {}), "start": func():
 		atk.phase = "recover"
 		f.strike_limb = ""
 		f.palm[limb] = "guard",
 		"end": func(): _attack_done(s, o, atk)})
 	f.play(segs)
 	events.append([snappedf(t, 0.01), "attack", s.id, name])
+
+
+## A kick's aim one step lower down her body (when the higher point is out of the leg's reach).
+const AIM_DOWN := {"crown": "face", "face": "chin", "temple_l": "chin", "temple_r": "chin", "chin": "chest", "chest": "stomach"}
 
 
 ## Where her wrist / ankle goes during the strike (world): the live point on the other girl, her forearm if she is
@@ -388,7 +398,19 @@ func _limb_target(s: Dictionary, o: Dictionary, atk: Dictionary) -> Vector3:
 		contact = of.surface("lf", "shin")
 	else:
 		contact = of.target_point(String(m.aim), src)
+		# a kick lands on what her leg can reach from where she stands: a head too high for this range takes the
+		# heel / ball on the face, the jaw, the chest instead (up on her toes she gains 7 cm)
+		if limb in ["lf", "rf"] and atk.locked == Vector3.INF:
+			var lmax := f.limb_len(limb) * 0.99 + (0.1 * f.k if String(atk.surf) == "ball" else 0.03 * f.k)
+			var hjr: Vector3 = src + Vector3(0, 0.07 * f.k, 0)
+			var aim := String(m.aim)
+			var tries := 0
+			while hjr.distance_to(contact) > lmax and AIM_DOWN.has(aim) and tries < 4:
+				aim = AIM_DOWN[aim]
+				contact = of.target_point(aim, src)
+				tries += 1
 	atk.contact = contact
+	f.land_at[limb] = contact
 	var dir := (contact - src).normalized()
 	atk.dir = dir
 	var L := 0.0
@@ -408,8 +430,19 @@ func _limb_target(s: Dictionary, o: Dictionary, atk: Dictionary) -> Vector3:
 	var surf_now := f.surface(limb, String(atk.surf))
 	var off := surf_now - end_now
 	if String(atk.phase) != "wind" and end_now != Vector3.ZERO and off.length() < 0.25 * f.k and off.length() > 0.001:
-		var w := clampf(off.normalized().dot(dir) * 2.0, 0.0, 1.0)
-		return contact - off.lerp(dir * L, 1.0 - w)
+		if limb in ["lh", "rh"]:
+			# the knuckles / palm turn with the forearm: last frame's offset from the wrist, turned from where the
+			# forearm pointed then (elbow -> wrist) to where it will point now (elbow -> contact; the elbow moves
+			# little from one frame to the next) - however the arm folds to get there
+			var elbow: Vector3 = f.trace.get(("Left" if limb == "lh" else "Right") + "LowerArm", Vector3.ZERO)
+			if elbow != Vector3.ZERO and elbow.distance_to(contact) > off.length() * 1.5 and elbow.distance_to(end_now) > 0.05:
+				var fa0 := (end_now - elbow).normalized()
+				var fa1 := (contact - elbow).normalized()
+				var off1 := off
+				if fa0.dot(fa1) < 0.9999:
+					off1 = Quaternion(fa0, fa1) * off
+				return contact - off1
+		return contact - off                         # (the knuckles / palm / shin / heel / ball land, wherever they sit off the wrist or ankle)
 	return contact - dir * L
 
 
@@ -486,6 +519,7 @@ func _impact(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 			vfx.impact(contact, dir, s.id, power, "hit")
 			d.face_fx(o.id, "hurt", 1.0, 0.5)
 			_interrupt(o)
+			of.move_tag = "react:%s_%s" % [String(m.height), String(m.weight)]     # (the audit names the reaction)
 			if m.get("down", false):
 				_knockdown(o, flat_dir)
 			else:
@@ -541,6 +575,10 @@ func _impact(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 			var af: MeleeFighter = F[s.id]
 			var surf: Vector3 = af.surface(atk.limb, atk.surf)
 			attacks[rec_i].err = snappedf(surf.distance_to(atk.contact), 0.001)
+			if float(attacks[rec_i].err) > 0.09:
+				var sd0 := "Left" if atk.limb in ["lh", "lf"] else "Right"
+				print("[melee] DBG miss %s: surf %s contact %s wrist %s ik %s phase %s" % [atk.name, str(surf.snappedf(0.001)), str((atk.contact as Vector3).snappedf(0.001)),
+					str((af.trace.get(sd0 + ("Hand" if atk.limb in ["lh", "rh"] else "Foot"), Vector3.ZERO) as Vector3).snappedf(0.001)), str(af.ik_target(atk.limb).snappedf(0.001)), atk.phase])
 			var sd := "Left" if atk.limb in ["lh", "lf"] else "Right"
 			var arm: bool = atk.limb in ["lh", "rh"]
 			var root_b := sd + ("UpperArm" if arm else "UpperLeg")
@@ -581,13 +619,20 @@ func _knockdown(o: Dictionary, dir: Vector3) -> void:
 	o.state = "down"
 	var f: MeleeFighter = F[o.id]
 	f.rig_w = 0.0
+	f.move_tag = "react:knockdown"
 	var c: WorldCharacter = f.c
 	var L := FightDeck.clip_length(c, "ml_knockdown_getup")
 	var dur := d.anim(o.id, "ml_knockdown_getup", 0.08 * L, 0.92 * L, 2.3, 0.05)
 	o.until = t + dur
+	# the rig takes her back while she is still rising, knees bent (the clip ends standing straight-legged):
+	# feet planted under her where she is now, her guard up as she comes up
+	at(maxf(dur - 0.3, 0.1), func():
+		if String(o.state) == "down":
+			f.replant()
+			f.rig_w = 1.0)
 	# while she is down the other gives ground and comes back in as she rises (a rush), never stands over her
 	mode = "range"
-	mode_until = t + dur * 0.8
+	mode_until = t + dur * 0.55                   # (she rushes back in while the other is still rising)
 	_blows = 0
 	for x in S.values():
 		if x != o:
