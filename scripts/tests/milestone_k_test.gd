@@ -200,6 +200,8 @@ func _run() -> void:
 			# res://scripts/tests/ext/<mode>.gd with  `static func run(t) -> void`  (t = this test node: _wait, _check,
 			# _lake_setup, _cine_setup, main ...)
 			var ext := "res://scripts/tests/ext/%s.gd" % mode
+			if not ResourceLoader.exists(ext):
+				ext = "res://addons/mika_body/tests/%s.gd" % mode      # (the shared body's own tests, Mika Body)
 			if ResourceLoader.exists(ext):
 				await (load(ext) as GDScript).call("run", self)
 			else:

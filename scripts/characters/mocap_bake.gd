@@ -682,3 +682,58 @@ static func _leg_to(ps: PoseSkel, ids: Array, want: Vector3) -> void:
 	ps.set_bone_global_pose(ids[1], Transform3D(Basis(q2) * Kg2.basis, Kg2.origin))
 	var A3 := ps.get_bone_global_pose(ids[2]).origin
 	ps.set_bone_global_pose(ids[2], Transform3D(Ag.basis, A3))
+
+
+# ------------------------------------------------------------------------------------------------ the prebaked cache
+## Selwyn (2026-10-20): no first-use hitch on stream (a lazy bake cost 67-130 ms). Every clip is baked offline per
+## skeleton (tests/ext/movelib_prebake.gd) into BAKED_DIR/<rest key>/<clip>.res, signed with its sources; at load a
+## character pulls hers in on background threads. A cache whose sources or bake version changed is never used.
+const BAKED_DIR := "res://assets/animations/movelib_baked/"
+const BAKE_VERSION := 3                  # (bump when the bake itself changes: every cached clip is rebuilt)
+
+
+## The skeleton's identity for the cache: its bone names and rest transforms (two avatars with the same names but other
+## proportions get their own bakes).
+static func rest_key(sk) -> String:
+	var parts := PackedStringArray()
+	for i in sk.get_bone_count():
+		var r: Transform3D = sk.get_bone_rest(i)
+		parts.append("%s %.4f %.4f %.4f %.3f %.3f %.3f %.3f" % [sk.get_bone_name(i), r.origin.x, r.origin.y, r.origin.z,
+			r.basis.get_rotation_quaternion().x, r.basis.get_rotation_quaternion().y, r.basis.get_rotation_quaternion().z, r.basis.get_rotation_quaternion().w])
+	return ",".join(parts).md5_text().left(16)
+
+
+## The sources a clip's bake depends on: the body landmarks, the hand tracks (clean or raw) and the bake version.
+static func source_sig(json_path: String) -> String:
+	var s := str(BAKE_VERSION) + "|" + str(CLEANUP)
+	for p in [json_path, json_path.get_basename() + ".hands.clean.json", json_path.get_basename() + ".hands.json"]:
+		if FileAccess.file_exists(p):
+			s += "|" + FileAccess.get_md5(p)
+	return s.md5_text()
+
+
+static func cache_path(key: String, clip: String) -> String:
+	return BAKED_DIR + key + "/" + clip + ".res"
+
+
+## The prebaked clip for this skeleton, or null when there is none or it is stale.
+static func cached(sk, json_path: String) -> Animation:
+	var p := cache_path(rest_key(sk), json_path.get_file().get_basename())
+	if not ResourceLoader.exists(p):
+		return null
+	var a := load(p) as Animation
+	if a == null or String(a.get_meta("src", "")) != source_sig(json_path):
+		return null
+	return a
+
+
+## Bake and store one clip for this skeleton (the prebake tool). Returns the Animation.
+static func bake_to_cache(sk: Skeleton3D, json_path: String) -> Animation:
+	var a := bake(sk, json_path)
+	if a == null:
+		return null
+	a.set_meta("src", source_sig(json_path))
+	var p := cache_path(rest_key(sk), json_path.get_file().get_basename())
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(p.get_base_dir()))
+	ResourceSaver.save(a, p, ResourceSaver.FLAG_COMPRESS)
+	return a

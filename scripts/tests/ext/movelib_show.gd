@@ -42,7 +42,7 @@ static func run(t) -> void:
 	for n in mc.skeleton.find_children("*", "SkeletonModifier3D", false, false):
 		if n is SoftArms:
 			(n as SoftArms).finger_weight = 0.0
-	for n in MeleeFighter.OFF_WHILE_FIGHTING:
+	for n in MeleeFighter.RAW_CLIP_HOLD:
 		var m := mc.skeleton.get_node_or_null(n) as SkeletonModifier3D
 		if m:
 			m.active = false

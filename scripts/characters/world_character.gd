@@ -1185,6 +1185,7 @@ func _setup_animation() -> void:
 		_lib_cache[sig] = lib
 	body_player.add_animation_library("mx", lib)
 	_build_tree()
+	_preload_movelib()
 
 
 func _build_library() -> AnimationLibrary:
@@ -1517,6 +1518,38 @@ func has_clip(clip: String) -> bool:
 	return body_player.has_animation("mx/" + clip) or _bake_movelib(clip)
 
 
+## Every prebaked Move Library clip of her skeleton is pulled in on background threads as she is set up, then added
+## to her library a few per frame (no first-use bake on stream; a clip asked for before it arrives is loaded at once).
+var _movelib_wait: Array = []
+
+
+func _preload_movelib() -> void:
+	_movelib_wait.clear()
+	var key := MocapBake.rest_key(skeleton)
+	for n in MoveCatalog.CLIPS:
+		var p := MocapBake.cache_path(key, String(n))
+		if ResourceLoader.exists(p) and not body_player.has_animation("mx/ml_" + String(n)):
+			ResourceLoader.load_threaded_request(p, "Animation", true)
+			_movelib_wait.append([String(n), p])
+
+
+func _poll_movelib() -> void:
+	var done := 0
+	for i in range(_movelib_wait.size() - 1, -1, -1):
+		var e: Array = _movelib_wait[i]
+		var st := ResourceLoader.load_threaded_get_status(e[1])
+		if st == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			continue
+		_movelib_wait.remove_at(i)
+		if st == ResourceLoader.THREAD_LOAD_LOADED:
+			ResourceLoader.load_threaded_get(e[1])
+			if not body_player.has_animation("mx/ml_" + String(e[0])):
+				_bake_movelib("ml_" + String(e[0]))       # (now a cache hit: the resource is loaded)
+		done += 1
+		if done >= 4:
+			break
+
+
 ## A Move Library clip that is not in CLIPS (the 133 of v2 / v2 ultimates / v3, MoveCatalog): baked for her skeleton
 ## the first time anything asks for it, then kept in her library like the others (no load-time cost).
 func _bake_movelib(clip: String) -> bool:
@@ -1525,7 +1558,12 @@ func _bake_movelib(clip: String) -> bool:
 	var n := clip.trim_prefix("ml_")
 	if not MoveCatalog.CLIPS.has(n) or not FileAccess.file_exists(MOCAP_DIR + n + ".json"):
 		return false
-	var anim := MocapBake.bake(skeleton, MOCAP_DIR + n + ".json")
+	var anim := MocapBake.cached(skeleton, MOCAP_DIR + n + ".json")
+	if anim != null:
+		anim = anim.duplicate(true)
+	else:
+		push_warning("[mocap] %s: %s was not prebaked for this skeleton; baking it now (a hitch)" % [character_id, n])
+		anim = MocapBake.bake(skeleton, MOCAP_DIR + n + ".json")
 	if anim == null:
 		return false
 	_retarget_paths(anim, String(avatar.get_path_to(skeleton)), true)
@@ -2075,6 +2113,8 @@ func _try_step_up(dir: Vector3) -> void:
 
 
 func _process(delta: float) -> void:
+	if not _movelib_wait.is_empty():
+		_poll_movelib()
 	_update_expressions(delta)
 	_idle_glance(delta)
 	if not is_physics_processing():

@@ -10,9 +10,11 @@ extends Node
 const ARM_BONES := {"lh": ["LeftUpperArm", "LeftLowerArm", "LeftHand"], "rh": ["RightUpperArm", "RightLowerArm", "RightHand"]}
 const LEG_BONES := {"lf": ["LeftUpperLeg", "LeftLowerLeg", "LeftFoot"], "rf": ["RightUpperLeg", "RightLowerLeg", "RightFoot"]}
 const FINGERS := ["Index", "Middle", "Ring", "Little"]
-## Her walking / resting helpers would pull a kicking foot back to the ground or push a fist off a face: off while
-## the fight rig owns her body (their `active` flag; turned back on in teardown).
-const OFF_WHILE_FIGHTING := ["FootGuard", "FootLock", "ClothClearance", "HandGuard", "BodyLanguage"]
+## (2026-10-20) The guards stay on in fights: the fight rig tells the one body pipeline that it owns her feet and arms
+## (PosePipeline.owners) and that a striking hand's contact with the other girl is the strike's (PosePipeline.contact
+## -1: _land puts the knuckles on her real surface); the guards adapt to that. Test tools that show a raw clip list the guards they hold back themselves (RAW_CLIP_HOLD).
+const RAW_CLIP_HOLD := ["FootGuard", "FootLock", "ClothClearance", "HandGuard", "BodyLanguage"]
+const STRIKE_CONTACT := 0.02             # m a strike may sink into the other girl's body (Selwyn; _land holds it to that)
 const W := 24.0                          # reaction springs: stiffness (rad/s) and damping ratio
 const Z := 0.42
 
@@ -51,7 +53,6 @@ var _sp := {"spine": [Vector3.ZERO, Vector3.ZERO], "head": [Vector3.ZERO, Vector
 var _guard_drop := 0.0
 var _ankle_h := 0.148
 var _rig := 1.0
-var _switched_off: Array = []
 var _skim_until := -1.0
 var _skim_len := 0.1
 var _last_root := Vector3.INF
@@ -129,12 +130,10 @@ func _build() -> void:
 	if not RenderProfile.options.has("no-physics"):
 		phys = FightPhysics.make(sk, k)             # (partial physics on hits; arranges the pipeline itself)
 	PosePipeline.arrange_for(sk)
-	# what would fight the rig: her walking-feet helpers, the hand pushes, the clip's look-at
-	for n in OFF_WHILE_FIGHTING:
-		var m := sk.get_node_or_null(n) as SkeletonModifier3D
-		if m and m.active:
-			m.active = false
-			_switched_off.append(m)
+	# the one body pipeline: the rig owns her feet and arms while she fights; the guards adapt (never switched off)
+	var pp := PosePipeline.of(c)
+	pp.owners.feet = "fight"
+	pp.owners.arms = "fight"
 	if c.head_look:
 		c.head_look.influence = 0.0
 	_calibrate_stance()
@@ -158,9 +157,11 @@ func teardown() -> void:
 	var host := d.get_node_or_null("MeleeTargets_" + id)
 	if host:
 		host.queue_free()
-	for m in _switched_off:
-		if is_instance_valid(m):
-			(m as SkeletonModifier3D).active = true
+	if is_instance_valid(c):
+		var pp := PosePipeline.of(c)
+		pp.owners.feet = ""
+		pp.owners.arms = ""
+		pp.contact = {"Left": 0.0, "Right": 0.0}
 	queue_free()
 
 
@@ -342,6 +343,9 @@ func update(dt: float) -> void:
 			_bal = _bal.move_toward(Vector3.ZERO, dt * 0.25)
 	else:
 		_bal = _bal.move_toward(Vector3.ZERO, dt * 0.4)
+	# a strike's hand may land on the other girl (up to STRIKE_CONTACT); every other hand keeps clear of her
+	var pp := PosePipeline.of(c)
+	pp.contact = {"Left": -1.0 if strike_limb == "lh" else 0.0, "Right": -1.0 if strike_limb == "rh" else 0.0}
 	_rig = move_toward(_rig, rig_w, dt / 0.15)
 	_up = move_toward(_up, upper_clip, dt / 0.15)
 	_body.influence = _rig

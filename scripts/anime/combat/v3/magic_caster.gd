@@ -772,7 +772,8 @@ func _land(s: Dictionary, o: Dictionary, atk: Dictionary, p: Vector3, r: float) 
 
 func _log(s: Dictionary, atk: Dictionary, outcome: String, zone: String) -> void:
 	sim.attacks.append({"t": snappedf(float(atk.t0), 0.01), "by": s.id, "move": atk.name, "outcome": outcome, "defence": atk.defence,
-		"zone": zone, "reaction": String(atk.get("reaction", "")), "frame": Engine.get_frames_drawn(), "err": -1.0, "spell": true})
+		"zone": zone, "reaction": String(atk.get("reaction", "")), "frame": Engine.get_frames_drawn(), "err": -1.0, "spell": true,
+		"react_delay": float(atk.get("react_delay", -1.0)), "part": String(atk.get("part", ""))})
 	print("[melee] %s %s by %s at %.2f s at frame %d (defence %s)" % [outcome.to_upper(), atk.name, s.id, sim.t, Engine.get_frames_drawn(), atk.defence])
 
 

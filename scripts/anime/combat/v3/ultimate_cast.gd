@@ -41,6 +41,8 @@ static func spell(ult: String, who: String) -> Dictionary:
 	var sp: Dictionary = {"who": who, "clip": ult, "weight": "heavy", "aim": "chest", "height": "mid", "range": [0.0, 99.0],
 		"energy": 0.0, "tool": "magic", "knock": 1.0, "speed": 18.0, "ultimate": true}
 	sp.merge(SHAPES.get(ult, {"kind": "beam", "size": 2.0, "dmg": 18.0}), true)
+	if not sp.has("kind"):
+		sp.kind = (sp.kinds as Array)[(sp.kinds as Array).size() - 1] if sp.has("kinds") else "beam"   # (the last release's shape)
 	sp.title = String(MoveCatalog.ULTIMATES.get(ult, {}).get("name", ult))
 	return sp
 
