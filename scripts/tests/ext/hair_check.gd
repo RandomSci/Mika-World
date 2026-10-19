@@ -50,8 +50,19 @@ static func run(t) -> void:
 	var inside_other := 0
 	var t0: float = t._game_t
 	var next := 1.0
+	var pin: CameraPin = set.get("pin")
 	while t._game_t - t0 < 9.0:
 		await t.get_tree().process_frame
+		if pin and RenderProfile.options.has("hair-cam"):
+			# (GPU check) behind her, knees up: her hair over her back and shoulders while she dances
+			var gx := sk.global_transform
+			var hp: Vector3 = gx * (cap.poses[sk.find_bone("Hips")] as Transform3D).origin if not cap.poses.is_empty() else luna.global_position
+			var fwd := luna.global_transform.basis.z
+			fwd.y = 0.0
+			pin.fov = 45.0
+			pin.pos = hp + Vector3(0, 0.45, 0) - fwd.normalized() * 2.6 + fwd.cross(Vector3.UP).normalized() * 0.5
+			pin.look = hp + Vector3(0, 0.35, 0)
+			pin.active = true
 		var poses: Array = cap.poses
 		if poses.is_empty():
 			continue
@@ -172,6 +183,21 @@ static func _inside(c: WorldCharacter, poses: Array, o: WorldCharacter, oposes: 
 								nd = dd
 								nb = bn2
 					near_bone[nb] = int(near_bone.get(nb, 0)) + 1
+					if RenderProfile.options.has("hair-detail") and int(near_bone[nb]) <= 4:
+						# which bones carry this point, and how far it is from the upper arm's line
+						var arr := m.mesh.surface_get_arrays(0)
+						var BI = arr[Mesh.ARRAY_BONES]
+						var BW = arr[Mesh.ARRAY_WEIGHTS]
+						var per: int = (BI as PackedInt32Array).size() / S.size() if BI is PackedInt32Array else (BI as Array).size() / S.size()
+						var ws := []
+						for k in per:
+							if float(BW[vi * per + k]) > 0.05:
+								var bb := m.skin.get_bind_bone(int(BI[vi * per + k]))
+								ws.append("%s:%.2f" % [sk.get_bone_name(bb) if bb >= 0 else String(m.skin.get_bind_name(int(BI[vi * per + k]))), float(BW[vi * per + k])])
+						var ua: Vector3 = (poses[sk.find_bone("LeftUpperArm")] as Transform3D).origin
+						var la: Vector3 = (poses[sk.find_bone("LeftLowerArm")] as Transform3D).origin
+						print("[hair]   in: %s depth %.3f arm-line %.3f along %.2f bones %s" % [nb, -(p - bp[best]).dot(bn[best]), p.distance_to(Geometry3D.get_closest_point_to_segment(p, ua, la)),
+							(p - ua).dot((la - ua).normalized()) / ua.distance_to(la), str(ws)])
 			var wp := gx * p
 			for cp in theirs:
 				if cp[0] != Vector3.INF and cp[1] != Vector3.INF and wp.distance_to(Geometry3D.get_closest_point_to_segment(wp, cp[0], cp[1])) < float(cp[2]) - 0.01:

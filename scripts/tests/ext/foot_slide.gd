@@ -28,7 +28,7 @@ class Probe extends Node:
 				"b": float(wc.anim_tree.get("parameters/loco/blend_position")),
 				"s": float(wc.anim_tree.get("parameters/loco_speed/scale")),
 				"g": bool(wc.anim_tree.get("parameters/cast/active")),
-				"LT": _final(wc, "LeftToes", "LeftFoot"), "RT": _final(wc, "RightToes", "RightFoot")})
+				"LT": _final(wc, "LeftToes", "LeftFoot"), "RT": _final(wc, "RightToes", "RightFoot"), "f": Engine.get_process_frames()})
 
 	## A bone's world position in the final pose (after every modifier), or the pre-modifier one before it is captured.
 	func _final(wc: WorldCharacter, bone: String, fallback: String) -> Vector3:
@@ -71,6 +71,10 @@ static func run(t) -> void:
 	t.add_child(_probe)
 	if RenderProfile.options.has("fs-sweep"):
 		await _sweep(mika, luna)
+		_probe.queue_free()
+		return
+	if RenderProfile.options.has("fs-turn-only"):
+		await _turn_probe(mika, luna)
 		_probe.queue_free()
 		return
 	if not RenderProfile.options.has("fs-pier-only"):
@@ -148,6 +152,11 @@ static func _stats(id: String, t0: float, t1: float, t_stop := -1.0) -> Dictiona
 			elif not down and i0 >= 0:
 				if i - i0 >= 3:
 					drift.append(_hz(s[i - 1][k] - s[i0][k]).length())
+					if RenderProfile.options.has("fs-detail"):
+						print("[fsdetail] %s %s t %.2f..%.2f frames %d drift %.3f" % [id, k, float(s[i0].t), float(s[i - 1].t), i - i0, drift[-1]])
+						if float(drift[-1]) > 0.03:
+							for j in range(maxi(i0 - 2, 0), mini(i + 2, s.size())):
+								print("[fsdetail]    f %d t %.3f ball %s up %.3f yaw-body %s" % [int(s[j].f), float(s[j].t), str((s[j][k] as Vector3).snappedf(0.001)), float(ys[j]) - floor_y, str((s[j].p as Vector3).snappedf(0.001))])
 				i0 = -1
 	drift.sort()
 	out["steps"] = drift.size()
@@ -341,6 +350,34 @@ static func _home_states(mika: WorldCharacter, luna: WorldCharacter) -> void:
 		await _t._wait(1.5)
 		st = _stats(id, t1, _t._game_t, t1)
 		_report(id + " physics off mid-walk", int(st.get("tread", 1)) == 0 and float(st.get("lag", -1.0)) >= 0.0 and float(st.lag) <= 0.4, st)
+		c.set_physics_process(true)
+		c.stop_action()
+		await _t._wait(0.8)
+
+
+# ------------------------------------------------------------------ debug (--fs-turn-only): the turn and the scene takeover
+static func _turn_probe(mika: WorldCharacter, luna: WorldCharacter) -> void:
+	for id in ["mika", "luna"]:
+		var c: WorldCharacter = _t.main.characters[id]
+		var other: WorldCharacter = luna if c == mika else mika
+		var a := _snap(c, Vector3(-2, 0, 12))
+		var b := _snap(c, Vector3(-2, 0, -8))
+		_place(other, _snap(other, Vector3(10, 0, 14)))
+		_place(c, a, atan2(-(b - a).x, -(b - a).z))
+		await _t._wait(1.5)
+		print("[fldbg] ---- %s turn" % id)
+		c.look_at_point(c.global_position + c.global_transform.basis.z * 3.0)
+		var t0: float = _t._game_t
+		await _wait_action(c, "look_at", 6.0)
+		await _t._wait(1.8)
+		_report(id + " turn in place", true, _stats(id, t0, _t._game_t))
+		print("[fldbg] ---- %s physics off" % id)
+		c.navigate_to(b, false)
+		await _t._wait(2.5)
+		var t1: float = _t._game_t
+		c.set_physics_process(false)
+		await _t._wait(1.8)
+		_report(id + " physics off mid-walk", true, _stats(id, t1, _t._game_t, t1))
 		c.set_physics_process(true)
 		c.stop_action()
 		await _t._wait(0.8)

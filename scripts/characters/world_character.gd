@@ -114,6 +114,7 @@ const UAL_PACKS := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_re
 @export var walk_speed := 1.45
 @export var run_speed := 4.1
 @export var turn_speed := 10.0
+const STAND_TURN := 3.5         # rad/s at most while she turns on the spot (the feet step round)
 
 var avatar: Node3D
 var skeleton: Skeleton3D
@@ -255,6 +256,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	HandGuard.attach(skeleton)                     # hands never inside a face or a body (self and the other girl)
 	if not RenderProfile.options.has("no-seam-guard"):
 		SeamGuard.attach(self)                     # skirt and hair sheets never split between neighbouring chains
+	if not RenderProfile.options.has("no-hair-guard"):
+		HairGuard.attach(self)                     # hair never sinks into her upper arms (after the springs)
 	if _head_target == null:
 		_head_target = Node3D.new()
 		_head_target.name = "HeadLookTarget"
@@ -1928,7 +1931,13 @@ func _physics_process(delta: float) -> void:
 				_finish_action(false, "timeout")
 	if face_dir != Vector3.ZERO:
 		var target_yaw := atan2(-face_dir.x, -face_dir.z)
-		rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-turn_speed * delta))
+		var to_yaw := lerp_angle(rotation.y, target_yaw, 1.0 - exp(-turn_speed * delta))
+		if hv.length() <= 0.2 and not casting:
+			# standing: a turn on the spot is a few steps round, never a spin on planted feet (a half turn took 0.3 s,
+			# 21 rad/s: the feet were dragged 25-36 cm)
+			var d := angle_difference(rotation.y, to_yaw)
+			to_yaw = rotation.y + clampf(d, -STAND_TURN * delta, STAND_TURN * delta)
+		rotation.y = to_yaw
 
 	# a held LOOPING gesture (a talking idle, folded arms ...) never rides on a moving body: it overrides the whole
 	# skeleton, so she would slide along with no walk cycle (2026-10-17 stream). The dodge's sprint is the exception.
