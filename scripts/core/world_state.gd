@@ -126,6 +126,38 @@ const _TEST_FLAGS := ["fresh", "physicstest", "posetest", "magictest", "readtest
 	"persisttest", "mhtest", "mitest", "mjtest", "mktest", "outfittest"]
 
 
+## The real save (user://mika_world_save.json) is shared by every worktree of this project (one app_userdata folder)
+## and is the live stream's save. Guards (Selwyn, 2026-10-20, after a test window wrote it):
+##   1 a test, render or probe run (a test flag, a movie being written, a --script tool run, --tremble or any --mktest)
+##     refuses to start unless --save-path is a user://test_*.json file;
+##   2 any build other than the stream build (STREAM_BUILD) opens the real save read only: it may load it, never write.
+const STREAM_BUILD := "/home/selwyn/Downloads/Mika-Godot-Dev/"
+var read_only := false
+
+
+## True when the run must stop here (it has been told to quit).
+func _save_guard() -> bool:
+	var tool_run := OS.get_cmdline_args().has("--script") or OS.get_cmdline_args().has("-s")
+	var test_run := tool_run or Engine.get_write_movie_path() != ""
+	for f in _TEST_FLAGS:
+		if RenderProfile.options.has(f):
+			test_run = true
+	var test_save := save_path.begins_with("user://test_")
+	if test_run and not test_save and not tool_run:
+		push_error("[save] GUARD: a test, render or probe run needs --save-path=user://test_<name>.json; refusing to start (save would be %s)" % save_path)
+		print("[save] GUARD refused: test run without a test save")
+		persistent = false
+		get_tree().quit.call_deferred(3)
+		return true
+	var proj := ProjectSettings.globalize_path("res://")
+	if not proj.ends_with("/"):
+		proj += "/"
+	if not test_save and (proj != STREAM_BUILD or tool_run):
+		read_only = true
+		print("[save] READ ONLY: %s is not the stream build (%s); the real save is never written from here" % [proj, STREAM_BUILD])
+	return false
+
+
 func _ready() -> void:
 	persistent = true
 	for f in _TEST_FLAGS:
@@ -136,6 +168,8 @@ func _ready() -> void:
 	var sp := String(RenderProfile.options.get("save-path", ""))
 	if sp.begins_with("user://") and sp.ends_with(".json") and not sp.contains(".."):
 		save_path = sp
+	if _save_guard():
+		return
 	real_clock = bool(registry.get("clock", {}).get("real_time", false)) and (persistent or RenderProfile.options.has("real-clock")) \
 		and not RenderProfile.options.has("game-clock")
 	if RenderProfile.options.has("clock-hour"):
@@ -285,6 +319,9 @@ func _save_text() -> String:
 ## temp file -> read back and checked -> backups rotated -> renamed over the save. Safe on a worker thread (only
 ## files; the state was captured as text on the main thread).
 func _write_save(text: String, kn: int, reason: String) -> bool:
+	if read_only or (not save_path.begins_with("user://test_") and ProjectSettings.globalize_path("res://").trim_suffix("/") + "/" != STREAM_BUILD):
+		print("[save] write refused (%s): read only outside the stream build" % reason)
+		return false                                  # (see _save_guard: only the stream build writes the real save)
 	var tmp := save_path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
@@ -313,6 +350,10 @@ func load_game() -> bool:
 	if not r.ok and r.get("newer", false):
 		persistent = false
 		load_report["result"] = "save is from a newer version (%s): loaded nothing, saving disabled this session" % r.why
+		push_warning("[save] " + load_report.result)
+		return false
+	if not r.ok and read_only:
+		load_report["result"] = "unreadable, and read only here: nothing renamed or restored (%s)" % r.why
 		push_warning("[save] " + load_report.result)
 		return false
 	if not r.ok:
