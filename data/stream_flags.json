@@ -1,5 +1,6 @@
 {
- "_note": "Go live 20 October 2026 (Selwyn: fights off tonight). fights false: no monster spawns (hunts, camp encounters, territories, road ambushes), no spars or training duels. transformations false: no transformation plays (level ups still count; the form waits). Tests may force them on with --fights or --transformations.",
+ "_note": "Go live 20 October 2026 (Selwyn: fights off tonight). fights false: no monster spawns (hunts, camp encounters, territories, road ambushes), no spars or training duels. transformations false: no transformation plays (level ups still count; the form waits). Tests may force them on with --fights or --transformations. lake true: Lantern Lake visits, the pier watch and the boat are on (written out, not a code default).",
  "fights": false,
- "transformations": false
+ "transformations": false,
+ "lake": true
 }

@@ -69,7 +69,36 @@ func setup(m: Node) -> void:
 
 ## Once a minute in the stage log: the real frame rate, the worst frame, hitches over 50 ms and both mages' levels
 ## (the soak and the operator read it; nothing of it reaches viewers).
+## Every 10 minutes in the stage log (2026-10-20 go live: a 10 minute soak grew 11%, is it a leak?): static, video
+## and resident memory, nodes and objects, each against the first reading.
+var _m_t := 0.0
+var _m_n := 0
+var _m0 := {}
+
+
+func _memory_log(delta: float) -> void:
+	_m_t += delta
+	if _m_t < 600.0 and _m_n > 0:
+		return
+	_m_t = 0.0
+	var rss := 0.0
+	for ln in FileAccess.get_file_as_string("/proc/self/status").split("\n"):
+		if ln.begins_with("VmRSS:"):
+			rss = float(ln.split(":")[1].strip_edges().split(" ")[0]) / 1024.0
+	var now := {"static": Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
+		"video": Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0, "rss": rss,
+		"nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT), "objects": Performance.get_monitor(Performance.OBJECT_COUNT)}
+	if _m0.is_empty():
+		_m0 = now
+	var pct := func(k: String) -> float: return (float(now[k]) - float(_m0[k])) / maxf(float(_m0[k]), 1.0) * 100.0
+	print("[memory] %d min: static %.0f MB (%+.1f%%) video %.0f MB (%+.1f%%) rss %.0f MB (%+.1f%%) nodes %d (%+.1f%%) objects %d (%+.1f%%) area %s" % [
+		_m_n * 10, now["static"], pct.call("static"), now["video"], pct.call("video"), now["rss"], pct.call("rss"), int(now["nodes"]), pct.call("nodes"),
+		int(now["objects"]), pct.call("objects"), String(main.streaming.current_id) if main.get("streaming") else "-"])
+	_m_n += 1
+
+
 func _health(delta: float) -> void:
+	_memory_log(delta)
 	_h_t += delta
 	_h_frames += 1
 	_h_worst = maxf(_h_worst, delta)

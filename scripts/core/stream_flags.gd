@@ -11,7 +11,7 @@ static func data() -> Dictionary:
 	if _d.is_empty():
 		var j = JSON.parse_string(FileAccess.get_file_as_string("res://data/stream_flags.json")) if FileAccess.file_exists("res://data/stream_flags.json") else null
 		_d = j if typeof(j) == TYPE_DICTIONARY else {"fights": true, "transformations": true}
-		print("[streamflags] fights %s, transformations %s" % [str(fights()), str(transformations())])
+		print("[streamflags] fights %s, transformations %s, lake %s" % [str(fights()), str(transformations()), str(bool(_d.get("lake", true)))])
 	return _d
 
 
