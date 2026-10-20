@@ -1,3 +1,3 @@
 [submodule "addons/mika_body"]
 	path = addons/mika_body
-	url = /home/selwyn/Downloads/Mika-Body
+	url = https://github.com/RandomSci/Mika-Body.git
