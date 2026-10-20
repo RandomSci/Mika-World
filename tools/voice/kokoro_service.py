@@ -25,7 +25,12 @@ import onnxruntime as ort
 import soundfile as sf
 from kokoro_onnx import Kokoro
 
-import tts_text  # the text cleanup every line goes through (tools/voice/tts_text.py, data/tts_pronunciations.json)
+import sys
+
+# started with python -I (isolated), which no longer puts this folder on the path: tts_text next to it was not found
+# and the speech service never came up, so Luna had no voice on the 2026-10-21 stream
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import tts_text  # noqa: E402  the text cleanup every line goes through (tools/voice/tts_text.py, data/tts_pronunciations.json)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MAX_CHARS = 1200
