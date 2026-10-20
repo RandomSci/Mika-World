@@ -388,6 +388,14 @@ func _shots(mika: WorldCharacter) -> void:
 		["back_neck", up, "Neck", Vector3(-0.04, 0.20, -0.30), Vector3(0, -0.06, 0), 50.0, true],   # hair hidden: his shot clipped through it
 		["medium", up, "Hips", Vector3(0.9, 0.35, 2.6), Vector3(0, 0.15, 0), 40.0],
 	]
+	if o.has("trimshots"):                                         # extreme trim close-ups in her idle pose (arms down)
+		var idle := {}
+		shots += [
+			["trim_sash", idle, "Spine", Vector3(0.26, 0.09, 0.24), Vector3(0.09, 0.09, 0.0), 16.0],
+			["trim_panel_tip", idle, "LeftLowerLeg", Vector3(0.42, -0.12, 0.34), Vector3(0.14, -0.19, 0.04), 18.0],
+			["trim_sleeve_hem", idle, "RightHand", Vector3(0.20, -0.14, 0.30), Vector3(0.02, -0.17, 0.0), 22.0],
+			["trim_back_bow", idle, "Head", Vector3(0.08, 0.16, -0.34), Vector3(0.0, 0.14, -0.09), 20.0],
+		]
 	var hide := ShaderMaterial.new()
 	hide.shader = Shader.new()
 	hide.shader.code = "shader_type spatial;\nvoid fragment() { discard; }"

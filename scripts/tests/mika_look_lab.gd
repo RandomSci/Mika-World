@@ -5,6 +5,9 @@ extends "res://scripts/tests/mika_l1_closeup_lab.gd"
 ##   godot --path . res://scenes/tests/mika_look_lab.tscn -- --save-path=user://test_regress_l1lab.json
 ##     --live-link=ws://127.0.0.1:9/test-none --no-bridge --l1out=<abs dir> --light=day|dusk|night|forest
 ##     [--look=proto] [--maps=<abs dir>] [--l1tex=<abs dir of the flat outfit textures>] [--avatar=<res:// vrm>]
+##     [--texcheck] [--trimshots]
+## --texcheck: every L1_v2 outfit texture as the GPU gets it (decompressed) against its source png in l1v2_tex,
+## texels off by more than 24 and 48 of 255. --trimshots: four tight trim close-ups after the six shots.
 ## --avatar puts a test build in her place (Mika L1 outfit v2: res://assets/characters/mika/tests/MikaCelestial_L1v2.vrm
 ## with --maps and --l1tex from Mika-Transformation-Lab/l1_v2/look); without it she wears the current L1 stage.
 ## The prototype (shaders/tests/look/):
@@ -60,6 +63,8 @@ func _run() -> void:
 		vp.anisotropic_filtering_level = Viewport.ANISOTROPY_16X
 		_proto(mika, lt)
 	print("[look] light=%s look=%s" % [String(o.get("light", "day")), String(o.get("look", "current"))])
+	if o.has("texcheck"):
+		_texcheck(mika)
 	if o.has("facesweep"):
 		await _face_sweep(mika)
 	else:
@@ -161,6 +166,9 @@ func _proto(mika: WorldCharacter, lt: Dictionary) -> void:
 	var face_sh: Shader = load(LOOK + "look_face.gdshader")
 	var hair_sh: Shader = load(LOOK + "look_hair.gdshader")
 	var line_sh: Shader = load(LOOK + "look_outline.gdshader")
+	var toon_one := Shader.new()                                   # one sided toon for the layered cloth (v2 outfit)
+	toon_one.code = toon.code.replace("cull_disabled", "cull_back")
+	const ONE_SIDED := ["L1_v2_PatternOut", "L1_v2_TrimOut", "L1_v2_Lining"]
 	var rig := LookRig.new()
 	rig.c = mika
 	rig.lt = lt
@@ -188,8 +196,9 @@ func _proto(mika: WorldCharacter, lt: Dictionary) -> void:
 			match kind:
 				"outfit":
 					var piece := String(old.resource_name).replace("_MToon", "")
-					nmat.shader = toon
-					var ft := _tex("%s/%s_BaseColor.png" % [flat, piece])
+					nmat.shader = toon_one if piece in ONE_SIDED else toon
+					var fp := "%s/%s_BaseColor.png" % [flat, piece]
+					var ft := _tex(fp) if FileAccess.file_exists(fp) else null   # else the build's own (v2: VRAM compressed)
 					base = ft if ft else base
 					var ilm := _tex("%s/%s_ILM.png" % [maps, piece])
 					if ilm:
@@ -209,6 +218,8 @@ func _proto(mika: WorldCharacter, lt: Dictionary) -> void:
 			nmat.set_shader_parameter("base_tex", base)
 			if kind == "face":
 				nmat.next_pass = old.next_pass                  # her own outline, as it is
+			elif String(old.resource_name).begins_with("L1_v2_Lining"):
+				pass                                            # no outline hull inside a sleeve or behind a panel
 			else:
 				var line := ShaderMaterial.new()
 				line.shader = line_sh
@@ -275,3 +286,49 @@ class LookRig extends Node:
 		var ls := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("LeftUpperArm"))).origin
 		var rs := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightUpperArm"))).origin
 		return Vector3(rs.x - ls.x, 0, rs.z - ls.z).normalized()
+
+
+## The v2 test build's outfit textures as Godot holds them (VRAM compressed) against the source pngs.
+func _texcheck(mika: WorldCharacter) -> void:
+	var seen := {}
+	for mi in mika.avatar.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for si in (m.mesh.get_surface_count() if m.mesh else 0):
+			var mat := m.mesh.surface_get_material(si) as ShaderMaterial
+			if mat == null or not String(mat.resource_name).begins_with("L1_v2_"):
+				continue
+			var nm := String(mat.resource_name).replace("_MToon", "")
+			if seen.has(nm):
+				continue
+			seen[nm] = true
+			var t: Texture2D = mat.get_shader_parameter("_MainTex")
+			var img := t.get_image() if t else null
+			var src := Image.load_from_file("res://assets/characters/mika/tests/l1v2_tex/%s_BaseColor.png" % nm)
+			if img == null or src == null:
+				print("[texcheck] %s missing" % nm)
+				continue
+			var fmt := img.get_format()
+			var mips := img.has_mipmaps()
+			img = img.duplicate()
+			if img.is_compressed():
+				img.decompress()
+			if img.has_mipmaps():
+				img.clear_mipmaps()
+			img.convert(Image.FORMAT_RGB8)
+			src.convert(Image.FORMAT_RGB8)
+			var a := img.get_data()
+			var b := src.get_data()
+			var n24 := 0
+			var n48 := 0
+			var worst := 0
+			var step := 3 * 7                                          # every 7th texel, enough for a share
+			var i := 0
+			var tot := 0
+			while i + 2 < mini(a.size(), b.size()):
+				var d := maxi(maxi(absi(a[i] - b[i]), absi(a[i + 1] - b[i + 1])), absi(a[i + 2] - b[i + 2]))
+				worst = maxi(worst, d)
+				if d > 24: n24 += 1
+				if d > 48: n48 += 1
+				tot += 1
+				i += step
+			print("[texcheck] %s %dx%d format=%d mipmaps=%s off>24 %.3f%% off>48 %.3f%% worst %d" % [nm, t.get_width(), t.get_height(), fmt, str(mips), 100.0 * n24 / tot, 100.0 * n48 / tot, worst])

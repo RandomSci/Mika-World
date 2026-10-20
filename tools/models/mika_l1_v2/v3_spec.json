@@ -1,0 +1,89 @@
+{
+ "pattern_tile_m": 0.16,
+ "bodice": {
+  "top_z": 1.375,
+  "bottom_z": 0.93,
+  "bust_z": 1.2,
+  "gap": 0.008,
+  "margin": 0.003,
+  "strip_width_mul": 1.15,
+  "strip_lift_mm": 0.6
+ },
+ "under": {
+  "top_z": 1.06,
+  "hem_z": 0.66,
+  "gap": 0.004,
+  "segments": 160,
+  "rows": 30,
+  "flare_from_z": 0.99,
+  "flare": 0.09,
+  "pleats": 24,
+  "pleat_depth": 0.01,
+  "waistband": 0.012,
+  "hem": 0.032,
+  "hem_lift": 0.0012
+ },
+ "sash": {
+  "z": 1.1,
+  "height": 0.055,
+  "gap": 0.0045
+ },
+ "collar": {
+  "z": 1.385,
+  "height": 0.036,
+  "gap": 0.003
+ },
+ "bow": {
+  "s": 0.1,
+  "gap": 0.003,
+  "margin": 0.003
+ },
+ "brooch": {
+  "s": 0.018,
+  "gap": 0.002
+ },
+ "panel": {
+  "front_gap_deg": 22,
+  "overlap_deg": 4,
+  "gap": 0.006,
+  "layer_step": 0.003,
+  "cy": -0.03,
+  "top_z": 1.08,
+  "thick": 0.0005,
+  "cols": 10,
+  "rows": 44,
+  "length_inner": 0.7,
+  "length_outer": 0.78,
+  "trim_w": 0.022,
+  "trim_lift": 0.0007
+ },
+ "sleeve": {
+  "top_from_shoulder": 0.06,
+  "end_before_wrist": 0.02,
+  "rows": 34,
+  "segs": 40,
+  "clear": 0.008,
+  "flare": 0.004,
+  "drop": 0.2,
+  "tail": 0.08,
+  "lining": 0.0004,
+  "hem_w": 0.03,
+  "trim_lift": 0.0008,
+  "cuff_w": 0.015,
+  "star_above_hem": 0.035
+ },
+ "back_bow": {
+  "knot_z": 1.585,
+  "off": 0.012,
+  "ribbon_w": 0.035,
+  "loop_len": 0.06,
+  "loop_h": 0.045,
+  "tail_end_z": 1.25,
+  "tail_spread": 0.045
+ },
+ "decals": {
+  "corner": 0.06,
+  "sleeve_star": 0.03,
+  "crest": 0.045
+ }
+}

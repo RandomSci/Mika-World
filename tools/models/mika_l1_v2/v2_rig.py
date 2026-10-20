@@ -292,7 +292,11 @@ for s, sg in (('L', 1), ('R', -1)):
     # the tube: upper arm to forearm over a wide window round the elbow (the body's own weights switch within a few cm
     # there, and a wide bell folding on that line crossed its own lining)
     te = np.linalg.norm(P('J_Bip_%s_LowerArm' % s) - a0) / L
-    we = np.clip((t - (te - 0.12)) / 0.24, 0, 1); we = we * we * (3 - 2 * we)
+    # the inner elbow (the side the forearm folds toward, her front in the rest pose) switches to the forearm a tenth
+    # of the arm earlier, so a folded forearm takes that cloth with it instead of creasing it against the upper arm
+    flex = np.array([0.0, -1.0, 0.0]); flex -= (flex @ ax) * ax; flex /= np.linalg.norm(flex)
+    inner = np.clip((radial @ flex) / np.maximum(rr, 1e-6), 0, 1)
+    we = np.clip((t - (te - 0.12 - 0.10 * inner)) / 0.24, 0, 1); we = we * we * (3 - 2 * we)
     W = []
     for i, p in enumerate(V):
         base = {'J_Bip_%s_UpperArm' % s: 1 - we[i], 'J_Bip_%s_LowerArm' % s: we[i]}
@@ -375,7 +379,7 @@ GROUPS = {'head': ['Head', 'Neck'],
 target, gmap = colliders.build(A, COLL, GROUPS)
 
 
-def clear_joints(chain_names, hit, groups):
+def clear_joints(chain_names, hit, groups, away=False):
     """skirt and panel joints that start inside the hip or thigh colliders slide straight out from the skirt axis
     until they clear them (else the springs kick the cloth outward on the first frame)"""
     lab.mode(A, 'EDIT'); eb = A.data.edit_bones; inv = A.matrix_world.inverted(); moved = 0
@@ -391,7 +395,17 @@ def clear_joints(chain_names, hit, groups):
                         d = (Vector(p) - c).length if t is None else colliders.seg_dist(Vector(p), c, t)
                         worst = max(worst, r + h - d)
                 if worst <= 0.001: break
-                rad = p[:2] - HC; rad = rad / max(np.linalg.norm(rad), 1e-6); p[:2] += rad * (worst + 0.002)
+                if away:                                                 # straight out of the deepest collider
+                    best = None
+                    for g in groups:
+                        for m_ in GROUPS[g]:
+                            _ci, c, t, r = target[m_]
+                            q = c if t is None else c + (t - c) * max(0.0, min(1.0, (Vector(p) - c).dot(t - c) / max((t - c).length_squared, 1e-12)))
+                            dd = r + h - (Vector(p) - q).length
+                            if best is None or dd > best[0]: best = (dd, np.array(Vector(p) - q))
+                    dvec = best[1] / max(np.linalg.norm(best[1]), 1e-6); p += dvec * (worst + 0.002)
+                else:
+                    rad = p[:2] - HC; rad = rad / max(np.linalg.norm(rad), 1e-6); p[:2] += rad * (worst + 0.002)
             if np.linalg.norm(np.array(A.matrix_world @ b.head) - p) > 1e-5:
                 b.head = inv @ Vector(p)
                 if b.parent and b.use_connect: b.parent.tail = b.head
@@ -402,6 +416,7 @@ def clear_joints(chain_names, hit, groups):
 
 rep['joints_cleared'] = clear_joints([n for n, _ in SK_CH], [0.015, 0.025, 0.035], ['legs']) + \
     clear_joints(PN_CH, [0.012, 0.02, 0.03, 0.04], ['legs'])
+rep['hair_joints_cleared'] = clear_joints(HAIR_CH, 0.02, ['torso', 'arms', 'legs'], away=True)   # Selwyn: every spring starts clear
 SPR = {}
 for n in HAIR_CH:
     SPR[n] = (0.55, 0.38, 0.35, 0.02, ['torso', 'arms', 'legs'])
@@ -431,20 +446,26 @@ DOUBLE = ('L1_Hair', 'L1_BackBow')                      # plus every v2 part (tw
 SHADE = {'L1_Hair': (0.70, 0.70, 0.88)}
 done = {}
 for o in [x for x in bpy.data.collections['L1_Outfit'].objects]:
-    src = o.data.materials[0]
-    img = next(n.image for n in src.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image and
-               any(l.to_socket.name == 'Base Color' for l in n.outputs[0].links))
     dbl = o.name in DOUBLE or o.name.startswith('L1_v2_')
-    base = o.name.replace('_L', '').replace('_R', '') if o.name.endswith(('_L', '_R')) else o.name
-    base = base.rstrip('0123456789').rstrip('_') if base.startswith(('L1_v2_Panel', 'L1_v2_Star')) else base
-    key = (base, dbl)
-    if key not in done:
-        if not img.name.endswith('_BaseColor'): img.name = base + '_BaseColor'
-        m = lab.mtoon(base + '_MToon', base='#FFFFFF', shade=SHADE.get(base, (0.78, 0.76, 0.88)), tex=img,
-                      double=dbl, toony=TOONY, shift=SHIFT, gi=GI, outline=0.0 if dbl else fm.outline_width_factor,
-                      outline_col='#2A2440', rim='#1A1430', rim_power=4.0, rim_mix=0.6)
-        done[key] = m
-    o.data.materials.clear(); o.data.materials.append(done[key])
+    base0 = o.name.replace('_L', '').replace('_R', '') if o.name.endswith(('_L', '_R')) else o.name
+    base0 = base0.rstrip('0123456789').rstrip('_') if base0.startswith(('L1_v2_Panel', 'L1_v2_Star')) else base0
+    slots = []
+    for src in o.data.materials:                                         # a two page part has one per page (_A, _B)
+        img = next(n.image for n in src.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image and
+                   any(l.to_socket.name == 'Base Color' for l in n.outputs[0].links))
+        base = base0 + (src.name.split('.')[0][-2:] if len(o.data.materials) > 1 else '')
+        key = (base, dbl)
+        if key not in done:
+            if not img.name.endswith('_BaseColor'): img.name = base + '_BaseColor'
+            m = lab.mtoon(base + '_MToon', base='#FFFFFF', shade=SHADE.get(base, (0.78, 0.76, 0.88)), tex=img,
+                          double=dbl, toony=TOONY, shift=SHIFT, gi=GI, outline=0.0 if dbl else fm.outline_width_factor,
+                          outline_col='#2A2440', rim='#1A1430', rim_power=4.0, rim_mix=0.6)
+            done[key] = m
+        slots.append(done[key])
+    idx = [p_.material_index for p_ in o.data.polygons]                  # clear() resets them
+    o.data.materials.clear()
+    for m in slots: o.data.materials.append(m)
+    o.data.polygons.foreach_set('material_index', idx)
     for p_ in o.data.polygons: p_.use_smooth = True
 rep['materials'] = sorted(m.name for m in done.values())
 for m in list(bpy.data.materials):
