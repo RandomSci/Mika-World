@@ -57,6 +57,12 @@ static func hit(sim: MeleeSim, o: Dictionary, zone: String, dir: Vector3, power:
 	var d: FightDirector = sim.d
 	var air := float(d.F[o.id].lift) > 0.12
 	var st := strength_of(m, air)
+	if bool(o.get("gather_broken", false)):
+		# her gesture was broken in its gather (GestureDirector): a stagger, never the small flinch
+		o.gather_broken = false
+		if st == "flinch":
+			st = "stagger"
+	o.last_reaction = st
 	var flat := Vector3(dir.x, 0, dir.z).normalized()
 	f.react(dir, "high" if zone == "head" else ("low" if zone == "legs" else "mid"), power * (0.6 if st == "flinch" else 1.0))
 	if f.phys:

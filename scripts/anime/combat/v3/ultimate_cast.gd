@@ -87,5 +87,8 @@ static func perform(sim: MeleeSim, who: String, other: String, ult: String) -> f
 	if sp.get("afterimages", false):
 		for r2 in rels:
 			sim.at(float(r2) - 0.05, func(): d.fx.afterimages((sim.F[who] as MeleeFighter).c, who, 3, 0.04))
-	sim.magic.cast(s, o, ult, sp)
+	if sim.gestures:
+		sim.gestures.request(s, o, ult, sp)         # (an ultimate keeps the source pace and its camera timeline)
+	else:
+		sim.magic.cast(s, o, ult, sp)
 	return L

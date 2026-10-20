@@ -178,8 +178,8 @@ static func run(t) -> void:
 		await t._wait(0.6)
 		var gd := 0.0
 		for n in mika.skeleton.get_children():
-			if n is HandGuard:
-				gd = (n as HandGuard).last_depth
+			if n is BodyGuard:
+				gd = (n as BodyGuard).last_depth
 		print("[boatcloth] chin_%s at frame %d  guard push depth %.3f" % ["left" if side < 0 else "right", Engine.get_frames_drawn(), gd])
 		await t._wait(0.6)
 	pin.active = false
@@ -195,8 +195,8 @@ static func run(t) -> void:
 	t._check(float(contacts.get("min_legs_gap", -9.0)) >= 0.0, "their legs never overlap (closest gap %.3f m)" % float(contacts.get("min_legs_gap", -9.0)))
 	for c in [luna, mika]:
 		for n in c.skeleton.get_children():
-			if n is HandGuard:
-				print("[boatcloth] %s hand guard: %d pushes, last depth %.3f" % [c.character_id, (n as HandGuard).pushes, (n as HandGuard).last_depth])
+			if n is BodyGuard:
+				print("[boatcloth] %s hand guard: %d pushes, last depth %.3f" % [c.character_id, (n as BodyGuard).pushes, (n as BodyGuard).last_depth])
 
 
 static func _count(c: WorldCharacter, poses: Array, boat: MoonBoat, prof: Dictionary, other: WorldCharacter, oposes: Array) -> Dictionary:

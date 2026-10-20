@@ -14,7 +14,7 @@ static func run(t) -> void:
 	bt.root_task = seq
 	var player := BTPlayer.new()
 	player.behavior_tree = bt
-	player.scene_root_hint = host                      # (a player built in code must be told its scene root)
+	player.set_scene_root_hint(host)                   # (a player built in code must be told its scene root; a method in 1.8.1)
 	host.add_child(player)
 	for i in 6:
 		await t.get_tree().process_frame

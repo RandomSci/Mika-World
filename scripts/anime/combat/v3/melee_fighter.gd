@@ -14,6 +14,9 @@ const FINGERS := ["Index", "Middle", "Ring", "Little"]
 ## (PosePipeline.owners) and that a striking hand's contact with the other girl is the strike's (PosePipeline.contact
 ## -1: _land puts the knuckles on her real surface); the guards adapt to that. Test tools that show a raw clip list the guards they hold back themselves (RAW_CLIP_HOLD).
 const RAW_CLIP_HOLD := ["FootGuard", "FootLock", "ClothClearance", "HandGuard", "BodyLanguage"]
+## (test only) the body guard's stages too, for the raw clip as baked (the before pictures)
+const RAW_BODY_GUARD := ["JointLimits", "JointLimitsPost", "TwistSpread", "BodyGuard", "BodyGuardIK_Left", "BodyGuardIK_Right",
+	"BodyGuardPost", "SpeedLimit_Spine", "SpeedLimit_Head", "SpeedLimit_Arms", "SpeedLimit_Legs", "SpeedLimit_Fingers"]
 const STRIKE_CONTACT := 0.02             # m a strike may sink into the other girl's body (Selwyn; _land holds it to that)
 const W := 24.0                          # reaction springs: stiffness (rad/s) and damping ratio
 const Z := 0.42
@@ -162,6 +165,7 @@ func teardown() -> void:
 		pp.owners.feet = ""
 		pp.owners.arms = ""
 		pp.contact = {"Left": 0.0, "Right": 0.0}
+		pp.rig = {"arms": false, "legs": false}
 	queue_free()
 
 
@@ -348,6 +352,8 @@ func update(dt: float) -> void:
 	pp.contact = {"Left": -1.0 if strike_limb == "lh" else 0.0, "Right": -1.0 if strike_limb == "rh" else 0.0}
 	_rig = move_toward(_rig, rig_w, dt / 0.15)
 	_up = move_toward(_up, upper_clip, dt / 0.15)
+	# the rig's own limbs are smooth by construction and fast on purpose: the body's speed limits step back from them
+	pp.rig = {"arms": _rig > 0.5 and _up < 0.5, "legs": _rig > 0.5}
 	_body.influence = _rig
 	_post.influence = _rig
 	for l in _ik:

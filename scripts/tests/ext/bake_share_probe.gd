@@ -87,6 +87,24 @@ static func _held(t, m: WorldCharacter, l: WorldCharacter) -> void:
 		print("[bakeshare] all tracks at %.1fs: worst %.1f (deg, or cm for the hips) on %s; tracks own %d foreign %d" % [tt2, worst2, wb, mine.get_track_count(), foreign.get_track_count()])
 	# Frozen: every other modifier off, the clip written straight onto the bones (rest first), so the frame shown is the
 	# bake and nothing else (the live layers move a held frame by up to 20 cm between two identical holds).
+	# --layers: a tap after every modifier, so the stage that makes two identical holds differ is named
+	var layer_taps := []
+	if RenderProfile.options.has("layers"):
+		var mods := []
+		for c in l.skeleton.get_children():
+			if c is SkeletonModifier3D and c != tap:
+				mods.append(c)
+		for m2 in mods:
+			var lt := HandTap.new()
+			lt.name = "LayerTap_" + String(m2.name)
+			l.skeleton.add_child(lt)
+			l.skeleton.move_child(lt, (m2 as Node).get_index() + 1)
+			layer_taps.append(lt)
+		var order := PackedStringArray()
+		for c in l.skeleton.get_children():
+			if c is SkeletonModifier3D:
+				order.append("%s%s" % [c.name, "" if (c as SkeletonModifier3D).active else " (off)"])
+		print("[bakeshare] layer order %s" % ", ".join(order))
 	var frozen := RenderProfile.options.has("frozen")
 	if frozen:
 		for c in l.skeleton.get_children():
@@ -107,6 +125,9 @@ static func _held(t, m: WorldCharacter, l: WorldCharacter) -> void:
 			await t._wait(0.5)
 			print("[bakeshare] held %s %.1f at frame %d  right hand %s left hand %s (skeleton space, final pose)" % [which, tt, Engine.get_frames_drawn(),
 				str(tap.pos.get("RightHand", Vector3.ZERO).snapped(Vector3.ONE * 0.001)), str(tap.pos.get("LeftHand", Vector3.ZERO).snapped(Vector3.ONE * 0.001))])
+			for lt in layer_taps:
+				print("[bakeshare] layer %s %.1f %s R %s L %s" % [which, tt, String(lt.name).trim_prefix("LayerTap_"),
+					str(lt.pos.get("RightHand", Vector3.ZERO)), str(lt.pos.get("LeftHand", Vector3.ZERO))])
 			await t._wait(0.5)
 			tt += 0.3
 	tap.anim = null

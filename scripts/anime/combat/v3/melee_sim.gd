@@ -120,6 +120,10 @@ func run() -> Dictionary:
 	return result()
 
 
+## The gesture director (LimboAI, one tree per girl): every spell and ultimate gesture goes through it.
+var gestures: GestureDirector
+
+
 func at(dt: float, fn: Callable) -> void:
 	_sched.append([t + dt, fn])
 
@@ -141,6 +145,10 @@ func _process(delta: float) -> void:
 	for ch in _checks:
 		(ch as Callable).call()
 	_checks.clear()
+	if gestures == null and magic and not S.is_empty() and not RenderProfile.options.has("no-gesture-director"):
+		gestures = GestureDirector.make(self)
+	if gestures:
+		gestures.update(dt)
 	for id in S:
 		_track_limbs(id, dt)
 		_tick(S[id], dt)
@@ -341,7 +349,17 @@ func _choose_attack(s: Dictionary, o: Dictionary, dist: float) -> void:
 	s.counter = false
 	var pick := _weighted(names, weights)
 	if pick != "":
+		_act_strike(s, o, pick)
+
+
+## A strike through her action player (one player for every mode: the catalog entry is its timing source, the
+## procedural strike lands it). A move with no catalog entry strikes directly.
+func _act_strike(s: Dictionary, o: Dictionary, pick: String) -> void:
+	var e := String(ActionPlayer.FIGHT_MOVES.get(pick, ""))
+	if e == "" or RenderProfile.options.has("no-action-player"):
 		_attack(s, o, pick)
+		return
+	ActionPlayer.of((F[s.id] as MeleeFighter).c).play(e, {"sim": self, "s": s, "o": o, "move": pick})
 
 
 ## Magic from where she stands (a stand-in until the fight brain, step e): one of her spells that fits the distance
@@ -353,9 +371,11 @@ func _cast_any(s: Dictionary, o: Dictionary, dist: float, close: bool) -> bool:
 		var sp: Dictionary = SpellBook.SPELLS[n]
 		if String(sp.kind) == "barrier" or not magic.can_cast(s, n, dist):
 			continue
+		if gestures and not gestures.hand_free(s, String(sp.clip)):
+			continue                            # (her free hand casts while the other holds a weapon)
 		if close != (String(sp.kind) == "weapon" and not sp.get("throw", false)):
 			continue
-		var w := 1.0
+		var w := gestures.taste(String(s.id), String(sp.clip)) if gestures else 1.0
 		var rec: Array = s.recent
 		if n in rec.slice(maxi(rec.size() - 4, 0)):
 			w *= 0.1
@@ -364,7 +384,20 @@ func _cast_any(s: Dictionary, o: Dictionary, dist: float, close: bool) -> bool:
 	var pick := _weighted(names, ws)
 	if pick == "":
 		return false
-	magic.cast(s, o, pick)
+	if gestures:
+		if gestures.busy(String(s.id)):
+			return false
+		var clip_id := String(SpellBook.SPELLS[pick].clip)
+		if RenderProfile.options.has("no-action-player"):
+			if not gestures.request(s, o, pick):
+				return false
+		else:
+			# through her action player: a blocked gesture clip is refused (its body scan failed), another is picked
+			if not ActionPlayer.entry(clip_id).is_empty() and not ActionPlayer.allowed(clip_id):
+				return false
+			ActionPlayer.of((F[s.id] as MeleeFighter).c).play(clip_id, {"sim": self, "s": s, "o": o, "spell": pick, "force": ActionPlayer.entry(clip_id).is_empty()})
+	else:
+		magic.cast(s, o, pick)
 	var g := GestureBook.of(String(SpellBook.SPELLS[pick].clip))
 	s.next_at = t + GestureBook.length(g) + rng.randf_range(0.2, 0.6)
 	for x in S.values():

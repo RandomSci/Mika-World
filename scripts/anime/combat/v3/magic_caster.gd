@@ -49,11 +49,13 @@ func performing(id: String) -> bool:
 # ------------------------------------------------------------------------------------------------ the body
 ## Her body takes the gesture clip: the clip plays from g.from at g.speed, the rig steps out (body) or keeps only her
 ## legs (upper), she turns by -aim so the releasing hand points at the target. Returns its length in fight seconds.
-func _perform(s: Dictionary, g: Dictionary, clip: String) -> float:
+## opts (the gesture director): speed (her pace, 0.85 to 1.15), use ("upper" while she walks), fade (blend in).
+func _perform(s: Dictionary, g: Dictionary, clip: String, opts := {}) -> float:
 	var f: MeleeFighter = sim.F[s.id]
-	var L := GestureBook.length(g)
-	sim.d.anim(s.id, "ml_" + clip, float(g.from), float(g.to), float(g.speed), 0.12)
-	if String(g.use) == "body":
+	var spd := float(opts.get("speed", g.speed))
+	var L := GestureBook.length(g) * float(g.speed) / spd
+	sim.d.anim(s.id, "ml_" + clip, float(g.from), float(g.to), spd, float(opts.get("fade", 0.12)))
+	if String(opts.get("use", g.use)) == "body":
 		f.rig_w = 0.0
 		f.upper_clip = 0.0
 	else:
@@ -73,6 +75,7 @@ func _release_body(id: String) -> void:
 	f.upper_clip = 0.0
 	sim.d.F[id].yaw_extra = 0.0
 	sim.d.stance(id, 0.2)
+	sim.S[id].weapon_hand = ""
 	_perf.erase(id)
 
 
@@ -81,6 +84,10 @@ func abort(id: String) -> void:
 	if not _perf.has(id):
 		return
 	var p: Dictionary = _perf[id]
+	# a blow in her gather breaks it hard: the reaction is a stagger, never the small flinch (HitReactions)
+	var atk0: Dictionary = p.get("atk", {})
+	if not atk0.is_empty() and String(atk0.get("phase", "")) == "gather":
+		sim.S[id].gather_broken = true
 	if p.has("charge") and not (p.charge as Dictionary).is_empty():
 		svfx.cancel(p.charge)
 	if p.get("motes"):
@@ -123,7 +130,9 @@ func _src(f: MeleeFighter, hand: String, tip := "") -> Callable:
 ## Start a spell (or a conjured weapon) at the opponent. Returns the attack dict (also s.atk).
 ## `over` (an ultimate) replaces the SpellBook entry: the same body, gather and release, bigger shapes; its "kinds"
 ## gives one shape per release frame of the clip (a combo of shapes), "pre" the shape of every release but the last.
-func cast(s: Dictionary, o: Dictionary, name: String, over := {}) -> Dictionary:
+## `opts` (from the GestureDirector): her pace, upper body only, the blend in (see _perform); the gesture's times scale
+## with her pace.
+func cast(s: Dictionary, o: Dictionary, name: String, over := {}, opts := {}) -> Dictionary:
 	var sp: Dictionary = over if not over.is_empty() else SpellBook.SPELLS[name]
 	var clip := String(sp.clip)
 	var g := GestureBook.of(clip)
@@ -135,12 +144,13 @@ func cast(s: Dictionary, o: Dictionary, name: String, over := {}) -> Dictionary:
 	s.energy = float(s.get("energy", 100.0)) - float(sp.get("energy", 0.0))
 	if _perf.has(s.id):
 		abort(s.id)
+	var k := float(g.speed) / float(opts.get("speed", g.speed))
 	var rels: Array = []
 	for r in g.release:
-		rels.append(GestureBook.at(g, float(r)))
-	var t_g0 := GestureBook.at(g, float(g.gather[0]))
+		rels.append(GestureBook.at(g, float(r)) * k)
+	var t_g0 := GestureBook.at(g, float(g.gather[0])) * k
 	var t_rel: float = rels[0]
-	var L := _perform(s, g, clip)
+	var L := _perform(s, g, clip, opts)
 	var who := String(s.id)
 	var big := String(sp.kind) in ["beam", "meteor", "sky", "domain", "eclipse", "pillars", "seal", "rows", "orb"]
 	var hand := String(g.hand)
@@ -197,11 +207,12 @@ func cast(s: Dictionary, o: Dictionary, name: String, over := {}) -> Dictionary:
 		if sp.get("sigil_drawn", false):
 			_drawn_sigil(f, who, g, src)
 		if String(sp.kind) == "array":
-			var ta := GestureBook.at(g, float(g.extra.array)) - t_g0
+			var ta := GestureBook.at(g, float(g.extra.array)) * k - t_g0
 			sim.at(maxf(ta, 0.0), func():
 				if alive.call():
 					_array_open(s, o, src))
 		if String(sp.kind) == "weapon":
+			s.weapon_hand = hand
 			_perf[who].weapon = _conjure(s, sp, hand)
 			atk.weapon = _perf[who].weapon)
 	# --- the release(s), at the clip's frames

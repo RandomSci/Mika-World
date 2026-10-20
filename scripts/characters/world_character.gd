@@ -287,7 +287,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	skeleton.add_child(foot_lock)
 	foot_lock.enabled = not RenderProfile.options.has("no-foot-lock")
 	dress_sim = DressSim.attach(self, dress_mode) if (dress_chains > 0 or dress_mode == "guard") else null     # after the pose corrections
-	HandGuard.attach(skeleton)                     # hands never inside a face or a body (self and the other girl)
+	BodyGuard.attach(skeleton)                     # forearms, hands, fingers never inside a body (self and the other girl)
 	if not RenderProfile.options.has("no-seam-guard"):
 		SeamGuard.attach(self)                     # skirt and hair sheets never split between neighbouring chains
 	if not RenderProfile.options.has("no-hair-guard"):

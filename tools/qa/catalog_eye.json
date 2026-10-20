@@ -1,0 +1,1062 @@
+{
+ "_about": "Eye corrections of the action catalog's times, read off the source videos at 10 fps (catalog_strips sheets in Mika-Project review Catalog_verify_20261020). Fields here override the mocap fill; eye is pass when the entry's behaviour, limb and times match what the actor does.",
+ "dash_palm_strike": {
+  "release_s": [
+   1.3
+  ],
+  "contact_s": 1.45,
+  "eye": "pass",
+  "note": "a dash step 0.6 to 0.9 (the mocap's speed peak), the palm goes out at 1.3 and holds to 1.8"
+ },
+ "front_kick": {
+  "eye": "pass",
+  "note": "chamber and extension 1.1, highest at 1.3"
+ },
+ "three_hit_combo": {
+  "release_s": [
+   0.75,
+   1.05,
+   1.8
+  ],
+  "contact_s": 1.85,
+  "eye": "pass",
+  "note": "jab 0.75, cross 1.05, hook 1.8"
+ },
+ "combo_jab_cross_hook": {
+  "release_s": [
+   0.6,
+   1.0,
+   1.55
+  ],
+  "contact_s": 1.6,
+  "eye": "pass",
+  "note": "jab 0.6, cross 1.0, hook 1.55"
+ },
+ "combo_palm_flurry": {
+  "release_s": [
+   0.6,
+   0.9,
+   1.2,
+   1.5,
+   2.4
+  ],
+  "contact_s": 2.5,
+  "eye": "pass",
+  "note": "alternating palm taps 0.5 to 1.6, the last palm out at 2.4 and held to 3.4"
+ },
+ "double_palm_push": {
+  "eye": "pass",
+  "note": "both palms out 1.2 to 1.4, held to 2.0"
+ },
+ "combo_elbow_knee": {
+  "release_s": [
+   0.65,
+   1.85
+  ],
+  "contact_s": 1.9,
+  "eye": "pass",
+  "note": "elbow strike out at 0.65, a jumping knee 1.7 to 2.1 (peak 1.9)"
+ },
+ "crescent_kick": {
+  "eye": "pass",
+  "note": "the arc 1.2 to 1.7, the leg at its highest 1.5"
+ },
+ "spin_back_kick": {
+  "eye": "pass",
+  "note": "the spin 0.8 to 1.2, the kick out 1.4 to 1.6, highest 1.5"
+ },
+ "low_sweep": {
+  "eye": "pass",
+  "note": "drops to a crouch at 0.8, the leg sweeps 1.1 to 1.8, out furthest at 1.7"
+ },
+ "uppercut_launcher": {
+  "contact_s": 1.15,
+  "eye": "pass",
+  "note": "the uppercut rises 0.8 to 1.2, the arm held high 1.2 to 1.8"
+ },
+ "finisher_combo": {
+  "release_s": [
+   0.8,
+   1.2,
+   2.3,
+   3.1
+  ],
+  "contact_s": 2.35,
+  "lead_limb": "rf",
+  "eye": "pass",
+  "note": "punches 0.7 to 1.4, a side kick 2.2 to 2.4 (the finishing hit), a last punch 3.0 to 3.3"
+ },
+ "jump_spin_kick": {
+  "eye": "pass",
+  "note": "the spin 0.6 to 1.2, a jumping kick 1.3 to 1.6, highest 1.5"
+ },
+ "overhead_slam": {
+  "release_s": [
+   1.45
+  ],
+  "contact_s": 1.6,
+  "eye": "pass",
+  "note": "arms up 0.8 to 1.0 (the mocap's peak), a jump 1.2 to 1.4, the slam lands 1.5 to 1.6"
+ },
+ "combo_kick_punch_spin": {
+  "release_s": [
+   0.6,
+   2.05
+  ],
+  "contact_s": 2.1,
+  "eye": "pass",
+  "note": "a low front kick 0.5 to 0.7, guard and steps, a spinning back kick 2.0 to 2.2"
+ },
+ "combo_launcher_air": {
+  "release_s": [
+   0.8,
+   1.95
+  ],
+  "contact_s": 1.95,
+  "lead_limb": "rf",
+  "eye": "pass",
+  "note": "punches 0.5 to 1.1 (an uppercut at 0.8), a jump 1.7 to 2.1 with a knee at 1.95, lands into a crouch"
+ },
+ "combo_sweep_axe": {
+  "release_s": [
+   1.5,
+   2.6
+  ],
+  "contact_s": 2.65,
+  "eye": "pass",
+  "note": "a low sweep 1.3 to 1.6 (leg out 1.5), up at 2.0, an axe kick raised 2.3 to 2.5 and brought down 2.6 to 2.7"
+ },
+ "axe_kick": {
+  "release_s": [
+   1.45
+  ],
+  "contact_s": 1.55,
+  "eye": "pass",
+  "note": "the leg rises 1.0 to 1.4, the axe comes down 1.5 to 1.6"
+ },
+ "hook_kick": {
+  "release_s": [
+   0.95,
+   1.85
+  ],
+  "contact_s": 1.9,
+  "lead_limb": "rf",
+  "eye": "pass",
+  "note": "a side kick 0.8 to 1.1, then the turning hook kick 1.7 to 2.0 (the mocap picked a hand)"
+ },
+ "jump_knee": {
+  "release_s": [
+   1.4
+  ],
+  "contact_s": 1.5,
+  "lead_limb": "rf",
+  "eye": "pass",
+  "note": "a knee at 1.0 to 1.1, the jumping knee and kick 1.3 to 1.6, highest 1.5 (the mocap picked a hand)"
+ },
+ "cast_one_hand": {
+  "gather_s": [
+   0.4,
+   0.85
+  ],
+  "release_s": [
+   0.95
+  ],
+  "eye": "pass",
+  "note": "the hand drawn to her chest 0.4 to 0.85, the palm thrust out at 0.95 and held to 2.0"
+ },
+ "cast_two_hand_blast": {
+  "gather_s": [
+   0.8,
+   1.2
+  ],
+  "release_s": [
+   1.4
+  ],
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "both hands gathered at her waist 0.8 to 1.2, both palms pushed out at 1.4, held to 2.4"
+ },
+ "charge_up": {
+  "gather_s": [
+   0.4,
+   2.2
+  ],
+  "release_s": [
+   2.6
+  ],
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "a low stance with fists charging 0.4 to 2.2, the arms flung wide 2.4 to 2.8 (the burst)"
+ },
+ "beam_channel": {
+  "gather_s": [
+   0.0,
+   0.4
+  ],
+  "release_s": [
+   0.5
+  ],
+  "hold_s": [
+   0.6,
+   2.9
+  ],
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "both palms forward from 0.3, held the whole clip (the channel loops 0.6 to 2.9)"
+ },
+ "sign_weave_fast": {
+  "eye": "pass",
+  "note": "hand signs at her chest 0.6 to 2.3, the palm out at 2.6 (GestureBook)"
+ },
+ "domain_expand": {
+  "eye": "pass",
+  "note": "prayer hands 0.3 to 2.2, arms raised 2.5 to 3.1, spread wide from 3.6 (GestureBook)"
+ },
+ "array_ground_summon": {
+  "eye": "pass",
+  "note": "kneels, palm on the ground 1.0 to 2.3, rises with the arm up at 2.6 (GestureBook)"
+ },
+ "array_air_draw": {
+  "eye": "pass",
+  "note": "draws a circle in the air 0.7 to 2.3, pushes it out at 2.55; the source shows a drawn circle overlay (GestureBook)"
+ },
+ "sky_call_point": {
+  "eye": "pass",
+  "note": "the finger raised to the sky 0.8 to 2.4, points at the target at 2.85 (GestureBook)"
+ },
+ "orb_gather": {
+  "eye": "pass",
+  "note": "an orb turned between the palms 0.4 to 2.6, pushed out at 3.1 (GestureBook)"
+ },
+ "spear_conjure_throw": {
+  "eye": "pass",
+  "note": "the hand raised 0.7 to 1.6, drawn back behind her head 1.7 to 2.2, thrown at 2.5 (GestureBook)"
+ },
+ "barrier_raise": {
+  "eye": "pass",
+  "note": "hands gathered 0.5 to 0.7, palms out at 0.75, arms spread wide to 2.1 (GestureBook)"
+ },
+ "arm_sweep_wave": {
+  "eye": "pass",
+  "note": "the arm swept in 0.7 to 1.0, the open palm lunges at 1.15 (GestureBook)"
+ },
+ "finger_snap_point": {
+  "eye": "pass",
+  "note": "the finger raised and snapped 0.6 to 1.2, points at 1.8 (GestureBook)"
+ },
+ "pillar_raise": {
+  "eye": "pass",
+  "note": "crouched with palms to the ground 0.0 to 0.9, rises, both arms high at 1.9 (GestureBook)"
+ },
+ "stomp_cast": {
+  "eye": "pass",
+  "note": "fists out, the knee drawn up 1.2 to 1.4, the stomp lands at 1.55 (GestureBook)"
+ },
+ "vortex_spin_cast": {
+  "eye": "pass",
+  "note": "a full spin with the arms out 0.9 to 1.5, both palms forward at 1.65 (GestureBook)"
+ },
+ "iaido_draw_slash": {
+  "eye": "pass",
+  "note": "hand on the hilt at her left hip 0.8 to 1.25, the draw cut at 1.45, arm out to her side to 2.4; the source shows a blade (GestureBook)"
+ },
+ "sword_combo_invisible": {
+  "eye": "pass",
+  "note": "five cuts at 0.9, 1.3, 1.9, 2.5 and 2.95; the source shows a sword overlay (GestureBook)"
+ },
+ "bow_draw_release": {
+  "eye": "pass",
+  "note": "the bow arm out from 0.8, the string drawn and held 1.6 to 3.6, loosed at 3.8 (GestureBook)"
+ },
+ "meteor_call": {
+  "eye": "pass",
+  "note": "both arms raised to the sky 0.8 to 2.1, brought down 2.3 to 2.5, release 2.55 (GestureBook)"
+ },
+ "seal_finish": {
+  "eye": "pass",
+  "note": "prayer hands 0.6 to 1.7, the seal finished at 2.0 (GestureBook)"
+ },
+ "ultimate_charge": {
+  "gather_s": [
+   0.0,
+   2.6
+  ],
+  "release_s": [
+   3.0
+  ],
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "a wide stance, arms crossed charging 0.0 to 2.6, the arms open wide 2.8 to 3.9 and held"
+ },
+ "ultimate_release": {
+  "gather_s": [
+   0.8,
+   1.2
+  ],
+  "release_s": [
+   1.4
+  ],
+  "hold_s": [
+   1.5,
+   3.7
+  ],
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "hands drawn to her hip 1.0 to 1.2, both palms push out at 1.4 and hold the beam to 3.7"
+ },
+ "ultimate_rising_strike": {
+  "gather_s": [
+   0.3,
+   1.4
+  ],
+  "release_s": [
+   1.7,
+   3.3
+  ],
+  "contact_s": 3.3,
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "a low crouch charging 0.3 to 1.4, a rising jump 1.6 to 2.4, lands and strikes the ground 2.9 to 3.4"
+ },
+ "ult_starfall_conductor": {
+  "eye": "pass",
+  "note": "arms raised conducting 0.4 to 2.4, a turn 2.5 to 3.3, lands crouched with hands out at 3.55 (GestureBook)"
+ },
+ "ult_moon_crescent_cleave": {
+  "eye": "pass",
+  "note": "the arm raised high 0.9 to 2.1, swept down into a lunge 2.3 to 2.8, release 2.75 (GestureBook)"
+ },
+ "ult_frozen_spike_field": {
+  "eye": "pass",
+  "note": "palms to the ground 0.5 to 2.8, rises with the arms flung out at 3.4 (GestureBook)"
+ },
+ "ult_twin_hand_sigil": {
+  "eye": "pass",
+  "note": "interlocked sign at her chest 0.8 to 3.2, both arms pushed out at 3.9 (GestureBook)"
+ },
+ "ult_spiral_ascension": {
+  "eye": "pass",
+  "note": "spins with arms rising 0.4 to 3.3, one arm high to the sky at 3.5 (GestureBook)"
+ },
+ "ult_heaven_spear": {
+  "eye": "pass",
+  "note": "the arm raised 0.6 to 1.3, a spear held overhead 1.4 to 3.0, drawn back and thrown at 3.85; the source shows a spear prop (GestureBook)"
+ },
+ "ult_blooming_domain": {
+  "eye": "pass",
+  "note": "kneeling prayer 0.0 to 1.0, the hands opened like petals 1.1 to 2.5, arms wide at 3.7 (GestureBook)"
+ },
+ "ult_thousand_palms": {
+  "eye": "pass",
+  "note": "a palm flurry, strikes at 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, a wind up 2.6 to 3.6, the last palm at 3.9 (GestureBook)"
+ },
+ "ult_eclipse_ring": {
+  "eye": "pass",
+  "note": "arms circling overhead 0.5 to 3.4, both arms out at 3.7 (GestureBook)"
+ },
+ "ult_comet_dive_kick": {
+  "eye": "pass",
+  "note": "a run up 1.0 to 1.6, a jumping kick 2.0 to 2.6 (2.4), dives into a crouch with a hand on the ground at 3.45 (GestureBook)"
+ },
+ "ult_mirror_afterimage": {
+  "eye": "pass",
+  "note": "a lunge 0.5, a kick 1.55, a palm 2.45, a spin 3.3 (GestureBook)"
+ },
+ "ult_gravity_press": {
+  "eye": "pass",
+  "note": "the hand raised high 0.4 to 2.0, pressed down into a crouch at 2.6 and held (GestureBook)"
+ },
+ "ult_lunar_waltz": {
+  "eye": "pass",
+  "note": "waltz turns with the arms out 0.5 to 3.2, arms flung at 3.6; the source camera moves in from 3.3 (the mocap scale may jump there, watch the bake)"
+ },
+ "ult_sky_rending_slash": {
+  "eye": "pass",
+  "note": "a sword raised overhead in both hands 0.5 to 2.2, cut down into a kneel at 2.6; the source shows a sword overlay (GestureBook)"
+ },
+ "ult_crossed_arms_burst": {
+  "eye": "pass",
+  "note": "arms crossed tight 0.5 to 2.5, flung open wide at 2.75 (GestureBook)"
+ },
+ "ult_final_seal_bow": {
+  "eye": "pass",
+  "note": "signs at her chest 0.5 to 2.2, the seal pushed out at 2.4, a bow with prayer hands after (GestureBook)"
+ },
+ "ult_storm_rider_flip": {
+  "eye": "pass",
+  "note": "a run 1.0 to 1.6, a jump and flip 2.2 to 3.0, lands in a wide lunge with arms out at 3.5 (GestureBook)"
+ },
+ "ult_star_archer": {
+  "eye": "pass",
+  "note": "the bow raised 0.3 to 1.4, drawn 1.5 to 3.7, loosed at 3.95; the source holds a real bow (GestureBook)"
+ },
+ "ult_duo_back_to_back_left": {
+  "eye": "pass",
+  "two_actors": true,
+  "note": "two actors back to back, arms out to the side 2.3 to 3.1 and held; her arm tracking overlaps the other actor (arms not trusted, known)"
+ },
+ "ult_duo_hand_join_push": {
+  "eye": "pass",
+  "note": "one actor: the hand reached out to a partner 1.3 to 2.6, steps into a lunge with both palms pushed at 3.4 and held (GestureBook)"
+ },
+ "footwork_shuffle_advance": {
+  "eye": "pass",
+  "note": "guard up, small shuffle steps forward the whole clip"
+ },
+ "footwork_strafe_left": {
+  "eye": "pass",
+  "note": "guard up, side steps the whole clip"
+ },
+ "footwork_strafe_right": {
+  "eye": "pass",
+  "note": "guard up, side steps the whole clip"
+ },
+ "footwork_switch_stance": {
+  "eye": "pass",
+  "note": "guard up, a hop switching the lead foot 0.6 to 1.0"
+ },
+ "footwork_retreat": {
+  "eye": "pass",
+  "note": "guard up, steps back away from the lens 1.0 to 1.9, settles"
+ },
+ "lunge_dash_in": {
+  "eye": "pass",
+  "note": "a wide low lunge 0.8 to 1.9, recovers to guard at 2.0"
+ },
+ "slide_low_dash": {
+  "behaviour": "move_acrobatic",
+  "contact_s": 1.4,
+  "eye": "pass",
+  "note": "a dash into a slide on the floor 1.1 to 1.6 (hip and hands on the ground), up through a kneel 1.7 to 2.2; behaviour corrected to move_acrobatic (floor contact)"
+ },
+ "cartwheel_evade": {
+  "contact_s": 1.2,
+  "eye": "pass",
+  "note": "a cartwheel 0.9 to 1.8, hands on the floor 1.0 to 1.5 (legs unreliable in the mocap, known: upper body only)"
+ },
+ "backflip_evade": {
+  "contact_s": 1.65,
+  "eye": "pass",
+  "note": "a jump at 1.0, the flip 1.1 to 1.5, lands crouched with hands down 1.6 to 1.9"
+ },
+ "aerial_flip_kick": {
+  "behaviour": "strike_aerial",
+  "release_s": [
+   1.45
+  ],
+  "contact_s": 1.6,
+  "lead_limb": "rf",
+  "eye": "pass",
+  "note": "not a flip: a jumping high kick, the leg up 1.4 to 1.9 (highest 1.6); behaviour corrected to strike_aerial"
+ },
+ "dodge_left": {
+  "eye": "pass",
+  "note": "a slip and lean to the side 0.9 to 1.5, back to guard 1.7"
+ },
+ "dodge_right": {
+  "eye": "pass",
+  "note": "a lean and side step 1.2 to 1.6, back to guard 2.0"
+ },
+ "backstep_evade": {
+  "eye": "pass",
+  "note": "small back steps in guard 1.0 to 1.5 (a subtle clip)"
+ },
+ "roll_dodge": {
+  "floor_contact": true,
+  "contact_s": 1.0,
+  "eye": "pass",
+  "note": "a roll across the floor 0.8 to 1.7 (back and shoulders on the ground), up to guard by 2.1; needs floor contact on her body capsules"
+ },
+ "duck_under": {
+  "eye": "pass",
+  "note": "guard, ducks low 1.5 to 1.8, up at 2.0"
+ },
+ "lean_back_dodge": {
+  "contact_s": 1.4,
+  "eye": "pass",
+  "note": "leans far back 0.9 to 1.8 (deepest 1.2 to 1.6), back to guard 2.1"
+ },
+ "block_high": {
+  "contact_s": 1.8,
+  "eye": "pass",
+  "note": "guard, the forearm raised over her head to block 1.7 to 1.9"
+ },
+ "parry_counter": {
+  "contact_s": 0.85,
+  "release_s": [
+   1.6
+  ],
+  "eye": "pass",
+  "note": "a parry sweep 0.8 to 0.9, the counter palm out 1.5 to 1.7"
+ },
+ "block_low": {
+  "contact_s": 1.4,
+  "lead_limb": "rf",
+  "eye": "pass",
+  "note": "a knee raised to check a low kick 1.2 to 1.6 (a shin block)"
+ },
+ "block_side_left": {
+  "contact_s": 1.2,
+  "eye": "pass",
+  "note": "a jab 0.9 to 1.0, then the forearm turned to block at the side 1.1 to 1.3"
+ },
+ "block_side_right": {
+  "contact_s": 1.3,
+  "eye": "pass",
+  "note": "a jab 0.8 to 0.9, then the arm raised to block at the side 1.2 to 1.7"
+ },
+ "hit_light": {
+  "contact_s": 1.3,
+  "eye": "pass",
+  "note": "guard, a flinch with the head back and shoulders hunched 1.3 to 1.6"
+ },
+ "hit_heavy_stagger": {
+  "contact_s": 1.0,
+  "eye": "pass",
+  "note": "guard, knocked back at 1.0, staggers and steps 1.0 to 1.6, recovers"
+ },
+ "hit_from_left": {
+  "start_s": 1.2,
+  "contact_s": 1.5,
+  "eye": "pass",
+  "note": "she throws a punch first 0.8 to 0.9 (not part of the reaction: start moved to 1.2), the hit turns her 1.4 to 1.8"
+ },
+ "hit_from_right": {
+  "start_s": 1.0,
+  "contact_s": 1.1,
+  "eye": "pass",
+  "note": "a punch 0.7 to 1.0 first (start moved to 1.0), the hit rocks her 1.1 to 1.3"
+ },
+ "guard_break_stagger": {
+  "start_s": 0.95,
+  "contact_s": 1.0,
+  "eye": "pass",
+  "note": "a punch 0.7 to 0.9 first (start moved to 0.95), the guard broken and a small stagger 1.0 to 1.3"
+ },
+ "launched_land": {
+  "contact_s": 1.7,
+  "eye": "pass",
+  "note": "a jump at 1.0, a back flip 1.2 to 1.6, lands crouched with hands on the floor 1.7 to 2.6, up by 2.9 (legs unreliable, known)"
+ },
+ "knockdown_getup": {
+  "contact_s": 1.5,
+  "floor_contact": true,
+  "eye": "pass",
+  "note": "knocked back 1.0 to 1.4, down on the floor 1.5 to 2.4, gets up 2.5 to 3.3"
+ },
+ "cover_step_in": {
+  "eye": "pass",
+  "note": "steps in and holds an arm out to shield her partner 1.1 to 1.9"
+ },
+ "call_partner_signal": {
+  "eye": "pass",
+  "note": "in guard, a hand signal raised to her partner 1.8 to 2.1"
+ },
+ "boost_hands_cupped": {
+  "eye": "pass",
+  "note": "crouches with cupped hands 0.7 to 2.5 (the partner's foot), lifts and throws her up 2.6 to 2.9"
+ },
+ "fight_idle": {
+  "loop_s": [
+   0.0,
+   3.0
+  ],
+  "eye": "pass",
+  "note": "a guard bounce the whole clip (loops)"
+ },
+ "taunt_beckon": {
+  "contact_s": null,
+  "release_s": [
+   1.5
+  ],
+  "eye": "pass",
+  "note": "guard, then a come here beckon with the hand 1.2 to 2.2"
+ },
+ "victory_pose": {
+  "contact_s": null,
+  "release_s": [
+   1.8
+  ],
+  "eye": "pass",
+  "note": "steps up from a crouch, a fist pump high 1.6 to 2.2, a hand on her hip 2.4 to 2.6"
+ },
+ "bow_greeting": {
+  "contact_s": null,
+  "release_s": [
+   1.3,
+   2.4
+  ],
+  "eye": "pass",
+  "note": "prayer hands and a bow 0.5 to 1.9, then a wave 2.0 to 2.9"
+ },
+ "rowing_seated": {
+  "loop_s": [
+   0.0,
+   4.0
+  ],
+  "eye": "pass",
+  "note": "seated, rowing with an oar the whole clip (loops); the source holds a real oar"
+ },
+ "release_lantern": {
+  "release_s": [
+   1.3
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "a sky lantern raised 0.6 to 1.2, let go at 1.3, she watches it rise; the source holds a real lantern"
+ },
+ "stargaze_point": {
+  "release_s": [
+   1.0
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "looks up and points at the sky 0.7 to 1.5"
+ },
+ "sit_lean_back_gaze": {
+  "loop_s": [
+   0.5,
+   3.0
+  ],
+  "contact_s": 0.0,
+  "eye": "pass",
+  "note": "sitting on the floor leaning back on her hands, gazing up (hands and seat on the ground the whole clip, loops)"
+ },
+ "dance_arm_wave_flow": {
+  "eye": "pass",
+  "note": "arms rolling in a wave the whole clip"
+ },
+ "dance_wrist_sway": {
+  "eye": "pass",
+  "note": "a raised arm with wrist sways, a turn of the torso at 3.0, the whole clip"
+ },
+ "dance_turn_open": {
+  "eye": "pass",
+  "note": "steps and a slow turn 1.5 to 3.6 opening into wide arms at 4.0; the source camera moves in from 3.3 (watch the mocap scale)"
+ },
+ "dance_reach_moon": {
+  "eye": "pass",
+  "note": "steps, the arm sweeps up and reaches high 2.0 to 3.0, comes back to her chest"
+ },
+ "dance_cup_light": {
+  "prop": "light_orb",
+  "eye": "pass",
+  "note": "dance steps, the hands cupped round a glowing light 2.3 to 3.9 (the source has a light effect: needs our light in her hands)"
+ },
+ "dance_lantern_lift": {
+  "prop": "lantern",
+  "eye": "pass",
+  "note": "a paper lantern held in both hands, lifted overhead 3.4 to 4.4 (needs the lantern prop and grips)"
+ },
+ "dance_lantern_spin": {
+  "prop": "lantern",
+  "eye": "pass",
+  "note": "a lantern held out in one hand while she turns the whole clip (needs the lantern prop and a grip)"
+ },
+ "dance_kneel_bloom": {
+  "floor_contact": true,
+  "eye": "pass",
+  "note": "sinks to a kneel 1.6 to 2.5, curls in, rises opening her arms 3.3 to 3.9 (knee on the floor)"
+ },
+ "dance_soft_pirouette": {
+  "eye": "pass",
+  "note": "arm sweeps and steps, a pirouette 2.3 to 3.0 ending with the arms raised; the source camera starts close and pulls back to 1.0 (watch the mocap scale early in the clip)"
+ },
+ "dance_side_step_trail": {
+  "eye": "pass",
+  "note": "side steps with trailing arms the whole clip"
+ },
+ "dance_fan_sweep": {
+  "eye": "pass",
+  "note": "a palm raised and swept out like a fan 0.6 to 1.8, again 2.6 to 3.3"
+ },
+ "dance_mirror_left": {
+  "contact_s": 1.2,
+  "eye": "pass",
+  "note": "a palm raised as if meeting her partner's 0.9 to 2.0 (the mirror), then sways it out"
+ },
+ "dance_twirl_hand_held": {
+  "contact_s": 0.7,
+  "hold_s": [
+   0.7,
+   3.9
+  ],
+  "eye": "pass",
+  "note": "the hand raised overhead as if held by her partner 0.6 to 3.9, twirls under it 2.3 to 3.0 and 3.1 to 3.6"
+ },
+ "dance_back_to_back": {
+  "eye": "pass",
+  "note": "sways (back to her partner), the arm sweeps out 2.3 to 3.0, a palm raised 3.0 to 3.9"
+ },
+ "dance_sway_step": {
+  "eye": "pass",
+  "note": "a sway step the whole clip"
+ },
+ "dance_spiral_down": {
+  "eye": "pass",
+  "note": "spirals down into a low crouch 1.5 to 2.6, rises with the arms opening 2.8 to 3.4"
+ },
+ "dance_climax_pose": {
+  "eye": "pass",
+  "note": "steps, a leap 1.5 to 2.1, lands and rises into a pose with the arm high 3.2 to 3.6"
+ },
+ "dance_end_bow": {
+  "eye": "pass",
+  "note": "flowing arm sweeps 0.0 to 2.2, closes with prayer hands and a bow 2.4 to 3.7"
+ },
+ "dance_hair_toss_turn": {
+  "camera_move": true,
+  "eye": "pass",
+  "note": "steps and a turn with a hair toss 2.6 to 3.2; the source camera zooms in strongly from 1.3 (the mocap scale is suspect: judged by the body scan)"
+ },
+ "dance_skip_circle": {
+  "eye": "pass",
+  "note": "skips round in a circle the whole clip"
+ },
+ "stroll_look_around": {
+  "eye": "pass",
+  "note": "walks toward the lens looking around the whole clip"
+ },
+ "smell_flower": {
+  "eye": "pass",
+  "note": "crouches, a flower brought to her nose 0.8 to 2.8 (contact 1.4), rises 3.0"
+ },
+ "pick_flower_tuck_hair": {
+  "contact_s": 1.4,
+  "contact2_s": 2.8,
+  "eye": "pass",
+  "note": "bends to pick a flower, the hand at the ground 1.2 to 1.6, rises and tucks it behind her ear 2.3 to 3.3"
+ },
+ "touch_tree_bark": {
+  "contact_s": 2.2,
+  "hold_s": [
+   2.2,
+   3.1
+  ],
+  "eye": "pass",
+  "note": "walks up, the palm reaches out and rests flat on a vertical surface from 2.2 to 3.1 (the mocap's 3.1 was the end of the hold)"
+ },
+ "lean_rail_view": {
+  "contact_s": 0.0,
+  "loop_s": [
+   0.0,
+   5.0
+  ],
+  "eye": "pass",
+  "note": "leans forward with her forearms on a rail, chin on her hands, the whole clip (needs a rail at chest height)"
+ },
+ "stretch_arms_sky": {
+  "contact_s": null,
+  "release_s": [
+   1.5
+  ],
+  "eye": "pass",
+  "note": "a stretch with both arms up 0.7 to 2.6, out to the sides 2.8 to 3.2, down"
+ },
+ "sit_dangle_feet": {
+  "contact_s": 0.0,
+  "loop_s": [
+   0.2,
+   5.0
+  ],
+  "eye": "pass",
+  "note": "sitting on a ledge swinging her feet the whole clip (needs a seat at knee height)"
+ },
+ "lie_down_grass": {
+  "contact_s": 2.0,
+  "loop_s": [
+   2.4,
+   3.0
+  ],
+  "floor_contact": true,
+  "eye": "pass",
+  "note": "from sitting, lies back 0.8 to 2.0, hands behind her head 2.3 to 3.0"
+ },
+ "catch_falling_petal": {
+  "contact_s": 1.45,
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "watches something fall 1.1 to 1.3 (an object in the source), catches it in cupped hands at 1.45 and looks at it"
+ },
+ "dip_hand_water": {
+  "contact_s": 0.8,
+  "hold_s": [
+   0.8,
+   2.7
+  ],
+  "eye": "pass",
+  "note": "kneeling, the hand dips and trails in water 0.8 to 2.7, lifts and flicks the drops 2.9 to 3.9"
+ },
+ "photo_frame_hands": {
+  "contact_s": null,
+  "release_s": [
+   1.2
+  ],
+  "hand_contact": true,
+  "eye": "pass",
+  "note": "both hands make a photo frame 1.0 to 2.4 (fingertips meet: a tagged hand to hand contact)"
+ },
+ "wave_hello_far": {
+  "contact_s": null,
+  "release_s": [
+   1.6
+  ],
+  "eye": "pass",
+  "note": "a big wave overhead 1.3 to 2.2, then both hands waving 2.6 to 3.9"
+ },
+ "cast_grow_plants": {
+  "gather_s": [
+   0.0,
+   1.0
+  ],
+  "release_s": [
+   1.3
+  ],
+  "hold_s": [
+   1.3,
+   3.9
+  ],
+  "contact_s": 0.7,
+  "eye": "pass",
+  "note": "crouched with palms to the ground 0.0 to 1.0, the palms lift slowly as the plants grow 1.3 to 3.9"
+ },
+ "cast_water_rise": {
+  "gather_s": [
+   0.5,
+   2.0
+  ],
+  "release_s": [
+   2.1
+  ],
+  "hold_s": [
+   2.1,
+   3.9
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "both arms lift slowly raising water 0.5 to 2.0, held 2.1 to 3.9"
+ },
+ "cast_water_walk": {
+  "hold_s": [
+   1.0,
+   4.1
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "walks with an arm out guiding the water 1.0 to 4.1"
+ },
+ "cast_light_orbs_scatter": {
+  "gather_s": [
+   0.3,
+   1.9
+  ],
+  "release_s": [
+   2.3
+  ],
+  "contact_s": null,
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "cupped hands at her mouth 0.3 to 1.9, the lights tossed up 2.2 to 2.6 and scattering; the source shows sparkles"
+ },
+ "cast_build_shape": {
+  "hold_s": [
+   0.0,
+   3.9
+  ],
+  "contact_s": null,
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "both hands shape something in the air in front of her the whole clip"
+ },
+ "cast_stone_lift": {
+  "gather_s": [
+   0.5,
+   1.5
+  ],
+  "release_s": [
+   2.0
+  ],
+  "hold_s": [
+   2.0,
+   3.9
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "palms down, a slow lift from below 1.0 to 3.9 (a stone rising)"
+ },
+ "cast_bridge_draw": {
+  "release_s": [
+   1.4,
+   3.3
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "one arm draws a line outward 1.0 to 2.0, the other 3.0 to 3.9 (the bridge laid out)"
+ },
+ "cast_rain_call": {
+  "gather_s": [
+   0.6,
+   2.4
+  ],
+  "release_s": [
+   2.6
+  ],
+  "contact_s": null,
+  "lead_limb": "both",
+  "eye": "pass",
+  "note": "both arms raised to the sky 0.6 to 2.4, lowered with fluttering fingers 2.6 to 3.8 (the rain)"
+ },
+ "cast_fireflies_release": {
+  "gather_s": [
+   0.0,
+   1.9
+  ],
+  "release_s": [
+   2.2
+  ],
+  "contact_s": null,
+  "lead_limb": "both",
+  "floor_contact": true,
+  "eye": "pass",
+  "note": "kneeling, cupped hands full of fireflies 0.0 to 1.9, let go upward 2.0 to 2.6, arms raised after; the source shows the fireflies"
+ },
+ "cast_flower_ring": {
+  "release_s": [
+   1.3,
+   3.0
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "an arm sweeps low scattering petals 0.8 to 2.0, turns and sweeps again 2.6 to 3.4; flowers appear in the source"
+ },
+ "cast_wind_gust": {
+  "gather_s": [
+   0.0,
+   1.0
+  ],
+  "release_s": [
+   1.1,
+   3.2
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "arms gather at her waist, a push at 1.1, a sweep 2.2 to 2.8 and a second push 3.1 to 3.9"
+ },
+ "cast_ice_sculpture": {
+  "gather_s": [
+   0.4,
+   1.1
+  ],
+  "release_s": [
+   1.2
+  ],
+  "hold_s": [
+   1.2,
+   3.3
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "the arm raised and traces a spiral in the air 1.2 to 3.3 (the source draws it), hands to hips 3.6"
+ },
+ "poke_tree_laugh": {
+  "contact_s": 1.55,
+  "eye": "pass",
+  "note": "steps up, pokes with a finger 1.4 to 1.6, laughs with a hand over her mouth 2.3 to 3.4"
+ },
+ "kick_tree_shake": {
+  "contact_s": 1.05,
+  "lead_limb": "rf",
+  "eye": "pass",
+  "note": "kicks the trunk 0.9 to 1.2 (the mocap's 3.8 was her hands on her head), leaves rain down 2.1 to 3.6, she covers her head laughing 3.2 to 4.0; the source shows the leaves"
+ },
+ "punch_tree_ouch": {
+  "contact_s": 1.8,
+  "eye": "pass",
+  "note": "punches the trunk 1.7 to 1.9, shakes the hurt hand 2.4 to 3.4"
+ },
+ "sneak_up_scare": {
+  "release_s": [
+   2.9
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "tiptoes forward 0.3 to 2.6, jumps with hands up for a boo 2.8 to 3.1, laughs after"
+ },
+ "splash_water_tease": {
+  "contact_s": 0.9,
+  "release_s": [
+   1.45
+  ],
+  "eye": "pass",
+  "note": "crouches and scoops water 0.6 to 1.3, splashes it up at her partner 1.4 to 1.5 (water in the source), laughs, runs off from 3.0"
+ },
+ "throw_pebble_skip": {
+  "contact_s": 0.8,
+  "release_s": [
+   2.4
+  ],
+  "eye": "pass",
+  "note": "picks a pebble off the ground 0.6 to 1.2 (hand down 0.8), winds up 1.8 to 2.2, a sidearm throw 2.3 to 2.6, celebrates 3.4"
+ },
+ "tickle_magic_poke": {
+  "eye": "pass",
+  "note": "pokes a wiggling finger at her partner 0.5 to 2.2, hands on her hips 2.4"
+ },
+ "pull_hair_tease": {
+  "eye": "pass",
+  "note": "reaches out and catches her partner's hair 0.3 to 0.6, holds and tugs to 1.8, lets go and giggles 2.0 to 2.9"
+ },
+ "hide_behind_peek": {
+  "contact_s": 1.8,
+  "hold_s": [
+   1.6,
+   3.3
+  ],
+  "eye": "pass",
+  "note": "ducks down behind cover 1.3 to 3.3, peeks out rising 3.4 to 3.9 (needs a cover object found in the world)"
+ },
+ "spin_dizzy_fall": {
+  "contact_s": 3.6,
+  "floor_contact": true,
+  "eye": "pass",
+  "note": "spins with the arms out 0.5 to 3.0, dizzy, falls to sit 3.4 to 3.8"
+ },
+ "jump_puddle": {
+  "contact_s": 1.5,
+  "eye": "pass",
+  "note": "hops into a puddle, lands at 1.5, happy jumps 1.8 to 2.2, stomps 2.8 to 3.4 (needs the splash on landing)"
+ },
+ "stick_sword_play": {
+  "prop": "stick",
+  "contact_s": 1.1,
+  "release_s": [
+   2.8,
+   3.2,
+   3.8
+  ],
+  "eye": "pass",
+  "note": "picks a stick off the ground 0.9 to 1.3, holds it up 1.5 to 2.1, playful sword swings 2.3 to 4.4; the source holds a real stick"
+ },
+ "roll_eyes_shove": {
+  "contact_s": 1.9,
+  "eye": "pass",
+  "note": "rolls her eyes 1.0 to 1.5, a playful shove at her partner 1.7 to 2.2"
+ },
+ "chase_run_laugh": {
+  "eye": "pass",
+  "note": "runs with the arms reaching out to catch her partner, laughing, 0.7 to 4.2"
+ },
+ "blow_raspberry_run": {
+  "release_s": [
+   2.0
+  ],
+  "contact_s": null,
+  "eye": "pass",
+  "note": "blows a raspberry 1.0 to 2.8, runs off out of frame 3.0 to 3.8 (large root motion)"
+ },
+ "victory_dance_silly": {
+  "contact_s": null,
+  "eye": "pass",
+  "note": "a silly little victory dance with her fists up 0.4 to 3.6"
+ }
+}

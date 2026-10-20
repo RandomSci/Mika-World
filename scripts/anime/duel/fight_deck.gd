@@ -132,10 +132,41 @@ func _map(a: Animation) -> Array:
 	return out
 
 
+## The humanoid bones a clip has no track for (the bakes carry no shoulders, toes or eyes): while the deck plays a clip
+## it owns her whole body, so these are held at rest instead of showing whatever plays underneath (2026-10-20: her
+## locomotion idle kept moving the shoulders under a held gesture frame, and her hands with them, 2 to 10 cm).
+var _fill := {}                           # Animation instance id -> [[bone, rest rotation], ...]
+
+
+func _fill_of(a: Animation) -> Array:
+	var key := a.get_instance_id()
+	if _fill.has(key):
+		return _fill[key]
+	var sk := get_skeleton()
+	var have := {}
+	for m in _map(a):
+		if not m[2]:
+			have[int(m[1])] = true
+	var out := []
+	var prof := SkeletonProfileHumanoid.new()
+	for i in prof.bone_size:
+		var nm := prof.get_bone_name(i)
+		if nm in [&"Root", &"LeftEye", &"RightEye"]:
+			continue                      # (the eyes belong to the look at)
+		var bi := sk.find_bone(nm)
+		if bi >= 0 and not have.has(bi):
+			out.append([bi, sk.get_bone_rest(bi).basis.get_rotation_quaternion()])
+	_fill[key] = out
+	return out
+
+
 func _sample(p: Dictionary) -> Dictionary:
 	var out := {}
 	if p.is_empty():
 		return out
+	if not RenderProfile.options.has("no-deck-fill"):
+		for fb in _fill_of(p.anim):
+			out[int(fb[0])] = fb[1]
 	var a: Animation = p.anim
 	var t := clampf(float(p.t), 0.0, a.length)
 	var ms := get_skeleton().motion_scale
