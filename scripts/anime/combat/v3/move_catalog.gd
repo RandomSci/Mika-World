@@ -191,6 +191,37 @@ const CLIPS := {
 	"chase_run_laugh": {"lib": "v3", "cat": "mischief", "use": "body", "who": "both", "tags": ["run", "chase", "laugh", "travel"]},
 	"blow_raspberry_run": {"lib": "v3", "cat": "taunt", "use": "body", "who": "mika", "tags": ["taunt", "raspberry", "tongue", "run", "cheeky"]},
 	"victory_dance_silly": {"lib": "v3", "cat": "taunt", "use": "body", "who": "mika", "tags": ["taunt", "victory", "dance", "silly", "aftermath"]},
+	# ---------------------------------------------------------------------------------------------- v4 weapons (28, Selwyn 2026-10-20)
+	# real props in the source; the mocap reads the body and the hands; the weapon is FightWeapon (rapier / glaive /
+	# sword: a conjured light blade below Level 20, the Gale Rapier or the Shadow Glaive from Level 20)
+	"r_salute_draw": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "cinematic", "draw"], "note": "the rapier drawn and raised in a salute"},
+	"r_lunge_thrust": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "attack", "thrust", "movement"], "note": "a long lunge, the point at her chest"},
+	"r_triple_thrust": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "attack", "thrust", "combo"], "note": "three quick thrusts"},
+	"r_backstep_slash": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "attack", "slash", "movement"], "note": "steps back and cuts as she goes"},
+	"r_dash_through": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "attack", "slash", "movement", "dash"], "note": "dashes past her, cutting as she passes"},
+	"r_flick_cut": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "attack", "slash", "fast"], "note": "a fast wrist flick cut"},
+	"r_parry_riposte": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "defend", "parry", "attack", "riposte"], "note": "beats the blade aside, then thrusts"},
+	"r_aerial_thrust": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "attack", "thrust", "aerial", "movement"], "note": "leaps and drives down"},
+	"r_throw_recall": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "attack", "throw", "cinematic"], "note": "windup and catch; the flight is an effect (README)"},
+	"r_sheathe_finish": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "mika", "weapon": "rapier", "tags": ["rapier", "cinematic", "finisher", "sheathe"], "note": "the finishing cut and the sheathe"},
+	"g_two_hand_spin": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "cinematic", "spin", "movement"], "note": "the glaive spun in both hands"},
+	"g_wide_sweep": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "attack", "sweep", "slash"], "note": "a wide horizontal sweep"},
+	"g_overhead_arc": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "attack", "slash", "heavy"], "note": "an overhead arc down"},
+	"g_spin_multi_slash": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "attack", "spin", "combo"], "note": "spinning cuts (half a turn in the source: extended procedurally)"},
+	"g_shaft_block": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "defend", "block"], "note": "the shaft held across, sliding back"},
+	"g_pole_vault_kick": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "attack", "kick", "aerial", "movement"], "note": "vaults on the planted glaive and kicks"},
+	"g_overhead_twirl": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "cinematic", "twirl"], "note": "twirled overhead"},
+	"g_long_thrust": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "attack", "thrust"], "note": "a long reaching thrust"},
+	"g_plant_burst": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "attack", "area", "plant", "cinematic"], "note": "plants the glaive, the ground bursts"},
+	"g_finish_pose": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "luna", "weapon": "glaive", "tags": ["glaive", "cinematic", "finisher"], "note": "the finishing pose"},
+	"s_iaido_draw": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "attack", "draw", "slash", "cinematic"], "note": "the quick-draw cut"},
+	"s_blade_clash": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "defend", "clash"], "note": "blade meets blade"},
+	"s_weapon_lock": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "defend", "lock", "cinematic"], "note": "blades locked, pushing"},
+	"s_disarm_catch": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "defend", "disarm", "attack"], "note": "twists the blade away and catches it"},
+	"s_summon_weapon": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "cinematic", "summon"], "note": "the weapon called into the hand"},
+	"s_sign_blade_raised": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "cinematic", "sign", "cast"], "note": "a sign made with the blade raised"},
+	"s_running_slash": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "attack", "slash", "movement", "run"], "note": "running in and cutting (the first second trimmed: she is far away)"},
+	"s_kneel_recover": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "movement", "recover"], "note": "up from a kneel on the blade"},
 }
 
 

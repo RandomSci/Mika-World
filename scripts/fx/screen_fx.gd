@@ -5,7 +5,7 @@ extends CanvasLayer
 ## Everything runs on real time (it keeps working while the game is frozen or slowed), and every effect returns to
 ## rest by itself. Built against the reference frames in ~/Downloads/Anime_Reference_Breakdown.md.
 
-const MODES := {"white": 1, "burst": 2, "invert": 3, "burst_white": 4}
+const MODES := {"white": 1, "burst": 2, "invert": 3, "burst_white": 4, "invert_bw": 5}
 static var _inst: ScreenFX
 
 var rect: ColorRect
@@ -40,7 +40,8 @@ func _ready() -> void:
 	rect.material = mat
 	# (an unset uniform reads back as null: give every one its rest value)
 	var rest := {"speed_lines": 0.0, "zoom_blur": 0.0, "chroma": 0.0, "vignette": 0.0, "flash": 0.0, "flash_mode": 0, "burst_seed": 0.0,
-			"burst_angle": 0.6, "center": Vector2(0.5, 0.5), "speed_line_color": Color(1, 1, 1), "wash": Color(1, 0.1, 0.2, 0.0)}
+			"burst_angle": 0.6, "center": Vector2(0.5, 0.5), "speed_line_color": Color(1, 1, 1), "wash": Color(1, 0.1, 0.2, 0.0),
+			"wash_hi": Color(1.0, 0.92, 0.95), "wash_split": 0.0, "flare": 0.0, "flare_pos": Vector2(0.5, 0.5), "flare_col": Color(1.0, 0.8, 0.9)}
 	for k in rest:
 		mat.set_shader_parameter(k, rest[k])
 	add_child(rect)
@@ -50,7 +51,8 @@ func _ready() -> void:
 func _active() -> bool:
 	return float(mat.get_shader_parameter("speed_lines")) > 0.001 or float(mat.get_shader_parameter("zoom_blur")) > 0.001 \
 		or float(mat.get_shader_parameter("chroma")) > 0.001 or (mat.get_shader_parameter("wash") as Color).a > 0.001 \
-		or int(mat.get_shader_parameter("flash_mode")) != 0 or float(mat.get_shader_parameter("vignette")) > 0.001
+		or int(mat.get_shader_parameter("flash_mode")) != 0 or float(mat.get_shader_parameter("vignette")) > 0.001 \
+		or float(mat.get_shader_parameter("flare")) > 0.001
 
 
 func _tw() -> Tween:
@@ -101,6 +103,35 @@ func wash(color: Color, strength := 0.7, fade_in := 0.15, hold := 1.5, fade_out 
 	if hold >= 0.0:
 		t.tween_interval(hold)
 		t.tween_method(func(v: Color): mat.set_shader_parameter("wash", v), Color(color.r, color.g, color.b, strength), Color(color.r, color.g, color.b, 0.0), fade_out)
+
+
+## A two-colour grade (the ultimates' colour takeover): the shadows toward `color`, the highlights toward `hi`.
+func wash2(color: Color, hi: Color, strength := 0.5, fade_in := 0.3, hold := 2.0, fade_out := 0.6) -> void:
+	mat.set_shader_parameter("wash_hi", hi)
+	mat.set_shader_parameter("wash_split", 1.0)
+	wash(color, strength, fade_in, hold, fade_out)
+	var t := _tw()
+	t.tween_interval(maxf(fade_in + maxf(hold, 0.0) + fade_out, 0.0) + 0.05)
+	t.tween_callback(func():
+		mat.set_shader_parameter("wash_hi", Color(1.0, 0.92, 0.95))
+		mat.set_shader_parameter("wash_split", 0.0))
+
+
+## A lens flare at a screen point (UV) that flares up fast and fades over `seconds`.
+func lens_flare(at_uv: Vector2, color: Color, strength := 1.0, seconds := 0.6) -> void:
+	mat.set_shader_parameter("flare_pos", at_uv)
+	mat.set_shader_parameter("flare_col", color)
+	var t := _tw()
+	t.tween_method(func(v): mat.set_shader_parameter("flare", v), 0.0, strength, 0.05)
+	t.tween_method(func(v): mat.set_shader_parameter("flare", v), strength, 0.0, maxf(seconds - 0.05, 0.05)).set_ease(Tween.EASE_IN)
+
+
+## A vignette held for `seconds` (the cast), eased in and out.
+func vignette_hold(strength := 0.5, fade_in := 0.3, seconds := 2.0, fade_out := 0.5) -> void:
+	var t := _tw()
+	t.tween_method(func(v): mat.set_shader_parameter("vignette", v), float(mat.get_shader_parameter("vignette")), strength, fade_in)
+	t.tween_interval(maxf(seconds, 0.0))
+	t.tween_method(func(v): mat.set_shader_parameter("vignette", v), strength, 0.0, fade_out)
 
 
 func wash_off(seconds := 0.5) -> void:

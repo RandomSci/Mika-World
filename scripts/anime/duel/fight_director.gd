@@ -218,6 +218,10 @@ func _camera_setup() -> void:
 	RenderingServer.camera_attributes_set_dof_blur_bokeh_shape(RenderingServer.DOF_BOKEH_CIRCLE)
 	RenderingServer.camera_attributes_set_dof_blur_quality(RenderingServer.DOF_BLUR_QUALITY_HIGH, true)
 	_driver.post = func(c: Camera3D) -> void:
+		# (a shot cut with "snap" lands at once, a hard cut: the kit's ultimate shots; Phantom Camera otherwise eased
+		# the lens in over a few tenths of a second, which turned a cut from far away into a glide)
+		if not _shot.is_empty() and bool((_shot[3] as Dictionary).get("snap", false)) and not _pcs.is_empty() and is_instance_valid(_pcs[_pcs.size() - 1]):
+			c.global_transform = (_pcs[_pcs.size() - 1] as Node3D).global_transform
 		c.fov = float(_lens.fov)
 		c.attributes = _attrs
 		var k: float = _lens.shake
@@ -737,6 +741,37 @@ func shot_cam(kind: String, who: String, u: float, len_: float, o: Dictionary) -
 			var dirh := (perp * fl + ax * 0.7).normalized()
 			var ph := at_h + dirh * lerpf(1.35, 1.1, e) + up * 0.12
 			return {"pos": ph, "look": at_h, "fov": 36.0, "focus": at_h, "far": 0.5, "amount": 0.12}
+		"eye":
+			# an extreme close-up on ONE eye (an ultimate's opening, the references' "eyes open" beat): the lens a hand's
+			# breadth from her face, a little to the eye's side, creeping in
+			var sk_e := (F[a].c as WorldCharacter).skeleton
+			var eb := "LeftEye" if float(o.get("flip", 1.0)) > 0.0 else "RightEye"
+			var ep: Vector3 = bone(a, eb) if sk_e.find_bone(eb) >= 0 else bone(a, "Head") + up * 0.07 + fa * 0.07 + sa * 0.032
+			var eyp: Vector3 = _sm("eye", ep, 0.5)
+			var p_y := eyp + fa * lerpf(0.34, 0.27, e) + sa * 0.05 + up * 0.005
+			return {"pos": p_y, "look": eyp, "fov": float(o.get("fov", 14.0)), "focus": eyp, "far": 0.08, "amount": 0.22}
+		"sign":
+			# an extreme close-up on her two hands forming the sign (the point between them)
+			var hl := bone(a, "LeftHand")
+			var hr := bone(a, "RightHand")
+			var hm: Vector3 = _sm("sign", (hl + hr) * 0.5 + (hl - hr).length() * 0.0 * up, 0.45)
+			var p_s := hm + fa * lerpf(0.62, 0.5, e) + sa * 0.22 + up * 0.06
+			return {"pos": p_s, "look": hm, "fov": float(o.get("fov", 26.0)), "focus": hm, "far": 0.25, "amount": 0.18}
+		"push":
+			# a fast push-in on her, from a medium shot to her face in the shot's length (the release's held breath)
+			var chp: Vector3 = _sm("ch", chest(a) + up * 0.12, 0.35)
+			var ee2 := 1.0 - pow(1.0 - k, 3.0)
+			var dir_p := (fa + sa * 0.45 - up * 0.12).normalized()
+			var p_p := chp + dir_p * lerpf(float(o.get("from", 3.4)), float(o.get("to", 0.95)), ee2)
+			return {"pos": p_p, "look": chp, "fov": lerpf(44.0, 32.0, ee2), "focus": chp, "far": 0.8, "amount": 0.1}
+		"orbit_her":
+			# a low orbit round HER (an ultimate's gather: the sigil and the blades forming round her)
+			var chq: Vector3 = _sm("ch", chest(a), 0.3)
+			var an2 := deg_to_rad(lerpf(float(o.get("from", -50.0)), float(o.get("to", 40.0)), e))
+			var r2 := float(o.get("r", 2.6))
+			var gq := Vector3(chq.x, gy, chq.z)
+			var p_o := gq + (fa * cos(an2) + sa * sin(an2)) * r2 + up * float(o.get("h", 0.35))
+			return {"pos": p_o, "look": chq + up * 0.35, "fov": float(o.get("fov", 50.0)), "focus": chq, "far": 1.5, "amount": 0.06}
 		"hand":
 			var hb := String(o.get("bone", "RightHand"))
 			var hnd: Vector3 = _sm("hand", bone(a, hb), 0.4)

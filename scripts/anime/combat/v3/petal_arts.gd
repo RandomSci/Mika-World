@@ -75,6 +75,9 @@ func aura(f: MeleeFighter, who: String, rise: float, hold: float, big: bool) -> 
 		if (mi as MeshInstance3D).material_overlay == null or (mi as MeshInstance3D).material_overlay == m:
 			(mi as MeshInstance3D).material_overlay = m
 	var peak := 1.0 if big else 0.6
+	var kit = sim.get("ult_kit")
+	if kit and is_instance_valid(kit) and String(kit.who) == who:
+		peak = 0.45                                   # (an ultimate's close-ups: her colours stay, no white burn)
 	var tw := f.sk.create_tween()
 	tw.tween_method(func(v: float): m.set_shader_parameter("k", v), 0.0, peak, maxf(rise, 0.1)).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(maxf(hold, 0.0))
@@ -126,6 +129,8 @@ func dim(rise: float, hold: float) -> void:
 ## of petals runs out over the ground under it.
 func impact(p: Vector3, gy: float, who: String, power: float) -> void:
 	impact_card(p, who, power)
+	if power >= 0.9:
+		sim.big_hit_fx(p, power)
 	_k_count = CARD_EXTRA if who == "mika" and FlipbookFX.enabled() else 1.0
 	var st := _storm(who, int(500 + 900 * power), 1.0 + 0.4 * power, gy)
 	st.light_k = 1.6 + power
@@ -286,7 +291,7 @@ func release(c: Dictionary) -> void:
 			var n6 := clampi(int(c.get("n", 7)), 1, 12)
 			var pts6: Array = []
 			for i in n6:
-				var off := Vector3(rng.randf_range(-1.8, 1.8), 0, rng.randf_range(-1.8, 1.8)) if i != 2 else Vector3.ZERO
+				var off := Vector3(rng.randf_range(-1.8, 1.8), 0, rng.randf_range(-1.8, 1.8)) if i != 0 else Vector3.ZERO
 				pts6.append(Vector4(c_m.x + off.x, gy + 0.1, c_m.z + off.z, 0.12 * float(i)))
 			var st_m := _storm(who, 3000, 1.3, gy)
 			st_m.fore()
@@ -380,6 +385,9 @@ func release(c: Dictionary) -> void:
 func gather_card(who: String, src: Callable, gather_len: float, big: bool) -> FlipbookFX:
 	if who != "mika" or not FlipbookFX.enabled():
 		return null
+	var k = sim.get("ult_kit")
+	if k and is_instance_valid(k) and String(k.who) == who:
+		return null                                   # (an ultimate: the halo carries it, the hands stay seen in close-up)
 	# (1.2 to 1.5 m: a 2.6 m card at her hand covered her whole body through the gather)
 	return FlipbookFX.play(sim.d.main, "mika_petal_vortex", src, {"size": 1.5 if big else 1.2, "f0": 0.0, "f1": 28.0,
 		"dur": maxf(gather_len, 0.2), "hold_end": 0.6, "fade_in": 0.12, "fade_out": 0.2, "intensity": 1.6, "light": 2.2,
@@ -393,7 +401,9 @@ func _release_card(c: Dictionary) -> void:
 	var kind := String(c.kind)
 	var size := float(c.size)
 	var fly := clampf(float(c.fly), 0.08, 2.5)
-	if who == "mika":
+	if bool(c.get("ult", false)):
+		pass                                          # (an ultimate: the halo and the kit's flare carry the release)
+	elif who == "mika":
 		# the burst at her hand as the technique leaves it
 		# (from frame 11: frames 4 to 10 of the sheet are one white flash filling the circle, a white disc on screen)
 		FlipbookFX.play(sim.d.main, "mika_petal_burst", c.src, {"size": 2.0 * clampf(size, 0.8, 1.4), "f0": 11.0, "f1": 63.0,
@@ -421,9 +431,10 @@ func _release_card(c: Dictionary) -> void:
 func impact_card(p: Vector3, who: String, power: float) -> void:
 	if who != "mika" or not FlipbookFX.enabled():
 		return
+	# (from frame 14 and softer: frames 11 to 13 still carried a white core that bloomed into a white ball)
 	FlipbookFX.play(sim.d.main, "mika_petal_burst", func() -> Vector3: return p, {"size": 2.2 + 1.4 * clampf(power, 0.0, 1.0),
-		"f0": 11.0, "f1": 63.0, "dur": 1.3 + 0.6 * power, "fade_in": 0.04, "fade_out": 0.5, "intensity": 1.8, "light": 3.0 + 2.0 * power,
-		"black_cut": 0.16})
+		"f0": 14.0, "f1": 63.0, "dur": 1.3 + 0.6 * power, "fade_in": 0.04, "fade_out": 0.5, "intensity": 1.4, "light": 3.0 + 2.0 * power,
+		"black_cut": 0.18})
 
 
 ## Luna's weapon swing: a crescent at the blade, turned to the swing.

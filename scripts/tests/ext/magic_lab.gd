@@ -51,6 +51,7 @@ static func run(t) -> void:
 			var who_u := "luna" if owner == "luna" else "mika"
 			var other_u := "luna" if who_u == "mika" else "mika"
 			await _place(t, d, sim, who_u, 4.5, true)
+			await t._wait(1.6)                          # (the camera settles from wherever it was before the eye shot)
 			for id in sim.S:
 				sim.S[id].energy = 100.0
 			var a0 := Engine.get_frames_drawn()
@@ -61,7 +62,9 @@ static func run(t) -> void:
 			print("[magiclab] ult %s frame %d gather %d release %d end %d" % [u, a0, a0 + int(round(GestureBook.at(g, float(g.gather[0])) * 30.0)),
 				a0 + int(round(rel * 30.0)), a0 + int(round(L * 30.0))])
 			var w0: float = t._game_t
-			while sim.magic.performing(who_u) and t._game_t - w0 < 12.0:
+			var ft0: float = d.ft
+			# (an ultimate waits in the gesture director before it performs: wait out its whole length on the fight clock)
+			while (sim.magic.performing(who_u) or d.ft - ft0 < L + 0.4) and t._game_t - w0 < 14.0:
 				await t.get_tree().process_frame
 			await t._wait(2.6)
 			var outs := []

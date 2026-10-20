@@ -36,6 +36,10 @@ const SHAPES := {
 }
 
 
+## The kit's giant shape per ultimate ("blades" Mika's ring of conjured blades, "ghost" Luna's ghost weapon slash).
+const KIT_SHAPE := {"ult_starfall_conductor": "blades", "ult_sky_rending_slash": "ghost", "ult_moon_crescent_cleave": "ghost"}
+
+
 ## The full spell dict of an ultimate for MagicCaster.cast(..., over).
 static func spell(ult: String, who: String) -> Dictionary:
 	var sp: Dictionary = {"who": who, "clip": ult, "weight": "heavy", "aim": "chest", "height": "mid", "range": [0.0, 99.0],
@@ -68,27 +72,10 @@ static func perform(sim: MeleeSim, who: String, other: String, ult: String) -> f
 	var hand := String(g.hand)
 	var hand_bone := "LeftHand" if hand == "lh" else "RightHand"
 	var t0 := d.ft
-	sim.cine_hold = sim.t + L + 1.6                 # (the cinematographer waits for the ultimate's own cuts)
 	print("[ultimate] %s (%s, %s) from %.2f gather %.2f release %.2f end %.2f" % [sp.title, who, ult, t0, t0 + t_g0, t0 + t_rel, t0 + L])
-	# the domain falls, close on her eyes
-	if sim.realm:
-		sim.realm.push(who, 0.6)                     # (her realm takes the world as the ultimate opens; the release completes it)
-	else:
-		d.domain(who, true, 0.8)
-	d.cut(t0 + 0.001, "eyes", who, {})
-	# her hands forming the sign
-	d.cut(t0 + maxf(t_g0, 0.6), "hand", who, {"bone": hand_bone})
-	# the low hero shot before the release
-	d.cut(t0 + maxf(t_rel - 0.8, maxf(t_g0, 0.6) + 0.5), "hero_low", who, {})
-	# slow time, an impact frame, the release, pulled back wide
-	sim.at(t_rel - 0.06, func():
-		d.slowmo(0.3, 0.7 * 0.3)
-		d.impact(1.0, true, false))
-	d.cut(t0 + t_rel - 0.02, "pullback", who, {"dist": 11.0, "high": 3.6})
-	# the aftermath
-	d.cut(t0 + L + 0.3, "two_mid", who, {})
-	if not sim.realm:
-		sim.at(L + 1.2, func(): d.domain(who, false, 1.2))
+	# (2026-10-20: the shared cinematic kit: shots, speed ramp, impact frames, grade, domain, post, giant shapes)
+	var shape := String(KIT_SHAPE.get(ult, "blades" if who == "mika" else ("ghost" if String(sp.kind) in ["weapon", "crescent", "wave"] else "")))
+	UltimateKit.ultimate(sim, who, other, t_g0, t_rel, L, shape)
 	if sp.get("afterimages", false):
 		for r2 in rels:
 			sim.at(float(r2) - 0.05, func(): d.fx.afterimages((sim.F[who] as MeleeFighter).c, who, 3, 0.04))

@@ -14,6 +14,13 @@ const SHEETS := {
 	"mika_petal_burst": "res://assets/vfx/flipbook/mika_petal_burst_8x8.webp",
 	"luna_crescent_slash": "res://assets/vfx/flipbook/luna_crescent_slash_8x8.webp",
 	"luna_moon_pillar": "res://assets/vfx/flipbook/luna_moon_pillar_8x8.webp",
+	# FX_Cinematic_v1 (Selwyn, 20 October)
+	"fx_impact_starburst": "res://assets/vfx/flipbook/fx_impact_starburst_8x8.webp",
+	"mika_halo_sigil": "res://assets/vfx/flipbook/mika_halo_sigil_8x8.webp",
+	"luna_halo_sigil": "res://assets/vfx/flipbook/luna_halo_sigil_8x8.webp",
+	"fx_blade_ring": "res://assets/vfx/flipbook/fx_blade_ring_8x8.webp",
+	"fx_ghost_slash": "res://assets/vfx/flipbook/fx_ghost_slash_8x8.webp",
+	"mika_petal_rain": "res://assets/vfx/flipbook/mika_petal_rain_8x8.webp",
 }
 static var _light_data := {}
 static var _tex := {}
@@ -73,10 +80,12 @@ func _build() -> void:
 	mat.set_shader_parameter("sheet", _tex[fx])
 	mat.set_shader_parameter("intensity", float(o.get("intensity", 2.2)))
 	mat.set_shader_parameter("black_cut", float(o.get("black_cut", 0.14)))
-	mat.set_shader_parameter("upright", 1.0 if bool(o.get("upright", false)) else 0.0)
+	mat.set_shader_parameter("upright", 2.0 if bool(o.get("flat", false)) else (1.0 if bool(o.get("upright", false)) else 0.0))
 	mat.set_shader_parameter("roll", float(o.get("roll", 0.0)))
 	mat.set_shader_parameter("fade", 0.0)
 	mat.set_shader_parameter("top_fade", float(o.get("top_fade", 0.0)))
+	mat.set_shader_parameter("near_fade", float(o.get("near", 0.0 if bool(o.get("flat", false)) else size * 0.9)))
+	mat.set_shader_parameter("soft_depth", float(o.get("soft_depth", 0.02 if bool(o.get("flat", false)) else 0.6)))
 	mat.set_shader_parameter("edge_mask", float(o.get("edge_mask", 0.47)))
 	card.material_override = mat
 	# (a card is drawn after the bodies' transparent pass order does not matter for additive light)
@@ -99,6 +108,9 @@ func _place() -> void:
 	var p: Vector3 = at_fn.call()
 	if p.is_finite():
 		global_position = p
+		if bool(o.get("flat", false)):
+			# lying on the ground, turning slowly (the card's +Z up, so its face looks at the sky)
+			global_basis = Basis(Vector3.UP, t * float(o.get("turn", 0.25))) * Basis(Vector3.RIGHT, -PI * 0.5)
 		light.global_position = p + Vector3.UP * (float(o.get("size", 3.0)) * 0.35 if bool(o.get("upright", false)) else 0.0)
 
 

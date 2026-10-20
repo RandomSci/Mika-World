@@ -1,7 +1,8 @@
 // A video flipbook effect on a camera facing card (Selwyn's FX_Video_Test_v1, 2026-10-20: 8x8 sheets of 512 px frames
 // cut from video on black). Black is nothing (added). From his flipbook_fx.gdshader, with:
 //   upright      0 faces the camera fully, 1 turns only round the vertical (a pillar stays standing when the camera
-//                looks down on it; the card's bottom edge stays on the ground)
+//                looks down on it; the card's bottom edge stays on the ground), 2 none: the card keeps its node's own
+//                turn (a sigil lying flat on the ground)
 //   roll         turns the picture in the card's plane (radians), so a baked slash can follow the real slash
 //   uv inset and a capped mip level, so the lower mipmaps never pull a neighbouring cell's edge in (a square edge)
 //   edge_mask    a round fade of our own at the card's edge, on top of the sheet's own, so no corner ever shows
@@ -23,12 +24,15 @@ uniform float upright = 0.0;
 uniform float roll = 0.0;
 uniform float edge_mask = 0.47;     // radius (in card UV) where our round fade ends
 uniform float fade = 1.0;
-uniform float top_fade = 0.0;       // the top share of the card fades out (a pillar thins upward, no dome edge)
+uniform float top_fade = 0.0;
+uniform float near_fade = 0.0;      // m: the card fades out closer to the lens than this (a burst never fills a close-up)       // the top share of the card fades out (a pillar thins upward, no dome edge)
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 
 void vertex() {
 	vec3 sx = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
-	if (upright > 0.5) {
+	if (upright > 1.5) {
+		// (as placed: MODELVIEW_MATRIX is already VIEW_MATRIX * MODEL_MATRIX)
+	} else if (upright > 0.5) {
 		// turn round the world vertical only: x across the view, y straight up, z toward the camera
 		vec3 to_cam = INV_VIEW_MATRIX[3].xyz - MODEL_MATRIX[3].xyz;
 		to_cam.y = 0.0;
@@ -72,5 +76,6 @@ void fragment() {
 	vec4 v = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, d, 1.0);
 	float scene_z = -v.z / v.w;
 	float soft = clamp((scene_z - (-VERTEX.z)) / soft_depth, 0.0, 1.0);
-	ALBEDO = col * tint.rgb * intensity * soft * fade;
+	float near_k = near_fade > 0.0 ? smoothstep(near_fade * 0.55, near_fade, length(VERTEX)) : 1.0;
+	ALBEDO = col * tint.rgb * intensity * soft * fade * near_k;
 }

@@ -6,7 +6,11 @@ shader_type canvas_item;
 //    ProfesorShader's CC0 "Anime Style Speedlines", shaders/anime/ref)
 //  * zoom blur: radial blur from a centre (v4 14.5 s, v3 12.5 s)
 //  * chromatic aberration: radial RGB split, strongest at the edges (v4 23.2 s)
-//  * colour wash: a full-frame colour grade toward one hue (v3 15-25 s red, v5 violet sky)
+//  * colour wash: a full-frame colour grade toward one hue (v3 15-25 s red, v5 violet sky); wash_hi takes the
+//    highlights to a second colour (2026-10-20, the ultimates' colour takeover: Mika pink and white, Luna violet and gold)
+//  * inverted black and white impact frame (flash_mode 5): the image's light inverted and cut to two tones
+//  * lens flare (2026-10-20, an ultimate's release): a long anamorphic streak through a hot core at flare_pos, a soft
+//    halo and a row of ghosts mirrored through the frame's centre
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap, repeat_disable;
 
 uniform vec2 center = vec2(0.5, 0.5);          // vanishing point / blur centre (UV)
@@ -22,6 +26,11 @@ uniform float flash = 0.0;                     // 0..1
 uniform float burst_seed = 0.0;
 uniform float burst_angle = 0.6;               // the burst's main smear direction (radians)
 uniform float vignette = 0.0;
+uniform vec3 wash_hi : source_color = vec3(1.0, 0.92, 0.95);
+uniform float wash_split = 0.0;                // 1: the two-tone grade multiplies the image (keeps its contrast and colours)
+uniform float flare = 0.0;                     // 0..1
+uniform vec2 flare_pos = vec2(0.5, 0.5);       // UV
+uniform vec3 flare_col : source_color = vec3(1.0, 0.8, 0.9);
 
 float hash11(float p) { return fract(sin(p * 127.1) * 43758.5453); }
 float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -98,13 +107,39 @@ void fragment() {
 	col /= taps;
 	// colour wash: tint toward the colour keeping some of the luminance structure
 	float luma = dot(col, vec3(0.299, 0.587, 0.114));
-	vec3 hot = mix(wash.rgb, vec3(1.0, 0.92, 0.95), 0.55);
+	vec3 hot = mix(wash.rgb, wash_hi, 0.55);
 	vec3 washed = mix(wash.rgb * 0.18, hot * 1.15, smoothstep(0.05, 0.75, luma));
 	washed = mix(washed, wash.rgb * luma * 2.0 + col * 0.15, 1.0 - wash_keep_luma);
+	// (the ultimates' grade: split toning, shadows toward wash, highlights toward wash_hi, multiplied so the image keeps
+	// its own contrast; the plain wash replaced the image's colours and turned the frame milky)
+	vec3 split = col * mix(wash.rgb * 1.25 + 0.25, wash_hi * 1.15, smoothstep(0.08, 0.7, luma));
+	washed = mix(washed, split, wash_split);
 	col = mix(col, washed, wash.a);
 	// speed lines (additive, posterized: hard anime streaks, no soft gradient)
 	float sl = streaks(uv, speed_line_density, TIME, burst_seed, aspect);
 	col = mix(col, speed_line_color, step(0.5, sl) * speed_lines);
+	// lens flare (added light)
+	if (flare > 0.001) {
+		vec2 fd = uv - flare_pos;
+		fd.x *= aspect;
+		float core = exp(-length(fd) * 22.0);
+		float halo = exp(-length(fd) * 9.0) * 0.18;
+		float streak = exp(-abs(fd.y) * 160.0) * exp(-abs(fd.x) * 2.2);
+		float streak2 = exp(-abs(fd.y) * 40.0) * exp(-abs(fd.x) * 6.0) * 0.4;
+		vec3 fl = flare_col * (core * 2.5 + halo + streak * 1.4 + streak2) + vec3(1.0) * core * 1.5;
+		// ghosts along the line from the flare through the centre
+		vec2 axis = vec2(0.5) - flare_pos;
+		for (int g = 0; g < 4; g++) {
+			float k = (g == 0) ? 0.55 : ((g == 1) ? 0.9 : ((g == 2) ? 1.35 : 1.7));
+			vec2 gp = flare_pos + axis * k * 2.0;
+			vec2 gd = uv - gp;
+			gd.x *= aspect;
+			float rad = 0.02 + 0.025 * float(g);
+			float ring = smoothstep(rad, rad * 0.7, length(gd)) * 0.12 + smoothstep(rad * 1.05, rad, length(gd)) * smoothstep(rad * 0.8, rad, length(gd)) * 0.18;
+			fl += mix(flare_col, vec3(0.6, 0.8, 1.0), float(g) / 3.0) * ring;
+		}
+		col += fl * flare;
+	}
 	// vignette
 	col *= 1.0 - vignette * smoothstep(0.3, 0.85, length(dir * vec2(1.0, 0.8)));
 	// flash frames
@@ -115,6 +150,9 @@ void fragment() {
 		col = mix(col, f, flash);
 	} else if (flash_mode == 3) {
 		col = mix(col, vec3(1.0) - col, flash);
+	} else if (flash_mode == 5) {
+		float lum = dot(col, vec3(0.299, 0.587, 0.114));
+		col = mix(col, vec3(1.0 - smoothstep(0.32, 0.4, lum)), flash);
 	} else if (flash_mode == 4) {
 		vec3 f = mix(vec3(0.97), vec3(0.04, 0.05, 0.08), burst(uv, burst_seed, aspect));
 		col = mix(col, f, flash);

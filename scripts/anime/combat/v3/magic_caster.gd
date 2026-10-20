@@ -181,6 +181,13 @@ func cast(s: Dictionary, o: Dictionary, name: String, over := {}, opts := {}) ->
 	log_casts.append([snappedf(t, 0.01), who, name, clip, snappedf(t + t_g0, 0.01), snappedf(t + t_rel, 0.01), snappedf(t + L, 0.01)])
 	sim.events.append([snappedf(t, 0.01), "cast", who, name])
 	f.move_tag = "cast:" + name
+	# (the grandest spells run the ultimate kit's short form: hero shot, push-in, wide release, flare, grade; not more
+	# than once in 9 s, so the duel keeps its pace)
+	if not bool(sp.get("ultimate", false)) and String(sp.kind) in BIG_CINE and sim.t - float(sim.get("_big_cine_t")) > 9.0 \
+			and sim.t >= float(sim.get("cine_hold")) and not RenderProfile.options.has("no-big-cine"):
+		sim.set("_big_cine_t", sim.t)
+		sim.cine_hold = sim.t + t_rel + 0.9
+		UltimateKit.big_spell(sim, who, String(o.id), t_rel)
 	_perf[who] = {"g": g, "until": t + L}
 	sim.at(L, func():
 		if _perf.has(who) and float(_perf[who].until) <= sim.t + 0.01:
@@ -226,6 +233,8 @@ func cast(s: Dictionary, o: Dictionary, name: String, over := {}, opts := {}) ->
 				n_g = int(n_g * PetalArts.CARD_EXTRA)          # (the video card is the look; the petals an extra layer)
 			var storm := PetalStorm.make(sim.d.main, who, n_g)
 			storm.ground(sim.d.pos(who).y)
+			if bool(sp.get("ultimate", false)):
+				storm.light_k = 0.25                  # (the ultimate's close-ups on her hands: no white burn)
 			storm.gather(src, gather_len)
 			_perf[who].storm = storm
 			_perf[who].card = arts.gather_card(who, src, gather_len, big)
@@ -403,7 +412,7 @@ func _release(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, ch:
 			var first_m := {"done": false}
 			atk.t_hit = sim.t + 0.55
 			for i in n_m:
-				var off := Vector3(sim.rng.randf_range(-1.8, 1.8), 0, sim.rng.randf_range(-1.8, 1.8)) if i != 2 else Vector3.ZERO
+				var off := Vector3(sim.rng.randf_range(-1.8, 1.8), 0, sim.rng.randf_range(-1.8, 1.8)) if i != 0 else Vector3.ZERO
 				var to_g := Vector3(c_m.x, gy, c_m.z) + off
 				var sky := to_g + Vector3(sim.rng.randf_range(-1.5, 1.5), 8.0, 0) - fl * 2.5
 				sim.at(0.12 * float(i), func():
@@ -654,6 +663,16 @@ func _array_open(s: Dictionary, o: Dictionary, src: Callable) -> void:
 	afx.sigil(Vector3(q.x, gy + 0.03, q.z), Vector3.UP, who, 1.4, 1.6, 0.2, 8.0)
 
 
+const BIG_CINE := ["meteor", "sky", "domain", "eclipse", "pillars", "seal"]
+
+
+## An ultimate's first hit: the kit's impact frames and hit stop.
+func _ult_hit(s: Dictionary, p: Vector3) -> void:
+	var k = sim.get("ult_kit")
+	if k and is_instance_valid(k) and String(k.who) == String(s.id):
+		k.on_hit(p)
+
+
 ## The petal arts (Selwyn 2026-10-20, his Bankai reference): every spell is drawn as her petal storm taking the
 ## spell's shape (PetalArts); the old spell shapes keep their timing and hits, hidden.
 const PETALS := true
@@ -783,6 +802,10 @@ func _weapon(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, rels
 			var w: Dictionary = _perf[who].get("weapon", {})
 			var hand := func() -> Vector3: return f.trace.get(side + "Hand", f.sk.global_position)
 			var tip := func() -> Vector3: return svfx.weapon_tip(w) if not w.is_empty() else (hand.call() as Vector3)
+			if bool(sp.get("ultimate", false)):
+				(st_w as PetalStorm).scatter(hand, 1.2, 0.9)   # (an ultimate's blade is the ghost weapon's: no beam along it)
+				(st_w as PetalStorm).finish()
+				return
 			(st_w as PetalStorm).stream(hand, tip, span, 0.09, 0.08)
 			(st_w as PetalStorm).scatter(tip, 0.9, 0.9)
 			(st_w as PetalStorm).finish())
@@ -826,7 +849,7 @@ func _weapon(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, rels
 					sim._flat(to_w - a0), 0.7)
 				afx.glow(a0 + Vector3.UP, who, 3.0, 4.0, 0.4, 0.05, 0.3)
 				sim.at(dur_w, func():
-					if String(atk.outcome) in ["", "miss"]:
+					if String(atk.outcome) in ["", "miss", "done"]:
 						atk.outcome = ""
 						_land(s, o, atk, to_w + Vector3.UP * 0.8, 0.6)))
 	sim.at(float(rels[rels.size() - 1]) + 0.3, func():
@@ -872,6 +895,7 @@ func _land(s: Dictionary, o: Dictionary, atk: Dictionary, p: Vector3, r: float) 
 		return
 	atk.outcome = "hit"
 	atk.zone = best.zone
+	_ult_hit(s, best.point)
 	atk.touch = best.point
 	var power: float = {"light": 0.5, "medium": 0.72, "heavy": 1.0}.get(String(atk.m.weight), 0.6)
 	o.hp = float(o.hp) - float(atk.m.dmg)
@@ -927,6 +951,7 @@ func _blade_touch(s: Dictionary, o: Dictionary, atk: Dictionary, w: Dictionary, 
 	sim.vfx.impact(best.point, dir, s.id, power, "hit")
 	sim.d.impact(power, false)
 	sim.d.shake(0.4)
+	_ult_hit(s, best.point)
 	sim._interrupt(o)
 	sub.reaction = HitReactions.hit(sim, o, String(best.zone), dir, power, {"weight": "medium", "knock": 0.35})
 	_log(s, sub, "hit", String(best.zone))

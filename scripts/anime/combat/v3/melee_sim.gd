@@ -132,6 +132,8 @@ var gestures: GestureDirector
 ## The cinematographer (FightCine): cuts timed to the fight; --old-fight-camera keeps the old follow shot.
 var cine: FightCine
 var cine_hold := 0.0
+var ult_kit = null                        # the UltimateKit running now (its first hit gets the impact frames)
+var _big_cine_t := -99.0                  # when a big spell last ran the kit's short form
 ## The duel's realm (FightRealm): the world turns into the realm of whoever pushes the fight with big magic.
 var realm: FightRealm                      # fight time until which an ultimate's own cinematic owns the camera
 
@@ -746,6 +748,12 @@ func _limb_target(s: Dictionary, o: Dictionary, atk: Dictionary) -> Vector3:
 	return contact - dir * L
 
 
+## Every big hit (Selwyn 2026-10-20, FX_Cinematic_v1): the impact starburst at the contact, 1 to 1.5 m, played fast.
+func big_hit_fx(at: Vector3, power: float) -> void:
+	FlipbookFX.play(d.main, "fx_impact_starburst", func() -> Vector3: return at, {"size": lerpf(1.0, 1.5, clampf(power, 0.0, 1.0)), "f0": 4.0,
+		"f1": 63.0, "dur": 0.6, "fade_in": 0.02, "fade_out": 0.25, "intensity": 1.5, "light": 3.0, "black_cut": 0.16})
+
+
 func _lunge(s: Dictionary, o: Dictionary, dt: float) -> void:
 	var atk: Dictionary = s.atk
 	if atk.contact == Vector3.INF or atk.locked != Vector3.INF:
@@ -821,6 +829,8 @@ func _impact(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 			d.impact(power, false)
 			d.shake(0.35 + power * 0.55)
 			vfx.impact(contact, dir, s.id, power, "hit")
+			if power >= 0.9 or atk.has("weapon"):
+				big_hit_fx(contact, power)
 			d.face_fx(o.id, "hurt", 1.0, 0.5)
 			_interrupt(o)
 			# the receiver sells it: zone x strength (HitReactions), partial physics on the struck part, hair whip

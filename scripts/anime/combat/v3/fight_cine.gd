@@ -77,7 +77,7 @@ func update() -> void:
 		if oc in ["hit", "block", "parry"] and p != Vector3.INF and _can_cut(true):
 			var by := String(a.by)
 			# (a spell landing is a burst of light: a lens 1 m from it is a white screen, so it is framed from 4.6 m)
-			if bool(a.get("spell", false)):
+			if bool(a.get("spell", false)) or bool(a.get("weapon", false)):
 				_cut("impact", by, {"at": p}, HIT_HOLD, "%s %s" % [oc, a.move])
 				return
 			_cut("hit_close", by, {"at": p, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, HIT_HOLD, "%s %s" % [oc, a.move])
@@ -92,6 +92,10 @@ func update() -> void:
 			"attack":
 				if _can_cut():
 					var k := _fresh(["profile", "ots", "face_ots"] if rng.randf() < 0.6 else ["ots", "profile", "wide_low"])
+					# (a weapon windup: the side that shows both bodies and the blade's line; over the shoulder put the
+					# other girl's hair over half the frame for a second, Selwyn's spar, 20 October)
+					if String(MoveCatalog.CLIPS.get(String(e[3]), {}).get("cat", "")) == "weapon":
+						k = _fresh(["profile", "wide_low", "track"])
 					var target_who := who if k != "face_ots" else String(sim.d.F[who].other)
 					_cut(k, target_who, {}, 0.32, "windup " + String(e[3]))
 			"spell", "cast":
