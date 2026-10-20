@@ -4,21 +4,20 @@ extends RefCounted
 ## cinematographer (FightCine) on the contacts. Both girls lead four exchanges each. Options: --weapon-level=20 (the
 ## Gale Rapier and the Shadow Glaive). Prints "[spar] <beat> at <fight s> frame N" and every contact ("[paired] ...").
 
-## [beat, attacker, attack clip, answers [hit index, answer, clip, meet s, extra]]
+## [beat, attacker, attack clip, answers [hit index, answer, clip, meet s, extra], opts {from, to}] (2026-10-20 evening:
+## the lifted lunge, side dodges, a backstep, Mika's one-handed steps, three exchanges led by each)
+const MU := "ualf:Sword_Idle|"
 const BEATS := [
-	["cleave / block", "luna", "sword:great_sword_slash_4", [[1, "block", "ualf:Sword_Block", 0.35]]],
-	["combo / guards then a cut", "mika", "ualf:Sword_Regular_Combo", [[0, "block", "sword:great_sword_blocking", 0.25],
-		[1, "block", "sword:great_sword_blocking_3", 0.25], [2, "block", "sword:great_sword_blocking", 0.25], [3, "hit", "sword:great_sword_impact", 0.08]]],
-	["spin / duck and block", "luna", "sword:great_sword_high_spin_attack", [[1, "dodge", "sword:great_sword_crouching_4", 0.2],
-		[2, "block", "ualf:Sword_Block", 0.35]]],
-	["dash through / block", "mika", "ualf:Sword_Dash", [[0, "block", "sword:great_sword_blocking_3", 0.25]]],
-	["three cuts / block, parry, hit", "luna", "sword:great_sword_slash_2", [[0, "block", "ualf:Sword_Block", 0.35],
-		[1, "parry", "ualf:Sword_Regular_B", 0.27], [2, "hit", "ualf:Hit_Chest", 0.05]]],
-	["thrust / hit", "mika", "ualf:Sword_Attack", [[0, "hit", "sword:great_sword_impact_2", 0.1]]],
-	["leaping cleave / roll under", "luna", "sword:great_sword_jump_attack", [[2, "dodge", "ualf:Roll", 0.35]]],
+	["lunge / side step", "mika", "ml_r_lunge_thrust", [[0, "dodge", "sword:great_sword_strafe_4", 0.3]], {"from": 0.8, "to": 2.6}],
+	["spin / duck and block", "luna", "sword:great_sword_high_spin_attack", [[1, "dodge", MU + "sword:great_sword_crouching_4", 0.2],
+		[2, "block", "ualf:Sword_Block", 0.35]], {}],
+	["dash through / block", "mika", "ualf:Sword_Dash", [[0, "block", "sword:great_sword_blocking_3", 0.25]], {}],
+	["three cuts / block, parry, step back", "luna", "sword:great_sword_slash_2", [[0, "block", "ualf:Sword_Block", 0.35],
+		[1, "parry", "ualf:Sword_Regular_B", 0.27], [2, "dodge", MU + "sword:great_sword_jump@rev", 0.35]], {}],
+	["leaping cleave / roll under", "luna", "sword:great_sword_jump_attack", [[2, "dodge", "ualf:Roll", 0.35]], {}],
 	["heavy combo / knockdown", "mika", "ualf:Sword_Heavy_Combo", [[0, "block", "sword:great_sword_blocking", 0.25],
 		[1, "block", "sword:great_sword_blocking_2", 0.35], [2, "hit", "sword:great_sword_impact_3", 0.1],
-		[3, "knock", "ualf:Hit_Knockback", 0.05, "ualf:LayToIdle"]]],
+		[3, "knock", "ualf:Hit_Knockback", 0.05, "ualf:LayToIdle"]], {}],
 ]
 
 
@@ -35,7 +34,7 @@ static func run(t) -> void:
 	for id in main.characters:
 		if not (id in ["mika", "luna"]):
 			(main.characters[id] as Node3D).visible = false
-	FightDirector.set_hour(main, float(RenderProfile.options.get("hour", "18.2")))
+	FightDirector.set_hour(main, float(RenderProfile.options.get("hour", "16.6")))
 	if main.get("weather") and main.weather:
 		main.weather.set_weather("clear", 48.0)
 	if main.get("subtitle") and main.subtitle:
@@ -75,7 +74,9 @@ static func run(t) -> void:
 			answers.append(e)
 		print("[spar] %s at %.2f frame %d" % [bt[0], sim.t, Engine.get_frames_drawn()])
 		n_by[a] = int(n_by[a]) + 1
-		var span := pp.exchange({"a": a, "b": b, "atk": String(bt[2]), "answers": answers})
+		var spec := {"a": a, "b": b, "atk": String(bt[2]), "answers": answers}
+		spec.merge(bt[4] as Dictionary)
+		var span := pp.exchange(spec)
 		await wait.call(span + 0.15)
 	await wait.call(1.0)
 	print("[spar] end at %.2f frame %d" % [sim.t, Engine.get_frames_drawn()])
@@ -83,9 +84,10 @@ static func run(t) -> void:
 	for r in pp.rows:
 		tally[String(r.answer)] = int(tally.get(String(r.answer), 0)) + 1
 		print("[spar] row ", JSON.stringify(r))
-	t._check(n_by.mika == n_by.luna and pp.rows.size() >= 12, "paired exchanges %s, contacts %s" % [str(n_by), str(tally)])
+	t._check(n_by.mika == n_by.luna and pp.rows.size() >= 9, "paired exchanges %s, contacts %s" % [str(n_by), str(tally)])
 	for id in ["mika", "luna"]:
 		pp.wp.sheathe(id)
+	pp.release()
 	await t._wait(0.5)
 	sim.teardown()
 	d.teardown()

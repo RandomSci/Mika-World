@@ -598,13 +598,49 @@ func _unblock(look: Vector3, p: Vector3) -> Vector3:
 	q.exclude = ex
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
-		return p
+		# (2026-10-20: standing stones and ruins without colliders filled the frame) big props' bounds too
+		var near := INF
+		for oc in _occluders():
+			var mi: MeshInstance3D = oc
+			if not is_instance_valid(mi) or not mi.is_visible_in_tree():
+				continue
+			var inv := mi.global_transform.affine_inverse()
+			var hseg = mi.get_aabb().intersects_segment(inv * look, inv * p)
+			if hseg != null:
+				near = minf(near, look.distance_to(mi.global_transform * (hseg as Vector3)))
+		if near == INF:
+			return p
+		hit = {"position": look + (p - look).normalized() * near}
 	var hp: Vector3 = hit.position
 	var dir := (p - look).normalized()
 	var d := maxf((hp - look).length() - 0.3, 0.6)
 	var out := look + dir * d
 	out.y = maxf(out.y, ground_y(c, out) + 0.15)
 	return out
+
+
+var _occ: Array = []
+var _occ_built := false
+
+
+## The big props round the clearing (stones, ruins, trunks): meshes 0.6 to 8 m across within 16 m of its centre.
+func _occluders() -> Array:
+	if _occ_built:
+		return _occ
+	_occ_built = true
+	var w = main.get("world") if main else null
+	if w == null or not (w is Node):
+		return _occ
+	for n in (w as Node).find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.get_parent() is WorldCharacter or mi.find_parent("*Character*") != null:
+			continue
+		var ab := mi.global_transform * mi.get_aabb()
+		var sz := ab.size.length()
+		if sz < 0.6 or sz > 8.0 or _flat(ab.get_center() - center).length() > 16.0:
+			continue
+		_occ.append(mi)
+	return _occ
 
 
 func _flat(v: Vector3) -> Vector3:
@@ -791,7 +827,8 @@ func shot_cam(kind: String, who: String, u: float, len_: float, o: Dictionary) -
 			# a paired exchange's contact (2026-10-20): both bodies and the blades in a medium shot on the point between
 			# their chests, 55 deg off their line, pushing in through the hit stop (the blade close-up framed empty
 			# ground or a skirt when the glaive's tip was 2 m out)
-			var at_c: Vector3 = o.get("at", chest(a))
+			# (live between their chests: a dash or a long combo carries them out of a point fixed at the contact)
+			var at_c: Vector3 = _sm("clash", (chest(a) + chest(String(F[a].other))) * 0.5, 0.3)
 			var flc := float(o.get("flip", 1.0))
 			var dist_c := float(o.get("dist", 2.4))
 			var dirc := (perp * flc + ax * 0.35 + up * 0.18).normalized()

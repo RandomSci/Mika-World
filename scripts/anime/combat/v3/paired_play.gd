@@ -2,7 +2,7 @@ class_name PairedPlay
 extends RefCounted
 ## Paired exchanges (2026-10-20, Selwyn: "Fight structure like real games. Every exchange is a paired animation. The
 ## attacker's full body clip plays whole with root motion, the defender's matching reaction clip (block, parry, dodge,
-## hit) is synced so both meet at the contact frame. Spacing comes from the weapon reach, rapier about 1.5 m and glaive
+## hit) is synced so both meet at the contact frame. Spacing comes from the weapon reach, rapier about 1.5 m and glaive (since replaced by Luna's longsword, 1.8 m)
 ## about 2.5 m, never chest to chest. No partial blending inside an attack.")
 ## On a MeleeSim (demo: no brain, no footwork), with the suit mocap of BodyMoves:
 ##   exchange(spec)   the attacker steps to the distance her weapon reaches at her first blow (less the clip's own
@@ -15,7 +15,7 @@ extends RefCounted
 ##                    burst; every contact is an attack record for the cinematographer (FightCine)
 ## Prints "[paired] <t> <a> <clip> hit <i> -> <b> <answer> <clip>".
 
-const GAP := {"mika": 1.5, "luna": 2.4}                     # m between their hips at a blade contact (the weapon's reach)
+const GAP := {"mika": 1.5, "luna": 1.8}                     # m between their hips at a blade contact (the weapon's reach: rapier, longsword)
 const STANCE := {"mika": "ualf:Sword_Idle", "luna": "sword:great_sword_idle"}
 const POWER := {"block": 0.45, "parry": 0.6, "hit": 0.75, "knock": 1.0}
 
@@ -25,6 +25,14 @@ var wp: WeaponPlay
 var rm := {}                                                # id -> the clip moving her {clip, t0, from, speed, base, fwd, left, r0, until}
 var rows: Array = []
 var busy_until := {}                                        # id -> fight s her current clip ends
+var _weather_was := true
+
+
+## After the fight: the weather runs again.
+func release() -> void:
+	var w = d.main.get("weather") if is_instance_valid(d) else null
+	if w:
+		w.enabled = _weather_was
 
 
 static func make(s: MeleeSim) -> PairedPlay:
@@ -34,6 +42,13 @@ static func make(s: MeleeSim) -> PairedPlay:
 	p.wp = WeaponPlay.make(s)
 	s.set_meta("weapon_play", p.wp)
 	s.set_meta("paired", true)
+	# (Selwyn: no rain during fights) the weather holds clear while they fight; release() gives it back
+	var w = s.d.main.get("weather")
+	if w:
+		p._weather_was = bool(w.enabled)
+		w.enabled = false
+		w.rain = 0.0
+		w.cloud = 0.0
 	for id in ["mika", "luna"]:
 		(s.F[id] as MeleeFighter).rig_w = 0.0
 		p.wp.draw(id)
@@ -165,6 +180,12 @@ func exchange(spec: Dictionary) -> float:
 	return span
 
 
+## The contact's flash (Selwyn: "white burst at most 2 frames and small"): a starburst for two frames.
+func _burst(at: Vector3, size: float) -> void:
+	FlipbookFX.play(d.main, "fx_impact_starburst", func() -> Vector3: return at, {"size": size, "f0": 20.0, "f1": 40.0, "dur": 2.0 / 30.0,
+		"fade_in": 0.0, "fade_out": 0.02, "intensity": 0.9, "light": 1.2, "black_cut": 0.2, "near": 1.6})
+
+
 func _trail(id: String, on: bool) -> void:
 	var w = wp.weapons.get(id)
 	if w and is_instance_valid(w):
@@ -188,15 +209,14 @@ func _contact(a: String, b: String, atk: String, i: int, answer: String) -> void
 			# (sparks and a small quick starburst only: the block's full impact burst read as a white ball over her)
 			d.impact(power, false)
 			d.shake(0.3)
-			FlipbookFX.play(d.main, "fx_impact_starburst", func() -> Vector3: return at, {"size": 0.4, "f0": 8.0, "f1": 63.0, "dur": 0.25,
-				"fade_in": 0.02, "fade_out": 0.15, "intensity": 1.0, "light": 2.0, "black_cut": 0.18, "near": 1.6})
+			_burst(at, 0.35)
 		"hit", "knock":
 			at = tip.lerp(chest, 0.6)
 			(sim.S[b] as Dictionary).hp = float(sim.S[b].hp) - 8.0 * power
 			d.impact(power, false)
 			d.shake(0.35 + power * 0.5)
-			sim.vfx.impact(at, dirv, a, power * 0.6, "hit")
-			sim.big_hit_fx(at, power * 0.7)
+			sim.vfx.impact(at, dirv, a, power * 0.5, "hit")
+			_burst(at, 0.45)
 	if answer != "dodge":
 		sim.attacks.append({"t": snappedf(sim.t, 0.01), "by": a, "move": atk, "outcome": "hit" if answer == "knock" else answer,
 			"defence": answer if answer in ["block", "parry"] else "", "touch": at, "vs": b, "limb": "rh", "weapon": true,

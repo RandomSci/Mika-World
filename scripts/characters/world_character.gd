@@ -278,6 +278,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	cloth_clearance = ClothClearance.attach(skeleton, clr) if not clr.is_empty() else null
 	if cloth_clearance and RenderProfile.options.has("no-clearance"):
 		cloth_clearance.enabled = false
+	if cloth_clearance:
+		cloth_clearance.caps = BodyCapsules.of(self, skeleton)
 	foot_guard = FootGuard.new()
 	foot_guard.name = "FootGuard"
 	skeleton.add_child(foot_guard)
@@ -1965,6 +1967,12 @@ func _finish_action(ok: bool, detail: String) -> void:
 	action_finished.emit(a, ok, detail)
 
 
+## A fight's deck is playing her clips (the fight owns her whole body).
+func _fight_owned() -> bool:
+	var fd := skeleton.get_node_or_null("FightDeck") if skeleton else null
+	return fd != null and (fd as SkeletonModifier3D).active and String(fd.call("current")) != ""
+
+
 # ------------------------------------------------------------------ simulation
 func _physics_process(delta: float) -> void:
 	_gclock += delta
@@ -1977,7 +1985,8 @@ func _physics_process(delta: float) -> void:
 		cloth_clearance.allow = not casting and not (handler and handler.held != null) and not (sword and sword.drawn) \
 			and (pose_adjust.influence < 0.05 or cloth_clearance.seated) and spd < walk_speed * 1.35 \
 			and not (reaction and reaction.active) and not lifted \
-			and not bool(anim_tree.get("parameters/cast/active") if anim_tree else false)   # a gesture / dance owns her arms
+			and not bool(anim_tree.get("parameters/cast/active") if anim_tree else false) \
+			and not _fight_owned()                    # (2026-10-20: a fight clip owns her arms; this put Mika's hand 10 cm into her waist)
 	if reaction:
 		reaction.physics(delta)
 		if reaction.active:

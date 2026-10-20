@@ -5,9 +5,9 @@ extends RefCounted
 ## really swings ... Every exchange is a paired animation ... Both girls attack and move about equally"; then "Mixamo
 ## is real suit mocap with true depth, so it becomes the core fighting body motion"):
 ##   exchange   the attacker's whole clip (Mika the UAL one-handed sword set for her rapier, Luna the Mixamo great sword
-##              set for her glaive) through PairedPlay, the defender's answer clip synced to every blow: a guard, a
+##              set for her two-handed longsword, the Shadow Blade) through PairedPlay, the defender's answer clip synced to every blow: a guard, a
 ##              parry, a duck, a jump or a roll out of the line, a hit, on a heavy last blow sometimes a knock-down and
-##              the get up; spacing from the weapon's reach (rapier 1.5 m, glaive 2.4 m)
+##              the get up; spacing from the weapon's reach (rapier 1.5 m, longsword 1.8 m)
 ##   turns      whoever answered well often counters at once; else the turn passes; both lead about equally
 ##   spacing    between exchanges they circle: a side step clip while the line between them turns 25 to 50 deg
 ##   magic      every 7 to 10 s one breaks away and casts (her gesture clip and the petal arts; video mocap stays for
@@ -18,25 +18,37 @@ extends RefCounted
 ## [clip, weight] her attacks (weight: light / medium / heavy, a heavy last blow may knock her down)
 const ATTACKS := {
 	"mika": [["ualf:Sword_Attack", "medium"], ["ualf:Sword_Regular_A", "light"], ["ualf:Sword_Regular_C", "medium"],
-		["ualf:Sword_Regular_Combo", "medium"], ["ualf:Sword_Heavy_Combo", "heavy"], ["ualf:Sword_Dash", "medium"]],
+		["ualf:Sword_Regular_Combo", "medium"], ["ualf:Sword_Heavy_Combo", "heavy"], ["ualf:Sword_Dash", "medium"],
+		["ml_r_lunge_thrust", "medium"]],
 	"luna": [["sword:great_sword_attack", "light"], ["sword:great_sword_slash", "medium"], ["sword:great_sword_slash_2", "heavy"],
 		["sword:great_sword_slash_3", "heavy"], ["sword:great_sword_slash_4", "medium"], ["sword:great_sword_slash_5", "medium"],
 		["sword:great_sword_high_spin_attack", "heavy"], ["sword:great_sword_jump_attack", "heavy"], ["sword:great_sword_slide_attack", "medium"]],
 }
-## her answers: kind -> [[clip, meet s], ...]
+## her answers: kind -> [[clip, meet s], ...] (Mika's steps and dodges: her one-handed guard over the legs, "<upper>|<lower>")
+const MU := "ualf:Sword_Idle|"
 const ANSWERS := {
 	"mika": {"block": [["ualf:Sword_Block", 0.35]], "parry": [["ualf:Sword_Regular_B", 0.27]],
 		"hit": [["ualf:Hit_Chest", 0.05], ["ualf:Hit_Head", 0.05], ["ualf:Idle_Shield_Break", 0.1]],
-		"duck": [["sword:great_sword_crouching_4", 0.2]], "jump": [["sword:great_sword_jump_2", 0.35]], "roll": [["ualf:Roll", 0.35]]},
+		"duck": [[MU + "sword:great_sword_crouching_4", 0.2]], "jump": [[MU + "sword:great_sword_jump_2", 0.35]], "roll": [["ualf:Roll", 0.35]],
+		"side": [[MU + "sword:great_sword_strafe_3", 0.3], [MU + "sword:great_sword_strafe_4", 0.3]],
+		"back": [[MU + "sword:great_sword_jump@rev", 0.35]]},
 	"luna": {"block": [["sword:great_sword_blocking", 0.25], ["sword:great_sword_blocking_3", 0.25], ["sword:great_sword_blocking_2", 0.35]],
 		"parry": [["sword:great_sword_blocking_3", 0.25]],
 		"hit": [["sword:great_sword_impact", 0.08], ["sword:great_sword_impact_2", 0.1], ["sword:great_sword_impact_3", 0.1]],
-		"duck": [["sword:great_sword_crouching_4", 0.2]], "jump": [["sword:great_sword_jump_2", 0.35]], "roll": [["ualf:Roll", 0.35]]},
+		"duck": [["sword:great_sword_crouching_4", 0.2], ["sword:great_sword_crouching_2@mirror", 0.25]], "jump": [["sword:great_sword_jump_2", 0.35]],
+		"roll": [["ualf:Roll", 0.35]], "side": [["sword:great_sword_strafe_3", 0.3], ["sword:great_sword_strafe_4", 0.3]],
+		"back": [["sword:great_sword_jump@rev", 0.35]]},
 }
 const KNOCK := ["ualf:Hit_Knockback", 0.05, "ualf:LayToIdle"]
-## the dodge that fits a blow: a sweep low (jump it), a leap down on her (roll under), a high spin (duck it)
+## the dodge that fits a blow: a sweep low (jump it), a leap down on her (roll under), a high spin (duck it), a thrust or
+## a dash (out of its line), a long cut (a step back out of reach)
 const DODGE := {"sword:great_sword_slide_attack": "jump", "sword:great_sword_slash_5": "jump", "sword:great_sword_jump_attack": "roll",
-	"sword:great_sword_high_spin_attack": "duck", "sword:great_sword_slash_4": "duck"}
+	"sword:great_sword_high_spin_attack": "duck", "sword:great_sword_slash_4": "duck", "sword:great_sword_slash_3": "side",
+	"sword:great_sword_attack": "back", "sword:great_sword_slash": "back", "ualf:Sword_Attack": "side", "ualf:Sword_Dash": "side",
+	"ml_r_lunge_thrust": "side", "ualf:Sword_Regular_C": "back", "ualf:Sword_Regular_A": "back"}
+## her side steps between exchanges (the line between them turns)
+const STEPS := {"mika": [MU + "sword:great_sword_strafe", MU + "sword:great_sword_strafe_2"],
+	"luna": ["sword:great_sword_strafe", "sword:great_sword_strafe_2"]}
 ## per girl: how often she guards, dodges, counters (the rest lands)
 const STYLE := {"mika": {"guard": 0.4, "dodge": 0.3, "counter": 0.6, "magic": "frost_orb,star_daggers,starlight_lance,frost_arrow,meteor_rain"},
 	"luna": {"guard": 0.55, "dodge": 0.15, "counter": 0.5, "magic": "moon_crescent,violet_moon,sigil_beam,moonlit_pillars,moon_seal"}}
@@ -125,7 +137,7 @@ func _exchange(a: String) -> void:
 		var e := {}
 		if kind == "hit" and i == n - 1 and String(at[1]) == "heavy" and rng.randf() < 0.4:
 			e = {"hit": i, "answer": "knock", "clip": KNOCK[0], "meet": KNOCK[1], "then": KNOCK[2]}
-		elif kind in ["duck", "jump", "roll"]:
+		elif kind in ["duck", "jump", "roll", "side", "back"]:
 			var dc: Array = _pick(ANSWERS[b][kind])
 			e = {"hit": i, "answer": "dodge", "clip": dc[0], "meet": dc[1]}
 			dodged = true
@@ -148,26 +160,16 @@ func _exchange(a: String) -> void:
 	next_at = sim.t + span + (0.1 if counter else rng.randf_range(0.2, 0.45))
 	if not counter and rng.randf() < 0.5:
 		sim.at(span + 0.05, func(): _circle())
-		next_at += 0.8
+		next_at += 1.2
 
 
-## Between exchanges: a side step clip each while the line between them turns, inside the clearing.
+## Between exchanges: both side step the same way round (each clip's own sideways travel), the line between them turns.
 func _circle() -> void:
-	var d := sim.d
-	var c0 := (d.pos("mika") + d.pos("luna")) * 0.5
-	c0 = c0.lerp(d.center, 0.35)
-	var ax := sim._flat(d.pos("luna") - d.pos("mika")).normalized()
-	var sgn := 1.0 if rng.randf() < 0.5 else -1.0
-	var turn := deg_to_rad(rng.randf_range(25.0, 50.0) * sgn)
-	ax = ax.rotated(Vector3.UP, turn)
-	var gap := rng.randf_range(2.8, 3.6)
-	for pr in [["mika", c0 - ax * gap * 0.5], ["luna", c0 + ax * gap * 0.5]]:
-		var id := String(pr[0])
-		var s: Dictionary = sim.S[id]
-		s.glide = {"from": d.pos(id), "to": d.clamp_arena(pr[1]), "t": 0.0, "dur": 0.75, "ease": "inout"}
-		d.anim(id, "sword:great_sword_strafe" if sgn > 0.0 else "sword:great_sword_strafe_2", 0.0, -1.0, 1.0, 0.12, true)
-		sim.at(0.8, func():
-			if float(pp.busy_until.get(id, 0.0)) <= sim.t:
+	var k := 0 if rng.randf() < 0.5 else 1
+	for id in ["mika", "luna"]:
+		var L := pp.drive(id, String(STEPS[id][k]), 0.0, -1.0, 1.0, 0.12)
+		sim.at(L, func():
+			if float(pp.busy_until.get(id, 0.0)) <= sim.t + 0.02:
 				pp.stance(id))
 
 

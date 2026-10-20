@@ -17,10 +17,16 @@ extends Node3D
 ##                  surface may take it 2 cm deep (`strike` true), never more
 ##   trail          thin GPUTrail ribbons on the tip and down the blade while `trail_on` (_trail_step)
 
-const MODELS := {"mika": "res://assets/weapons/MikaGaleRapier_L20.glb", "luna": "res://assets/weapons/LunaShadowGlaive_L20.glb"}
-const NAMES := {"mika": "Gale Rapier", "luna": "Shadow Glaive"}
-## [butt below the grip, tip above the grip, blade starts at] (m), from the exports' bounds
-const SPAN := {"mika": [0.062, 0.936, 0.13], "luna": [0.68, 1.02, 0.62]}
+const MODELS := {"mika": "res://assets/weapons/MikaGaleRapier_L20.glb"}
+const NAMES := {"mika": "Gale Rapier", "luna": "Shadow Blade"}
+## [butt below the grip, tip above the grip, blade starts at] (m), from the exports' bounds. (2026-10-20, Selwyn: "Change
+## luna's weapon to sword as well it's so bad when using spear": the Shadow Glaive is retired from fights; Luna fights
+## with the Shadow Blade, a two-handed longsword built here, both hands on its hilt as the great sword clips hold it)
+const SPAN := {"mika": [0.062, 0.936, 0.13], "luna": [0.27, 1.13, 0.06]}
+const MODEL_GRIP := {"mika": 0.062}
+const SHAFT_SPREAD := {}
+const TWO_HANDS := ["luna"]
+const BLADE_ANGLE := 45.0                     # deg from the thumb side toward the fingers (the diagonal grip)
 const RADIUS := 0.025
 const MAX_DEFLECT := 70.0
 
@@ -73,10 +79,13 @@ func _build() -> void:
 		PosePipeline.arrange_for(f.sk)
 	body = Node3D.new()
 	add_child(body)
-	if real and ResourceLoader.exists(MODELS[who]):
+	if real and who == "luna":
+		_build_longsword()
+	elif real and ResourceLoader.exists(String(MODELS.get(who, ""))):
 		var sc: PackedScene = load(MODELS[who])
 		var inst := sc.instantiate() as Node3D
 		body.add_child(inst)
+		inst.position.y = float(MODEL_GRIP[who]) - float(SPAN[who][0])     # (the model's grip moved to where she holds it)
 		for mi in inst.find_children("*", "MeshInstance3D", true, false):
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	else:
@@ -98,6 +107,82 @@ func _build() -> void:
 		tw.parallel().tween_property(body, "scale", Vector3.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
+## The Shadow Blade (Luna from Level 20, 2026-10-20): a two-handed longsword of our own design, in her colours. Origin at
+## the grip (where her right hand closes, just under the guard), the length along +Y: a 1.07 m blade of dark steel with
+## a diamond section tapering to the point and a violet light down its fuller, a 0.27 m gold crossguard swept toward
+## the blade, a 0.2 m grip wrapped in deep violet for both hands, a gold pommel holding a moon stone.
+func _build_longsword() -> void:
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.16, 0.15, 0.2)
+	steel.metallic = 0.95
+	steel.roughness = 0.22
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = Color(0.86, 0.68, 0.34)
+	gold.metallic = 1.0
+	gold.roughness = 0.3
+	var wrap := StandardMaterial3D.new()
+	wrap.albedo_color = Color(0.22, 0.1, 0.32)
+	wrap.roughness = 0.75
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = Color(0.72, 0.5, 1.0)
+	glow.emission_enabled = true
+	glow.emission = Color(0.66, 0.42, 1.0)
+	glow.emission_energy_multiplier = 2.4
+	var sp: Array = SPAN["luna"]
+	var b0 := 0.06                                     # the blade starts above the guard
+	var bl := float(sp[1]) - b0
+	# the blade: diamond section, 5 cm wide, 9 mm thick, tapering over its last fifth to the point
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var ring := func(y: float, w: float, th: float) -> Array:
+		return [Vector3(w, y, 0), Vector3(0, y, th), Vector3(-w, y, 0), Vector3(0, y, -th)]
+	var rows := [[b0, 0.026, 0.0045], [b0 + bl * 0.8, 0.022, 0.0042], [b0 + bl, 0.0005, 0.0005]]
+	for r in rows.size() - 1:
+		var A: Array = ring.call(float(rows[r][0]), float(rows[r][1]), float(rows[r][2]))
+		var B: Array = ring.call(float(rows[r + 1][0]), float(rows[r + 1][1]), float(rows[r + 1][2]))
+		for k in 4:
+			var k2 := (k + 1) % 4
+			for v in [A[k], B[k], B[k2], A[k], B[k2], A[k2]]:
+				st.add_vertex(v)
+	st.generate_normals()
+	var parts := [[st.commit(), steel, Transform3D()]]
+	# the fuller's light
+	var fb := BoxMesh.new()
+	fb.size = Vector3(0.006, bl * 0.72, 0.0105)
+	parts.append([fb, glow, Transform3D(Basis(), Vector3(0, b0 + bl * 0.4, 0))])
+	# the crossguard, its arms swept up toward the blade
+	for sgn in [-1.0, 1.0]:
+		var gb := BoxMesh.new()
+		gb.size = Vector3(0.14, 0.022, 0.028)
+		parts.append([gb, gold, Transform3D(Basis(Vector3.BACK, deg_to_rad(12.0) * sgn), Vector3(0.07 * sgn, b0 - 0.012 + 0.012, 0))])
+	var gc := SphereMesh.new()
+	gc.radius = 0.022
+	gc.height = 0.044
+	parts.append([gc, glow, Transform3D(Basis(), Vector3(0, b0 - 0.01, 0))])
+	# the grip and the pommel
+	var gr := CylinderMesh.new()
+	gr.top_radius = 0.016
+	gr.bottom_radius = 0.017
+	gr.height = float(sp[0]) - 0.05
+	parts.append([gr, wrap, Transform3D(Basis(), Vector3(0, b0 - 0.03 - gr.height * 0.5, 0))])
+	var pm := SphereMesh.new()
+	pm.radius = 0.026
+	pm.height = 0.05
+	parts.append([pm, gold, Transform3D(Basis(), Vector3(0, -float(sp[0]) + 0.02, 0))])
+	var gem := SphereMesh.new()
+	gem.radius = 0.014
+	gem.height = 0.028
+	parts.append([gem, glow, Transform3D(Basis(), Vector3(0, -float(sp[0]) + 0.02, 0.018))])
+	for p in parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = p[0]
+		mi.material_override = p[1]
+		mi.transform = p[2]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		body.add_child(mi)
+
+
 ## The light blade below Level 20: Mika a slim rapier of light with a small guard, Luna a glaive (a long shaft of light
 ## and a crescent blade at its head).
 func _build_conjured() -> void:
@@ -111,8 +196,10 @@ func _build_conjured() -> void:
 		parts.append([svfx.crystal(0.16, 0.022, 4, 0.5), Transform3D(Basis(Vector3.FORWARD, PI * 0.5), Vector3(0.08, 0.05, 0))])
 		parts.append([svfx.crystal(0.11, 0.016, 6, 0.5), Transform3D(Basis(), Vector3(0, -0.06, 0))])
 	else:
-		parts.append([svfx.crystal(float(sp[0]) + float(sp[1]) - 0.3, 0.014, 6, 0.5), Transform3D(Basis(), Vector3(0, -float(sp[0]), 0))])
-		parts.append([svfx.crescent_mesh(0.3, 0.06, 150.0, 24), Transform3D(Basis(Vector3.FORWARD, -PI * 0.5), Vector3(0.12, float(sp[1]) - 0.32, 0))])
+		# (a longsword of light: the blade, a wide guard, the two-hand grip)
+		parts.append([svfx.crystal(float(sp[1]) - 0.06, 0.03, 4, 0.08), Transform3D(Basis(), Vector3(0, 0.06, 0))])
+		parts.append([svfx.crystal(0.26, 0.022, 4, 0.5), Transform3D(Basis(Vector3.FORWARD, PI * 0.5), Vector3(0.13, 0.04, 0))])
+		parts.append([svfx.crystal(float(sp[0]), 0.016, 6, 0.5), Transform3D(Basis(), Vector3(0, -float(sp[0]), 0))])
 	for p in parts:
 		var mi := MeshInstance3D.new()
 		mi.mesh = p[0]
@@ -140,6 +227,9 @@ func _place() -> void:
 	if not _alive or not is_instance_valid(f.sk):
 		return
 	grip.hold[side] = hold_w
+	if who in TWO_HANDS:
+		grip.hold["Left" if side == "Right" else "Right"] = hold_w        # (her other hand closes on the hilt too)
+		grip.two = hold_w
 	var sk := f.sk
 	var hb := sk.find_bone(side + "Hand")
 	var mb := sk.find_bone(side + "MiddleProximal")
@@ -157,9 +247,31 @@ func _place() -> void:
 	var y := (knuck - length.normalized() * knuck.dot(length.normalized())).normalized()
 	if y.length() < 0.5:
 		return
-	var z := length.normalized().cross(y).normalized()
-	var x := y.cross(z).normalized()
-	var at := hand.lerp(mid, 0.55) + z * 0.012 * f.k
+	# (2026-10-20, Selwyn: "if it's not how humans hold swords you're not allowed to proceed"; tests/blade_calib)
+	# one hand: the handle lies diagonally across the palm, index base to the heel of the hand, so the blade leaves
+	# the fist between the thumb side and the fingers (45 deg, the angle the strikes' contacts fit best)
+	var at := hand.lerp(mid, 0.55)
+	var ln := length.normalized()
+	var blade := (y * cos(deg_to_rad(BLADE_ANGLE)) + ln * sin(deg_to_rad(BLADE_ANGLE))).normalized()
+	if who in TWO_HANDS:
+		# two hands: the grip runs through both fists (GripPose turns each fist round it); the guard above the upper
+		var other := "Left" if side == "Right" else "Right"
+		var ob := sk.find_bone(other + "Hand")
+		var om := sk.find_bone(other + "MiddleProximal")
+		var o_at: Vector3 = (gx * sk.get_bone_global_pose(ob).origin).lerp(gx * sk.get_bone_global_pose(om).origin, 0.55)
+		var line := at - o_at
+		if line.length() > 0.04:
+			line = line.normalized()
+			if line.dot(blade) < 0.0:
+				line = -line
+				at = o_at
+			blade = line
+	var z := blade.cross(ln).normalized()
+	if z.length() < 0.5:
+		z = blade.cross(Vector3.UP).normalized()
+	var x := blade.cross(z).normalized()
+	y = blade
+	at += z * 0.012 * f.k
 	var b := Basis(x, y, z).scaled(Vector3.ONE * f.k)
 	global_transform = Transform3D(b, at)
 	_collide()
@@ -316,6 +428,11 @@ func sheathe() -> void:
 	var tw := create_tween()
 	tw.tween_property(self, "hold_w", 0.0, 0.25)
 	tw.parallel().tween_method(func(v: float): grip.hold[side] = v, hold_w, 0.0, 0.25)
+	if who in TWO_HANDS:
+		var other := "Left" if side == "Right" else "Right"
+		tw.parallel().tween_method(func(v: float):
+			grip.hold[other] = v
+			grip.two = v, hold_w, 0.0, 0.25)
 	if real:
 		tw.parallel().tween_property(body, "scale", Vector3.ONE * 0.01, 0.2)
 	else:

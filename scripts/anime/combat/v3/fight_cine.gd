@@ -61,6 +61,8 @@ func _can_cut(urgent := false) -> bool:
 	return sim.t - since >= (0.22 if urgent else MIN_SHOT)
 
 
+var _pc := 0                               # paired contacts so far (close-ups alternate)
+var _wc := 0                               # paired windups so far
 var _quiet_since := -99.0                 # the last blade contact (a new exchange after a pause resets with a wide)
 
 
@@ -73,17 +75,23 @@ func _weapon_windup(who: String, clip: String) -> void:
 	if BodyMoves.has(clip):
 		far = absf(float(BodyMoves.entry(clip).get("travel", 0.0))) >= 1.5      # (the suit mocap's own travel: a dash, a long combo)
 	var lead := 0.0
-	if sim.t - _quiet_since > 2.5:
+	if sim.t - _quiet_since > 2.5 and (not sim.has_meta("paired") or sim._flat(sim.d.pos("mika") - sim.d.pos("luna")).length() > 4.5):
 		_cut("wide_low", who, {}, 0.55, "reset " + clip)
 		lead = 0.55
 	var go := func():
 		if sim.t < float(sim.get("cine_hold")):
 			return
 		if sim.has_meta("paired"):
-			# (paired: both bodies always in frame; a long travel from the side, it crosses the frame)
-			var k3 := "profile" if far else _fresh(["duo", "profile", "orbit"])
-			var o3 := {"from": sim.rng.randf_range(-20.0, 20.0), "to": sim.rng.randf_range(40.0, 70.0), "r": 5.0} if k3 == "orbit" else {"k": 1.0, "high": 0.25}
-			_cut(k3, who, o3, 0.7, "windup " + clip)
+			# (paired, Download(7): her face as she commits every third windup, else both bodies; a long travel from the
+			# side, it crosses the frame)
+			_wc += 1
+			var k3 := "profile" if far else ("face" if _wc % 3 == 1 else _fresh(["two_mid", "profile", "orbit", "face_ots"]))
+			var o3 := {"k": 1.0, "high": 0.25}
+			if k3 == "orbit":
+				o3 = {"from": sim.rng.randf_range(-20.0, 20.0), "to": sim.rng.randf_range(40.0, 70.0), "r": 4.2}
+			elif k3 == "face":
+				o3 = {"side": 0.35}
+			_cut(k3, who if k3 != "face_ots" else String(sim.d.F[who].other), o3, 0.55, "windup " + clip)
 			return
 		if far:
 			_cut("feet", who, {}, 0.5, "dash " + clip)
@@ -115,15 +123,22 @@ func update() -> void:
 			var by := String(a.by)
 			# (a spell landing is a burst of light: a lens 1 m from it is a white screen, so it is framed from 4.6 m)
 			if bool(a.get("paired", false)):
-				# a paired exchange: the clash with both bodies in frame, then the struck girl from the side
-				var mid: Vector3 = (sim.d.chest(by) + sim.d.chest(String(a.vs))) * 0.5
-				var gapc := sim._flat(sim.d.pos(String(a.vs)) - sim.d.pos(by)).length()
-				_cut("clash", by, {"at": mid, "dist": 1.5 + gapc * 0.6, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, 0.5, "%s %s" % [oc, a.move])
+				# a paired exchange (Download(7)): every other blade contact a close-up on the clash itself, else both
+				# bodies round it; a hit then cuts to the struck girl's face
+				_pc += 1
 				var vs2 := String(a.get("vs", ""))
+				var mid: Vector3 = (sim.d.chest(by) + sim.d.chest(vs2)) * 0.5
+				var gapc := sim._flat(sim.d.pos(vs2) - sim.d.pos(by)).length()
+				var flip := 1.0 if rng.randf() < 0.5 else -1.0
+				var trav := absf(float(BodyMoves.entry(String(a.move)).get("travel", 0.0)))
+				if oc in ["block", "parry"] and _pc % 2 == 0 and p.distance_to(mid) < 1.2 and trav < 1.5:
+					_cut("blade_close", by, {"at": p, "flip": flip}, 0.45, "%s %s close" % [oc, a.move])
+				else:
+					_cut("clash", by, {"at": mid, "dist": 1.3 + gapc * 0.5, "flip": flip}, 0.45, "%s %s" % [oc, a.move])
 				if oc == "hit" and vs2 != "":
-					sim.at(0.45, func():
+					sim.at(0.4, func():
 						if sim.t >= float(sim.get("cine_hold")):
-							_cut("profile", vs2, {}, 0.6, "reaction"))
+							_cut("face", vs2, {"side": 0.3}, 0.6, "reaction face"))
 				_quiet_since = sim.t
 				return
 			if bool(a.get("weapon", false)):
@@ -189,12 +204,15 @@ func update() -> void:
 			"defend":
 				pass
 	# 3 between exchanges: a wide that does not sit still for long
-	if sim.t >= until and sim.t - since >= NEUTRAL_MAX:
+	var nmax := 1.0 if sim.has_meta("paired") else NEUTRAL_MAX
+	if sim.t >= until and sim.t - since >= nmax:
 		var k2 := _fresh(["duo", "wide_low", "orbit"])
 		if sim.has_meta("weapon_play"):
 			k2 = _fresh(["orbit", "profile", "orbit", "track"])      # (a weapon fight: both in frame, the lens always moving)
 			if sim.has_meta("paired"):
-				k2 = _fresh(["orbit", "profile", "duo"])
+				# (wide only to reset space: when they are far apart)
+				var gap_n := sim._flat(sim.d.pos("mika") - sim.d.pos("luna")).length()
+				k2 = "wide_low" if gap_n > 4.5 else _fresh(["two_mid", "orbit", "profile"])
 		var o2 := {"k": rng.randf_range(0.9, 1.05), "high": rng.randf_range(0.0, 0.4), "min": 3.2}
 		if k2 == "orbit":
 			o2 = {"from": rng.randf_range(10.0, 40.0), "to": rng.randf_range(60.0, 100.0), "r": 4.6}

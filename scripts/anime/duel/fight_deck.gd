@@ -41,14 +41,105 @@ static func make(ch: WorldCharacter) -> FightDeck:
 
 
 ## The Animation for a clip name: the character's library first, then "sword:<file>" / "<pack>:<anim>".
+## Suit mocap ("sword:", "mixamo:", "ualf:") comes conditioned for HER body (SuitFix, 2026-10-20: limbs, twists, ankles,
+## arms out of her dress), prebaked per skeleton like the Move Library bakes; "<clip>@mirror" is it with left and
+## right swapped, "<clip>@rev" run backward (a side dodge the other way, a step back from a step in).
 static func anim_for(ch: WorldCharacter, clip: String) -> Animation:
 	if ch and ch.has_clip(clip):
 		return ch.body_player.get_animation("mx/" + clip)
-	if _ext.has(clip):
-		return _ext[clip]
+	if clip.contains("|"):
+		# "<upper>|<lower>": her upper body from one clip over the legs and travel of another (2026-10-20: Mika's
+		# one-handed sword guard over the only side steps there are, the great sword set's)
+		var ck := clip + "|" + (_rest_key(ch) if ch else "")
+		if not _ext.has(ck):
+			var up := anim_for(ch, clip.get_slice("|", 0))
+			var lo := anim_for(ch, clip.get_slice("|", 1))
+			_ext[ck] = _compose(up, lo) if up and lo else null
+		return _ext[ck]
+	var suit := ch != null and (clip.begins_with("sword:") or clip.begins_with("mixamo:") or clip.begins_with("ualf:"))
+	var key := clip + ("|" + _rest_key(ch) if suit else "")
+	if _ext.has(key):
+		return _ext[key]
+	var base := clip.get_slice("@", 0)
+	var variant := clip.get_slice("@", 1) if clip.contains("@") else ""
+	var a := _raw(base)
+	if a != null and suit:
+		var sig := ("%d|%s|%s" % [SuitFix.VERSION, variant, FileAccess.get_md5(_source(base) + ".import")]).md5_text()
+		var cp := MocapBake.BAKED_DIR + _rest_key(ch) + "/deck__" + clip.replace(":", "__").replace("@", "__") + ".res"
+		var hit: Animation = load(cp) as Animation if ResourceLoader.exists(cp) and not RenderProfile.options.has("no-prebake") else null
+		if hit != null and String(hit.get_meta("src", "")) == sig:
+			a = hit
+		else:
+			a = a.duplicate(true) as Animation
+			if variant == "mirror":
+				a = SuitFix.mirror(ch.skeleton, a)
+			elif variant == "rev":
+				a = SuitFix.reverse(a)
+			var st := SuitFix.condition(ch, ch.skeleton, a)
+			print("[deck] %s conditioned for %s %s" % [clip, String(ch.character_id), str(st)])
+			a.set_meta("src", sig)
+			DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(cp.get_base_dir()))
+			ResourceSaver.save(a, cp, ResourceSaver.FLAG_COMPRESS)
+	if a == null:
+		push_warning("[fight] no clip " + clip)
+	_ext[key] = a
+	return a
+
+
+const LOWER := ["Root", "Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "LeftToes", "RightUpperLeg", "RightLowerLeg", "RightFoot", "RightToes"]
+
+
+## The legs, hips and travel of `lo` (its length) under the upper body of `up` (looped through it).
+static func _compose(up: Animation, lo: Animation) -> Animation:
+	var out := Animation.new()
+	out.length = lo.length
+	out.loop_mode = lo.loop_mode
+	for ti in lo.get_track_count():
+		if String(lo.track_get_path(ti)).get_slice(":", 1) in LOWER:
+			var nt := out.add_track(lo.track_get_type(ti))
+			out.track_set_path(nt, lo.track_get_path(ti))
+			for kk in lo.track_get_key_count(ti):
+				out.track_insert_key(nt, lo.track_get_key_time(ti, kk), lo.track_get_key_value(ti, kk))
+	for ti in up.get_track_count():
+		if up.track_get_type(ti) != Animation.TYPE_ROTATION_3D or String(up.track_get_path(ti)).get_slice(":", 1) in LOWER:
+			continue
+		var nt2 := out.add_track(Animation.TYPE_ROTATION_3D)
+		out.track_set_path(nt2, up.track_get_path(ti))
+		var t := 0.0
+		while t <= lo.length + 0.0001:
+			out.rotation_track_insert_key(nt2, t, up.rotation_track_interpolate(ti, fposmod(t, maxf(up.length, 0.01))))
+			t += 1.0 / 30.0
+	return out
+
+
+static var _rk := {}
+
+
+static func _rest_key(ch: WorldCharacter) -> String:
+	var id := ch.skeleton.get_instance_id()
+	if not _rk.has(id):
+		_rk[id] = MocapBake.rest_key(ch.skeleton)
+	return _rk[id]
+
+
+static func _source(clip: String) -> String:
+	if clip.begins_with("sword:"):
+		return SWORD_DIR + clip.get_slice(":", 1) + ".fbx"
+	if clip.begins_with("mixamo:"):
+		return MIXAMO_DIR + clip.get_slice(":", 1) + ".fbx"
+	return String(UAL.get(clip.get_slice(":", 0), ""))
+
+
+static var _raws := {}
+
+
+## The clip as imported (shared by both girls).
+static func _raw(clip: String) -> Animation:
+	if _raws.has(clip):
+		return _raws[clip]
 	var a: Animation = null
 	if clip.begins_with("sword:") or clip.begins_with("mixamo:"):
-		var path := (SWORD_DIR if clip.begins_with("sword:") else MIXAMO_DIR) + clip.get_slice(":", 1) + ".fbx"
+		var path := _source(clip)
 		if ResourceLoader.exists(path):
 			var src: Node = (load(path) as PackedScene).instantiate()
 			var ap: AnimationPlayer = src.find_child("AnimationPlayer", true, false)
@@ -64,9 +155,7 @@ static func anim_for(ch: WorldCharacter, clip: String) -> Animation:
 			if ap2 and ap2.has_animation(an):
 				a = ap2.get_animation(an)
 			src2.free()
-	if a == null:
-		push_warning("[fight] no clip " + clip)
-	_ext[clip] = a
+	_raws[clip] = a
 	return a
 
 
@@ -74,6 +163,21 @@ static func anim_for(ch: WorldCharacter, clip: String) -> Animation:
 ## forward. UAL clips: their _RM export's root bone; Mixamo clips: the hips' horizontal track (the deck itself keeps
 ## the hips on her mark, so this is the travel the fight gives her mark instead).
 static func root_at(ch: WorldCharacter, clip: String, t: float) -> Vector2:
+	if clip.contains("|"):
+		return root_at(ch, clip.get_slice("|", 1), t)
+	if clip.ends_with("@mirror"):
+		var m := root_at(ch, clip.get_slice("@", 0), t)
+		return Vector2(-m.x, m.y)
+	if clip.ends_with("@rev"):
+		var b := clip.get_slice("@", 0)
+		var L := clip_length(ch, b)
+		return root_at(ch, b, L - t) - root_at(ch, b, L)
+	if clip.begins_with("ml_"):
+		# (the Move Library's mocap is hip-centred: its catalogued travel, eased in over the windup to the contact)
+		var e: Dictionary = BodyMoves.entry(clip)
+		var c_t := float((e.get("hits", [1.0]) as Array)[0]) if not (e.get("hits", []) as Array).is_empty() else 1.0
+		var u := clampf((t - (c_t - 0.95)) / 0.95, 0.0, 1.0)
+		return Vector2(0.0, float(e.get("travel", 0.0)) * u * u * (3.0 - 2.0 * u))
 	if clip.begins_with("ualf:"):
 		if _root.is_empty():
 			var j = JSON.parse_string(FileAccess.get_file_as_string(UAL_ROOT))
@@ -225,6 +329,8 @@ func _process_modification() -> void:
 	var sk := get_skeleton()
 	if sk == null or _cur.is_empty():
 		return
+	if c and c.cloth_clearance:
+		c.cloth_clearance.allow = false            # (the fight owns her arms: no folded hands, 2026-10-20)
 	var b := _sample(_cur)
 	var w := smoothstep(0.0, 1.0, _fade)
 	var a := _sample(_prev) if w < 1.0 else {}
