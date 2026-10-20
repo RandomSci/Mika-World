@@ -441,8 +441,15 @@ func _do(action: String, args: Dictionary) -> Dictionary:
 			if mb:
 				mb.hold = true
 				mb.interrupt("the show asked for a dance")
+			# an activity of Luna's that holds Mika (the pier at the lake, both sitting) ends too, or Mika sat on through
+			# the show's dance and it was refused (20 October soak)
+			for w in main.mage_brains:
+				if w != "mika" and not (main.mage_brains[w].current as Dictionary).is_empty():
+					main.mage_brains[w].interrupt("the show asked for a dance")
 			var w0 := Time.get_ticks_msec()
-			while mb and not mb.current.is_empty() and Time.get_ticks_msec() - w0 < 25000:
+			var mc: WorldCharacter = main.characters.get("mika")
+			while mb and (not mb.current.is_empty() or (mc and mc.ground_pose != "")) and Time.get_ticks_msec() - w0 < 25000:
+				mb.hold = true                        # (the other's activity releases her when it ends: kept held for the show)
 				await get_tree().process_frame
 			activity = "dance"
 			# a dance already running (Luna celebrating on her own) gives way to the show's: before this the wait below

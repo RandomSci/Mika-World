@@ -532,7 +532,8 @@ func point_at(seat_name: String, dir: Vector3, side := "Right", seconds := 2.5) 
 	var sh := sk.global_transform * sk.get_bone_global_pose(sk.find_bone(side + "UpperArm")).origin
 	(r.pose as SeatPose).reach(side, sh + dir.normalized() * 0.6, 1.0, Vector3(0.5 if side == "Right" else -0.5, -0.6, -0.2))
 	await get_tree().create_timer(seconds).timeout
-	(r.pose as SeatPose).release(side)
+	if is_instance_valid(r.pose):                 # (she may have stepped out meanwhile: the boat came back early)
+		(r.pose as SeatPose).release(side)
 
 
 ## Chin resting on a hand, the elbow on her knee (on), or not.

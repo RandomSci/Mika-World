@@ -194,8 +194,8 @@ func available(who: String) -> Dictionary:
 		return {"ok": false, "why": "not in view"}
 	if busy():
 		return {"ok": false, "why": "someone is already performing"}
-	if c.casting or c.seated or (c.handler and c.handler.held != null):
-		return {"ok": false, "why": "busy with her hands / seated / casting"}
+	if c.casting or c.seated or c.ground_pose != "" or (c.handler and c.handler.held != null):
+		return {"ok": false, "why": "busy with her hands / seated / sitting on the ground / casting"}
 	if main.transformer and main.transformer.playing != "":
 		return {"ok": false, "why": "a transformation is playing"}
 	var b = main.mage_brains.get(who)

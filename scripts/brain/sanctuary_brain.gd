@@ -2178,20 +2178,22 @@ func _lakewatch(_o: Dictionary) -> Dictionary:
 	var ml: Array = LAKE_LINES.get(agent_id, LAKE_LINES.mika)
 	var ol: Array = LAKE_LINES.get(oid, [])
 	var pick := rng.randi() % ml.size()
-	await get_tree().create_timer(4.0).timeout
-	if main.get("voice"):
-		await main.voice.say(_voice(), String(ml[pick]))
-	if w.has_method("release_lantern"):
-		w.release_lantern()                           # they let one go
-	await get_tree().create_timer(6.0).timeout
-	if other and not ol.is_empty() and main.get("voice"):
-		await main.voice.say(String(ob.profile.get("voice", oid)), String(ol[pick % ol.size()]))
-	await get_tree().create_timer(rng.randf_range(18.0, 30.0)).timeout
-	if w.has_method("release_lantern"):
-		w.release_lantern()
-	if main.get("voice"):
-		await main.voice.say(_voice(), String(ml[(pick + 1) % ml.size()]))
-	await get_tree().create_timer(rng.randf_range(20.0, 35.0)).timeout
+	# every wait gives way to an interrupt (the show's dance, a threat): before this the show's dance started its
+	# song while both still sat on the pier (20 October soak)
+	if await _lake_wait(4.0):
+		if main.get("voice"):
+			await main.voice.say(_voice(), String(ml[pick]))
+		if w.has_method("release_lantern"):
+			w.release_lantern()                           # they let one go
+	if await _lake_wait(6.0):
+		if other and not ol.is_empty() and main.get("voice"):
+			await main.voice.say(String(ob.profile.get("voice", oid)), String(ol[pick % ol.size()]))
+	if await _lake_wait(rng.randf_range(18.0, 30.0)):
+		if w.has_method("release_lantern"):
+			w.release_lantern()
+		if main.get("voice"):
+			await main.voice.say(_voice(), String(ml[(pick + 1) % ml.size()]))
+	await _lake_wait(rng.randf_range(20.0, 35.0))
 	current.stage = "getting up"
 	if cam_on:
 		main.director.end_scene()
@@ -2208,7 +2210,19 @@ func _lakewatch(_o: Dictionary) -> Dictionary:
 		ob.hold = false
 	needs.social = clampf(needs.social - 0.3, 0.0, 1.0)
 	needs.energy = clampf(needs.energy + 0.1, 0.0, 1.0)
+	if _interrupt != "":
+		return {"ok": true, "detail": "watched the lanterns at the end of the pier until %s" % _interrupt}
 	return {"ok": true, "detail": "watched the lanterns at the end of the pier%s" % (" with " + MagicSystem.display_name(oid) if other else "")}
+
+
+## A pause on the pier that ends early when she is interrupted. True when it ran its full length.
+func _lake_wait(secs: float) -> bool:
+	var t0 := Time.get_ticks_msec()
+	while (Time.get_ticks_msec() - t0) / 1000.0 < secs:
+		if _interrupt != "" or _cancel:
+			return false
+		await get_tree().process_frame
+	return true
 
 
 func _visit(o: Dictionary) -> Dictionary:
@@ -2224,6 +2238,8 @@ func _visit(o: Dictionary) -> Dictionary:
 func _travel(location: String) -> Dictionary:
 	# the other mage, here with her and free, walks along (Day 2: Luna had vanished whenever Mika changed area)
 	var dest_area := WorldState.area_of(location)
+	if is_foreground() and dest_area != main.streaming.current_id:
+		main.streaming.prebuild(dest_area)          # its heavy build starts now, in the background
 	if is_foreground() and dest_area != main.streaming.current_id and main.has_method("bring_along"):
 		for w in main.mage_brains:
 			if w == agent_id:

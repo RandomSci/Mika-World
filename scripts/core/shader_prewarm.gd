@@ -88,3 +88,54 @@ static func run(camera: Camera3D, host: Node) -> void:
 	for f in 6:
 		await host.get_tree().process_frame
 	root.queue_free()
+
+
+## An area's own look behind the travel card (2026-10-20, Lantern Lake: 130 ms frames on screen while the place and
+## its boat compiled): a camera of its own turns once round where she arrives, level and looking down a little, so
+## every material of the place is drawn once, and the shader folders of what plays there later (the boat, the dance
+## glows) are drawn on tiny spheres in front of it.
+static func area(camera: Camera3D, host: Node, dirs: Array) -> void:
+	var root := ShaderPrewarm.new()
+	host.add_child(root)
+	var xf := camera.global_transform
+	var cam := Camera3D.new()
+	cam.fov = camera.fov
+	cam.near = camera.near
+	cam.far = camera.far
+	cam.cull_mask = camera.cull_mask
+	cam.environment = camera.environment
+	root.add_child(cam)
+	cam.global_transform = xf
+	cam.current = true
+	var i := 0
+	for dir in dirs:
+		var da := DirAccess.open(dir)
+		if da == null:
+			continue
+		for fname in da.get_files():
+			var path: String = String(dir) + "/" + String(fname).trim_suffix(".remap")
+			if not path.ends_with(".gdshader"):
+				continue
+			var sh := load(path) as Shader
+			if sh == null or sh.get_mode() != Shader.MODE_SPATIAL:
+				continue
+			var sm := ShaderMaterial.new()
+			sm.shader = sh
+			var mi := MeshInstance3D.new()
+			var s := SphereMesh.new()
+			s.radius = 0.02
+			s.height = 0.04
+			mi.mesh = s
+			mi.material_override = sm
+			root.add_child(mi)
+			mi.global_transform = Transform3D(Basis.IDENTITY, xf.origin - xf.basis.z * 1.0 + xf.basis.x * ((i % 12) * 0.03 - 0.15) + xf.basis.y * (int(i / 12.0) * 0.03 - 0.1))
+			i += 1
+	for f in 2:
+		await host.get_tree().process_frame
+	var yaw0 := xf.basis.get_euler().y
+	for k in 16:
+		cam.global_transform = Transform3D(Basis.from_euler(Vector3(-0.4 if k >= 8 else 0.0, yaw0 + TAU * float(k % 8) / 8.0, 0.0)), xf.origin)
+		await host.get_tree().process_frame
+	cam.current = false
+	camera.current = true
+	root.queue_free()

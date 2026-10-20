@@ -627,6 +627,10 @@ func boat_ritual(b: SanctuaryBrain, _o := {}) -> Dictionary:
 		await _say(lead_id, "Want to row out for a bit?" if pair else "A little row, I think.", 3.0)
 		if pair:
 			await _say(mate_id, "Fine. Just a short one.", 3.0)
+	# the show asked for a dance on the way out (or something else stopped it): nobody climbs in (the boat seated Mika
+	# in the middle of the show's dance and ended it, 20 October soak)
+	if _stop(b):
+		return _finish(b, ob, false, "stopped before boarding: %s" % (b._interrupt if b._interrupt != "" else "the lake"))
 	# 2. into the boat
 	running = "boarding"
 	b.current["stage"] = "climbing into the boat"

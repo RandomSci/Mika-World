@@ -29,14 +29,34 @@ var last_report := {}
 var prewarm_once: Callable  # run once behind the first travel mask (shader pipeline compilation)
 var before_reveal: Array = []   # Callables awaited on EVERY travel behind the mask, after the area is built (AdaptiveQuality)
 var history: Array[Dictionary] = []
+var _slow_frames := []
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	for id in loading.keys():
 		_poll(id)
+	if state != "idle" and delta > 0.05:
+		_slow_frames.append([state, snappedf(delta * 1000.0, 1.0)])       # (in the travel report: frames over 50 ms)
 
 
 # ------------------------------------------------------------------ preloading
+## Areas whose heavy build runs on a thread ahead of arrival: id -> [start, ready] (static Callables).
+const LAKE_BUILD := preload("res://scripts/areas/lantern_lake.gd")
+var prebuilders := {"lantern_lake": [Callable(LAKE_BUILD, "prebuild_start"), Callable(LAKE_BUILD, "prebuild_ready")]}
+
+
+## Called as soon as a trip there is decided (the brain's walk, a journey): the scene loads and the area's heavy
+## build starts in the background, so the arrival behind the travel card is short.
+func prebuild(id: String) -> void:
+	preload_area(id)
+	if prebuilders.has(id) and id != current_id:
+		(prebuilders[id][0] as Callable).call()
+
+
+func _prebuilt(id: String) -> bool:
+	return not prebuilders.has(id) or bool((prebuilders[id][1] as Callable).call())
+
+
 func preload_area(id: String) -> void:
 	if cache.has(id) or loading.has(id) or not WorldState.areas.has(id):
 		return
@@ -150,13 +170,14 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 	var region_name: String = WorldState.regions[WorldState.areas[to_area].region].name
 	var route_text: String = WorldState.adjacency.get(from_area, {}).get(to_area, "")
 	state = "preloading"
+	_slow_frames = []
 	transition_started.emit(from_area, to_area)
-	preload_area(to_area)
+	prebuild(to_area)
 	if masked and overlay:
 		await overlay.fade_out(region_name, _area_title(to_area), route_text)
 	var t_masked := Time.get_ticks_msec()
 	var wait_frames := 0
-	while not cache.has(to_area):
+	while not cache.has(to_area) or not _prebuilt(to_area):
 		if load_error(to_area) != "":
 			var reason := load_error(to_area)
 			loading.erase(to_area)
@@ -248,6 +269,8 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 	for cb in before_reveal:
 		if (cb as Callable).is_valid():
 			await (cb as Callable).call()
+	if area.has_method("warm_up") and camera_rig and camera_rig.get("camera"):
+		await area.warm_up(camera_rig.camera)
 	state = "transition_in"
 	if masked and overlay:
 		await overlay.fade_in()
@@ -262,7 +285,7 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		"mem_static_mb_before": mem_before.static_mb, "mem_static_mb_after": mem_after.static_mb,
 		"video_mb_after": mem_after.video_mb, "nodes_after": mem_after.nodes, "objects_after": mem_after.objects,
 		"nav_regions_after": mem_after.nav_regions, "instantiated_areas": _instantiated_count(),
-		"arrived_location": WorldState.current_location, "layout_hash": layout_hash}
+		"arrived_location": WorldState.current_location, "layout_hash": layout_hash, "slow_frames": _slow_frames.duplicate()}
 	history.append(last_report)
 	if history.size() > 200:
 		history.pop_front()

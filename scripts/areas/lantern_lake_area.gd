@@ -31,11 +31,20 @@ func _lake() -> void:
 	nav_aabb = AABB(Vector3(-22.0, -1.5, -4.5), Vector3(54.0, 12.0, 58.0))
 	sun.visible = false
 	sun.light_energy = 0.0
-	lake = LAKE.new()
+	lake = LAKE.take_prebuilt()             # built on a thread while they walked down (WorldStreamingManager.prebuild)
+	if lake == null:
+		lake = LAKE.new()
 	lake.name = "Lake"
 	lake.set("embedded", true)
 	lake.set("host_env", env)
 	add_child(lake)                          # (its _ready builds the place into this area's environment)
+
+
+## Behind the travel card, after the build (WorldStreamingManager.travel): every material of the lake, its boat and
+## the dance glows drawn once, so none compiles on screen.
+func warm_up(camera: Camera3D) -> void:
+	await ShaderPrewarm.area(camera, self, ["res://shaders/lantern_lake", "res://shaders/real", "res://shaders/moonbloom",
+		"res://shaders/anime/boat", "res://shaders/anime/dance"])
 
 
 func h(x: float, z: float) -> float:

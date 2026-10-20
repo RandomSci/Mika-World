@@ -40,6 +40,7 @@ static func run(t) -> void:
 	var subscribed := false
 	var monsters_seen := 0
 	var lake_at := -1.0
+	var lake_next := 0.0
 	var off_cam := 0                  # samples with the camera on someone other than Mika
 	var lone_music := 0               # samples with a song playing and no dancer dancing
 	var shots := 0
@@ -68,8 +69,9 @@ static func run(t) -> void:
 			subscribed = true
 			main.live_link._on_message({"type": "youtube-live-subscriber", "author": "NightOwl"})
 			print("[golive] %4.0fs subscriber NightOwl" % el)
-		if not lake_push and el >= 60.0 and main.streaming.current_id != "lantern_lake":
+		if el >= 60.0 and el >= lake_next and lake_at < 0.0 and main.streaming.current_id != "lantern_lake":
 			lake_push = true
+			lake_next = el + 60.0               # again each minute until they are there (a walk can fail: a stuck gate)
 			mb.mind.knowledge["lake_night"] = SanctuaryBrain.night_id() - 3
 			print("[golive] %4.0fs the lake's longing raised (they had not gone yet)" % el)
 		if main.streaming.current_id == "lantern_lake" and lake_at < 0.0:

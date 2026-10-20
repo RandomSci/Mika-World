@@ -90,39 +90,87 @@ var kneel_up := 0.0                    # 0 = sitting back on her heels (seiza), 
 var leg_len := {}                      # who -> Vector2(thigh, shin) metres
 
 
-func _ready() -> void:
-	if not embedded:
-		DisplayServer.window_set_title("Lantern Lake (env-test)")
+## (2026-10-20, go live) The heavy part of the embedded build (lights, terrain, water, pier, trees, reeds, lanterns,
+## mist, fireflies) is made off the tree on a worker thread while they walk down (WorldStreamingManager.prebuild), so
+## arriving only adds the finished place: built in _ready it was one 1.3 to 2 s frame behind the travel card. The
+## environment, the reflection viewport and the sky lanterns still happen in _ready (they need the area and the window).
+static var _pre: Node3D = null
+static var _pre_task := -1
+var _heavy_done := false
+
+
+static func prebuild_start() -> void:
+	if _pre != null:
+		return
+	var n: Node3D = (load("res://scripts/areas/lantern_lake.gd") as GDScript).new()
+	n.set("embedded", true)
+	_pre = n
+	_pre_task = WorkerThreadPool.add_task(Callable(n, "_build_heavy"), true, "lantern lake prebuild")
+
+
+static func prebuild_ready() -> bool:
+	return _pre == null or _pre_task < 0 or WorkerThreadPool.is_task_completed(_pre_task)
+
+
+## The prebuilt lake (waits for the thread if it is still building), or null when none was started.
+static func take_prebuilt() -> Node3D:
+	if _pre == null:
+		return null
+	if _pre_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_pre_task)
+		_pre_task = -1
+	var n := _pre
+	_pre = null
+	return n
+
+
+func _seed() -> void:
 	_rng.seed = 2026
 	_noise.seed = 31
 	_noise.frequency = 0.02
 	_noise.fractal_octaves = 3
 	release_every = float(RenderProfile.options.get("release-every", "180"))
-	Progression.load_data()
-	if not embedded:
-		Engine.max_fps = int(RenderProfile.get_setting("max_fps"))
 	font = SystemFont.new()
 	font.font_names = PackedStringArray(["Noto Serif", "DejaVu Serif", "Liberation Serif", "serif"])
 	font.font_weight = 600
 	lantern_shader = load("res://shaders/lantern_lake/lantern.gdshader")
 	lantern_mesh = _lantern_mesh(16)
+
+
+func _build_heavy() -> void:
+	var t0 := Time.get_ticks_msec()
+	_seed()
+	_lights()
+	_terrain()
+	_water()
+	_pier()
+	_pines()
+	_reeds()
+	_lanterns()
+	_mist()
+	_fireflies()
+	counts["heavy_build_ms"] = Time.get_ticks_msec() - t0
+	_heavy_done = true
+
+
+func _ready() -> void:
+	if not embedded:
+		DisplayServer.window_set_title("Lantern Lake (env-test)")
+	Progression.load_data()
+	if not embedded:
+		Engine.max_fps = int(RenderProfile.get_setting("max_fps"))
 	if embedded:
+		counts["prebuilt"] = _heavy_done
+		if not _heavy_done:
+			_build_heavy()
 		_environment()
-		_lights()
-		_terrain()
-		_water()
-		_pier()
-		_pines()
-		_reeds()
-		_lanterns()
-		_mist()
 		_reflection()
-		_fireflies()
 		RenderingServer.frame_pre_draw.connect(_mirror_camera)
 		_seed_sky()
 		_placed = true
 		print("[lake] embedded in the living world: %s" % counts)
 		return
+	_seed()
 	_viewport_settings()
 	_environment()
 	_lights()
