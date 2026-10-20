@@ -17,7 +17,7 @@ aerial = "--aerial" in argv          # jumps / flips: also the hips' height abov
 
 cap = cv2.VideoCapture(src)
 fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-frames, vis = [], []
+frames, vis, imgs = [], [], []           # imgs: the 2D image landmarks (x right, y down, both in image heights)
 hip_px, foot_px, torso_px, torso_m = [], [], [], []      # 2D (pixels) per frame, for --aerial
 with mp.solutions.pose.Pose(static_image_mode=False, model_complexity=2, smooth_landmarks=True,
                             min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
@@ -29,6 +29,7 @@ with mp.solutions.pose.Pose(static_image_mode=False, model_complexity=2, smooth_
         if res.pose_world_landmarks is None:
             frames.append(None)
             vis.append(None)
+            imgs.append(None)
             if aerial:
                 hip_px.append(None); foot_px.append(None); torso_px.append(None); torso_m.append(None)
             continue
@@ -36,6 +37,8 @@ with mp.solutions.pose.Pose(static_image_mode=False, model_complexity=2, smooth_
         # the image right is her left: Godot (x left, y up, z forward) = (x, -y, -z)
         frames.append([[p.x, -p.y, -p.z] for p in res.pose_world_landmarks.landmark])
         vis.append([p.visibility for p in res.pose_world_landmarks.landmark])
+        asp = img.shape[1] / img.shape[0]
+        imgs.append([[p.x * asp, p.y, p.z * asp] for p in res.pose_landmarks.landmark] if res.pose_landmarks else frames[-1])
         if aerial and res.pose_landmarks is not None:
             h_img, w_img = img.shape[0], img.shape[1]
             L = res.pose_landmarks.landmark
@@ -59,33 +62,41 @@ if not idx:
 for i, f in enumerate(frames):
     if f is None:
         j = min(idx, key=lambda k: abs(k - i))
-        frames[i], vis[i] = frames[j], vis[j]
+        frames[i], vis[i], imgs[i] = frames[j], vis[j], imgs[j]
 
 # a point the model barely sees keeps its last well-seen place (no jitter from guesses)
 for i in range(1, len(frames)):
     for k in range(33):
         if vis[i][k] < 0.3:
             frames[i][k] = frames[i - 1][k]
+            imgs[i][k] = imgs[i - 1][k]
 
 # softness: Gaussian over time, per coordinate
 r = max(1, int(math.ceil(sigma * 3)))
 w = [math.exp(-0.5 * (d / sigma) ** 2) for d in range(-r, r + 1)]
 n = len(frames)
-smooth = []
-for i in range(n):
-    pts = []
-    for k in range(33):
-        acc = [0.0, 0.0, 0.0]
-        tw = 0.0
-        for d in range(-r, r + 1):
-            j = min(max(i + d, 0), n - 1)
-            for c in range(3):
-                acc[c] += frames[j][k][c] * w[d + r]
-            tw += w[d + r]
-        pts.append([round(a / tw, 5) for a in acc])
-    smooth.append(pts)
 
-data = {"src": src, "fps": fps, "frames": smooth, "detected": len(idx), "total": n}
+
+def soften(seq):
+    out = []
+    for i in range(n):
+        pts = []
+        for k in range(33):
+            acc = [0.0, 0.0, 0.0]
+            tw = 0.0
+            for d in range(-r, r + 1):
+                j = min(max(i + d, 0), n - 1)
+                for c in range(3):
+                    acc[c] += seq[j][k][c] * w[d + r]
+                tw += w[d + r]
+            pts.append([round(a / tw, 5) for a in acc])
+        out.append(pts)
+    return out
+
+
+smooth = soften(frames)
+data = {"src": src, "fps": fps, "frames": smooth, "detected": len(idx), "total": n, "img": soften(imgs),
+        "vis": [[round(v, 3) for v in vv] for vv in vis]}
 if aerial:
     # the hips' height above the floor (metres, the actor's scale) from the 2D image of a still camera: the floor is
     # the line her lowest foot rests on most of the time; pixels -> metres from her torso (shoulders to hips)
