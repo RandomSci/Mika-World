@@ -96,6 +96,7 @@ var leg_len := {}                      # who -> Vector2(thigh, shin) metres
 ## environment, the reflection viewport and the sky lanterns still happen in _ready (they need the area and the window).
 static var _pre: Node3D = null
 static var _pre_task := -1
+static var _boat_res: Array = []        # (held so the loaded boat stays in the resource cache)
 var _heavy_done := false
 
 
@@ -149,6 +150,8 @@ func _build_heavy() -> void:
 	_lanterns()
 	_mist()
 	_fireflies()
+	# the moored boat's scene and its shaders load here too (from disk in the arrival frame it was a 270 ms frame)
+	_boat_res = [load(MoonBoat.SCENE), load("res://shaders/anime/boat/water_ripple.gdshader"), load("res://shaders/anime/dance/glow_sprite.gdshader")]
 	counts["heavy_build_ms"] = Time.get_ticks_msec() - t0
 	_heavy_done = true
 
@@ -501,6 +504,31 @@ func _pines() -> void:
 				counts["broadleaf"] = int(counts.get("broadleaf", 0)) + list.size()
 	counts["pines_near"] = nn
 	counts["pines_far"] = nf
+	# the trunks for the cameras only (layer 3, the vegetation layer every lens check uses; walking and the navmesh
+	# ignore it): the trees are multimesh, without them the chase lens and the dance shots ended up behind a trunk
+	# with Mika at the edge of the picture (20 October soaks)
+	var trunks := Node3D.new()
+	trunks.name = "TrunkColliders"
+	add_child(trunks)
+	var nt := 0
+	for v in all_v:
+		for xf: Transform3D in near[v]:
+			if Vector2(xf.origin.x, xf.origin.z).distance_to(focus) > 80.0:
+				continue
+			var sc := xf.basis.get_scale().x
+			var body := StaticBody3D.new()
+			body.collision_layer = 4
+			body.collision_mask = 0
+			var cs := CollisionShape3D.new()
+			var cyl := CylinderShape3D.new()
+			cyl.radius = 0.35 * sc
+			cyl.height = 6.0 * sc
+			cs.shape = cyl
+			body.add_child(cs)
+			body.position = xf.origin + Vector3(0, 3.0 * sc, 0)
+			trunks.add_child(body)
+			nt += 1
+	counts["trunk_colliders"] = nt
 
 
 ## A crown's colour (multimesh custom data: rgb, a = how far its leaves take it). The pines stay evergreen but deep

@@ -96,6 +96,7 @@ func warm_up(camera: Camera3D) -> void:
 	# the boat moored at the pier is built now too (1.2 s after the reveal it was a 140 ms frame on screen)
 	if LakeRitual.instance and (not RenderProfile.options.has("mktest") or RenderProfile.options.has("lake-ritual") or String(RenderProfile.options.get("mktest", "")) == "golive_soak"):
 		LakeRitual.instance._ensure_boat()
+		await get_tree().process_frame
 	await ShaderPrewarm.area(camera, self, ["res://shaders/lantern_lake", "res://shaders/real", "res://shaders/moonbloom",
 		"res://shaders/anime/boat", "res://shaders/anime/dance"])
 
@@ -163,6 +164,16 @@ func _links() -> void:
 ## Their two places at the end of the pier (world), facing the lake.
 func sit_spots() -> Array:
 	return [to_global(Vector3(PIER_X - SIT_GAP * 0.5, DECK_Y, SIT_Z)), to_global(Vector3(PIER_X + SIT_GAP * 0.5, DECK_Y, SIT_Z))]
+
+
+## Where a dance happens here (PerformanceController): the open bank beside the pier's land end, facing the water,
+## so every dance shot looks in from over the lake. The bank's trees have no colliders, so a spot found by probing
+## put the dance among the trunks and the lens behind them (20 October soak).
+func dance_spot(_c: Node3D, _with_partner: bool) -> Dictionary:
+	var at := to_global(Vector3(PIER_X - 3.0, 0.0, 12.5))
+	at.y = ground_at(at.x - global_position.x, at.z - global_position.z) + global_position.y
+	var p := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, at)
+	return {"at": p, "face": to_global(Vector3(PIER_X - 3.0, 0.0, -10.0))}
 
 
 func lake_facing() -> Vector3:

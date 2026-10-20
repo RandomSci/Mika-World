@@ -67,7 +67,7 @@ func _process(_d: float) -> void:
 	if busy():
 		# the dancer and her partner stay held the whole dance, whoever else lets go of them (an activity of Luna's
 		# that ended released Mika mid-intro; her planner took her into the boat and the dance stopped, 20 October)
-		for w in [String(active.get("who", "")), String(active.get("partner", ""))]:
+		for w in [String(active.get("who", "")), String(active.get("partner", "")), String(active.get("with", ""))]:
 			var hb = main.mage_brains.get(w)
 			if hb and String(hb.current.get("kind", "")) != "perform":
 				hb.hold = true
@@ -173,7 +173,7 @@ func _clear_at(c: WorldCharacter, p: Vector3) -> bool:
 
 func _partner_free(partner: String) -> bool:
 	var c2: WorldCharacter = main.characters.get(partner)
-	if c2 == null or not c2.visible or c2.casting or c2.seated or (c2.handler and c2.handler.held != null):
+	if c2 == null or not c2.visible or c2.casting or c2.seated or c2.ground_pose != "" or (c2.handler and c2.handler.held != null):
 		return false
 	var b2 = main.mage_brains.get(partner)
 	if b2 and b2.threat != null:
@@ -239,7 +239,8 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	var t_start := Time.get_ticks_msec()
 	_abort = ""
 	active = {"who": who, "mode": mode, "song": song, "title": String(MusicLibrary.song(song).get("title", song)), "planned_total": snappedf(total, 0.1),
-		"preview": preview, "stage": "starting", "clips": [], "singing": false, "started_unix": int(Time.get_unix_time_from_system())}
+		"preview": preview, "stage": "starting", "clips": [], "singing": false, "started_unix": int(Time.get_unix_time_from_system()),
+		"with": String(opts.get("with", ""))}           # (the partner asked for: held from the start, not only once beside her)
 	var brain = main.mage_brains.get(who)
 	# a dance she did not choose herself (a request, a celebration): her own planner is held until it ends, or it
 	# walked her off to the ferns while her song played (20 October soak)
@@ -286,17 +287,28 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	# her clear too (a brazier or a column there hid her partner from the camera for the whole dance)
 	var partner_wanted := String(opts.get("with", "")) != "" and String(opts.get("with", "")) != who
 	var open := _open_floor(c, partner_wanted)
+	var face_to := Vector3.INF
+	if main.world and main.world.has_method("dance_spot"):
+		var ds: Dictionary = main.world.dance_spot(c, partner_wanted)     # (an area's own open floor: the lake bank)
+		open = ds.at
+		face_to = ds.face
 	if open != Vector3.INF and open.distance_to(c.global_position) > 0.6:
 		active.stage = "finding room to dance"
 		c.navigate_to(open, false)
 		var tw := Time.get_ticks_msec()
-		while c.current_action == "navigate_to" and Time.get_ticks_msec() - tw < 12000:
+		var walk_ms := 30000 if face_to != Vector3.INF else 12000      # (the lake's spot can be 15 m off, from the pier's end)
+		while c.current_action == "navigate_to" and Time.get_ticks_msec() - tw < walk_ms:
 			await get_tree().process_frame
 	# the dance is on: she turns to the camera FIRST, then the performance shot is set from her front (a shot set
 	# before she turned filmed her back while her partner walked over)
 	if films:
 		var cam0 := get_viewport().get_camera_3d()
-		if cam0:
+		if face_to != Vector3.INF:
+			c.look_at_point(Vector3(face_to.x, c.global_position.y, face_to.z))     # (the shots are set from her front)
+			var tf := Time.get_ticks_msec()
+			while c.current_action == "look_at" and Time.get_ticks_msec() - tf < 1500:
+				await get_tree().process_frame
+		elif cam0:
 			c.look_at_point(Vector3(cam0.global_position.x, c.global_position.y, cam0.global_position.z))
 			var tt := Time.get_ticks_msec()
 			while c.current_action == "look_at" and Time.get_ticks_msec() - tt < 1500:
@@ -511,6 +523,9 @@ func _finish(c: WorldCharacter, brain, dir_was: bool, res: Dictionary, _t0: int)
 	var who := String(res.get("who", active.get("who", "")))
 	if bool(active.get("held_brain", false)) and brain:
 		brain.hold = false
+	var wb = main.mage_brains.get(String(active.get("with", "")))
+	if wb:
+		wb.hold = false                  # (the partner asked for, held from the start, whether or not she joined)
 	if not bool(res.get("preview", true)) and who != "":
 		_remember(who, res)
 		if String(res.get("partner", "")) != "":

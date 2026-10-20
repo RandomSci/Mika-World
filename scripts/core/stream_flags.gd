@@ -19,5 +19,11 @@ static func fights() -> bool:
 	return RenderProfile.options.has("fights") or bool(data().get("fights", true))
 
 
+## Lantern Lake as a place they walk to (false: no visit, pier watch or boat is offered; set when the lake is not
+## stream ready). A test forces it on with --lake.
+static func lake() -> bool:
+	return RenderProfile.options.has("lake") or bool(data().get("lake", true))
+
+
 static func transformations() -> bool:
 	return RenderProfile.options.has("transformations") or bool(data().get("transformations", true))

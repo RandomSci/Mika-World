@@ -69,11 +69,13 @@ var _scene: Callable = Callable()
 
 func begin_scene(shot: Callable) -> void:
 	_scene = shot
+	_scene_failed = false
 	_since_change = 0.0
 
 
 func end_scene() -> void:
 	_scene = Callable()
+	_scene_failed = false
 
 
 func begin_stargaze(a: WorldCharacter, b: WorldCharacter) -> void:
@@ -333,9 +335,52 @@ func _process(delta: float) -> void:
 		else:
 			_switch(want)
 	_frame(delta)
+	_guard_mika(delta)
+
+
+## The stream's camera shows Mika (Selwyn, 20 October: never the camera on Luna). Whatever the shot, her head must be
+## in the picture with nobody (Luna) and nothing solid in front of it; hidden for 0.6 s, a dance goes to its next shot
+## and anything else cuts to the chase lens close behind her for 4 s (a two-shot behind a rock, the dance shot over
+## open water, Luna's back filling the chase shot all happened in the soaks).
+var _hidden_t := 0.0
+var _rescue_until := 0.0
+var _scene_failed := false              # a scene's own shots hid her: the chase lens for the rest of that scene
+
+
+func _guard_mika(delta: float) -> void:
+	if not enabled or mika == null or not mika.visible or main.streaming.state != "idle" or mode in ["off", "chase"]:
+		_hidden_t = 0.0
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var head := mika.global_position + Vector3(0, 1.35, 0)
+	var vs := get_viewport().get_visible_rect().size
+	var seen := not cam.is_position_behind(head) and Rect2(Vector2.ZERO, vs).has_point(cam.unproject_position(head)) \
+		and not _mate_blocks(cam.global_position, head)
+	if seen:
+		var q := PhysicsRayQueryParameters3D.create(cam.global_position, head, 1 | 4)     # (walls, rocks and the trunks)
+		q.exclude = [mika.get_rid()]
+		var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
+		seen = hit.is_empty() or (hit.position as Vector3).distance_to(head) < 0.4
+	_hidden_t = 0.0 if seen else _hidden_t + delta
+	if _hidden_t < 0.6:
+		return
+	_hidden_t = 0.0
+	if mode == "performance" and not _perf.is_empty():
+		print("[camera] Mika hidden in the dance shot %s: next shot" % String((_perf.shot as Dictionary).get("name", "")))
+		performance_cut()
+	else:
+		print("[camera] Mika hidden in a %s shot: the chase lens%s" % [mode, " until the scene ends" if mode == "scene" else " for 4 s"])
+		_rescue_until = _now() + 4.0
+		if mode == "scene":
+			_scene_failed = true
+		_switch("chase")
 
 
 func _choose() -> String:
+	if (_now() < _rescue_until or (_scene_failed and _scene.is_valid())) and _perf.is_empty():
+		return "chase"
 	if not _perf.is_empty():
 		return "performance"
 	if _scene.is_valid():
@@ -464,7 +509,8 @@ func _frame(delta: float) -> void:
 				pos.y = maxf(pos.y, float(main.world.ground_at(pos.x, pos.z)) + 0.25)
 			fov = float(sh.fov)
 			pos = _clear_line(_perf_look("chest"), _clear_line(look, pos))
-			if not _sees_dancers(pos, pair):
+			# (pulled in against a trunk to under 1.8 m, the lens saw only grass: that counts as blocked too)
+			if not _sees_dancers(pos, pair) or pos.distance_to(_perf_look("chest")) < 1.8:
 				# something solid between the lens and the dancers (a ruin wall, a column): swing the shot round to
 				# the first open side and keep that side for the rest of the shot (no flicker between sides)
 				for off in [0.8, -0.8, 1.6, -1.6, PI]:
@@ -473,7 +519,7 @@ func _frame(delta: float) -> void:
 					if main.world and main.world.has_method("ground_at"):
 						p2.y = maxf(p2.y, float(main.world.ground_at(p2.x, p2.z)) + 0.25)
 					p2 = _clear_line(_perf_look("chest"), _clear_line(look, p2))
-					if _sees_dancers(p2, pair):
+					if _sees_dancers(p2, pair) and p2.distance_to(_perf_look("chest")) >= 1.8:
 						pos = p2
 						_perf.yaw0 = float(_perf.yaw0) + float(off)
 						break
@@ -511,7 +557,7 @@ func _frame(delta: float) -> void:
 			var hit_len := rig.arm.get_hit_length()
 			var squeezed := hit_len < 1.6
 			var head := mika.global_position + Vector3(0, 1.45, 0)
-			var oq := PhysicsRayQueryParameters3D.create(rig.camera.global_position, head, 1)
+			var oq := PhysicsRayQueryParameters3D.create(rig.camera.global_position, head, 1 | 4)
 			oq.exclude = [mika.get_rid()]
 			var ohit := mika.get_world_3d().direct_space_state.intersect_ray(oq)
 			_chase_hidden_t = (_chase_hidden_t + delta) if (not ohit.is_empty() and (ohit.position as Vector3).distance_to(head) > 0.5) else 0.0

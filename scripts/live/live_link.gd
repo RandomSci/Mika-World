@@ -443,9 +443,20 @@ func _do(action: String, args: Dictionary) -> Dictionary:
 				mb.interrupt("the show asked for a dance")
 			# an activity of Luna's that holds Mika (the pier at the lake, both sitting) ends too, or Mika sat on through
 			# the show's dance and it was refused (20 October soak)
+			# the others are held too until the dance has started (Luna, let go, sat down on the pier in the seconds
+			# before it, and Mika danced alone beside her) - the dance holds its partner itself from then on
+			var others_held := []
 			for w in main.mage_brains:
-				if w != "mika" and not (main.mage_brains[w].current as Dictionary).is_empty():
-					main.mage_brains[w].interrupt("the show asked for a dance")
+				if w != "mika":
+					if not main.mage_brains[w].hold:
+						main.mage_brains[w].hold = true
+						others_held.append(w)
+					if not (main.mage_brains[w].current as Dictionary).is_empty():
+						main.mage_brains[w].interrupt("the show asked for a dance")
+			var release_others := func():
+				for w in others_held:
+					if main.mage_brains.has(w):
+						main.mage_brains[w].hold = false
 			var w0 := Time.get_ticks_msec()
 			var mc: WorldCharacter = main.characters.get("mika")
 			while mb and (not mb.current.is_empty() or (mc and mc.ground_pose != "")) and Time.get_ticks_msec() - w0 < 25000:
@@ -464,6 +475,7 @@ func _do(action: String, args: Dictionary) -> Dictionary:
 			var t0 := Time.get_ticks_msec()
 			while not (main.performance.busy() and String(main.performance.active.get("who", "")) == "mika") and Time.get_ticks_msec() - t0 < 45000:
 				await get_tree().process_frame
+			release_others.call()
 			if not (main.performance.busy() and String(main.performance.active.get("who", "")) == "mika"):
 				# never danced later after saying it could not
 				main.performance.requests = main.performance.requests.filter(func(r): return String(r.get("why", "")) != "the show")

@@ -467,6 +467,8 @@ func options() -> Array:
 			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake"]))
 	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
+	if not StreamFlags.lake() and main.streaming.current_id != "lantern_lake":
+		out = out.filter(func(o): return String(o.get("area", "")) != "lantern_lake" and not String(o.get("key", "")).contains("lantern_lake"))
 	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "lakeboat", "discover", "join_find", "revisit", "wander"])
 
 

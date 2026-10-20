@@ -131,9 +131,15 @@ static func run(t) -> void:
 				var mhead := mk.global_position + Vector3(0, 1.35, 0)
 				var vs: Vector2 = t.get_viewport().get_visible_rect().size
 				var on: bool = not vcam.is_position_behind(mhead) and Rect2(Vector2.ZERO, vs).has_point(vcam.unproject_position(mhead))
-				if not on or main.director._mate_blocks(vcam.global_position, mhead):
+				var blk: bool = main.director._mate_blocks(vcam.global_position, mhead)
+				if not on or blk:
 					off_cam += 1
-					subj = "NOT-MIKA"
+					subj = "NOT-MIKA(%s %s, cam %.1f m from her)" % [String(main.director.mode), "off-screen" if not on else "behind Luna",
+						vcam.global_position.distance_to(mhead)]
+					if shot_dir != "":
+						var im3: Image = t.get_viewport().get_texture().get_image()
+						im3.resize(640, 360, Image.INTERPOLATE_BILINEAR)
+						im3.save_jpg("%s/notmika_%05d.jpg" % [shot_dir, int(el)], 0.8)
 				elif absf(vcam.unproject_position(mk.global_position).y - vcam.unproject_position(mhead + Vector3(0, 0.25, 0)).y) < vs.y * 0.1:
 					tiny += 1
 					subj = "mika-tiny"

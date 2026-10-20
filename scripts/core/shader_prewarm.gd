@@ -130,8 +130,7 @@ static func area(camera: Camera3D, host: Node, dirs: Array) -> void:
 			root.add_child(mi)
 			mi.global_transform = Transform3D(Basis.IDENTITY, xf.origin - xf.basis.z * 1.0 + xf.basis.x * ((i % 12) * 0.03 - 0.15) + xf.basis.y * (int(i / 12.0) * 0.03 - 0.1))
 			i += 1
-	for f in 2:
-		await host.get_tree().process_frame
+			await host.get_tree().process_frame       # one shader per frame (all of them at once was a 170 ms frame)
 	var yaw0 := xf.basis.get_euler().y
 	for k in 16:
 		cam.global_transform = Transform3D(Basis.from_euler(Vector3(-0.4 if k >= 8 else 0.0, yaw0 + TAU * float(k % 8) / 8.0, 0.0)), xf.origin)

@@ -212,15 +212,22 @@ func bake_navigation() -> void:
 	# finer edge-merge cells: dense navmeshes (hundreds of carved obstacles) otherwise report
 	# "navmesh edge merge errors" and lose connections (Godot's own advice for that warning)
 	NavigationServer3D.map_set_merge_rasterizer_cell_scale(get_world_3d().navigation_map, 0.5)
+	var u0 := Time.get_ticks_usec()
 	NavigationServer3D.parse_source_geometry_data(nm, src, self)
+	var u1 := Time.get_ticks_usec()
 	var done := [false]
 	NavigationServer3D.bake_from_source_geometry_data_async(nm, src, func(): done[0] = true)
 	while not done[0]:
 		await get_tree().process_frame
+	var u2 := Time.get_ticks_usec()
 	nav_region.navigation_mesh = nm
+	var u3 := Time.get_ticks_usec()
 	# let the navigation map sync before anyone queries it
 	await get_tree().physics_frame
+	var u4 := Time.get_ticks_usec()
 	await get_tree().physics_frame
+	print("[navbake] %s: parse %.1f ms, bake (async) %.1f ms, assign %.1f ms, first sync frame %.1f ms, polygons %d" % [name, (u1 - u0) / 1000.0,
+		(u2 - u1) / 1000.0, (u3 - u2) / 1000.0, (u4 - u3) / 1000.0, nm.get_polygon_count()])
 	navigation_ready.emit()
 
 

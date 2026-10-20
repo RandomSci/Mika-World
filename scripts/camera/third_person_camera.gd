@@ -26,6 +26,7 @@ func _ready() -> void:
 	arm = SpringArm3D.new()
 	arm.spring_length = distance
 	arm.margin = 0.15
+	arm.collision_mask = 1 | 4                   # (the vegetation layer too: tree trunks and crowns made for the lens)
 	var probe := SphereShape3D.new()
 	probe.radius = 0.18
 	arm.shape = probe
