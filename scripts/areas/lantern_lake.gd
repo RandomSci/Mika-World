@@ -150,8 +150,9 @@ func _build_heavy() -> void:
 	_lanterns()
 	_mist()
 	_fireflies()
-	# the moored boat's scene and its shaders load here too (from disk in the arrival frame it was a 270 ms frame)
-	_boat_res = [load(MoonBoat.SCENE), load("res://shaders/anime/boat/water_ripple.gdshader"), load("res://shaders/anime/dance/glow_sprite.gdshader")]
+	# the boat's shaders load here too; its scene loads behind the travel card (LanternLakeArea.warm_up: on this thread
+	# its textures stalled a 105 ms frame on screen while she walked down)
+	_boat_res = [load("res://shaders/anime/boat/water_ripple.gdshader"), load("res://shaders/anime/dance/glow_sprite.gdshader")]
 	counts["heavy_build_ms"] = Time.get_ticks_msec() - t0
 	_heavy_done = true
 

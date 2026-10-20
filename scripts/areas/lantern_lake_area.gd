@@ -63,6 +63,7 @@ func _lake() -> void:
 		lake.set_physics_process(false)
 
 
+var _boat_scene: Resource                # (held while the area lives: the boat's scene stays cached)
 var _hidden: Array = []                  # slices attached hidden: shown one per frame in warm_up (the camera is at the lake then)
 
 
@@ -95,6 +96,12 @@ func warm_up(camera: Camera3D) -> void:
 	_hidden.clear()
 	# the boat moored at the pier is built now too (1.2 s after the reveal it was a 140 ms frame on screen)
 	if LakeRitual.instance and (not RenderProfile.options.has("mktest") or RenderProfile.options.has("lake-ritual") or String(RenderProfile.options.get("mktest", "")) == "golive_soak"):
+		# its scene from disk on the loader's thread, waited for a frame at a time (in one frame it was 270 ms)
+		if ResourceLoader.load_threaded_request(MoonBoat.SCENE) == OK:
+			var tw := Time.get_ticks_msec()
+			while ResourceLoader.load_threaded_get_status(MoonBoat.SCENE) == ResourceLoader.THREAD_LOAD_IN_PROGRESS and Time.get_ticks_msec() - tw < 8000:
+				await get_tree().process_frame
+			_boat_scene = ResourceLoader.load_threaded_get(MoonBoat.SCENE)
 		LakeRitual.instance._ensure_boat()
 		await get_tree().process_frame
 	await ShaderPrewarm.area(camera, self, ["res://shaders/lantern_lake", "res://shaders/real", "res://shaders/moonbloom",
