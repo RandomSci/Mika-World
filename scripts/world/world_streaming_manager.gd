@@ -165,6 +165,9 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		return {"ok": false, "reason": "transition already in progress (%s)" % state}
 	if not WorldState.areas.has(to_area):
 		return {"ok": false, "reason": "unknown area " + to_area}
+	if not StreamFlags.area_allowed(to_area):
+		print("[stream] %s is closed tonight (StreamFlags regions): not loaded" % to_area)
+		return {"ok": false, "reason": "%s is closed tonight" % to_area}
 	var t_start := Time.get_ticks_msec()
 	var from_area := current_id
 	var region_name: String = WorldState.regions[WorldState.areas[to_area].region].name

@@ -46,6 +46,8 @@ func travel_to(location_id: String, mode := "walk") -> Dictionary:
 	var path := WorldState.route(streaming.current_id, dest_area)
 	if path.is_empty():
 		return {"ok": false, "error": "no known route from %s to %s" % [streaming.current_id, dest_area]}
+	if not StreamFlags.route_allowed(path):
+		return {"ok": false, "error": "%s is closed tonight" % dest_area}     # (the show, a viewer, the bridge: all come here)
 	if mode == "fast" and not dev_fast_travel():
 		return {"ok": false, "error": "there is no instant travel: Mika and Luna must walk (teleportation is an unlearned spatial art)"}
 	if mode == "fast":
@@ -185,6 +187,8 @@ func _physics_process(_delta: float) -> void:
 		var g: Dictionary = streaming.current.gates[n]
 		var gp: Vector3 = g.position
 		var d := Vector2(p.x - gp.x, p.z - gp.z).length()
+		if not StreamFlags.area_allowed(n):
+			continue                           # (a closed area's gate is not a way through tonight)
 		if d < PRELOAD_DISTANCE:
 			streaming.preload_area(n)
 		if active() or now < _cooldown_until or character.current_action != "idle" or WorldState.is_sealed(streaming.current_id, n):

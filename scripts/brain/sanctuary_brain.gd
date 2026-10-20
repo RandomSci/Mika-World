@@ -467,8 +467,8 @@ func options() -> Array:
 			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake"]))
 	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
-	if not StreamFlags.lake() and main.streaming.current_id != "lantern_lake":
-		out = out.filter(func(o): return String(o.get("area", "")) != "lantern_lake" and not String(o.get("key", "")).contains("lantern_lake"))
+	# tonight's closed areas (StreamFlags "regions") are never offered: no visit, no journey, nothing that walks there
+	out = out.filter(func(o): return _option_open(o))
 	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "lakeboat", "discover", "join_find", "revisit", "wander"])
 
 
@@ -2117,6 +2117,21 @@ static func night_id() -> int:
 	return WorldState.day() - (1 if WorldState.hour_f() < 12.0 else 0)
 
 
+## An option that stays in open areas (its own area, the area of the place it walks to, an area named in its key).
+func _option_open(o: Dictionary) -> bool:
+	var areas := [String(o.get("area", ""))]
+	for k in ["location", "target_location", "dest"]:
+		if String(o.get(k, "")) != "" and WorldState.locations.has(String(o.get(k))):
+			areas.append(WorldState.area_of(String(o.get(k))))
+	var key := String(o.get("key", ""))
+	for part in key.split(":"):
+		if WorldState.areas.has(part):
+			areas.append(part)
+		elif WorldState.locations.has(part):
+			areas.append(WorldState.area_of(part))
+	return areas.all(func(a): return StreamFlags.area_allowed(String(a)))
+
+
 static func home_areas() -> Array:
 	var out := []
 	for a in WorldState.areas:
@@ -2240,6 +2255,8 @@ func _visit(o: Dictionary) -> Dictionary:
 func _travel(location: String) -> Dictionary:
 	# the other mage, here with her and free, walks along (Day 2: Luna had vanished whenever Mika changed area)
 	var dest_area := WorldState.area_of(location)
+	if not StreamFlags.area_allowed(dest_area):
+		return {"ok": false, "detail": "%s is closed tonight" % dest_area}
 	if is_foreground() and dest_area != main.streaming.current_id:
 		main.streaming.prebuild(dest_area)          # its heavy build starts now, in the background
 	if is_foreground() and dest_area != main.streaming.current_id and main.has_method("bring_along"):

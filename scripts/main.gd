@@ -151,6 +151,10 @@ func _ready() -> void:
 	streaming.prewarm_once = func(): await ShaderPrewarm.run(camera_rig.camera, self)
 	# continuity: a saved world resumes where it stopped (her area and place); spawn points are for a new save only
 	var resume := _resume_point("mika")
+	if not resume.is_empty() and not StreamFlags.area_allowed(String(resume.area)):
+		print("[main] the save left Mika in %s, closed tonight: she starts in the sanctuary" % resume.area)
+		resume = {}
+		start = "ritual_sanctuary" if WorldState.locations.has("ritual_sanctuary") else start
 	for who in mages:
 		_resume_doing[who] = String(WorldState.mind(who).location.get("doing", "")) if not resume.is_empty() else ""
 	var first_area: String = resume.area if not resume.is_empty() else WorldState.area_of(start)

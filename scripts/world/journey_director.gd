@@ -77,6 +77,8 @@ func start(dest_area: String, purpose: String, party: Array = ["mika", "luna"], 
 	var path := WorldState.route(here, dest_area)
 	if path.size() < 2:
 		return {"ok": false, "error": "no road from %s to %s" % [here, dest_area]}
+	if not StreamFlags.route_allowed(path):
+		return {"ok": false, "error": "%s is closed tonight" % dest_area}
 	var legs := []
 	var total := 0.0
 	for i in path.size() - 1:
