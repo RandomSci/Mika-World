@@ -27,7 +27,10 @@
   "read:": 6,
   "talk:": 15,
   "conversation:": 10,
-  "trade:": 10
+  "trade:": 10,
+  "fight_won:": 40,
+  "fight_lost:": 25,
+  "fight_training:": 15
  },
  "trial": 100,
  "rank": 150,
@@ -52,6 +55,18 @@
   "defeat:": {
    "base": 0.0,
    "decay": 0.5
+  },
+  "fight_won:": {
+   "base": 12.0,
+   "decay": 0.25
+  },
+  "fight_lost:": {
+   "base": 8.0,
+   "decay": 0.25
+  },
+  "fight_training:": {
+   "base": 5.0,
+   "decay": 0.3
   }
  },
  "defeat": {

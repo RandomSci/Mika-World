@@ -304,7 +304,7 @@ func _check_camera() -> void:
 	var head := c.global_position + Vector3(0, 1.5, 0)
 	var subject := "camera:%s:%s" % [d.mode, c.character_id]
 	if CombatFraming.inside_solid(c.get_world_3d().direct_space_state, cp, 0.12):
-		_flag(subject, "camera:inside_geometry", {"pos": [snappedf(cp.x, 0.1), snappedf(cp.y, 0.1), snappedf(cp.z, 0.1)]})
+		_flag(subject, "camera:inside_geometry", {"pos": [snappedf(cp.x, 0.1), snappedf(cp.y, 0.1), snappedf(cp.z, 0.1)], "inside": _solid_name(c.get_world_3d().direct_space_state, cp, 0.12)})
 		return
 	if d.mode == "scene":
 		# a staged scene frames whoever speaks (a rival, Luna): never inside geometry, and its view not blocked
@@ -501,3 +501,18 @@ func summary() -> Dictionary:
 	for v in violations:
 		by_rule[v.rule] = int(by_rule.get(v.rule, 0)) + 1
 	return {"violations": violations.size(), "by_rule": by_rule, "checks": checks}
+
+
+## What the lens is inside (for the report): the first collider's path, "" when none.
+static func _solid_name(space: PhysicsDirectSpaceState3D, p: Vector3, radius: float) -> String:
+	var sq := PhysicsShapeQueryParameters3D.new()
+	var sp := SphereShape3D.new()
+	sp.radius = radius
+	sq.shape = sp
+	sq.transform = Transform3D(Basis.IDENTITY, p)
+	sq.collision_mask = 1 | 4
+	var hits := space.intersect_shape(sq, 1)
+	if hits.is_empty() or hits[0].collider == null:
+		return ""
+	var n: Node = hits[0].collider
+	return str(n.get_path()).right(80)

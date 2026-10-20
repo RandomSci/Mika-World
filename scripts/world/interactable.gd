@@ -197,5 +197,7 @@ func _seat_springs(c: WorldCharacter) -> void:
 		return
 	for ch in seat_body.get_children():
 		if ch is CollisionShape3D and (ch as CollisionShape3D).shape is BoxShape3D:
-			LyingSprings.apply_seat(c, ch)
+			if c.dress_sim:
+				c.dress_sim.set_seat(ch)        # the skirt (DressSim) drapes over the seat
+			LyingSprings.apply_seat(c, ch)      # (hair and any VRM cloth chains still on the VRM springs)
 			return

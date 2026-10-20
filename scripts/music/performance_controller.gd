@@ -362,6 +362,8 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 			_abort = "a creature came close"
 		if _abort == "" and not c.visible:
 			_abort = "she left the view"
+		if _abort == "" and (c.seated or (c2 and c2.seated)):
+			_abort = "she was seated"                   # (the boat / a bench owns her now: no dance clips on a seat)
 		if _abort != "":
 			break
 		if mt < 0.0 and (Time.get_ticks_msec() - t_music0) > 1500:
@@ -419,12 +421,14 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	_bus_levels(false)
 	c.set_expression("aa", 0.0)
 	_free_fx()
-	c.end_gesture()
+	if not c.seated:
+		c.end_gesture()                                  # (seated: the seat's loop is hers, not the dance's)
 	c.set_gesture_speed(1.0)
 	c.set_hair_frame("")
 	if c2:
 		c2.set_hair_frame("")
-		c2.end_gesture()
+		if not c2.seated:
+			c2.end_gesture()
 		c2.set_gesture_speed(1.0)
 		c2.set_expression("happy", 0.0)
 	var music_played := (Time.get_ticks_msec() - t_music0) / 1000.0
@@ -548,7 +552,8 @@ func _start_clip(c: WorldCharacter, clip: String, beat_len: float) -> void:
 				best_err = absf(s - 1.0)
 				best = s
 		speed = best
-	c.play_gesture(clip, 0.5, 0.6)
+	if not c.play_gesture(clip, 0.5, 0.6):
+		return                                           # refused (seated, casting): her own clip keeps its speed
 	c.set_gesture_speed(speed)
 	if active:
 		active["speed"] = snappedf(speed, 0.01)

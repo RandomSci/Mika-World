@@ -1,0 +1,127 @@
+class_name SoftArms
+extends SkeletonModifier3D
+## The softness pass on wrists, fingers and elbows (2026-10-19, the lake duet): mocap arms read stiff - locked-straight
+## elbows, hands that move rigidly with the forearm, flat fingers. On top of the dance:
+##  - elbows: never locked straight; a soft minimum bend that eases in (no kink as the arm extends);
+##  - wrists: the hand follows its arm with a little drag, so it trails a fast sweep and flows after it (capped);
+##  - fingers: a relaxed, graceful dancer's hand - each finger a little more curved toward the little finger, gently
+##    alive - blended over the clip's own fingers.
+
+const CURL := {"Thumb": 0.2, "Index": 0.14, "Middle": 0.24, "Ring": 0.32, "Little": 0.4}
+
+var elbow_min := deg_to_rad(18.0)
+var wrist_follow := 9.0                  # 1/s: how fast the hand catches up with its arm (lower = more drag)
+var wrist_max := deg_to_rad(14.0)
+var finger_weight := 0.7
+var finger_angle := 1.15                 # radians per joint at curl 1 (as FingerPose)
+var grip := {"Left": 0.0, "Right": 0.0}  # 0..1: the fingers close round something held (an oar)
+
+var _dt := 1.0 / 30.0
+var _t := 0.0
+var _smooth := {}
+var _axis := {}                          # side -> the elbow's bend axis, smoothed
+var _arm := {}                           # side -> [upper, lower, hand]
+var _fingers := {}                       # side -> [[bone, curl, rest rotation, k]]
+var _fwd := Vector3.FORWARD
+
+
+static func make(sk: Skeleton3D, at := 1) -> SoftArms:
+	var s := SoftArms.new()
+	s.name = "SoftArms"
+	sk.add_child(s)
+	PosePipeline.arrange_for(sk)
+	return s
+
+
+func _process(delta: float) -> void:
+	_dt = delta
+	_t += delta
+
+
+func _setup() -> void:
+	var sk := get_skeleton()
+	var toe := sk.get_bone_global_rest(sk.find_bone("LeftToes")).origin - sk.get_bone_global_rest(sk.find_bone("LeftFoot")).origin
+	toe.y = 0.0
+	_fwd = toe.normalized() if toe.length() > 0.001 else Vector3.FORWARD
+	for side in ["Left", "Right"]:
+		_arm[side] = [sk.find_bone(side + "UpperArm"), sk.find_bone(side + "LowerArm"), sk.find_bone(side + "Hand")]
+		var list := []
+		var k := 0
+		for f in CURL:
+			for j in (["Metacarpal", "Proximal", "Distal"] if f == "Thumb" else ["Proximal", "Intermediate", "Distal"]):
+				var bi := sk.find_bone(side + f + j)
+				if bi >= 0:
+					list.append([bi, float(CURL[f]) * (0.7 if f == "Thumb" else 1.0), sk.get_bone_rest(bi).basis.get_rotation_quaternion(), k, _curl_axis(sk, bi)])
+			k += 1
+		_fingers[side] = list
+
+
+## The axis (in the bone's own frame) a finger joint bends about to close toward the palm: from the rest pose (VRM
+## T-pose, palms down), perpendicular to the finger and the palm's facing. (A fixed local Z was the sideways spread
+## on these retargeted skeletons: the oar hands fanned open instead of closing, boat check 2026-10-19.)
+static func _curl_axis(sk: Skeleton3D, bi: int) -> Vector3:
+	var g := sk.get_bone_global_rest(bi)
+	var kids := sk.get_bone_children(bi)
+	var dir: Vector3
+	if not kids.is_empty():
+		dir = sk.get_bone_global_rest(kids[0]).origin - g.origin
+	else:
+		dir = g.origin - sk.get_bone_global_rest(sk.get_bone_parent(bi)).origin
+	var ax := dir.normalized().cross(Vector3.DOWN)
+	if ax.length() < 0.2:
+		return Vector3(0, 0, 1)
+	return (g.basis.orthonormalized().inverse() * ax).normalized()
+
+
+func _process_modification() -> void:
+	var sk := get_skeleton()
+	if sk == null:
+		return
+	if _arm.is_empty():
+		_setup()
+	for side in _arm:
+		var ids: Array = _arm[side]
+		if ids.has(-1):
+			continue
+		# elbow: a soft minimum bend, sqrt(a^2 + m^2), so it eases in as the arm straightens
+		var gu := sk.get_bone_global_pose(ids[0])
+		var gl := sk.get_bone_global_pose(ids[1])
+		var gh := sk.get_bone_global_pose(ids[2])
+		var a := (gl.origin - gu.origin).normalized()
+		var b := (gh.origin - gl.origin).normalized()
+		var ang := a.angle_to(b)
+		var need := sqrt(ang * ang + elbow_min * elbow_min) - ang
+		if need > 0.002:
+			# the bend axis: the arm's own, blended into "toward her front" as the arm straightens, and smoothed
+			# over frames (a hard switch when nearly straight - where a.cross(b) is tiny and noisy - flicked the
+			# elbow, forearm and hand 13-16 deg for single frames in the dances)
+			var own := a.cross(b)
+			var front := a.cross(_fwd)
+			var wgt := smoothstep(0.03, 0.15, own.length())
+			var axis := own.normalized() * wgt + (front.normalized() if front.length() > 0.0001 else Vector3.ZERO) * (1.0 - wgt)
+			var prev: Vector3 = _axis.get(side, axis)
+			if prev.dot(axis) < 0.0:
+				prev = -prev
+			axis = prev.lerp(axis, 1.0 - exp(-_dt * 18.0))
+			_axis[side] = axis
+			if axis.length() > 0.0001:
+				sk.set_bone_global_pose(ids[1], Transform3D(Basis(Quaternion(axis.normalized(), need)) * gl.basis, gl.origin))
+		# wrist: the hand trails its arm a little and flows after it
+		# (relative to the forearm: dragged in world space, hands lagged up to 26 deg in a spin - a broken wrist)
+		gh = sk.get_bone_global_pose(ids[2])
+		var gf := sk.get_bone_global_pose(ids[1]).basis.orthonormalized()
+		var qa := (gf.inverse() * gh.basis.orthonormalized()).get_rotation_quaternion()
+		var s: Quaternion = _smooth.get(side, qa)
+		s = s.slerp(qa, 1.0 - exp(-_dt * wrist_follow))
+		var d := s.angle_to(qa)
+		if d > wrist_max:
+			s = qa.slerp(s, wrist_max / d)
+		_smooth[side] = s
+		sk.set_bone_global_pose(ids[2], Transform3D((gf * Basis(s)).scaled(gh.basis.get_scale()), gh.origin))
+		# fingers: a relaxed dancer's hand, gently alive
+		for f in _fingers[side]:
+			var c: float = float(f[1]) + 0.05 * sin(_t * 1.3 + float(f[3]) * 0.7)
+			var g := float(grip[side])
+			c = lerpf(c, 1.05, g)                  # (a held grip: the fingers close right round the handle)
+			var target := (f[2] as Quaternion) * Quaternion(f[4] as Vector3, c * finger_angle)
+			sk.set_bone_pose_rotation(int(f[0]), sk.get_bone_pose_rotation(int(f[0])).slerp(target, lerpf(finger_weight, 1.0, g)))

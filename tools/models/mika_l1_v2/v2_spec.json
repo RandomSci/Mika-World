@@ -1,0 +1,69 @@
+{
+ "under": {
+  "top_z": 1.06,
+  "gap": 0.008,
+  "sz": 0.28,
+  "hem_round": 0.9,
+  "hem_dy": 0.0,
+  "margin": 0.004
+ },
+ "bodice": {
+  "top_z": 1.375,
+  "bottom_z": 0.93,
+  "bust_z": 1.2,
+  "gap": 0.008,
+  "dy": 0.0,
+  "margin": 0.003
+ },
+ "sash": {
+  "z": 1.1,
+  "height": 0.055,
+  "gap": 0.002
+ },
+ "collar": {
+  "z": 1.385,
+  "height": 0.04,
+  "gap": 0.003
+ },
+ "bow": {
+  "s": 0.1,
+  "gap": 0.002,
+  "dz": 0.0,
+  "margin": 0.003
+ },
+ "brooch": {
+  "s": 0.018,
+  "gap": 0.002
+ },
+ "sleeve": {
+  "ring_h": 0.1,
+  "end_h": 0.06,
+  "top_from_shoulder": 0.06,
+  "end_before_wrist": 0.05,
+  "cross_top": 0.36,
+  "cross_end": 0.102,
+  "roll": 0,
+  "margin": 0.006
+ },
+ "panel": {
+  "angles": [
+   40,
+   -40,
+   95,
+   -95,
+   150,
+   -150
+  ],
+  "s": 0.28,
+  "top_z": 1.085,
+  "cy": -0.03,
+  "gap": 0.005,
+  "margin": 0.004
+ },
+ "star": {
+  "s": 0.016,
+  "lift": 0.0015,
+  "panel_t": 0.7,
+  "sleeve_t": 0.6
+ }
+}

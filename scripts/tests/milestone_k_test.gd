@@ -178,7 +178,32 @@ func _run() -> void:
 		"benchrest": await _benchrest()
 		"showline": await _showline()
 		"luna_r12": await _luna_r12()
-		_: _check(false, "unknown mode " + mode)
+		"dresstest": await _dresstest()
+		"skinprobe": await _skinprobe()
+		"benchscan": await _benchscan()
+		"screenfx": await _screenfx()
+		"lunaclip": await _lunaclip()
+		"outfitaudit": await _outfitaudit()
+		"harpprobe": await _harpprobe()
+		"starlitharp": await _starlitharp()
+		"sittest": await _sittest()
+		"motionshots": await _motionshots()
+		"daylapse": await _daylapse()
+		"lakedance": await _lakedance()
+		"clipreel": await _clipreel()
+		"lakemv": await _lakemv()
+		"hairprobe": await _hairprobe()
+		"boatnight": await _boatnight()
+		"boatstill": await _boatstill()
+		_:
+			# plug-in test modes (one file per feature, so parallel work never edits this file):
+			# res://scripts/tests/ext/<mode>.gd with  `static func run(t) -> void`  (t = this test node: _wait, _check,
+			# _lake_setup, _cine_setup, main ...)
+			var ext := "res://scripts/tests/ext/%s.gd" % mode
+			if ResourceLoader.exists(ext):
+				await (load(ext) as GDScript).call("run", self)
+			else:
+				_check(false, "unknown mode " + mode)
 	_finish()
 
 
@@ -625,6 +650,14 @@ func _stargaze() -> void:
 	main.director.enabled = true
 	main.director.set_subject(mika)
 	main.companionship.force_accept = true
+	if main.performance:
+		# (the night dance may start on its own at night: "a dance is on" refused the invitation)
+		main.performance.set_process(false)
+		if main.performance.busy():
+			main.performance.interrupt("test")
+		var tb := _gms()
+		while main.performance.busy() and _gms() - tb < 4000:
+			await get_tree().process_frame
 	var lines := []
 	main.voice.line_started.connect(func(spk, text): lines.append([spk, text]))
 	var brain = main.mage_brains["mika"]
@@ -637,6 +670,9 @@ func _stargaze() -> void:
 	var modes := {}
 	var shots := 0
 	var box := {"done": false, "result": {}}   # a Dictionary: lambdas capture locals by value
+	for w2 in main.mage_brains:
+		main.mage_brains[w2].hold = false      # (_hold_all held them: "Luna is held for something else")
+		main.mage_brains[w2].set_enabled(false)
 	var runner := func() -> void:
 		box.result = await main.companionship.invite(brain, "luna", "stargaze_together", target)
 		box.done = true
@@ -6762,3 +6798,2388 @@ func _luna_r12() -> void:
 	pin.queue_free()
 	main.camera_rig.set_process(true)
 	main.director.set_process(true)
+
+
+# ------------------------------------------------------------------ dress (skirt) behaviour (2026-10-18)
+## One girl (--dt-who=luna|mika) walks, turns, sits on the watchpoint bench and stands, filmed by a pinned wide camera
+## (record with --write-movie). Every frame the skirt joints are measured against her leg capsules (clipping), their
+## speed relative to the hips (snaps) and their per-frame jumps (explosions); the first 1.5 s after a fresh avatar
+## (spawn) are measured separately. Prints one "[mktest] dress" JSON line per phase.
+const DT_THIGH_R := 0.066        # tapered leg capsules (thigh 6.6 -> 4.6 cm, shin 4.4 -> 3.2 cm), like the VRoid legs
+var _dt_prev := {}
+var _dt := {}
+
+func _dt_reset(label: String) -> void:
+	_dt = {"label": label, "frames": 0, "clip_frames": 0, "max_pen_cm": 0.0, "max_deg_s": 0.0, "degs": [], "max_jump_cm": 0.0, "explosions": 0}
+	_dt_prev = {}
+
+
+func _dt_sample(c: WorldCharacter, dt: float) -> void:
+	var sk := c.skeleton
+	var g := sk.global_transform
+	var hips_i := sk.find_bone("Hips")
+	var hips_t: Transform3D = g * sk.get_bone_global_pose(hips_i)
+	var legs := []
+	for side in ["Left", "Right"]:
+		var ul := sk.find_bone(side + "UpperLeg")
+		var ll := sk.find_bone(side + "LowerLeg")
+		var ft := sk.find_bone(side + "Foot")
+		if ul < 0 or ll < 0 or ft < 0:
+			continue
+		var a: Vector3 = (g * sk.get_bone_global_pose(ul)).origin
+		var b: Vector3 = (g * sk.get_bone_global_pose(ll)).origin
+		var f: Vector3 = (g * sk.get_bone_global_pose(ft)).origin
+		legs.append([a, b, DT_THIGH_R, 0.046])
+		legs.append([b, f, 0.044, 0.032])
+	var pen := 0.0
+	var frame_deg := 0.0
+	for bi in sk.get_bone_count():
+		var bn := sk.get_bone_name(bi)
+		if not bn.contains("Skirt"):
+			continue
+		var gp: Transform3D = g * sk.get_bone_global_pose(bi)
+		var p := gp.origin
+		if not (bn.ends_with("_0") or bn.ends_with("_1")):      # (the waist joints sit over the hip joint itself)
+			for L in legs:
+				var cp := Geometry3D.get_closest_point_to_segment(p, L[0], L[1])
+				var u := clampf((cp - (L[0] as Vector3)).length() / maxf(0.001, (L[0] as Vector3).distance_to(L[1])), 0.0, 1.0)
+				pen = maxf(pen, lerpf(float(L[2]), float(L[3]), u) - p.distance_to(cp))
+		var local: Vector3 = hips_t.affine_inverse() * p
+		var dir: Vector3 = (hips_t.basis.inverse() * gp.basis.y).normalized()
+		if _dt_prev.has(bi):
+			var pr: Array = _dt_prev[bi]
+			var jump := local.distance_to(pr[0])
+			_dt.max_jump_cm = maxf(_dt.max_jump_cm, jump * 100.0)
+			if jump > 0.2:
+				_dt.explosions += 1
+			if dt > 0.0:
+				frame_deg = maxf(frame_deg, rad_to_deg((pr[1] as Vector3).angle_to(dir)) / dt)
+		_dt_prev[bi] = [local, dir]
+	_dt.frames += 1
+	if pen > 0.01:
+		_dt.clip_frames += 1
+	_dt.max_pen_cm = maxf(_dt.max_pen_cm, pen * 100.0)
+	_dt.max_deg_s = maxf(_dt.max_deg_s, frame_deg)
+	(_dt.degs as Array).append(frame_deg)
+
+
+func _dt_report() -> Dictionary:
+	var d: Array = (_dt.degs as Array).duplicate()
+	d.sort()
+	var r := {"phase": _dt.label, "frames": _dt.frames, "clip_pct": snappedf(100.0 * _dt.clip_frames / maxf(1.0, _dt.frames), 0.1),
+		"max_pen_cm": snappedf(_dt.max_pen_cm, 0.1), "p95_deg_s": snappedf(float(d[int(d.size() * 0.95)]) if d.size() > 0 else 0.0, 1.0),
+		"max_deg_s": snappedf(_dt.max_deg_s, 1.0), "max_jump_cm": snappedf(_dt.max_jump_cm, 0.1), "explosions": _dt.explosions}
+	print("[mktest] dress ", JSON.stringify(r))
+	return r
+
+
+## Still ring for the design-sheet comparison: front (0), her right side (90), back (180) and a 3/4 (45), FOV 28,
+## camera 1.0 m high aimed at her waist, head to sandals in frame. The pin follow pauses while it shoots.
+var _dt_ring_on := false
+func _dt_ring(c: WorldCharacter, pin: CameraPin, tag: String) -> void:
+	_dt_ring_on = true
+	var fwd := -c.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var waist := c.global_position + Vector3(0, 0.62 if tag == "seated" else 0.95, 0)
+	for a in [["front", 0.0], ["side", 90.0], ["back", 180.0], ["3q", 45.0]]:
+		var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))      # 90 = her right side
+		pin.fov = 28.0
+		pin.pos = Vector3(waist.x, c.global_position.y + 1.0, waist.z) + d * 3.9
+		pin.look = waist
+		await _wait(0.6)
+		_shot("%s_%s" % [tag, a[0]])
+	_dt_ring_on = false
+
+
+## The same ring on real time (the game frozen for a held pose).
+func _dt_ring_real(c: WorldCharacter, pin: CameraPin, tag: String) -> void:
+	_dt_ring_on = true
+	var fwd := -c.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var waist := c.global_position + Vector3(0, 0.95, 0)
+	for a in [["front", 0.0], ["side", 90.0], ["back", 180.0], ["3q", 45.0]]:
+		var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))
+		pin.fov = 28.0
+		pin.pos = Vector3(waist.x, c.global_position.y + 1.0, waist.z) + d * 3.9
+		pin.look = waist
+		for _i in 3:
+			await get_tree().process_frame
+		_shot("%s_%s" % [tag, a[0]])
+	_dt_ring_on = false
+
+
+func _dresstest() -> void:
+	await _hold_all()
+	await _force_luna_l1()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.spawner.enabled = false
+	main.director.enabled = false
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("dress test")
+	if main.weather:
+		main.weather.set_weather("clear", 12.0)
+	var who := String(RenderProfile.options.get("dt-who", "luna"))
+	var c: WorldCharacter = main.characters[who]
+	var other: WorldCharacter = main.characters["mika" if who == "luna" else "luna"]
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var it: Interactable = main.world.interactables.get("watchpoint_rest")
+	if it == null:
+		_check(false, "watchpoint bench exists")
+		return
+	var map: RID = c.get_world_3d().navigation_map
+	var sp: Vector3 = it.get_parent().to_global(it.sit_point)
+	var start := NavigationServer3D.map_get_closest_point(map, sp + Vector3(7, 0, 5))
+	if main.teleport_guard:
+		main.teleport_guard.allow(c)
+		main.teleport_guard.allow(other)
+	other.global_position = NavigationServer3D.map_get_closest_point(map, start + Vector3(12, 0, 12)) + Vector3(0, 0.05, 0)
+	c.stop_action()
+	c.global_position = start + Vector3(0, 0.05, 0)
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.fov = 42.0
+	var follow := func():
+		if _dt_ring_on:
+			return
+		var fwd := -c.global_transform.basis.z
+		fwd.y = 0.0
+		fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3(0, 0, -1)
+		var side := Vector3(-fwd.z, 0, fwd.x)
+		var want: Vector3 = c.global_position + fwd * 2.6 + side * 1.7 + Vector3(0, 1.05, 0)
+		pin.pos = want if pin.pos == Vector3.ZERO else pin.pos.lerp(want, 0.06)
+		pin.look = c.global_position + Vector3(0, 0.85, 0)
+		pin.active = true
+	follow.call()
+	if RenderProfile.options.has("dt-avatar"):          # a candidate model (test only)
+		_check(c.swap_avatar(String(RenderProfile.options["dt-avatar"])), "wears " + String(RenderProfile.options["dt-avatar"]).get_file())
+		await _wait(1.0)
+	await _wait(1.0)
+	var dt_state := {"on": false, "last": 0}
+	var sampler := func():
+		if dt_state.on:
+			# game time (movie mode runs at a fixed 30 fps, not wall-clock): one sample per frame
+			var fr := Engine.get_process_frames()
+			if fr != int(dt_state.last):
+				_dt_sample(c, get_process_delta_time() if int(dt_state.last) > 0 else 0.0)
+				dt_state.last = fr
+	var phases := []
+	# spawn: a fresh avatar (the swap rebuilds the springs), the first 1.5 s
+	c.swap_avatar(c.avatar_path)
+	c.skeleton.skeleton_updated.connect(sampler)
+	_dt_reset("spawn")
+	dt_state.on = true
+	dt_state.last = 0
+	var t0 := _game_t
+	var last := _game_t
+	while _game_t - t0 < 1.5:
+		await get_tree().physics_frame
+		follow.call()
+	phases.append(_dt_report())
+	if c.dress_sim and c.dress_sim.sim:
+		var sk2 := c.skeleton
+		print("[dress] skeleton scale %s; LeftUpperLeg rest->child %.3f m local; knee world %s" % [str(sk2.global_transform.basis.get_scale().snapped(Vector3.ONE * 0.001)),
+			sk2.get_bone_global_rest(sk2.find_bone("LeftUpperLeg")).origin.distance_to(sk2.get_bone_global_rest(sk2.find_bone("LeftLowerLeg")).origin),
+			str((sk2.global_transform * sk2.get_bone_global_pose(sk2.find_bone("LeftLowerLeg"))).origin.snapped(Vector3.ONE * 0.01))])
+		print("[dress]   chain 0 collisions: all=%s count=%d" % [str(c.dress_sim.sim.are_all_child_collisions_enabled(0)), c.dress_sim.sim.get_collision_count(0)])
+		for n in c.dress_sim.sim.get_children():
+			if n is SpringBoneCollisionCapsule3D:
+				print("[dress]   %s offset %s rot %s height %.3f" % [n.name, str(n.position_offset.snapped(Vector3.ONE * 0.001)), str(n.rotation_offset), n.height])
+		for n in c.dress_sim.sim.get_children():
+			var bn := String(n.get("bone_name")) if n.get("bone_name") != null else ""
+			var bpos := (sk2.global_transform * sk2.get_bone_global_pose(sk2.find_bone(bn))).origin if bn != "" and sk2.find_bone(bn) >= 0 else Vector3.ZERO
+			print("[dress] collider %s %s at %s (bone at %s) r=%s up=%s" % [n.name, n.get_class(), str((n as Node3D).global_position.snapped(Vector3.ONE * 0.01)), str(bpos.snapped(Vector3.ONE * 0.01)), str(n.get("radius")), str((n as Node3D).global_basis.y.normalized().snapped(Vector3.ONE * 0.01))])
+	await _wait(2.0)
+	await _dt_ring(c, pin, "stand")
+	if RenderProfile.options.has("dt-armsup"):
+		c.play_gesture("wide_arm_spell", 0.3, 0.4)
+		await _wait(1.3)
+		Engine.time_scale = 0.001                          # hold the arms-up moment for the ring
+		await _dt_ring_real(c, pin, "armsup")
+		Engine.time_scale = 1.0
+		await _wait(2.5)
+	pin.fov = 42.0
+	# walk away 6 m, a quick 180 turn back (walk to a point behind her), then to the bench and sit, then stand
+	var legs := [["walk", start + (sp - start).normalized().rotated(Vector3.UP, 1.2) * 6.0, false],
+		["turn_walk", start, false], ["run", start + (sp - start).normalized().rotated(Vector3.UP, -1.0) * 7.0, true],
+		["to_bench", it.approach_point(), false]]
+	for leg in legs:
+		c.navigate_to(NavigationServer3D.map_get_closest_point(map, leg[1]), bool(leg[2]))
+		_dt_reset(String(leg[0]))
+		dt_state.last = 0
+		t0 = _game_t
+		last = _game_t
+		while c.current_action == "navigate_to" and _game_t - t0 < 25.0:
+			await get_tree().physics_frame
+			follow.call()
+		phases.append(_dt_report())
+	it.duration_override = 12.0
+	var job := func(): await it.perform(c)
+	job.call()
+	_dt_reset("sit")
+	dt_state.last = 0
+	t0 = _game_t
+	last = _game_t
+	var sat := false
+	while _game_t - t0 < 20.0:
+		await get_tree().physics_frame
+		follow.call()
+		if c.seated and not sat:
+			sat = true
+			var job2 := func():
+				await _wait(3.0)
+				await _dt_ring(c, pin, "seated")
+			job2.call()
+		if sat and not c.seated:
+			break
+	phases.append(_dt_report())
+	_dt_reset("stand")
+	dt_state.last = 0
+	t0 = _game_t
+	last = _game_t
+	while _game_t - t0 < 3.0:
+		await get_tree().physics_frame
+		follow.call()
+	phases.append(_dt_report())
+	dt_state.on = false
+	if c.skeleton.skeleton_updated.is_connected(sampler):
+		c.skeleton.skeleton_updated.disconnect(sampler)
+	report["dress"] = phases
+	var bad := phases.filter(func(r): return int(r.explosions) > 0)
+	_check(bad.is_empty(), "no skirt explosions (a joint jumping > 20 cm in one frame)", bad)
+	pin.active = false
+	pin.queue_free()
+	main.camera_rig.set_process(true)
+	main.director.set_process(true)
+
+
+## Skin materials of both girls: colour, shade colour, shading and the albedo texture's mean (skin match, 2026-10-18).
+func _skinprobe() -> void:
+	await _wait(1.0)
+	for who in ["mika", "luna"]:
+		var c: WorldCharacter = main.characters[who]
+		for mi in c.avatar.find_children("*", "MeshInstance3D", true, false):
+			var m: MeshInstance3D = mi
+			for si in m.mesh.get_surface_count():
+				var mat := m.get_active_material(si)
+				if not (mat is ShaderMaterial):
+					continue
+				var nm := String(mat.resource_name)
+				if not nm.contains("SKIN"):
+					continue
+				var sm := mat as ShaderMaterial
+				var tex = sm.get_shader_parameter("_MainTex")
+				var mean := Color()
+				if tex is Texture2D:
+					var img: Image = (tex as Texture2D).get_image()
+					if img:
+						if img.is_compressed():
+							img.decompress()
+						img.resize(32, 32, Image.INTERPOLATE_BILINEAR)
+						var n := 0
+						for y in 32:
+							for x in 32:
+								var px := img.get_pixel(x, y)
+								if px.a > 0.5:
+									mean += px
+									n += 1
+						if n > 0:
+							mean /= float(n)
+				print("[mktest] skin %s %s/%s color=%s shade=%s shift=%.2f toony=%.2f rim=%s tex_mean=%s" % [who, m.name, nm, str(sm.get_shader_parameter("_Color")), str(sm.get_shader_parameter("_ShadeColor")),
+					float(sm.get_shader_parameter("_ShadeShift")), float(sm.get_shader_parameter("_ShadeToony")), str(sm.get_shader_parameter("_RimColor")), str(Color(mean.r, mean.g, mean.b).to_html(false))])
+
+
+## The ruins bench and its surroundings (Selwyn 2026-10-18: a floating leaf clump, a stray pole, blocky trees):
+## photographs the bench from 8 directions (wide) and lists thin tall meshes (poles) and foliage whose bottom floats
+## above the ground within 45 m, with their scene paths.
+func _benchscan() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	var it: Interactable = main.world.interactables.get("watchpoint_rest")
+	if it == null:
+		_check(false, "watchpoint bench exists")
+		return
+	var sp: Vector3 = it.get_parent().to_global(it.sit_point)
+	var space := get_viewport().get_world_3d().direct_space_state
+	var poles := []
+	var floats := []
+	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		var g := n as GeometryInstance3D
+		if not g.is_visible_in_tree():
+			continue
+		var bb: AABB = g.global_transform * g.get_aabb()
+		var ctr := bb.get_center()
+		if ctr.distance_to(sp) > 45.0:
+			continue
+		var path := String(g.get_path())
+		if path.contains("Avatar") or path.contains("characters"):
+			continue
+		if bb.size.y > 0.9 and bb.size.x < 0.35 and bb.size.z < 0.35:
+			poles.append("%.1f m  %s  size %s at %s" % [ctr.distance_to(sp), path, str(bb.size.snapped(Vector3.ONE * 0.01)), str(bb.position.snapped(Vector3.ONE * 0.1))])
+		var lname := path.to_lower()
+		if bb.size.length() < 4.0 and not (lname.contains("light") or lname.contains("lantern") or lname.contains("sky") or lname.contains("cloud") or lname.contains("rain") or lname.contains("particles")):
+			var q2 := PhysicsRayQueryParameters3D.create(Vector3(ctr.x, bb.position.y + 0.02, ctr.z), Vector3(ctr.x, bb.position.y - 30.0, ctr.z))
+			var hit2 := space.intersect_ray(q2)
+			var gap2: float = (bb.position.y - float((hit2.position as Vector3).y)) if not hit2.is_empty() else 99.0
+			if gap2 > 0.5:
+				var mesh_name := ""
+				if g is MeshInstance3D and (g as MeshInstance3D).mesh:
+					mesh_name = String((g as MeshInstance3D).mesh.resource_name)
+				elif g is MultiMeshInstance3D:
+					mesh_name = "multimesh"
+				floats.append("%.1f m  gap %.2f m  %s (%s)  size %s at %s" % [ctr.distance_to(sp), gap2, path, mesh_name, str(bb.size.snapped(Vector3.ONE * 0.01)), str(bb.position.snapped(Vector3.ONE * 0.1))])
+		if lname.contains("leaf") or lname.contains("leaves") or lname.contains("foliage") or lname.contains("ivy") or lname.contains("bush") or lname.contains("clump") or lname.contains("canopy"):
+			var q := PhysicsRayQueryParameters3D.create(Vector3(ctr.x, bb.position.y + 0.05, ctr.z), Vector3(ctr.x, bb.position.y - 30.0, ctr.z))
+			var hit := space.intersect_ray(q)
+			var gap: float = (bb.position.y - float((hit.position as Vector3).y)) if not hit.is_empty() else 99.0
+			if gap > 0.6 and not lname.contains("tree"):
+				floats.append("%.1f m  gap %.2f m  %s  size %s" % [ctr.distance_to(sp), gap, path, str(bb.size.snapped(Vector3.ONE * 0.01))])
+	poles.sort()
+	floats.sort()
+	print("[mktest] benchscan bench at %s" % str(sp.snapped(Vector3.ONE * 0.01)))
+	for x in poles.slice(0, 25):
+		print("[mktest] benchscan POLE ", x)
+	for x in floats.slice(0, 25):
+		print("[mktest] benchscan FLOAT ", x)
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.fov = 60.0
+	pin.active = true
+	for k in 8:
+		var d := Vector3(0, 0, 1).rotated(Vector3.UP, TAU * k / 8.0)
+		pin.pos = sp + d * 4.5 + Vector3(0, 1.4, 0)
+		pin.look = sp + Vector3(0, 0.6, 0)
+		await _wait(1.0)
+		_shot("dir%d" % k)
+	pin.active = false
+
+
+## The screen-effect stack, one effect at a time on Luna in the meadow (medium shot), each photographed at its peak for
+## the side-by-side against its reference frame. Record with --write-movie for the motion.
+func _screenfx() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = luna.get_world_3d().navigation_map
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+		main.teleport_guard.allow(mika)
+	luna.stop_action()
+	luna.global_position = spot + Vector3(0, 0.05, 0)
+	luna.rotation.y = 0.0
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, spot + Vector3(14, 0, 14)) + Vector3(0, 0.05, 0)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.pos = spot + Vector3(0.6, 1.45, -2.4)
+	pin.look = spot + Vector3(0, 1.1, 0)
+	pin.fov = 40.0
+	pin.active = true
+	await _wait(2.5)
+	_shot("00_plain")
+	var fx := ScreenFX.get_for(self)
+	var steps := [
+		["01_speed_lines", func(): fx.speed_lines(1.0, 1.4), 0.5],
+		["02_zoom_blur", func(): fx.zoom_blur(1.0, 1.0), 0.3],
+		["03_chroma", func(): fx.chroma(1.0, 1.0), 0.05],
+		["04_flash_burst", func(): fx.flash_seq([["burst", 8]], 0.6), 0.1],
+		["05_flash_invert", func(): fx.flash_seq([["invert", 8]]), 0.1],
+		["06_flash_white_burst", func(): fx.flash_seq([["burst_white", 8]], -0.5), 0.1],
+		["07_wash_red", func(): fx.wash(Color(1.0, 0.08, 0.18), 0.75, 0.15, 1.0, 0.4), 0.5],
+		["08_wash_violet", func(): fx.wash(Color(0.48, 0.24, 1.0), 0.6, 0.15, 1.0, 0.4), 0.5],
+		["09_speed_lines_chroma_zoom", func(): fx.speed_lines(1.0, 1.2); fx.zoom_blur(0.8, 1.2); fx.chroma(0.8, 1.2), 0.4],
+	]
+	for st in steps:
+		(st[1] as Callable).call()
+		await _wait(float(st[2]))
+		_shot(String(st[0]))
+		await _wait(1.6)
+	# the impact sequence in motion (for the recording): freeze, flashes, chroma, shake, then slow motion
+	fx.impact(1.0)
+	await _wait(0.2)
+	fx.slow_mo(0.3, 1.0)
+	await _wait(2.5)
+	_check(Engine.time_scale > 0.9, "time scale back to normal after the freeze and slow motion", Engine.time_scale)
+	pin.active = false
+
+
+# ------------------------------------------------------------------ the test clip (2026-10-18, anime-proof)
+## Round 12 Luna in the meadow, filmed with Phantom Camera: a walk toward the lens, a slow graceful turn, a slow
+## fingertip reach (TwoBoneIK3D) with her eyes on the camera, then one spell in the 4-layer standard:
+## anticipation (circle at her feet, gathering glow on the hand, push-in), release (2-frame flash, the projectile
+## with trail, speed lines), impact (hit freeze, burst frames, chroma, shake, the big impact) and aftermath (the
+## lingering area glow, slow motion, back to her). Record with --write-movie; stills at the key beats.
+const LUNA_VIOLET := Color(0.62, 0.36, 1.0)
+const LUNA_GOLD := Color(1.0, 0.8, 0.38)
+
+func _fx(path: String, at: Vector3, primary: Color, secondary: Color, scale := 1.0) -> Node3D:
+	var n: Node3D = (load(path) as PackedScene).instantiate()
+	main.add_child(n)
+	n.global_position = at
+	n.scale = Vector3.ONE * scale
+	if n.get("primary_color") != null:
+		n.set("primary_color", primary)
+	if n.get("secondary_color") != null:
+		n.set("secondary_color", secondary)
+	if n.get("light_color") != null:
+		n.set("light_color", primary)
+	if n.has_method("play"):
+		n.call("play")
+	return n
+
+
+func _sigil(at: Vector3, size: float, sides: int, col: Color, intensity: float) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var q := PlaneMesh.new()
+	q.size = Vector2(size, size)
+	mi.mesh = q
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/magic/sigil.gdshader")
+	m.set_shader_parameter("sides", sides)
+	m.set_shader_parameter("color", col)
+	m.set_shader_parameter("intensity", intensity)
+	m.set_shader_parameter("seed", randf() * 100.0)
+	m.set_shader_parameter("draw_progress", 0.0)
+	m.set_shader_parameter("spin", 0.35 if sides % 2 == 0 else -0.5)
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	main.add_child(mi)
+	mi.global_position = at
+	return mi
+
+
+func _pcam(name_: String, prio: int, follow: Node3D, offset: Vector3, look: Node3D, tween_s: float, fov := 40.0) -> PhantomCamera3D:
+	var pc := PhantomCamera3D.new()
+	pc.name = name_
+	main.add_child(pc)
+	pc.set_tween_duration(tween_s)
+	pc.set_tween_transition(Tween.TRANS_SINE)
+	if follow:
+		pc.follow_mode = PhantomCamera3D.FollowMode.SIMPLE
+		pc.set_follow_target(follow)
+		pc.set_follow_offset(offset)
+	else:
+		pc.global_position = offset
+	if look:
+		pc.look_at_mode = PhantomCamera3D.LookAtMode.SIMPLE
+		pc.set_look_at_target(look)
+	pc.set("fov", fov)
+	pc.set_priority(prio)
+	return pc
+
+
+func _lunaclip() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 12.0)
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = luna.get_world_3d().navigation_map
+	var start := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 9.0))
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, start + Vector3(16, 0, 16)) + Vector3(0, 0.05, 0)
+	luna.stop_action()
+	luna.global_position = start + Vector3(0, 0.05, 0)
+	luna.rotation.y = 0.0                                  # facing -Z: she walks toward the camera at -Z
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED   # close-ups approved inside cinematics
+	# the camera: Phantom Camera drives the live camera (the rig and director stand still)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var cam: Camera3D = main.camera_rig.camera
+	cam.top_level = true
+	var host := PhantomCameraHost.new()
+	host.interpolation_mode = PhantomCameraHost.InterpolationMode.MANUAL    # ticked last every frame (PCamDriver)
+	cam.add_child(host)
+	var driver := PCamDriver.new()
+	driver.host = host
+	main.add_child(driver)
+	# look targets that follow her body
+	var chest := Node3D.new()
+	var face := Node3D.new()
+	var hand_t := Node3D.new()
+	for n in [chest, face, hand_t]:
+		main.add_child(n)
+	var sk := luna.skeleton
+	var track := func():
+		chest.global_position = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Chest")).origin
+		face.global_position = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Head")).origin + Vector3(0, 0.06, 0)
+		hand_t.global_position = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightHand")).origin
+	track.call()
+	var a := _pcam("A_walk_low", 10, luna, Vector3(0.35, 0.75, -3.0), chest, 0.0, 38.0)
+	await _wait(1.5)
+	print("[mktest] lunaclip camera: current=%s is_rig_cam=%s host_active=%s pcam_pos=%s cam_pos=%s luna=%s" % [get_viewport().get_camera_3d().get_path(),
+		str(get_viewport().get_camera_3d() == cam), str(host.get_active_pcam()), str(a.global_position.snapped(Vector3.ONE * 0.01)),
+		str(cam.global_position.snapped(Vector3.ONE * 0.01)), str(luna.global_position.snapped(Vector3.ONE * 0.01))])
+	print("[mktest] lunaclip host: child_of_cam=%s physics_based=%s processing=%s/%s missing=%s tree_paused=%s pmode=%d" % [str(host.get("_is_child_of_camera")), str(host.get("_follow_target_physics_based")),
+		str(host.is_processing()), str(host.is_physics_processing()), str(host.get("_active_pcam_missing")), str(get_tree().paused), host.process_mode])
+	_shot("00_start")
+	var t0 := _game_t
+	# 1. the walk toward the lens (the camera dollies back with her, low): the goddess walk (catwalk x walk, 50/50)
+	luna.set_walk_clip("walk_goddess")
+	luna.navigate_to(NavigationServer3D.map_get_closest_point(map, start + Vector3(0, 0, -5.0)), false)
+	while luna.current_action == "navigate_to" and _game_t - t0 < 9.0:
+		await get_tree().process_frame
+		track.call()
+		luna.look_head_at(cam.global_position)
+	_shot("01_walk_end")
+	# 2. the slow turn (a full circle, 4 s), the camera eases to a medium three-quarter
+	var b := _pcam("B_turn_med", 20, luna, Vector3(1.4, 1.15, -2.5), chest, 1.4, 34.0)
+	luna.look_head_at(null)
+	# the catwalk turn, twice (away from the lens, then back to it); its hip yaw drives her root
+	var tt := _game_t
+	var turns_ok := luna.play_turn("catwalk_turn")
+	_check(turns_ok, "the catwalk turn plays with its yaw on her root")
+	var turn_len := luna.animation_length("catwalk_turn")
+	var shot_back := false
+	var tdbg := 0
+	while _game_t - tt < turn_len + 0.1:
+		await get_tree().process_frame
+		track.call()
+		tdbg += 1
+		if tdbg % 8 == 0:
+			print("[mktest] turn1 t=%.2f body=%.0f avatar=%.0f vel=%.2f" % [_game_t - tt, rad_to_deg(luna.rotation.y), rad_to_deg(luna.avatar.rotation.y), luna.velocity.length()])
+		if not shot_back and _game_t - tt > turn_len * 0.6:
+			_shot("02_turn_back")
+			shot_back = true
+	luna.play_turn("catwalk_turn")
+	tt = _game_t
+	while _game_t - tt < turn_len + 0.3:
+		await get_tree().process_frame
+		track.call()
+		tdbg += 1
+		if tdbg % 8 == 0:
+			print("[mktest] turn2 t=%.2f body=%.0f avatar=%.0f vel=%.2f" % [_game_t - tt, rad_to_deg(luna.rotation.y), rad_to_deg(luna.avatar.rotation.y), luna.velocity.length()])
+	# 3. the fingertip reach toward the lens (TwoBoneIK3D), eyes following the camera; a close medium on face + hand
+	var c := _pcam("C_reach_close", 30, luna, Vector3(0.45, 1.5, -1.35), face, 1.2, 32.0)
+	var ik := TwoBoneIK3D.new()
+	ik.name = "ReachIK"
+	sk.add_child(ik)
+	var ik_target := Node3D.new()
+	main.add_child(ik_target)
+	ik.setting_count = 1
+	ik.set_root_bone_name(0, "RightUpperArm")
+	ik.set_middle_bone_name(0, "RightLowerArm")
+	ik.set_end_bone_name(0, "RightHand")
+	ik.set_target_node(0, ik.get_path_to(ik_target))
+	ik.influence = 0.0
+	var fwd := -luna.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var shoulder: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightUpperArm")).origin
+	ik_target.global_position = hand_t.global_position
+	var reach_to := shoulder + fwd * 0.52 + right * 0.08 + Vector3(0, 0.12, 0)
+	# (2026-10-19: TwoBoneIK3D ran with influence 1 but never moved the hand in this rig - logged as a gap; the reach
+	# is the Mixamo pointing clip toward the lens until the IK works)
+	ik.active = false
+	luna.play_gesture("pointing", 0.6, 0.7)
+	var rt := create_tween()
+	rt.tween_property(ik, "influence", 1.0, 0.6)
+	rt.parallel().tween_property(ik_target, "global_position", reach_to, 1.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var ikdbg := {"n": 0}
+	var ikprobe := func():
+		ikdbg.n = int(ikdbg.n) + 1
+		if int(ikdbg.n) % 20 == 0:
+			var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightHand")).origin
+			print("[mktest] lunaclip ik: influence %.2f active %s hand-target %.3f m" % [ik.influence, str(ik.active), hp.distance_to(ik_target.global_position)])
+	sk.skeleton_updated.connect(ikprobe)
+	tt = _game_t
+	while _game_t - tt < 3.0:
+		await get_tree().process_frame
+		track.call()
+		luna.look_head_at(cam.global_position)
+		if _game_t - tt > 1.8 and _game_t - tt < 1.85:
+			_shot("03_reach")
+	sk.skeleton_updated.disconnect(ikprobe)
+	var rb := create_tween()
+	rb.tween_property(ik, "influence", 0.0, 0.8).set_trans(Tween.TRANS_SINE)
+	await _wait(0.9)
+	ik.queue_free()
+	ik_target.queue_free()
+	# 4. the spell, 4 layers. Target: 9 m in front of her
+	var target := NavigationServer3D.map_get_closest_point(map, luna.global_position + fwd * 9.0) + Vector3(0, 0.6, 0)
+	var fx := ScreenFX.get_for(self)
+	# 4a anticipation: the circle at her feet, gathering glow at the hand, a low push-in
+	var d := _pcam("D_cast_low", 40, luna, Vector3(-1.3, 0.45, -2.2), chest, 0.6, 40.0)
+	luna.look_head_at(target)
+	luna.play_gesture("prepare_and_cast", 0.25, 0.4)
+	var circle := _sigil(luna.global_position + Vector3(0, 0.03, 0), 3.2, 8, LUNA_VIOLET, 2.2)
+	var circle2 := _sigil(luna.global_position + Vector3(0, 0.04, 0), 1.9, 6, LUNA_GOLD, 2.4)
+	for sg in [circle, circle2]:
+		create_tween().tween_property((sg as MeshInstance3D).material_override, "shader_parameter/draw_progress", 1.0, 1.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var gather := _fx("res://assets/BinbunVFX_Vol2/ElementalMagicFX/effects/cast/vfx_fire_cast_01.tscn", hand_t.global_position, LUNA_VIOLET, LUNA_GOLD, 0.45)
+	if gather.get("emission") != null:
+		gather.set("emission", 1.2)
+	fx.vignette(0.45, 2.4)
+	var push := create_tween()
+	push.tween_method(func(v: Vector3): d.set_follow_offset(v), Vector3(-1.3, 0.45, -2.2), Vector3(-0.9, 0.5, -1.6), 1.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tt = _game_t
+	while _game_t - tt < 1.3:
+		await get_tree().process_frame
+		track.call()
+		gather.global_position = hand_t.global_position
+		if _game_t - tt > 1.0 and _game_t - tt < 1.05:
+			_shot("04_anticipation")
+	# 4b release: a 2-frame white flash, the projectile with its trail, speed lines toward the target
+	fx.flash("white", 2)
+	var proj := _fx("res://assets/BinbunVFX_Vol2/ElementalMagicFX/effects/projectile/vfx_fire_projectile_01.tscn", hand_t.global_position, LUNA_VIOLET, LUNA_GOLD, 1.0)
+	proj.look_at(target, Vector3.UP)
+	var e := _pcam("E_follow_shot", 50, null, luna.global_position + right * 1.6 + Vector3(0, 1.1, 0) - fwd * 0.6, proj, 0.25, 46.0)
+	fx.speed_lines(0.7, 0.5, Vector2(0.5, 0.5), Color(0.85, 0.75, 1.0))
+	var pt := create_tween()
+	pt.tween_property(proj, "global_position", target, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await _wait(0.25)
+	_shot("05_release")
+	await _wait(0.27)
+	# 4c impact: freeze, burst frames, chroma, shake, the big impact; a wide cut on the hit
+	var f2 := _pcam("F_impact_wide", 60, null, target + fwd * 3.6 + right * 2.4 + Vector3(0, 1.0, 0), null, 0.0, 50.0)
+	f2.look_at_mode = PhantomCamera3D.LookAtMode.NONE
+	f2.look_at(target, Vector3.UP)
+	var boom := _fx("res://assets/BinbunVFX_Vol2/StylizedHitFX/effects/big_impact/vfx_big_impact_01.tscn", target, LUNA_VIOLET, LUNA_GOLD, 1.6)
+	fx.impact(1.0)
+	await _wait(0.12)
+	_shot("06_impact")
+	fx.slow_mo(0.35, 0.9)
+	# 4d aftermath: the lingering area glow at the target, back to her
+	var linger := _sigil(target - Vector3(0, 0.57, 0), 2.6, 6, LUNA_GOLD, 2.0)
+	(linger as MeshInstance3D).material_override.set_shader_parameter("draw_progress", 1.0)
+	create_tween().tween_property((linger as MeshInstance3D).material_override, "shader_parameter/intensity", 0.0, 2.2).set_trans(Tween.TRANS_SINE)
+	for sg in [circle, circle2]:
+		create_tween().tween_property((sg as MeshInstance3D).material_override, "shader_parameter/intensity", 0.0, 1.2)
+	await _wait(1.3)
+	_shot("07_aftermath")
+	var g := _pcam("G_after", 70, luna, Vector3(0.8, 1.3, -2.2), face, 1.6, 34.0)
+	luna.look_head_at(cam.global_position)
+	tt = _game_t
+	while _game_t - tt < 3.0:
+		await get_tree().process_frame
+		track.call()
+		luna.look_head_at(cam.global_position)
+	_shot("08_end")
+	for n in [proj, boom, linger, circle, circle2, gather]:
+		if is_instance_valid(n):
+			n.queue_free()
+	_check(Engine.time_scale > 0.9, "time back to normal after the spell", Engine.time_scale)
+
+
+## Outfit audit stills (2026-10-19): each model in --audit-list (comma-separated res:// paths) worn by Luna's rig,
+## standing at idle, photographed front / right side / back / 3/4 (FOV 28, camera 1.0 m, head to feet), plus a spin
+## frame mid-walk-cycle is not needed: the rules (fitted, opaque, open front, no floor-length layers, sheer fabric,
+## loose drapes or wide sleeves) read from the standing views.
+func _outfitaudit() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 12.0)
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	var map: RID = luna.get_world_3d().navigation_map
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, spot + Vector3(16, 0, 16)) + Vector3(0, 0.05, 0)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	for path in String(RenderProfile.options.get("audit-list", "")).split(",", false):
+		_check(luna.swap_avatar(path), "wears " + path.get_file())
+		luna.stop_action()
+		luna.global_position = spot + Vector3(0, 0.05, 0)
+		luna.rotation.y = 0.0
+		await _wait(3.0)
+		var fwd := Vector3(0, 0, -1)
+		var waist := spot + Vector3(0, 0.9, 0)
+		for a in [["front", 0.0], ["side", 90.0], ["back", 180.0], ["3q", 45.0]]:
+			var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))
+			pin.fov = 30.0
+			pin.pos = Vector3(waist.x, spot.y + 1.0, waist.z) + d * 4.2
+			pin.look = waist
+			pin.active = true
+			await _wait(0.8)
+			_shot("%s_%s" % [path.get_file().get_basename(), a[0]])
+	pin.active = false
+
+
+## Pose probe for the harp: each held pose, a medium front still, and the right hand with the finger curl test.
+func _harpprobe() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	var luna: WorldCharacter = main.characters["luna"]
+	var map: RID = luna.get_world_3d().navigation_map
+	var spot := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+	if RenderProfile.options.has("harp-avatar"):
+		luna.swap_avatar(String(RenderProfile.options["harp-avatar"]))
+		await _wait(1.0)
+	luna.stop_action()
+	luna.global_position = spot + Vector3(0, 0.05, 0)
+	luna.rotation.y = 0.0
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.pos = spot + Vector3(0.0, 1.2, -3.2)
+	pin.look = spot + Vector3(0, 1.1, 0)
+	pin.fov = 40.0
+	pin.active = true
+	await _wait(1.5)
+	for clip in ([] if RenderProfile.options.has("hp-fingers-only") else ["hold_wide_a", "hold_wide_b", "hold_wide_c", "hold_point_a", "hold_point_b", "hold_cast_a", "hold_cast_b"]):
+		luna.play_gesture(clip, 0.2, 0.2)
+		await _wait(0.9)
+		_shot(clip)
+		luna.end_gesture()
+		await _wait(0.4)
+	# fingers: the curl on the right hand, curl 0 and 1, close on the hand
+	var fp := FingerPose.new()
+	luna.skeleton.add_child(fp)
+	luna.play_gesture("hold_wide_a", 0.2, 0.2)
+	await _wait(0.8)
+	var sk := luna.skeleton
+	var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("RightHand")).origin
+	pin.pos = hp + Vector3(-0.25, 0.15, -0.55)
+	pin.look = hp
+	pin.fov = 34.0
+	for ax in [["z", Vector3(0, 0, 1)], ["x", Vector3(1, 0, 0)]]:
+		fp.axis = ax[1]
+		for c in [0.0, 1.0]:
+			for f in fp.curl:
+				fp.curl[f] = c
+			await _wait(0.3)
+			_shot("fingers_%s_%02d" % [ax[0], int(c * 10)])
+	print("[mktest] harpprobe bones: ", [sk.find_bone("RightIndexProximal"), sk.find_bone("RightThumbMetacarpal"), sk.find_bone("RightIndexDistal")])
+
+
+# ------------------------------------------------------------------ the Starlit Harp proof (reference video 4)
+## 27.5 s, timed to the reference: A 0-5.5 hand plucking light strings (extreme close-up, rolled), B 5.5-13.5 she
+## floats before the sun-cloud orb and its spoke rings (low, slow push, counter-roll, the orb blooms), C 13.5-14.3 the
+## reach to the lens: crash zoom, roll, white flash, zoom blur, D 14.3-18 the crystal lance forms (tracking along it),
+## E 18-22 it dives onto the sanctuary below (speed lines, zoom blur, follow cam), F 22-23.5 the impact frames,
+## G 23.5-27.5 the shockwave and a slow fade to the palette's colour. --harp-palette=blue|luna, --harp-avatar=<vrm>.
+func _starlitharp() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 0.1)
+		if main.weather.get("rain") != null:
+			main.weather.set("rain", 0.0)
+		if main.weather.get("enabled") != null:
+			main.weather.set("enabled", false)
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 22.5 * 60.0
+	if main.day_night:
+		main.day_night.set_override(true)
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	if main.teleport_guard:
+		main.teleport_guard.allow(luna)
+		main.teleport_guard.allow(mika)
+	var map: RID = luna.get_world_3d().navigation_map
+	var ground := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 6.0))
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, ground + Vector3(20, 0, 20)) + Vector3(0, 0.05, 0)
+	var H := ground + Vector3(0, 26.0, -10.0)                 # she floats high over the meadow, south of the ground point
+	luna.stop_action()
+	luna.set_physics_process(false)
+	luna.global_position = H
+	luna.rotation.y = 0.0                                       # faces -Z
+	# (the avatar is rebuilt up here, so its hair and skirt springs start where she floats instead of being yanked 26 m)
+	luna.swap_avatar(String(RenderProfile.options.get("harp-avatar", luna.avatar_path)))
+	await _wait(1.5)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var palette := String(RenderProfile.options.get("harp-palette", "blue"))
+	var set := StarlitHarp.new()
+	set.name = "StarlitHarp"
+	main.add_child(set)
+	set.setup(palette)
+	set.build_clouds(H + Vector3(0, -2, 0), 26.0, 11)
+	var fx := ScreenFX.get_for(self)
+	fx.wash(set.pal.wash, 0.32, 0.3, -1.0)                      # the whole sequence lives in one colour (rule 2)
+	fx.vignette(0.45, 30.0)
+	var fp := FingerPose.new()
+	luna.skeleton.add_child(fp)
+	for f in fp.curl:
+		fp.curl[f] = 0.25
+	var gok := luna.play_gesture("hold_wide_a", 0.2, 0.2)
+	print("[mktest] harp gesture ok=%s has=%s casting=%s reaction=%s ground=%s" % [str(gok), str(luna.has_clip("hold_wide_a")), str(luna.casting), str(luna.reaction.blocks_actions() if luna.reaction else false), luna.ground_pose])
+	await _wait(1.2)
+	var sk := luna.skeleton
+	var bone := func(n: String) -> Vector3:
+		return sk.global_transform * sk.get_bone_global_pose(sk.find_bone(n)).origin
+	# ---- A: the hand and the harp
+	var hp: Vector3 = (bone.call("RightIndexProximal") as Vector3).lerp(bone.call("RightMiddleIntermediate"), 0.5)   # the fingers
+	print("[mktest] harp hand %s head %s chest %s luna %s gesture %s" % [str((hp - H).snapped(Vector3.ONE * 0.01)), str((bone.call("Head") - H).snapped(Vector3.ONE * 0.01)), str((bone.call("Chest") - H).snapped(Vector3.ONE * 0.01)), str((luna.global_position - H).snapped(Vector3.ONE * 0.01)), str(luna.get("gesture_clip"))])
+	var camA := hp + Vector3(0.18, -0.16, -0.44)
+	var to_cam := (camA - hp).normalized()
+	set.build_harp(hp - to_cam * 0.22 + Vector3(-0.08, 0.1, 0), to_cam, 48.0)
+	var key := OmniLight3D.new()                                # her key light from the orb side / the lens side
+	main.add_child(key)
+	key.light_color = Color(set.pal.glow).lerp(Color(1, 1, 1), 0.4)
+	key.light_energy = 1.6
+	key.omni_range = 6.0
+	pin.fov = 30.0
+	pin.active = true
+	var t0 := _game_t
+	var done := {}
+	var once := func(key: String) -> bool:
+		if done.has(key):
+			return false
+		done[key] = true
+		return true
+	var shots := {"A_pluck": 0.62, "A_open": 2.4, "B_orb": 8.0, "B_bloom": 12.6, "C_reach": 13.75, "D_lance": 16.4, "E_dive": 20.0, "F_burst": 22.05, "F_invert": 22.35, "G_wave": 24.6, "G_end": 27.2}
+	var lance_dir := Vector3.ZERO
+	var lance_start := Vector3.ZERO
+	var boom: Node3D = null
+	while _game_t - t0 < 27.6:
+		await get_tree().process_frame
+		var t := _game_t - t0
+		if main.get("subtitle") and main.subtitle:
+			main.subtitle.visible = false
+		key.global_position = luna.global_position + Vector3(0.6, 1.8, -1.6)
+		if t < 5.5:
+			# A: an extreme close-up of the hand, rolled 30 deg, a slow push
+			var u := t / 5.5
+			pin.pos = camA.lerp(hp + to_cam * 0.3 + Vector3(0.0, -0.03, 0.0), u)
+			pin.look = hp
+			pin.roll = deg_to_rad(lerpf(32.0, 18.0, u))
+			for pt in [[0.5, 4], [1.5, 2], [3.6, 3], [4.25, 5]]:
+				if t > float(pt[0]) - 0.18 and t < float(pt[0]) + 0.25:
+					fp.curl["Index"] = 0.85 if t < float(pt[0]) else 0.15
+					fp.curl["Middle"] = 0.5 if t < float(pt[0]) else 0.2
+				if t >= float(pt[0]) and once.call("pluck%s" % str(pt[0])):
+					set.pluck(int(pt[1]), 0.4)
+					set.spark(bone.call("RightIndexDistal") - to_cam * 0.04, 0.02)
+		elif t < 13.5:
+			# B: she floats before the orb, arms open; low angle, slow push, counter-roll; the orb blooms from 9.5 s
+			if once.call("B"):
+				set.harp.visible = false
+				set.slats.visible = false
+				luna.end_gesture()
+				luna.play_gesture("hold_wide_b", 0.5, 0.3)
+				for f in fp.curl:
+					fp.curl[f] = 0.2
+				set.build_orb(H + Vector3(0, 1.35, 5.5), 3.4)
+			var u := (t - 5.5) / 8.0
+			var chest: Vector3 = bone.call("Chest")
+			pin.fov = 40.0
+			pin.pos = H + Vector3(0.7, 0.45, -3.4).lerp(Vector3(0.35, 0.75, -2.3), u)
+			pin.look = chest + Vector3(0, 0.25, 0)
+			pin.roll = deg_to_rad(lerpf(-28.0, -12.0, u))
+			luna.global_position = H + Vector3(0, sin(t * 1.3) * 0.06, 0)
+			set.orb_bloom(clampf((t - 9.5) / 4.0, 0.0, 1.0))
+		elif t < 14.3:
+			# C: the reach to the lens: crash zoom, a fast roll, a 2-frame white flash, zoom blur
+			if once.call("C"):
+				lance_dir = (ground + Vector3(0, 0.6, 0) - (H + Vector3(0, -3.0, 0))).normalized()
+				lance_start = H + Vector3(0, -1.5, 0) + lance_dir * 4.5
+				set.build_lance(9.0, 0.55)
+				set.lance.global_transform = Transform3D(Basis(Quaternion(Vector3.UP, lance_dir)), lance_start)
+				create_tween().tween_method(func(v): set.lance_form(v), 0.0, 1.0, 1.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+				luna.end_gesture()
+				luna.play_gesture("hold_point_b", 0.15, 0.2)
+				fx.zoom_blur(1.0, 0.8)
+				fx.speed_lines(0.6, 0.7, Vector2(0.5, 0.5), Color(set.pal.core))
+			var u := (t - 13.5) / 0.8
+			pin.fov = lerpf(40.0, 24.0, u)
+			pin.roll = deg_to_rad(lerpf(-12.0, 40.0, u))
+			if t > 13.8 and once.call("Cflash"):
+				fx.flash("white", 2)
+		elif t < 18.0:
+			# D: the lance forms under her, pointing down at the ground; the camera tracks along it
+			if once.call("D"):
+				fx.flash("white", 1)
+			var u := (t - 14.3) / 3.7
+			var side := lance_dir.cross(Vector3.UP).normalized()
+			pin.fov = 46.0
+			pin.pos = lance_start + side * 3.4 + Vector3(0, 0.9, 0) + lance_dir * lerpf(-3.0, 2.0, u)
+			pin.look = lance_start + lance_dir * lerpf(-1.0, 2.5, u)
+			pin.roll = deg_to_rad(lerpf(18.0, 8.0, u))
+		elif t < 22.0:
+			# E: the dive (ease-in), the follow camera behind and above, speed lines and zoom blur toward the tip
+			if once.call("E"):
+				fx.speed_lines(0.9, 4.0, Vector2(0.5, 0.55), Color(set.pal.core))
+				fx.zoom_blur(0.6, 4.0, Vector2(0.5, 0.55))
+			var u := clampf((t - 18.0) / 4.0, 0.0, 1.0)
+			var target := ground + Vector3(0, 0.3, 0) - lance_dir * 4.5
+			var p := lance_start.lerp(target, u * u)
+			set.lance.global_position = p
+			luna.global_position = p - lance_dir * 4.0 + Vector3(0, 0.45, 0)      # she rides the lance down
+			var sd := lance_dir.cross(Vector3.UP).normalized()
+			pin.fov = 50.0
+			pin.pos = p + sd * 3.2 - lance_dir * 3.5 + Vector3(0, 1.6, 0)
+			pin.look = p + lance_dir * 3.0
+			pin.roll = deg_to_rad(lerpf(8.0, -14.0, u))
+		elif t < 23.5:
+			# F: the impact frames (ref 22.1-23.5 s): burst, invert, white-with-dark-burst, chroma, a 4-frame freeze
+			if once.call("F"):
+				set.lance.visible = false
+				fx.hit_freeze(4)
+				fx.flash_seq([["burst", 3], ["invert", 1], ["burst", 2], ["burst_white", 4], ["invert", 3], ["white", 2]], deg_to_rad(-55.0))
+				fx.chroma(1.0, 1.2)
+				fx.shake(0.12, 0.8)
+				boom = load("res://assets/BinbunVFX_Vol2/StylizedHitFX/effects/big_impact/vfx_big_impact_01.tscn").instantiate()
+				main.add_child(boom)
+				boom.global_position = ground + Vector3(0, 0.3, 0)
+				boom.scale = Vector3.ONE * 6.0
+				set.shockwave(ground, 16.0, 1.4)
+				for kv in [["primary_color", set.pal.glow], ["secondary_color", set.pal.core], ["light_color", set.pal.glow]]:
+					if boom.get(kv[0]) != null:
+						boom.set(kv[0], kv[1])
+				if boom.has_method("play"):
+					boom.call("play")
+			pin.fov = 55.0
+			pin.pos = ground + Vector3(6.5, 3.2, -6.5)
+			pin.look = ground + Vector3(0, 0.8, 0)
+			pin.roll = deg_to_rad(-6.0)
+		else:
+			# G: the shockwave and the fade to the palette's colour (slow motion, the camera lifts away)
+			if once.call("G"):
+				fx.slow_mo(0.4, 1.8)
+				fx.wash(set.pal.wash, 0.75, 2.5, -1.0)
+			var u := clampf((t - 23.5) / 4.0, 0.0, 1.0)
+			if once.call("G2"):
+				set.shockwave(ground, 24.0, 2.2)
+			pin.pos = ground + Vector3(6.5, 3.2, -6.5).lerp(Vector3(9.0, 7.0, -9.0), u)
+			pin.look = ground + Vector3(0, 1.0, 0)
+			pin.roll = deg_to_rad(lerpf(-6.0, 0.0, u))
+		for k in shots:
+			if t >= float(shots[k]) and once.call("shot_" + k):
+				_shot(k)
+	pin.active = false
+	_check(Engine.time_scale > 0.9, "time back to normal", Engine.time_scale)
+
+
+## The seated skirt on different seats and on the grass (2026-10-19): for each spot she walks there and sits (the
+## seat's own sit), and while seated the ring front / side / 3q is shot (FOV 28, 1.0 m, aimed at the waist) and the
+## skirt's depth under the sampled surface is measured. --dt-who=luna|mika, --sit-spots=watchpoint_rest,garden_meditate,grass
+func _sittest() -> void:
+	await _hold_all()
+	await _force_luna_l1()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 0.1)
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 10.5 * 60.0
+	var who := String(RenderProfile.options.get("dt-who", "luna"))
+	var c: WorldCharacter = main.characters[who]
+	var other: WorldCharacter = main.characters["mika" if who == "luna" else "luna"]
+	if main.teleport_guard:
+		main.teleport_guard.allow(c)
+		main.teleport_guard.allow(other)
+	var map: RID = c.get_world_3d().navigation_map
+	other.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(30, 0, -30)) + Vector3(0, 0.05, 0)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var results := {}
+	for spot in String(RenderProfile.options.get("sit-spots", "watchpoint_rest,garden_meditate,grass")).split(","):
+		c.stop_action()
+		var worst := Vector2.ZERO
+		if spot == "grass":
+			var gp := NavigationServer3D.map_get_closest_point(map, Vector3(6.0, 0, 9.0))
+			if main.teleport_guard:
+				main.teleport_guard.allow(c)
+			c.global_position = gp + Vector3(0, 0.05, 0)
+			c.rotation.y = 0.0
+			await _wait(1.5)
+			c.play_gesture("sit_ground_enter", 0.3, 0.3)
+			c.set_ground_pose("sit", c.animation_length("sit_ground_enter") * 0.9)
+			await _wait(c.animation_length("sit_ground_enter") * 0.85)
+			c.play_gesture("sit_ground_loop", 0.3, 0.6)
+			await _wait(2.5)
+			for k in 45:
+				await get_tree().process_frame
+				if c.dress_sim and c.dress_sim.drape:
+					var pz := c.dress_sim.drape.penetration()
+					worst = Vector2(maxf(worst.x, pz.x), maxf(worst.y, pz.y))
+			await _sit_ring(c, pin, spot, 0.35, 1.7)
+			c.end_gesture()
+			c.set_ground_pose("", 0.6)
+			await _wait(1.0)
+		else:
+			var it: Interactable = main.world.interactables.get(spot)
+			if it == null:
+				_check(false, "seat %s exists" % spot)
+				continue
+			var ap: Vector3 = it.approach_point()
+			if main.teleport_guard:
+				main.teleport_guard.allow(c)
+			c.global_position = ap + Vector3(0, 0.05, 0)          # (at the seat's approach point: the walk is not under test)
+			await _wait(1.0)
+			it.duration_override = 14.0
+			var job := func():
+				var res: Dictionary = await it.perform(c)
+				print("[mktest] sit %s perform -> %s" % [spot, str(res).left(200)])
+			job.call()
+			var t0 := _game_t
+			while not c.seated and _game_t - t0 < 10.0:
+				await get_tree().process_frame
+			print("[mktest] sit %s seated=%s at %.1f m from the approach point" % [spot, str(c.seated), c.global_position.distance_to(ap)])
+			await _wait(2.5)
+			for k in 45:
+				await get_tree().process_frame
+				if c.dress_sim and c.dress_sim.drape:
+					var pz := c.dress_sim.drape.penetration()
+					worst = Vector2(maxf(worst.x, pz.x), maxf(worst.y, pz.y))
+			await _sit_ring(c, pin, spot, 0.62)
+			while (c.seated or it.busy) and _game_t - t0 < 40.0:
+				await get_tree().process_frame
+			await _wait(3.0)
+		results[spot] = {"deepest_cm": snappedf(worst.x, 0.1), "joints_under": int(worst.y)}
+		if c.dress_sim and c.dress_sim.drape:
+			print("[mktest] sit deepest at ", c.dress_sim.drape._deep_at, " weight ", c.dress_sim.drape.weight)
+		print("[mktest] sit %s %s" % [spot, JSON.stringify(results[spot])])
+	report["sit"] = results
+	pin.active = false
+
+
+func _sit_ring(c: WorldCharacter, pin: CameraPin, tag: String, waist_h: float, cam_h := 1.0) -> void:
+	var fwd := -c.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var waist := c.global_position + Vector3(0, waist_h, 0)
+	for a in [["front", 0.0], ["side", 90.0], ["3q", 40.0], ["back", 180.0]]:
+		var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(a[1])))
+		pin.fov = 28.0
+		pin.pos = Vector3(waist.x, c.global_position.y + cam_h, waist.z) + d * 3.6
+		pin.look = waist
+		pin.roll = 0.0
+		pin.active = true
+		if main.get("subtitle") and main.subtitle:
+			main.subtitle.visible = false
+		await _wait(0.6)
+		_shot("%s_%s" % [tag, a[0]])
+
+
+## Walk, run and turn shots of one girl, front / side / 3q, the camera riding with her (FOV 30, 1.0 m, aimed at the
+## waist, 3.8 m away): for each motion and angle she moves on open ground and a still is taken mid-stride.
+func _motionshots() -> void:
+	await _hold_all()
+	await _force_luna_l1()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 0.1)
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 10.5 * 60.0
+	var who := String(RenderProfile.options.get("dt-who", "luna"))
+	var c: WorldCharacter = main.characters[who]
+	var other: WorldCharacter = main.characters["mika" if who == "luna" else "luna"]
+	var map: RID = c.get_world_3d().navigation_map
+	if main.teleport_guard:
+		main.teleport_guard.allow(other)
+	other.global_position = NavigationServer3D.map_get_closest_point(map, Vector3(30, 0, -30)) + Vector3(0, 0.05, 0)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	var a0 := NavigationServer3D.map_get_closest_point(map, Vector3(-4.0, 0, 12.0))
+	var a1 := NavigationServer3D.map_get_closest_point(map, Vector3(-4.0, 0, 26.0))
+	for motion in ["walk", "run", "turn"]:
+		for ang in [["front", 0.0], ["side", 90.0], ["3q", 40.0], ["back", 180.0]]:
+			if main.teleport_guard:
+				main.teleport_guard.allow(c)
+			c.stop_action()
+			c.global_position = a0 + Vector3(0, 0.05, 0)
+			c.look_at_point(a1)
+			await _wait(1.2)
+			if motion == "turn":
+				c.navigate_to(a0 + (a1 - a0).normalized() * 3.0, false)
+				await _wait(2.2)
+				c.navigate_to(a0 - (a1 - a0).normalized() * 0.5, false)   # a quick 180 back
+			else:
+				c.navigate_to(a1, motion == "run")
+			var t0 := _game_t
+			var shot_at := 0.45 if motion == "turn" else (1.6 if motion == "run" else 2.6)
+			var taken := false
+			while _game_t - t0 < shot_at + 0.3:
+				await get_tree().process_frame
+				var fwd := -c.global_transform.basis.z
+				fwd.y = 0.0
+				fwd = fwd.normalized()
+				var d := fwd.rotated(Vector3.UP, deg_to_rad(-float(ang[1])))
+				var waist := c.global_position + Vector3(0, 0.9, 0)
+				pin.fov = 30.0
+				pin.pos = Vector3(waist.x, c.global_position.y + 1.0, waist.z) + d * 3.8
+				pin.look = waist
+				pin.active = true
+				if main.get("subtitle") and main.subtitle:
+					main.subtitle.visible = false
+				if not taken and _game_t - t0 >= shot_at:
+					_shot("%s_%s" % [motion, ang[0]])
+					taken = true
+			c.stop_action()
+	pin.active = false
+
+
+## Design B / sitting tests: Luna is forced into her Level 1 stage (design B on this branch) whatever the test save's
+## level or form says (--keep-form leaves her as she is). Selwyn 2026-10-19: "force Luna into Level 1 design B".
+func _force_luna_l1() -> void:
+	if RenderProfile.options.has("keep-form") or not main.characters.has("luna"):
+		return
+	var luna: WorldCharacter = main.characters["luna"]
+	var st: Dictionary = AppearanceRegistry.stage_by_id("luna", "oracle_l1outfit")
+	var path := String(st.get("avatar", ""))
+	if path != "" and luna.avatar_path != path:
+		if main.teleport_guard:
+			main.teleport_guard.allow(luna)
+		luna.swap_avatar(path)
+		await _wait(1.0)
+	_check(luna.avatar_path == path, "Luna wears Level 1 (%s)" % path.get_file(), luna.avatar_path)
+
+
+## A sped-up full day over the sanctuary (2026-10-19): the clock runs 24 h in --lapse-s seconds (default 96) from
+## 04:00, a fixed wide camera looks west over the dais; record with --write-movie. Logs the sun's elevation, the
+## light energy and the night amount every game hour.
+func _daylapse() -> void:
+	await _hold_all()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	if main.weather:
+		main.weather.set_weather("clear", 48.0)
+	if main.day_night:
+		main.day_night.clear_override()
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.pos = Vector3(14.0, 7.0, 18.0)
+	pin.look = Vector3(-6.0, 2.0, -6.0)
+	pin.fov = 62.0
+	pin.active = true
+	var secs := float(RenderProfile.options.get("lapse-s", 96.0))
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 4.0 * 60.0
+	await _wait(2.0)
+	var rate := 1440.0 / secs                          # game minutes per real second
+	var t0 := _game_t
+	var last_h := -1
+	var sun: DirectionalLight3D = main.world.get("sun")
+	while _game_t - t0 < secs:
+		await get_tree().process_frame
+		WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 4.0 * 60.0 + (_game_t - t0) * rate
+		var hh := int(WorldState.hour_f())
+		if hh != last_h:
+			last_h = hh
+			print("[mktest] lapse %02d:00 night_k %.2f sun_el %.1f energy %.2f" % [hh, main.day_night.k if main.day_night else -1.0, -rad_to_deg(sun.global_rotation.x), sun.light_energy if sun.visible else 0.0])
+	pin.active = false
+
+
+## The lake set for the dances: both mages on the Lantern Lake water at night, physics off, facing the lens (+Z of
+## the clear lane in the floating lanterns), the stage dressed (DanceStage), the camera pinned. who: ids to place,
+## with sideways offsets in metres. Returns {lake, spot, water_y, stage, pin, chars}.
+func _lake_setup(who: Dictionary) -> Dictionary:
+	await _hold_all()
+	await _force_luna_l1()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	var luna: WorldCharacter = main.characters["luna"]
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("lake scene")
+	if main.performance:
+		main.performance.set_process(false)
+	var tr: Dictionary = await main.streaming.travel("lantern_lake", luna, false)
+	_check(main.streaming.current_id == "lantern_lake", "at Lantern Lake (%s)" % str(tr).left(120))
+	if main.day_night:
+		main.day_night.set_override(true)
+	await _wait(2.0)
+	if main.day_night:
+		main.day_night.set_process(false)
+		main.day_night.set_physics_process(false)
+	var lake: Node3D = null
+	for n in main.world.find_children("*", "Node3D", true, false) + [main.world]:
+		if n.get("water_mat") != null:
+			lake = n
+			break
+	_check(lake != null, "the lake node")
+	if lake == null:
+		return {}
+	var water_y: float = lake.global_position.y
+	var spot: Vector3 = lake.to_global(Vector3(-1.5, 0.0, -9.0))      # the clear lane in the floating lanterns
+	spot.y = water_y
+	var chars := {}
+	for id in main.characters:
+		var c: WorldCharacter = main.characters[id]
+		if not who.has(id):
+			c.visible = false
+			continue
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+		c.stop_action()
+		c.set_physics_process(false)
+		c.visible = true                              # (the area change parks every mage but the focus)
+		c.global_position = spot + Vector3(float(who[id]), 0, 0)
+		c.swap_avatar(c.avatar_path)                  # (springs start where she stands)
+		c.set_hair_frame("")                          # hair in the world: it flows with her (a dance had left it on the chest)
+		chars[id] = c
+	await _wait(0.5)
+	for id in chars:
+		var c: WorldCharacter = chars[id]
+		var sk := c.skeleton
+		var toe := sk.global_basis * (sk.get_bone_global_rest(sk.find_bone("LeftToes")).origin - sk.get_bone_global_rest(sk.find_bone("LeftFoot")).origin)
+		toe.y = 0.0
+		c.rotation.y += toe.normalized().signed_angle_to(Vector3(0, 0, 1), Vector3.UP)
+	await _wait(1.0)
+	if main.get("subtitle") and main.subtitle:
+		main.subtitle.visible = false
+	# a cinematic: no stream overlays (rank labels, cards) in the frame
+	for cl in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		if not (cl is ScreenFX) and not (cl is MVPost):
+			(cl as CanvasLayer).visible = false
+	if main.get("hud") and main.hud:
+		main.hud.visible = false
+	var cams := []
+	for k in 5:
+		var ang := deg_to_rad(lerpf(-12.0, 12.0, k / 4.0))
+		cams.append(spot + Vector3(sin(ang), 0, cos(ang)) * 3.9 + Vector3(0, 0.9, 0))
+	var stage := DanceStage.build(lake, spot, water_y, cams, chars.values()[0])
+	for id in chars:
+		if id != chars.keys()[0]:
+			stage.light_also(chars[id])
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	pin.fov = 40.0
+	pin.roll = 0.0
+	pin.active = true
+	return {"lake": lake, "spot": spot, "water_y": water_y, "stage": stage, "pin": pin, "chars": chars}
+
+
+## Each dancer's stack for the lake dances: the six-clip deck first, then the softness pass, then the belt cords.
+func _dance_stack(c: WorldCharacter) -> DanceDeck:
+	var d := DanceDeck.make(c.skeleton)
+	var life := BodyLife.make(c.skeleton, 1)
+	d.set_meta("life", life)
+	SoftArms.make(c.skeleton, 2)
+	TasselSway.make(c.skeleton, 3)
+	return d
+
+
+## QA reel: Luna alone on the lake plays each of Selwyn's six dance clips through once (deck + softness + cords), a
+## straight full-figure camera - to choose the routine's pieces. --reel-clips=a,b (default: all six).
+func _clipreel() -> void:
+	var set := await _lake_setup({"luna": 0.0})
+	if set.is_empty():
+		return
+	var luna: WorldCharacter = set.chars["luna"]
+	var deck := _dance_stack(luna)
+	var pin: CameraPin = set.pin
+	var spot: Vector3 = set.spot
+	pin.pos = spot + Vector3(0, 0.9, 3.4)
+	pin.look = spot + Vector3(0, 0.95, 0)
+	var list := String(RenderProfile.options.get("reel-clips", "dancing_a,dancing_b,bellydancing,belly_dance,rumba,samba")).split(",")
+	deck.influence = 1.0
+	for clip in list:
+		var L := DanceDeck.clip_length(clip)
+		deck.play(clip, 0.0, 1.0, 0.01)
+		print("[clipreel] %s at %.2f for %.2fs" % [clip, _game_t, L])
+		await _wait(minf(L, 26.0))
+
+
+## The lake duet (Selwyn, 2026-10-19): Mika and Luna dance on the Lantern Lake water to the first chorus of
+## 月夜灯火, using ONLY his six Mixamo dance clips (DanceDeck) - no other motion, no code-made poses - with the
+## softness pass on wrists, fingers and elbows, the belt cords shortened and swinging, the dance effects on both
+## (ribbons, spirals on their turns, arcs, rings, the finale), the moon's shimmer on the water. Straight camera,
+## both full figures. Record with --write-movie; run with --no-scene-light.
+func _lakedance() -> void:
+	var set := await _lake_setup({"luna": -0.85, "mika": 0.85})
+	if set.is_empty():
+		return
+	var luna: WorldCharacter = set.chars["luna"]
+	var mika: WorldCharacter = set.chars["mika"]
+	var spot: Vector3 = set.spot
+	var pin: CameraPin = set.pin
+	var stage: DanceStage = set.stage
+	var decks := {"luna": _dance_stack(luna), "mika": _dance_stack(mika)}
+	var fxs := {"luna": DanceFX.attach(luna, set.water_y, stage, true), "mika": DanceFX.attach(mika, set.water_y, stage, false)}
+	for id in fxs:
+		fxs[id].ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
+		fxs[id].ripple_every = 1.3
+	var steps: Array = ROUTINE
+	var t0 := _game_t
+	var done := {}
+	var last_turn := {"luna": -9.0, "mika": -9.0}
+	var last_arc := {"luna": -9.0, "mika": -9.0}
+	var prev_yaw := {}
+	var prev_hand := {}
+	var dur := float(steps[steps.size() - 1][0]) + 2.0
+	print("[lakedance] routine %.1fs, song from %.2fs, t0 frame %d" % [dur, SONG_FROM, Engine.get_frames_drawn()])
+	var cam_mode := String(RenderProfile.options.get("lake-cam", "wide"))
+	var look_s := Vector3.ZERO
+	while _game_t - t0 < dur:
+		await get_tree().process_frame
+		var t := _game_t - t0
+		if main.get("subtitle") and main.subtitle:
+			main.subtitle.visible = false
+		# the camera: straight, low by the water, both full figures; a slow drift across
+		var ang := deg_to_rad(lerpf(-8.0, 8.0, t / dur))
+		if cam_mode == "hands":
+			# a close look at Luna's hands and arms: framed on her chest and both hands, following them softly
+			var lf: DanceFX = fxs["luna"]
+			var want := (lf.bone("RightHand") + lf.bone("LeftHand") + lf.bone("Chest") * 2.0) / 4.0
+			look_s = want if look_s == Vector3.ZERO else look_s.lerp(want, 0.08)
+			pin.fov = 34.0
+			pin.pos = look_s + Vector3(sin(ang) * 0.4, -0.05, 1.75)
+			pin.look = look_s
+		else:
+			var dist := lerpf(3.9, 4.3, smoothstep(dur - 9.0, dur - 6.0, t))
+			pin.pos = spot + Vector3(sin(ang), 0, cos(ang)) * dist + Vector3(0, 0.9, 0)
+			pin.look = spot + Vector3(0, lerpf(1.0, 1.15, smoothstep(dur - 9.0, dur - 6.0, t)), 0)
+		# the routine: [time, who ("both"/id), clip, start in clip, speed, fade] and the effect cues
+		for i in steps.size():
+			var st: Array = steps[i]
+			if done.has(i) or t < float(st[0]):
+				continue
+			done[i] = true
+			var who: String = st[2] if st[1] == "fx" else st[1]
+			if st[1] == "fx":
+				for id in fxs:
+					if who == "both" or who == id:
+						match String(st[3]):
+							"burst": fxs[id].burst(float(st[4]))
+							"finale": fxs[id].finale()
+							"rings_gold":
+								fxs[id].ring_colors = [DanceFX.GOLD, DanceFX.VIOLET]
+								fxs[id].ripple_every = float(st[4])
+							"rings_ice":
+								fxs[id].ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
+								fxs[id].ripple_every = float(st[4])
+				continue
+			for id in decks:
+				if who == "both" or who == id:
+					var deck: DanceDeck = decks[id]
+					if deck.influence < 1.0:
+						var tw := create_tween()
+						tw.tween_property(deck, "influence", 1.0, float(st[5]))
+					deck.play(String(st[2]), float(st[3]), float(st[4]), float(st[5]))
+		# effects that follow their own motion: a spiral on every fast turn, a gold arc when a hand sweeps up high
+		for id in decks:
+			var c: WorldCharacter = set.chars[id]
+			var fx: DanceFX = fxs[id]
+			var hips := c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Hips")).basis * Vector3(0, 0, 1)
+			var yaw := atan2(hips.x, hips.z)
+			if prev_yaw.has(id):
+				var rate := absf(angle_difference(float(prev_yaw[id]), yaw)) / maxf(get_process_delta_time(), 0.001)
+				if rate > deg_to_rad(120.0) and t - float(last_turn[id]) > 2.2 and t > 1.0:
+					last_turn[id] = t
+					fx.spin_dir = signf(angle_difference(float(prev_yaw[id]), yaw))
+					fx.spiral(1.8, 2, 0.55)
+			prev_yaw[id] = yaw
+			for hb in ["RightHand", "LeftHand"]:
+				var hp := fx.bone(hb)
+				var head := fx.bone("Head")
+				var key: String = id + hb
+				if prev_hand.has(key):
+					var vy := (hp.y - float(prev_hand[key])) / maxf(get_process_delta_time(), 0.001)
+					if hp.y > head.y + 0.05 and vy > 0.9 and t - float(last_arc[id]) > 2.5:
+						last_arc[id] = t
+						fx.arc(hb, 1.3)
+				prev_hand[key] = hp.y
+		for k in SHOTS:
+			if at_once(done, "shot" + str(k), t >= float(k)):
+				_shot("lake_%s" % str(k))
+	pin.active = false
+
+
+func at_once(done: Dictionary, key: String, cond: bool) -> bool:
+	if not cond or done.has(key):
+		return false
+	done[key] = true
+	return true
+
+
+const SONG_FROM := 57.93          # the routine's t = 0 in 月夜灯火 (two beats before the first chorus, 59.26)
+const SHOTS := []
+## [t, who, clip, start s in the clip, speed, crossfade s] - and [t, who, "fx", cue, value]. Bars of the first chorus
+## (from the song map's beats, t = song - 57.93): 1.33 3.93 6.53 9.15 11.75 14.38 16.98 19.58 22.2 24.8 27.4 29.98,
+## the chorus ends at 32.63. Pieces chosen from the reel of the six clips (2026-10-19).
+const ROUTINE := [
+	# in unison: arms rising slowly over their heads (belly dance)
+	[0.0, "both", "belly_dance", 1.0, 0.9, 1.0],
+	# side by side, each her own: Luna's arms frame her face (dancing), Mika's arm lifts high (belly dancing)
+	[6.53, "fx", "both", "burst", 0.6],
+	[6.53, "luna", "dancing_a", 2.0, 0.95, 1.2],
+	[6.53, "mika", "bellydancing", 0.5, 0.95, 1.2],
+	# the turn, in canon: Luna first, Mika one beat behind
+	[11.75, "fx", "both", "rings_gold", 0.8],
+	[11.75, "luna", "dancing_a", 7.0, 1.0, 1.0],
+	[12.4, "mika", "dancing_a", 7.0, 1.0, 1.0],
+	# contrast: Luna's arms sway overhead (rumba), Mika's hands circle (samba)
+	[16.98, "fx", "both", "rings_ice", 1.0],
+	[16.98, "luna", "rumba", 0.0, 0.9, 1.2],
+	[16.98, "mika", "samba", 6.0, 0.9, 1.2],
+	# together again: arms open wide and swaying (belly dancing)
+	[22.2, "fx", "both", "burst", 0.8],
+	[22.2, "both", "bellydancing", 18.0, 0.95, 1.2],
+	# the lift: both arms up (dancing)
+	[24.8, "fx", "both", "rings_gold", 0.7],
+	[24.8, "both", "dancing_b", 0.0, 0.85, 1.0],
+	# arms rising over their heads into the last bar, and the finale on its downbeat
+	[27.4, "both", "belly_dance", 12.5, 0.9, 1.0],
+	[29.98, "fx", "both", "finale", 0.0],
+	[31.0, "fx", "both", "rings_gold", 0.9],
+	[33.0, "fx", "both", "rings_gold", 0.9],
+]
+
+
+# ------------------------------------------------------------------------------------------------- the lake MV
+## The lake duet as an anime MV (Selwyn, 2026-10-19: "rebuild the camera as a cinematic anime MV"): a Phantom Camera
+## shot list cut on the song map's beats (no shot over ~4.6 s), slow motion on key moves, depth of field, the MV grade,
+## lens flare and light sweeps off the moon, shake on the big beats, a white flash on the chorus drop; the effects
+## follow the music (quiet verse, chorus explodes), petals swirl round the lens, the lanterns rise on the chorus.
+## Dancing: only Selwyn's six clips (DanceDeck) + the softness pass + the swinging belt cords. Song time runs on the
+## frame count (30 fps), so the cut stays on the music whatever slow motion does to the world.
+const MV_FROM := 38.33             # song time at the first frame (2 s pre-roll; the clip is cut from 40.33)
+const MV_TO := 70.5
+const MV_SHOTS := [                # [song t, kind, who, tween s (0 = cut, > 0 = a whip pan)]
+	[38.33, "crane", "both", 0.0],
+	[44.91, "hand_ecu", "luna", 0.0],
+	[47.51, "face_cu", "luna", 0.0],
+	[50.13, "ots", "mika", 0.0],
+	[52.73, "feet", "luna", 0.0],
+	[54.03, "hair_slow", "mika", 0.0],
+	[56.63, "push_pose", "luna", 0.0],
+	[58.58, "push_pose", "mika", 0.2],
+	[59.26, "hero_low", "both", 0.0],
+	[61.86, "orbit", "both", 0.0],
+	[65.76, "face_cu", "mika", 0.0],
+	[67.08, "push_both", "both", 0.2],
+	[70.98, "feet", "mika", 0.0],
+	[73.61, "orbit", "both", 0.0],
+	[77.51, "face_cu", "luna", 0.0],
+	[80.13, "crane_up", "both", 0.0],
+	[84.03, "ots", "luna", 0.0],
+	[86.63, "hero_low", "both", 0.0],
+	[89.26, "crane", "both", 0.0],
+]
+const MV_ROUTINE := [              # [song t, who, clip, start s, speed, fade s] - long phrases, 0.4 s crossfades
+	[38.33, "both", "dancing_a", 9.2, 0.9, 0.4],
+	[50.13, "both", "belly_dance", 8.0, 0.9, 0.4],
+	[59.26, "luna", "dancing_a", 5.5, 1.0, 0.4],
+	[59.91, "mika", "dancing_a", 5.5, 1.0, 0.4],
+	[67.08, "both", "belly_dance", 13.0, 0.9, 0.4],
+	[72.31, "both", "bellydancing", 18.0, 0.95, 0.4],
+	[78.81, "luna", "samba", 1.0, 0.9, 0.4],
+	[78.81, "mika", "rumba", 0.0, 0.9, 0.4],
+	[84.03, "both", "belly_dance", 1.0, 0.9, 0.4],
+]
+const MV_SHOTS_ARMS := [           # the arms check: medium shots that keep both arms in frame
+	[47.5, "arms_med", "luna", 0.0],
+	[52.73, "arms_med", "mika", 0.0],
+	[56.63, "arms_both", "both", 0.0],
+	[59.26, "arms_med", "luna", 0.0],
+	[61.86, "arms_both", "both", 0.0],
+]
+const MV_SLOW := [[54.35, 55.95], [62.45, 63.75], [75.2, 76.5], [88.0, 89.2]]
+const MV_DROP := 59.26
+const MV_CHORUS_DOWNBEATS := [59.26, 61.86, 64.46, 67.08, 69.68, 72.31, 74.91, 77.51, 80.13, 82.73, 85.33, 87.91]
+const MV_FINALE := 87.91
+
+
+func _mv_expected(id: String, song_t: float) -> Array:
+	var best: Array = []
+	for st in MV_ROUTINE:
+		if float(st[0]) <= song_t and (st[1] == "both" or st[1] == id):
+			best = st
+	if best.is_empty():
+		return []
+	return [String(best[2]), float(best[3]) + (song_t - float(best[0])) * float(best[4]), float(best[4])]
+
+
+func _lakemv() -> void:
+	DanceStage.moon_up = 0.55
+	DanceStage.moon_side = 0.38
+	DanceStage.moon_size = 250.0
+	var set := await _lake_setup({"luna": -0.75, "mika": 0.75})
+	if set.is_empty():
+		return
+	(set.pin as CameraPin).active = false
+	var chars: Dictionary = set.chars
+	var spot: Vector3 = set.spot
+	var stage: DanceStage = set.stage
+	var decks := {"luna": _dance_stack(chars.luna), "mika": _dance_stack(chars.mika)}
+	var fxs := {"luna": DanceFX.attach(chars.luna, set.water_y, stage, true), "mika": DanceFX.attach(chars.mika, set.water_y, stage, false)}
+	for id in fxs:
+		fxs[id].ring_scale = 0.75
+		fxs[id].aura(2)
+		fxs[id].ring_colors = [DanceFX.ICE, Color(1, 1, 1)]
+		fxs[id].ripple_every = 1.6
+	fxs.luna.camera_petals()
+	var look_mode := {"lens": false}
+	for id in decks:
+		var other: String = "mika" if id == "luna" else "luna"
+		var life: BodyLife = (decks[id] as DanceDeck).get_meta("life")
+		life.look = func() -> Vector3:
+			var cm := get_viewport().get_camera_3d()
+			if bool(look_mode.lens) and cm:
+				return cm.global_position
+			return (fxs[other] as DanceFX).bone("Head")
+	# Phantom Camera drives the live camera; the driver's post hook adds the lens (fov, depth of field) and the shake
+	var cam: Camera3D = main.camera_rig.camera
+	cam.top_level = true
+	var host := PhantomCameraHost.new()
+	host.interpolation_mode = PhantomCameraHost.InterpolationMode.MANUAL
+	cam.add_child(host)
+	var driver := PCamDriver.new()
+	driver.host = host
+	main.add_child(driver)
+	var attrs := CameraAttributesPractical.new()
+	attrs.dof_blur_far_enabled = true
+	RenderingServer.camera_attributes_set_dof_blur_bokeh_shape(RenderingServer.DOF_BOKEH_CIRCLE)
+	RenderingServer.camera_attributes_set_dof_blur_quality(RenderingServer.DOF_BLUR_QUALITY_HIGH, true)
+	var lens := {"fov": 40.0, "shake": 0.0, "seed": 0.0}
+	driver.post = func(c: Camera3D) -> void:
+		c.fov = float(lens.fov)
+		c.attributes = attrs
+		var k: float = lens.shake
+		if k > 0.001:
+			var ph: float = lens.seed
+			c.global_position += c.global_basis * Vector3(sin(ph * 37.0), sin(ph * 51.0 + 1.3), 0.0) * 0.035 * k
+			c.rotate_object_local(Vector3.FORWARD, sin(ph * 43.0 + 0.7) * 0.012 * k)
+	var post := MVPost.make(main, stage.moon_node)
+	var pcs: Array = []
+	var shot_i := -1
+	var shot: Array = []
+	var shot_t0 := 0.0
+	var step_done := {}
+	var drop_done := false
+	var downbeats_done := {}
+	var prev_yaw := {}
+	var last_turn := {"luna": -9.0, "mika": -9.0}
+	var prev_hand := {}
+	var last_arc := {"luna": -9.0, "mika": -9.0}
+	var smooth := {}
+	var frame := 0
+	var arms_cut := String(RenderProfile.options.get("mv-shots", "")) == "arms"
+	var shots: Array = MV_SHOTS_ARMS if arms_cut else MV_SHOTS
+	var mv_from := float(RenderProfile.options.get("mv-from", str(MV_FROM)))
+	var song_t := mv_from
+	var mv_to := float(RenderProfile.options.get("mv-to", str(MV_TO)))
+	var finale_done := false
+	print("[lakemv] song %.2f-%.2f, t0 frame %d" % [mv_from, mv_to, Engine.get_frames_drawn()])
+	# start the dance where the song starts (a later --mv-from: each girl's clip at its place in the routine)
+	for i in MV_ROUTINE.size():
+		if float(MV_ROUTINE[i][0]) <= mv_from:
+			step_done[i] = true
+	for id in decks:
+		var ex := _mv_expected(id, mv_from)
+		if not ex.is_empty():
+			(decks[id] as DanceDeck).influence = 1.0
+			(decks[id] as DanceDeck).play(String(ex[0]), float(ex[1]), float(ex[2]), 0.01)
+	while song_t < mv_to:
+		await get_tree().process_frame
+		frame += 1
+		song_t = mv_from + frame / 30.0
+		if main.get("subtitle") and main.subtitle:
+			main.subtitle.visible = false
+		# slow motion on the key moves (the world slows; the music, and so the cut, does not)
+		var slow := false
+		for w in MV_SLOW:
+			if song_t >= float(w[0]) and song_t < float(w[1]):
+				slow = true
+		Engine.time_scale = 0.3 if slow else 1.0
+		# the routine
+		for i in MV_ROUTINE.size():
+			var st: Array = MV_ROUTINE[i]
+			if step_done.has(i) or song_t < float(st[0]):
+				continue
+			step_done[i] = true
+			for id in decks:
+				if st[1] == "both" or st[1] == id:
+					var deck: DanceDeck = decks[id]
+					if deck.influence < 1.0:
+						create_tween().tween_property(deck, "influence", 1.0, float(st[5]))
+					deck.play(String(st[2]), float(st[3]), float(st[4]), float(st[5]))
+		# the music's level: a quiet verse, the pre-chorus building, the chorus exploding
+		var e: float = _song_energy(song_t)
+		var base := 0.35 if song_t < 54.03 else (lerpf(0.45, 0.85, (song_t - 54.03) / 5.23) if song_t < MV_DROP else 1.1)
+		var lvl := clampf(base * (0.8 + 0.4 * e / 0.7), 0.15, 1.25)
+		for id in fxs:
+			fxs[id].set_level(lvl)
+		# the drop: a white flash, the lanterns rise, bursts; then a pulse on every chorus downbeat
+		if not drop_done and song_t >= MV_DROP:
+			drop_done = true
+			post.flash_white(0.45)
+			stage.lift()
+			for id in fxs:
+				fxs[id].burst(1.2)
+				fxs[id].ring_colors = [DanceFX.GOLD, DanceFX.VIOLET]
+				fxs[id].ripple_every = 0.9
+			lens.shake = 1.0
+		for db in MV_CHORUS_DOWNBEATS:
+			if song_t >= float(db) and not downbeats_done.has(db):
+				downbeats_done[db] = true
+				if float(db) > MV_DROP:
+					lens.shake = maxf(float(lens.shake), 0.55)
+					stage.flare(0.7)
+		if not finale_done and song_t >= MV_FINALE:
+			finale_done = true
+			for id in fxs:
+				fxs[id].finale(0.6)
+			lens.shake = 1.0
+			stage.flare(1.2)
+		lens.shake = maxf(float(lens.shake) - (1.0 / 30.0) / 0.3, 0.0)
+		lens.seed = float(lens.seed) + 1.0 / 30.0
+		# effects that follow their own motion: a spiral on each fast turn, a gold arc when a hand sweeps up high
+		for id in decks:
+			var c: WorldCharacter = chars[id]
+			var fx: DanceFX = fxs[id]
+			var hips := c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Hips")).basis * Vector3(0, 0, 1)
+			var yaw := atan2(hips.x, hips.z)
+			var dt := maxf(get_process_delta_time(), 0.0005)
+			if prev_yaw.has(id):
+				var rate := absf(angle_difference(float(prev_yaw[id]), yaw)) / dt
+				if rate > deg_to_rad(120.0) and song_t - float(last_turn[id]) > 2.0:
+					last_turn[id] = song_t
+					fx.spin_dir = signf(angle_difference(float(prev_yaw[id]), yaw))
+					fx.spiral(1.8, 2, 0.55)
+			prev_yaw[id] = yaw
+			for hb in ["RightHand", "LeftHand"]:
+				var hp := fx.bone(hb)
+				var key: String = id + hb
+				if prev_hand.has(key):
+					var vy := (hp.y - float(prev_hand[key])) / dt
+					if hp.y > fx.bone("Head").y + 0.05 and vy > 0.9 and song_t - float(last_arc[id]) > 2.5:
+						last_arc[id] = song_t
+						fx.arc(hb, 1.3)
+				prev_hand[key] = hp.y
+		# the shot list: a new Phantom Camera on each cut (a whip pan tweens to it), the dancers back in step
+		var ni := shot_i
+		while ni + 1 < shots.size() and song_t >= float(shots[ni + 1][0]):
+			ni += 1
+		if ni != shot_i:
+			shot_i = ni
+			shot = shots[ni]
+			shot_t0 = song_t
+			smooth.clear()
+			for id in decks:
+				var ex := _mv_expected(id, song_t)
+				if not ex.is_empty() and (decks[id] as DanceDeck).current() == ex[0]:
+					(decks[id] as DanceDeck).sync(float(ex[1]))
+			var pc := PhantomCamera3D.new()
+			pc.name = "MV_%02d_%s" % [ni, shot[1]]
+			main.add_child(pc)
+			pc.set_tween_duration(float(shot[3]))
+			pc.set_tween_transition(Tween.TRANS_EXPO)
+			pcs.append(pc)
+			if pcs.size() > 3:
+				(pcs.pop_front() as Node).queue_free()
+			fxs.luna.ring_scale = 1.0 if shot[1] == "feet" else 0.75
+			look_mode.lens = shot[1] in ["face_cu", "hero_low", "push_pose", "push_both"]
+			for id in fxs:
+				fxs[id].catchlights(shot[1] == "face_cu" and shot[2] == id)
+			if shot[1] == "hand_ecu":
+				(fxs[String(shot[2])] as DanceFX).arc("RightHand", (float(shots[ni + 1][0]) - song_t) / maxf(Engine.time_scale, 0.3))
+			print("[lakemv] %.2f shot %d %s %s" % [song_t, ni, shot[1], shot[2]])
+		var u := (song_t - shot_t0) / maxf((float(shots[shot_i + 1][0]) if shot_i + 1 < shots.size() else mv_to) - shot_t0, 0.1)
+		var cp := _mv_camera(String(shot[1]), String(shot[2]), u, chars, fxs, spot, smooth)
+		var pcam: PhantomCamera3D = pcs[pcs.size() - 1]
+		var pos: Vector3 = cp.pos
+		var look: Vector3 = cp.look
+		if (look - pos).length() > 0.01:
+			pcam.global_transform = Transform3D(Basis.looking_at(look - pos, Vector3.UP), pos)
+		if shot_i == 0 and frame == 1:
+			pcam.set_priority(100)
+		pcam.set_priority(100 + shot_i)
+		lens.fov = cp.fov
+		var fd: float = (cp.focus - pos).length()
+		attrs.dof_blur_far_distance = fd + float(cp.far)
+		attrs.dof_blur_far_transition = float(cp.far) * 2.5
+		attrs.dof_blur_amount = float(cp.amount)
+		attrs.dof_blur_near_enabled = float(cp.near) > 0.0
+		attrs.dof_blur_near_distance = maxf(fd - float(cp.near), 0.05)
+		attrs.dof_blur_near_transition = float(cp.near) * 0.8
+	Engine.time_scale = 1.0
+	print("[lakemv] done at frame %d" % Engine.get_frames_drawn())
+
+
+func _song_energy(t: float) -> float:
+	if _song_map.is_empty():
+		var f := FileAccess.open(OS.get_environment("HOME") + "/Downloads/song_map_raw.json", FileAccess.READ)
+		if f:
+			_song_map = JSON.parse_string(f.get_as_text())
+		if _song_map == null or not (_song_map is Dictionary):
+			_song_map = {"energy_per_sec": []}
+	var arr: Array = _song_map.get("energy_per_sec", [])
+	var i := clampi(int(t), 0, maxi(arr.size() - 1, 0))
+	return float(arr[i]) if arr.size() > 0 else 0.6
+
+var _song_map = {}
+
+
+## One MV shot's camera at progress u (0..1): {pos, look, fov, focus, far (m of sharp depth behind the focus), near
+## (m in front, 0 = off), amount}.
+func _mv_camera(kind: String, who: String, u: float, chars: Dictionary, fxs: Dictionary, spot: Vector3, sm: Dictionary) -> Dictionary:
+	var e := u * u * (3.0 - 2.0 * u)
+	var both := spot + Vector3(0, 1.0, 0)
+	var fx: DanceFX = fxs.get(who, fxs.luna)
+	var follow := func(key: String, p: Vector3, k := 0.18) -> Vector3:
+		var v: Vector3 = sm.get(key, p)
+		v = v.lerp(p, k)
+		sm[key] = v
+		return v
+	match kind:
+		"crane":
+			var ec := pow(u, 2.2)
+			var p0 := spot + Vector3(0.7, 0.14, 2.6)
+			var p1 := spot + Vector3(-1.2, 5.2, 8.0)
+			var pos := p0.lerp(p1, ec)
+			var look := (spot + Vector3(0, 0.95, 0)).lerp(spot + Vector3(0, 0.4, -3.0), ec)
+			e = ec
+			return {"pos": pos, "look": look, "fov": lerpf(42.0, 54.0, e), "focus": spot + Vector3(0, 1, 0), "far": lerpf(1.5, 30.0, e), "near": 0.0, "amount": lerpf(0.06, 0.02, e)}
+		"arms_med":
+			# knees-up on one girl, both arms in frame
+			var ch: Vector3 = follow.call("chest", fx.bone("Chest") + Vector3(0, 0.05, 0), 0.12)
+			var sd3 := -0.6 if who == "luna" else 0.6
+			var pos := ch + Vector3(sd3 * (1.0 - 0.3 * e), -0.1, lerpf(2.15, 1.85, e))
+			return {"pos": pos, "look": ch, "fov": 42.0, "focus": ch, "far": 0.9, "near": 0.0, "amount": 0.08}
+		"arms_both":
+			var mid := spot + Vector3(0, 1.25, 0)
+			var pos := mid + Vector3(0.3 * (1.0 - 2.0 * e), -0.1, lerpf(2.9, 2.6, e))
+			return {"pos": pos, "look": mid, "fov": 46.0, "focus": mid, "far": 1.2, "near": 0.0, "amount": 0.06}
+		"crane_up":
+			# from their feet up past them into the lantern sky
+			var pos := spot + Vector3(0.3, lerpf(0.3, 2.6, e), lerpf(2.4, 3.4, e))
+			var look := spot + Vector3(0, lerpf(0.8, 4.5, e), lerpf(0.0, -4.0, e))
+			return {"pos": pos, "look": look, "fov": 46.0, "focus": both, "far": lerpf(1.5, 20.0, e), "near": 0.0, "amount": 0.05}
+		"hand_ecu":
+			var h: Vector3 = follow.call("hand", fx.bone("RightHand"), 0.25)
+			var pos := h + Vector3(0.28 + 0.1 * u, 0.06, 0.62 - 0.08 * u)
+			return {"pos": pos, "look": h, "fov": 30.0, "focus": h, "far": 0.25, "near": 0.0, "amount": 0.16}
+		"face_cu":
+			var hd: Vector3 = follow.call("head", fx.bone("Head") + Vector3(0, 0.02, 0), 0.4)
+			var sd := -1.0 if who == "luna" else 1.0
+			var pos := hd + Vector3(sd * (0.22 - 0.06 * e), -0.03, 1.12 - 0.18 * e)
+			return {"pos": pos, "look": hd, "fov": 34.0, "focus": hd, "far": 0.3, "near": 0.0, "amount": 0.15}
+		"ots":
+			var other: DanceFX = fxs.luna if who == "mika" else fxs.mika
+			var mine: Vector3 = fx.bone("Head")
+			var their: Vector3 = follow.call("their", other.bone("Head") + Vector3(0, 0.02, 0), 0.2)
+			var away := (mine - their)
+			away.y = 0.0
+			away = away.normalized()
+			var pos := mine + away * (0.45 - 0.08 * e) + Vector3(0, 0.02, 0.3)
+			return {"pos": pos, "look": their, "fov": 34.0, "focus": their, "far": 0.4, "near": 0.9, "amount": 0.14}
+		"feet":
+			var f: Vector3 = follow.call("feet", (fx.bone("LeftToes") + fx.bone("RightToes")) * 0.5, 0.15)
+			f.y = spot.y
+			var pos := f + Vector3(0.45 - 0.2 * e, 0.11, 0.85 - 0.15 * e)
+			return {"pos": pos, "look": f + Vector3(0, 0.12, 0), "fov": 36.0, "focus": f, "far": 0.4, "near": 0.0, "amount": 0.14}
+		"hair_slow":
+			var hp: Vector3 = follow.call("hips", fx.bone("Chest") + Vector3(0, -0.15, 0), 0.12)
+			var ang := lerpf(125.0, 70.0, e)
+			var pos := hp + Vector3(cos(deg_to_rad(ang)) * 2.3, 0.25, sin(deg_to_rad(ang)) * 2.3)
+			return {"pos": pos, "look": hp + Vector3(0, 0.1, 0), "fov": 42.0, "focus": hp, "far": 0.6, "near": 0.0, "amount": 0.1}
+		"push_pose":
+			var ch: Vector3 = follow.call("chest", fx.bone("Chest") + Vector3(0, 0.15, 0), 0.15)
+			var sd2 := -0.5 if who == "luna" else 0.5
+			var pos := ch + Vector3(sd2 * (1.0 - 0.4 * e), -0.15, lerpf(2.6, 1.55, e))
+			return {"pos": pos, "look": ch, "fov": 38.0, "focus": ch, "far": 0.8, "near": 0.0, "amount": 0.1}
+		"hero_low":
+			var pos := spot + Vector3(0.35 - 0.3 * e, 0.22 + 0.15 * e, 2.55 - 0.35 * e)
+			var look := spot + Vector3(-0.2, 1.75, -0.6)
+			return {"pos": pos, "look": look, "fov": 46.0, "focus": both, "far": 2.0, "near": 0.0, "amount": 0.06}
+		"orbit":
+			var ang := deg_to_rad(lerpf(25.0, 235.0, e) + 90.0)
+			var pos := both + Vector3(cos(ang) * 3.0, lerpf(0.0, 0.45, e), sin(ang) * 3.0)
+			return {"pos": pos, "look": both + Vector3(0, 0.1, 0), "fov": 42.0, "focus": both, "far": 1.8, "near": 0.0, "amount": 0.07}
+		"push_both":
+			var pos := spot + Vector3(0.2 * (1.0 - e), lerpf(0.55, 0.8, e), lerpf(4.6, 3.1, e))
+			var look := spot + Vector3(0, lerpf(1.15, 1.35, e), 0)
+			return {"pos": pos, "look": look, "fov": 42.0, "focus": both, "far": 2.0, "near": 0.0, "amount": 0.06}
+	return {"pos": both + Vector3(0, 0, 4), "look": both, "fov": 40.0, "focus": both, "far": 2.0, "near": 0.0, "amount": 0.05}
+
+
+## QA: the hair springs while dancing - each VRM spring chain's settings, and how far each girl's hair tips move
+## relative to her head over 8 s of belly dance (stiff hair = small motion).
+func _hairprobe() -> void:
+	var set := await _lake_setup({"luna": -0.75, "mika": 0.75})
+	if set.is_empty():
+		return
+	var tips := {}
+	for id in set.chars:
+		var c: WorldCharacter = set.chars[id]
+		var sec = c.avatar.find_child("secondary", true, false)
+		var n := 0
+		if sec:
+			for sb in sec.spring_bones:
+				var jn: PackedStringArray = sb.joint_nodes
+				if jn.size() == 0 or not String(jn[0]).to_lower().contains("hair"):
+					continue
+				n += 1
+				if n <= 6:
+					print("[hair] %s %s joints=%d stiff=%s drag=%s grav=%s scale(st=%.2f dr=%.2f gr=%.2f) center=%s colliders=%d" % [id, sb.comment, jn.size(),
+						str(sb.stiffness_force.slice(0, 3)), str(sb.drag_force.slice(0, 3)), str(sb.gravity_power.slice(0, 3)),
+						sb.stiffness_scale, sb.drag_force_scale, sb.gravity_scale, sb.center_bone, sb.collider_groups.size()])
+			print("[hair] %s: %d hair chains, %d runtime chains" % [id, n, sec.spring_bones_internal.size()])
+		var sk := c.skeleton
+		var list := []
+		for bi in sk.get_bone_count():
+			var nm := sk.get_bone_name(bi)
+			if nm.to_lower().contains("hair") and sk.get_bone_children(bi).is_empty():
+				list.append(bi)
+		tips[id] = list
+		var d := _dance_stack(c)
+		d.influence = 1.0
+		d.play("belly_dance", 0.0, 1.0, 0.01)
+	var stats := {}
+	for f in 240:
+		await get_tree().process_frame
+		for id in set.chars:
+			var c: WorldCharacter = set.chars[id]
+			var sk := c.skeleton
+			var hb := sk.get_bone_global_pose(sk.find_bone("Head"))
+			for bi in tips[id]:
+				var p := hb.affine_inverse() * sk.get_bone_global_pose(bi).origin
+				var key := "%s_%d" % [id, bi]
+				var st: Array = stats.get(key, [Vector3.ZERO, Vector3.ZERO, 0])
+				st[0] += p
+				st[1] += p * p
+				st[2] += 1
+				stats[key] = st
+	for id in set.chars:
+		var tot := 0.0
+		var k := 0
+		for bi in tips[id]:
+			var st: Array = stats["%s_%d" % [id, bi]]
+			var m: Vector3 = st[0] / float(st[2])
+			var v: Vector3 = st[1] / float(st[2]) - m * m
+			tot += sqrt(maxf(v.x + v.y + v.z, 0.0))
+			k += 1
+		print("[hair] %s: %d tips, mean tip motion (std, head frame) %.3f m" % [id, k, tot / maxf(k, 1)])
+
+
+# ------------------------------------------------------------------------------------------- the Moon Lantern Boat
+## The boat's first sample scene (Selwyn, 2026-10-19; no dancing): late at night Mika and Luna walk down the pier,
+## talk briefly and step into the boat; Luna rows them out to the middle of Lantern Lake while Mika trails her hand
+## in the water; they stop, Mika lights the bow lantern with a spark, they set floating lanterns on the water one by
+## one; they lean back and stargaze, point, talk quietly, then sit with their thoughts (Luna watching the water, Mika's
+## chin on her hand). Calm Phantom Camera shots throughout. Built on MoonBoat's reusable actions.
+func _boatnight() -> void:
+	await _hold_all()
+	await _force_luna_l1()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.performance and main.performance.busy():
+		main.performance.interrupt("boat scene")
+	if main.performance:
+		main.performance.set_process(false)
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	await main.streaming.travel("lantern_lake", luna, false)
+	_check(main.streaming.current_id == "lantern_lake", "at Lantern Lake")
+	main.day_night.set_override(true)
+	await _wait(2.0)
+	main.day_night.set_process(false)
+	var lake: Node3D = null
+	for n in main.world.find_children("*", "Node3D", true, false) + [main.world]:
+		if n.get("water_mat") != null:
+			lake = n
+			break
+	_check(lake != null, "the lake node")
+	if lake == null:
+		return
+	var water_y: float = lake.global_position.y
+	var L := func(v: Vector3) -> Vector3: return lake.to_global(v)
+	for cl in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		if not (cl is ScreenFX):
+			(cl as CanvasLayer).visible = false
+	if main.get("hud") and main.hud:
+		main.hud.visible = false
+	# the boat moored at the pier's west side, bow out to the lake; a quiet night (few festival lanterns)
+	var boat := MoonBoat.spawn(main.world, L.call(Vector3(1.95, 0.0, -1.5)), -PI * 0.5 + lake.global_rotation.y, water_y)
+	boat.lake = lake
+	boat.day_night = main.day_night
+	_check(boat.oars.size() == 2 and boat.lanterns.size() == 2, "boat parts: %d oars, %d lanterns" % [boat.oars.size(), boat.lanterns.size()])
+	DanceStage.lantern_keep = 0.15
+	DanceStage.hover_lanterns = false
+	var stage := DanceStage.build(lake, L.call(Vector3(2.3, 0.0, -16.0)), water_y, [L.call(Vector3(4.0, 1.5, 8.0))], luna)
+	stage.light_also(mika)
+	# the two of them on the bank, at the foot of the pier
+	var area: Node = main.world
+	for pair in [[luna, Vector3(3.55, 0, 11.2)], [mika, Vector3(4.45, 0, 11.6)]]:
+		var c: WorldCharacter = pair[0]
+		var p: Vector3 = pair[1]
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+		c.stop_action()
+		c.visible = true
+		c.set_physics_process(true)
+		p.y = float(area.call("ground_at", p.x, p.z)) if area.has_method("ground_at") else 0.0
+		c.global_position = L.call(p) + Vector3(0, 0.05, 0)
+		c.set_hair_frame("")
+		var life := BodyLife.make(c.skeleton, 0)
+		life.look_weight = 0.4
+		c.set_meta("life", life)
+	await _wait(1.0)
+	var cine := _cine_setup(stage)
+	var ctx := {"luna": luna, "mika": mika, "boat": boat, "L": L, "water": water_y}
+	var cam_on := {"run": true}
+	var cam_loop := func():
+		while cam_on.run:
+			await get_tree().process_frame
+			_cine_tick(cine, ctx)
+	cam_loop.call()
+	var t0 := _game_t
+	print("[boat] scene start frame %d" % Engine.get_frames_drawn())
+	# 1. the walk down the pier (an establishing wide, then a tracking side shot)
+	_cine_cut(cine, "establish", 0.0)
+	luna.navigate_to(L.call(Vector3(3.65, 0.62, -1.75)))
+	await _wait(0.35)
+	mika.navigate_to(L.call(Vector3(3.65, 0.62, -0.62)))
+	await _wait(5.5)
+	_cine_cut(cine, "walk_track", 0.0)
+	var tw0 := _game_t
+	while _game_t - tw0 < 16.0:
+		await get_tree().process_frame
+		if _game_t - tw0 > 1.0 and luna.current_action != "navigate_to" and mika.current_action != "navigate_to":
+			break
+	for c in [luna, mika]:
+		c.stop_action()
+		c.set_physics_process(false)
+	# 2. a few words at the end of the pier
+	_cine_cut(cine, "talk_two", 0.0)
+	for pr in [[luna, mika], [mika, luna]]:
+		var a: WorldCharacter = pr[0]
+		var b: WorldCharacter = pr[1]
+		var to := b.global_position - a.global_position
+		to.y = 0.0
+		var sk := a.skeleton
+		var toe := sk.global_basis * (sk.get_bone_global_rest(sk.find_bone("LeftToes")).origin - sk.get_bone_global_rest(sk.find_bone("LeftFoot")).origin)
+		toe.y = 0.0
+		var turn := toe.normalized().signed_angle_to(to.normalized().rotated(Vector3.UP, deg_to_rad(-25.0 if a == luna else 25.0)), Vector3.UP)
+		create_tween().tween_property(a, "rotation:y", a.rotation.y + turn, 0.8).set_trans(Tween.TRANS_SINE)
+	luna.look_at_point(_head(mika))
+	mika.look_at_point(_head(luna))
+	(luna.get_meta("life") as BodyLife).look = func() -> Vector3: return _head(mika)
+	(mika.get_meta("life") as BodyLife).look = func() -> Vector3: return _head(luna)
+	await _say_soft("luna", "It's so quiet tonight.", 3.0)
+	mika.set_expression("happy", 0.5)
+	await _say_soft("mika", "Perfect for the boat. Will you row us out?", 3.4)
+	luna.set_expression("happy", 0.45)
+	await _say_soft("luna", "Climb in, then.", 2.0)
+	# 3. into the boat
+	_cine_cut(cine, "board_wide", 0.0)
+	await _step_in(luna, boat, "bow")
+	await _wait(0.5)
+	await _step_in(mika, boat, "stern")
+	await _wait(1.5)
+	# 4. Luna rows them out; Mika trails her hand in the water
+	_cine_cut(cine, "row_med", 0.0)
+	boat.row(true)
+	await _wait(2.5)
+	boat.trail_hand("stern", "Left", true)
+	await _wait(4.5)
+	_cine_cut(cine, "hand_water", 0.0)
+	await _wait(5.0)
+	_cine_cut(cine, "boat_aerial", 0.0)
+	await _wait(6.5)
+	boat.row(false)
+	boat.trail_hand("stern", "Left", false)
+	await _wait(2.5)
+	# 5. the bow lantern: a spark from Mika's fingertip
+	_cine_cut(cine, "lantern_light", 0.0)
+	await _wait(0.6)
+	await boat.light_lantern("stern", "bow", "Right")
+	await _wait(1.0)
+	# 6. floating lanterns, one by one
+	_cine_cut(cine, "mika_lanterns", 0.0)
+	await boat.place_lantern("stern", "Left")
+	await boat.place_lantern("stern", "Left")
+	_cine_cut(cine, "luna_lantern", 0.0)
+	await boat.place_lantern("bow", "Left")
+	_cine_cut(cine, "lanterns_wide", 0.0)
+	await _wait(4.0)
+	# 7. stargazing
+	_cine_cut(cine, "stargaze_two", 0.0)
+	boat.stargaze("bow", true)
+	boat.stargaze("stern", true)
+	await _wait(3.5)
+	_cine_cut(cine, "sky_point", 0.0)
+	var star_dir := (Vector3(0.25, 1.0, 0.0) + (boat.seat_xform("stern").basis.z * 0.5)).normalized()
+	_lantern_star(boat.global_position + star_dir * 420.0)
+	boat.point_at("stern", star_dir, "Right", 3.2)
+	await _say_soft("mika", "Look... that one, right above the moon.", 3.2)
+	_cine_cut(cine, "stargaze_two", 0.0)
+	await _say_soft("luna", "The Lantern Star. It only shows on the clearest nights.", 4.0)
+	await _wait(1.5)
+	# 8. thoughtful: Luna watches the water, Mika rests her chin on her hand
+	boat.stargaze("bow", false)
+	boat.stargaze("stern", false)
+	_cine_cut(cine, "cu_luna_water", 0.0)
+	boat.look_water("bow", true, "Left")
+	await _wait(4.5)
+	_cine_cut(cine, "cu_mika_chin", 0.0)
+	boat.chin_rest("stern", true, "Right")
+	await _wait(1.2)
+	mika.set_expression("happy", 0.35)
+	await _say_soft("mika", "I'm glad we came out here.", 3.0)
+	await _wait(1.0)
+	# 9. away: the camera rises over the lake
+	_cine_cut(cine, "crane_out", 0.0)
+	await _wait(7.0)
+	cam_on.run = false
+	print("[boat] scene end frame %d (%.1f s)" % [Engine.get_frames_drawn(), _game_t - t0])
+
+
+func _head(c: WorldCharacter) -> Vector3:
+	return c.skeleton.global_transform * c.skeleton.get_bone_global_pose(c.skeleton.find_bone("Head")).origin + Vector3(0, 0.05, 0)
+
+
+## A line in her own voice (the local Kokoro voices with --live-link) with its subtitle; never waits longer than
+## `max_s` (+1 s), so the scene keeps its pace if the voice is slow to start.
+func _say_soft(who: String, text: String, max_s: float) -> void:
+	var st := {"done": false}
+	var run := func():
+		await main.voice.say(who, text, {})
+		st.done = true
+	run.call()
+	var t := _game_t
+	while not st.done and _game_t - t < max_s + 1.0:
+		await get_tree().process_frame
+	await _wait(0.4)
+
+
+## She steps down from the pier into the boat beside her seat (an arc, not a teleport), turns, and sits.
+func _step_in(c: WorldCharacter, boat: MoonBoat, seat_name: String) -> void:
+	c.set_physics_process(false)
+	var a := c.global_position
+	var tw := create_tween()
+	var dur := 1.1
+	tw.tween_method(func(k: float):
+		var st := boat.seat_xform(seat_name)
+		var b := st.origin + st.basis.z * 0.22
+		b.y = boat.global_position.y - 0.03
+		var p := a.lerp(b, k)
+		p.y += sin(k * PI) * 0.16
+		c.global_position = p, 0.0, 1.0, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	c.play_gesture("walk", 0.2, 0.3)
+	await tw.finished
+	c.end_gesture()
+	await boat.seat(c, seat_name)
+
+
+# --------------------------------------------------------------------------------- calm cinematic camera (Phantom)
+func _cine_setup(stage: DanceStage) -> Dictionary:
+	var cam: Camera3D = main.camera_rig.camera
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	cam.top_level = true
+	var host := PhantomCameraHost.new()
+	host.interpolation_mode = PhantomCameraHost.InterpolationMode.MANUAL
+	cam.add_child(host)
+	var driver := PCamDriver.new()
+	driver.host = host
+	main.add_child(driver)
+	var attrs := CameraAttributesPractical.new()
+	attrs.dof_blur_far_enabled = true
+	RenderingServer.camera_attributes_set_dof_blur_bokeh_shape(RenderingServer.DOF_BOKEH_CIRCLE)
+	RenderingServer.camera_attributes_set_dof_blur_quality(RenderingServer.DOF_BLUR_QUALITY_HIGH, true)
+	var cine := {"attrs": attrs, "fov": 40.0, "pcs": [], "kind": "", "t0": 0.0, "i": 0, "sm": {}}
+	driver.post = func(c: Camera3D) -> void:
+		c.fov = float(cine.fov)
+		c.attributes = attrs
+	MVPost.make(main, stage.moon_node)
+	return cine
+
+
+func _cine_cut(cine: Dictionary, kind: String, tween_s: float) -> void:
+	var pc := PhantomCamera3D.new()
+	cine.i = int(cine.i) + 1
+	pc.name = "BN_%02d_%s" % [int(cine.i), kind]
+	main.add_child(pc)
+	pc.set_tween_duration(tween_s)
+	pc.set_tween_transition(Tween.TRANS_SINE)
+	(cine.pcs as Array).append(pc)
+	if (cine.pcs as Array).size() > 3:
+		((cine.pcs as Array).pop_front() as Node).queue_free()
+	cine.kind = kind
+	cine.t0 = _game_t
+	(cine.sm as Dictionary).clear()
+	print("[boat] %.1f shot %s" % [_game_t, kind])
+
+
+func _cine_tick(cine: Dictionary, ctx: Dictionary) -> void:
+	if (cine.pcs as Array).is_empty():
+		return
+	var t := _game_t - float(cine.t0)
+	var cp := _bn_cam(String(cine.kind), t, ctx, cine.sm)
+	var pc: PhantomCamera3D = (cine.pcs as Array)[(cine.pcs as Array).size() - 1]
+	var pos: Vector3 = cp.pos
+	var look: Vector3 = cp.look
+	if (look - pos).length() > 0.01:
+		pc.global_transform = Transform3D(Basis.looking_at(look - pos, Vector3.UP), pos)
+	pc.set_priority(100 + int(cine.i))
+	cine.fov = cp.fov
+	var attrs: CameraAttributesPractical = cine.attrs
+	var fd: float = (cp.focus - pos).length()
+	attrs.dof_blur_far_distance = fd + float(cp.far)
+	attrs.dof_blur_far_transition = float(cp.far) * 2.5
+	attrs.dof_blur_amount = float(cp.amount)
+	attrs.dof_blur_near_enabled = false
+
+
+## Calm shots for the boat scene (t = seconds into the shot): {pos, look, fov, focus, far, amount}.
+func _bn_cam(kind: String, t: float, ctx: Dictionary, sm: Dictionary) -> Dictionary:
+	var luna: WorldCharacter = ctx.luna
+	var mika: WorldCharacter = ctx.mika
+	var boat: MoonBoat = ctx.boat
+	var L: Callable = ctx.L
+	var water: float = ctx.water
+	var bx := boat.global_transform
+	var follow := func(key: String, p: Vector3, k := 0.06) -> Vector3:
+		var v: Vector3 = sm.get(key, p)
+		v = v.lerp(p, k)
+		sm[key] = v
+		return v
+	var mid: Vector3 = follow.call("mid", (luna.global_position + mika.global_position) * 0.5 + Vector3(0, 1.1, 0), 0.08)
+	match kind:
+		"establish":
+			var pos: Vector3 = L.call(Vector3(-3.0, 1.2, -6.0)) + Vector3(0.0, 0.05 * t, -0.08 * t)
+			return {"pos": pos, "look": L.call(Vector3(4.0, 0.9, 6.0)), "fov": 44.0, "focus": mid, "far": 8.0, "amount": 0.03}
+		"walk_track":
+			var pos2: Vector3 = mid + (L.call(Vector3(-3.4, 0.25, 0.6)) - L.call(Vector3.ZERO))
+			return {"pos": pos2, "look": mid, "fov": 40.0, "focus": mid, "far": 2.0, "amount": 0.05}
+		"talk_two":
+			var side: Vector3 = (L.call(Vector3(-2.4, 0.2, -1.3 - 0.04 * t)) - L.call(Vector3.ZERO))
+			return {"pos": mid + side, "look": mid + Vector3(0, 0.15, 0), "fov": 36.0, "focus": mid, "far": 1.2, "amount": 0.07}
+		"board_wide":
+			var c0: Vector3 = bx * Vector3(0.2, 0.6, 0.0)
+			return {"pos": bx * Vector3(-1.2 + 0.05 * t, 1.5, 4.6), "look": c0 + Vector3(0, 0.3, 0), "fov": 42.0, "focus": c0, "far": 3.0, "amount": 0.04}
+		"row_med":
+			var lt: Vector3 = follow.call("lt", _head(luna) + Vector3(0, -0.35, 0), 0.1)
+			return {"pos": bx * Vector3(1.75, 1.75, 1.55), "look": lt, "fov": 38.0, "focus": lt, "far": 1.2, "amount": 0.06}
+		"hand_water":
+			var hp: Vector3 = boat.trail_point("stern", "Left")
+			var st0 := boat.seat_xform("stern")
+			var pos3 := hp + MoonBoat.side_vec(st0, "Left") * 1.0 + st0.basis.z * 0.9 + Vector3(0, 0.38, 0)
+			var lk := hp + Vector3(0, 0.25, 0) + st0.basis.z * -0.15
+			return {"pos": pos3, "look": lk, "fov": 38.0, "focus": hp, "far": 0.8, "amount": 0.08}
+		"boat_aerial":
+			var c1: Vector3 = bx.origin
+			return {"pos": c1 + bx.basis * Vector3(3.2 - 0.25 * t, 0, 3.6) + Vector3(0, 3.0 + 0.12 * t, 0), "look": c1 + Vector3(0, 0.5, 0), "fov": 42.0, "focus": c1, "far": 6.0, "amount": 0.02}
+		"lantern_light":
+			var lp := boat.lantern_pos("bow")
+			var c2: Vector3 = (lp + _head(mika)) * 0.5
+			return {"pos": bx * Vector3(0.0, 1.05, 2.6 + 0.04 * t), "look": c2, "fov": 44.0, "focus": c2, "far": 1.8, "amount": 0.05}
+		"mika_lanterns":
+			var mh: Vector3 = follow.call("mh", _head(mika) + Vector3(0, -0.35, 0), 0.08)
+			return {"pos": bx * Vector3(0.35, 0.85, 2.3), "look": mh + (bx.basis * Vector3(0, -0.15, 0.35)), "fov": 40.0, "focus": mh, "far": 1.0, "amount": 0.06}
+		"luna_lantern":
+			var lh: Vector3 = follow.call("lh", _head(luna) + Vector3(0, -0.35, 0), 0.08)
+			return {"pos": bx * Vector3(-1.4, 0.85, -2.1), "look": lh + (bx.basis * Vector3(0, -0.15, -0.35)), "fov": 40.0, "focus": lh, "far": 1.0, "amount": 0.06}
+		"lanterns_wide":
+			var c3: Vector3 = bx * Vector3(0.4, 0.35, 1.0)
+			return {"pos": bx * Vector3(-2.2 + 0.1 * t, 0.28, 5.0), "look": c3, "fov": 46.0, "focus": c3, "far": 4.0, "amount": 0.05}
+		"stargaze_two":
+			var c4: Vector3 = bx * Vector3(0.3, 0.55, 0.0)
+			return {"pos": bx * Vector3(0.45 - 0.03 * t, 2.35, 2.1), "look": c4, "fov": 44.0, "focus": c4, "far": 1.5, "amount": 0.04}
+		"sky_point":
+			# behind and below her right shoulder, along her raised arm to the star
+			var sk2 := mika.skeleton
+			var shp := sk2.global_transform * sk2.get_bone_global_pose(sk2.find_bone("RightUpperArm")).origin
+			var st := boat.seat_xform("stern")
+			var pos4 := shp + st.basis.z * -0.95 + MoonBoat.side_vec(st, "Right") * 0.45 + Vector3(0, 0.3, 0)
+			var sd := (Vector3(0.25, 1.0, 0.0) + st.basis.z * 0.5).normalized()
+			return {"pos": pos4, "look": shp + sd * 1.0 + st.basis.z * 0.3, "fov": 56.0, "focus": shp + sd * 0.5, "far": 30.0, "amount": 0.02}
+		"cu_luna_water":
+			var hd := _head(luna)
+			var st2 := boat.seat_xform("bow")
+			var pos5 := hd + st2.basis.z * 0.75 + MoonBoat.side_vec(st2, "Left") * 0.45 + Vector3(0, -0.05, 0)
+			return {"pos": pos5, "look": hd + Vector3(0, -0.05, 0), "fov": 34.0, "focus": hd, "far": 0.4, "amount": 0.1}
+		"cu_mika_chin":
+			var hd2 := _head(mika)
+			var st3 := boat.seat_xform("stern")
+			var pos6 := hd2 + st3.basis.z * 0.8 + MoonBoat.side_vec(st3, "Right") * 0.35 + Vector3(0, -0.1, 0)
+			return {"pos": pos6, "look": hd2 + Vector3(0, -0.08, 0), "fov": 34.0, "focus": hd2, "far": 0.4, "amount": 0.1}
+		"crane_out":
+			var e := smoothstep(0.0, 7.0, t)
+			var c5: Vector3 = bx.origin
+			return {"pos": c5 + bx.basis * Vector3(lerpf(2.2, 6.0, e), 0, lerpf(2.0, 7.0, e)) + Vector3(0, lerpf(1.2, 7.5, e), 0), "look": c5 + Vector3(0, lerpf(0.6, 0.0, e), 0), "fov": 46.0, "focus": c5, "far": 12.0, "amount": 0.02}
+	return {"pos": mid + Vector3(0, 0.5, 4.0), "look": mid, "fov": 40.0, "focus": mid, "far": 3.0, "amount": 0.03}
+
+
+## A bright twinkling star in the sky (the one she points at).
+func _lantern_star(at: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(14.0, 14.0)
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/anime/dance/glow_sprite.gdshader")
+	m.set_shader_parameter("tex", load("res://assets/vfx/brackeys/particles/alpha/star_07_a.png"))
+	m.set_shader_parameter("color", Color(1.0, 0.95, 0.85))
+	m.set_shader_parameter("energy", 0.0)
+	q.material = m
+	mi.mesh = q
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	main.world.add_child(mi)
+	mi.global_position = at
+	var tw := create_tween().set_loops(12)
+	tw.tween_method(func(v): m.set_shader_parameter("energy", v), 2.0, 4.5, 0.6).set_trans(Tween.TRANS_SINE)
+	tw.tween_method(func(v): m.set_shader_parameter("energy", v), 4.5, 2.0, 0.6).set_trans(Tween.TRANS_SINE)
+
+
+## Stills of the two of them seated in the boat (Selwyn asked for 3 angles before the full clip): out on the lake at
+## night, Luna rowing, Mika trailing her hand; after the dresses settle, three held angles (2 s each).
+func _boatstill() -> void:
+	await _hold_all()
+	await _force_luna_l1()
+	for w in main.mage_brains:
+		main.mage_brains[w].set_enabled(false)
+	main.director.enabled = false
+	main.spawner.enabled = false
+	if main.performance:
+		main.performance.set_process(false)
+	var luna: WorldCharacter = main.characters["luna"]
+	var mika: WorldCharacter = main.characters["mika"]
+	await main.streaming.travel("lantern_lake", luna, false)
+	main.day_night.set_override(true)
+	await _wait(2.0)
+	main.day_night.set_process(false)
+	var lake: Node3D = null
+	for n in main.world.find_children("*", "Node3D", true, false) + [main.world]:
+		if n.get("water_mat") != null:
+			lake = n
+			break
+	var water_y: float = lake.global_position.y
+	var L := func(v: Vector3) -> Vector3: return lake.to_global(v)
+	for cl in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		if not (cl is ScreenFX):
+			(cl as CanvasLayer).visible = false
+	var boat := MoonBoat.spawn(main.world, L.call(Vector3(-1.5, 0.0, -9.0)), -PI * 0.5 + lake.global_rotation.y + 0.5, water_y)
+	boat.lake = lake
+	boat.day_night = main.day_night
+	DanceStage.lantern_keep = 0.3
+	DanceStage.hover_lanterns = false
+	DanceStage.clear_radius = 7.0
+	var stage := DanceStage.build(lake, L.call(Vector3(-1.5, 0.0, -9.0)), water_y, [L.call(Vector3(0.0, 1.5, -2.0))], luna)
+	stage.light_also(mika)
+	for c in [luna, mika]:
+		if main.teleport_guard:
+			main.teleport_guard.allow(c)
+		c.stop_action()
+		c.visible = true
+		c.set_physics_process(false)
+		c.set_hair_frame("")
+	boat.seat(luna, "bow")
+	boat.seat(mika, "stern")
+	await _wait(1.0)
+	boat.row(true)
+	boat.trail_hand("stern", "Left", true)
+	var probes := []
+	if RenderProfile.options.has("trace"):
+		var sk := mika.skeleton
+		var names := []
+		for n in sk.get_children():
+			names.append(n)
+		var started := false
+		for n in names:
+			if n is SeatPose:
+				started = true
+			if started and n is SkeletonModifier3D and not (n is TraceProbe):
+				var tp := TraceProbe.new()
+				tp.name = "Trace_after_" + String(n.name)
+				sk.add_child(tp)
+				sk.move_child(tp, n.get_index() + 1)
+				probes.append(tp)
+	var pin := CameraPin.new()
+	main.add_child(pin)
+	main.camera_rig.set_process(false)
+	main.camera_rig.arm.process_mode = Node.PROCESS_MODE_DISABLED
+	main.director.set_process(false)
+	for g in get_tree().root.find_children("FramingGuard", "", true, false):
+		(g as FramingGuard).process_mode = Node.PROCESS_MODE_DISABLED
+	pin.fov = 40.0
+	pin.active = true
+	var bx := func() -> Transform3D: return boat.global_transform
+	var angles := [["front_3q", Vector3(-2.6, 1.9, 2.6)], ["side", Vector3(0.35, 1.6, 3.6)], ["rear_3q", Vector3(3.2, 1.9, 2.2)]]
+	var t0 := _game_t
+	print("[boatstill] start frame %d" % Engine.get_frames_drawn())
+	while _game_t - t0 < 6.0 + angles.size() * 2.0:
+		await get_tree().process_frame
+		var t := _game_t - t0
+		var ai := clampi(int(maxf(t - 6.0, 0.0) / 2.0), 0, angles.size() - 1)
+		var b: Transform3D = bx.call()
+		pin.pos = b * (angles[ai][1] as Vector3)
+		pin.look = b * Vector3(0.3, 0.55, 0.0)
+		if t > 6.0 and absf(fmod(t - 6.0, 2.0) - 1.0) < 0.02:
+			print("[boatstill] %s at frame %d" % [angles[ai][0], Engine.get_frames_drawn()])
+			print("[boatstill]   ", boat.debug_grips())
+			print("[boatstill]   ", boat.debug_rider("stern"))
+			print("[boatstill]   ", boat.debug_rider("bow"))
+			for tp in probes:
+				print("[trace] %-32s hand %s chest %s" % [tp.name, str((tp.pos.get("LeftHand", Vector3.ZERO) as Vector3).snappedf(0.01)), str((tp.pos.get("UpperChest", Vector3.ZERO) as Vector3).snappedf(0.01))])
+			for c in [luna, mika]:
+				for n in c.skeleton.get_children():
+					if n is SkirtDrape:
+						print("[boatstill]   %s drape weight %.2f pen %s" % [c.character_id, (n as SkirtDrape).weight, str((n as SkirtDrape).penetration())])
+	pin.active = false

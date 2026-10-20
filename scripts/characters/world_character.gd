@@ -10,10 +10,28 @@ signal action_finished(action: String, ok: bool, detail: String)
 signal cast_event(event: String)
 
 const MIXAMO_DIR := "res://assets/animations/mixamo/"
+const MOCAP_DIR := "res://assets/animations/movelib/"
 ## name -> [file, loop, in_place]
 const CLIPS := {
 	"idle": ["standing_idle.fbx", true, true],
 	"walk": ["walking.fbx", true, true],
+	# runway walk and turn (Selwyn's Mixamo clips, 2026-10-19): "walk_goddess" = a phase-aligned 50/50 blend of the
+	# catwalk and the normal walk (elegant, not sassy); "catwalk_turn" plays with its hip yaw moved to her root
+	"catwalk": ["catwalk_walking.fbx", true, true],
+	# Move Library activities (Selwyn's reference videos, mocapped: tools/mocap, MocapBake fits each girl's skeleton)
+	"ml_rowing": ["mocap:rowing_seated", true, true],
+	"ml_release_lantern": ["mocap:release_lantern", false, true],
+	"ml_stargaze_point": ["mocap:stargaze_point", false, true],
+	"ml_sit_gaze": ["mocap:sit_lean_back_gaze", false, true],
+	# held poses for cinematics (probe candidates for the Starlit Harp)
+	"hold_wide_a": ["wide_arm_spell_casting.fbx@0.9", true, true],
+	"hold_wide_b": ["wide_arm_spell_casting.fbx@1.7", true, true],
+	"hold_wide_c": ["wide_arm_spell_casting.fbx@2.5", true, true],
+	"hold_point_a": ["pointing.fbx@0.7", true, true],
+	"hold_point_b": ["pointing.fbx@1.2", true, true],
+	"hold_cast_a": ["spell_casting.fbx@1.0", true, true],
+	"hold_cast_b": ["spell_casting.fbx@2.0", true, true],
+	"catwalk_turn": ["catwalk_walk_turn_180_wide.fbx", false, true],
 	"run": ["run_forward.fbx", true, true],
 	"jog": ["jog_forward.fbx", true, true],
 	"look_around": ["look_around.fbx", false, true],
@@ -102,6 +120,7 @@ const UAL_PACKS := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_re
 @export var walk_speed := 1.45
 @export var run_speed := 4.1
 @export var turn_speed := 10.0
+const STAND_TURN := 3.5         # rad/s at most while she turns on the spot (the feet step round)
 
 var avatar: Node3D
 var skeleton: Skeleton3D
@@ -115,7 +134,9 @@ var world: Node  # the active area (magic bounce / rune floor), set by the strea
 var sword: SwordLayer  # optional magical-sword layer
 var pose_adjust: PoseAdjust  # post-animation corrections (seated knees)
 var cloth_clearance: ClothClearance   # hands kept out of her clothes (profile.clearance)
+var dress_sim: DressSim               # the skirt on SpringBoneSimulator3D (profile.dress.sim, --dress-sim)
 var foot_guard: FootGuard              # feet kept on top of the floor (a dance carrying her hips over a raised floor)
+var foot_lock: FootLock                # planted feet do not slide while she walks / runs
 var head_look: LookAtModifier3D  # eases her head toward what she reads / inspects
 var eye_looks: Array[LookAtModifier3D] = []
 var handler: ObjectHandler       # right-arm IK + holding objects
@@ -199,6 +220,9 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_repair_colliders()
 	_shoulder_colliders()
 	_tune_springs()
+	AvatarLook.calm_springs(avatar)                # (hair and cloth chains move together: no torn mesh between them)
+	var dress_mode := DressSim.mode_for(self)
+	var dress_chains := DressSim.take_chains(avatar) if dress_mode == "sbs" else 0
 	if not RenderProfile.options.has("no-hem-floor"):
 		HemFloor.attach.call_deferred(self)          # the hem rests on the floor, never through it
 	avatar.name = "Avatar"
@@ -213,6 +237,8 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	_lab_hair_fix()
 	_skin_tone()
 	_face_shadows()
+	if not RenderProfile.options.has("no-avatar-look"):
+		AvatarLook.apply(self)                         # no body outline shards; hair and cloth opaque with alpha scissor
 	_light_balance = Vector2(-1, -1)          # a new avatar's materials need the balance again
 	_setup_animation()
 	_setup_expressions()
@@ -228,6 +254,16 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 	foot_guard.name = "FootGuard"
 	skeleton.add_child(foot_guard)
 	foot_guard.enabled = not RenderProfile.options.has("no-foot-guard")
+	foot_lock = FootLock.new()                     # planted feet hold their spot on the ground (after FootGuard)
+	foot_lock.name = "FootLock"
+	skeleton.add_child(foot_lock)
+	foot_lock.enabled = not RenderProfile.options.has("no-foot-lock")
+	dress_sim = DressSim.attach(self, dress_mode) if (dress_chains > 0 or dress_mode == "guard") else null     # after the pose corrections
+	HandGuard.attach(skeleton)                     # hands never inside a face or a body (self and the other girl)
+	if not RenderProfile.options.has("no-seam-guard"):
+		SeamGuard.attach(self)                     # skirt and hair sheets never split between neighbouring chains
+	if not RenderProfile.options.has("no-hair-guard"):
+		HairGuard.attach(self)                     # hair never sinks into her upper arms (after the springs)
 	if _head_target == null:
 		_head_target = Node3D.new()
 		_head_target.name = "HeadLookTarget"
@@ -268,8 +304,7 @@ func _build_rig(scene: PackedScene = null, instance: Node3D = null) -> void:
 		skeleton.add_child(el)
 		el.target_node = el.get_path_to(_head_target)
 		eye_looks.append(el)
-	if head_posture and is_instance_valid(head_posture):
-		skeleton.move_child(head_posture, -1)      # emotional tilt applies on top of the look-at
+	PosePipeline.of(self).arrange()                # one owner of the pose order (activity, IK, collision, cloth)
 	left_hand = _attach("LeftHand")
 	right_hand = _attach("RightHand")
 	chest = _attach("UpperChest")
@@ -309,11 +344,12 @@ func apply_motion_profile() -> void:
 	ears = null
 	if float(motion.get("ears", 0.0)) > 0.0:
 		ears = EarController.attach(self, float(motion.ears))
+		PosePipeline.of(self).arrange()
 	# full-body expression (posture, injury, breathing, talking hands) - before the hair springs and head posture
 	if body_language == null or not is_instance_valid(body_language):
 		body_language = BodyLanguage.attach(self, float(motion.get("body", 1.0)))
 		if body_language:
-			skeleton.move_child(body_language, 0)
+			PosePipeline.of(self).arrange()
 			if reaction and not reaction.reacted.is_connected(body_language.on_hit):
 				reaction.reacted.connect(body_language.on_hit)
 
@@ -540,6 +576,7 @@ func _lab_hair_fix() -> void:
 ## the PBR world needs. Scale the sun's and the ambient's effect on HER materials toward a balanced anime key
 ## (effective sun ~1.35, ambient ~0.6). Called when the light changes (area load, day/night).
 var _light_balance := Vector2(-1, -1)
+var _scene_tint_key := Vector3(-1, -1, -1)
 
 func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
 	var cfg: Dictionary = Progression.mages.get(character_id, {}).get("face", {}) if Progression.mages else {}
@@ -548,9 +585,32 @@ func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
 	var ss := clampf(sun_target / maxf(sun_energy, 0.05), 0.3, 1.0) if sun_energy > 0.05 else 1.0
 	var am := clampf(amb_target / maxf(ambient_energy, 0.05), 0.35, 1.0)
 	var key := Vector2(snappedf(ss, 0.01), snappedf(am, 0.01))
-	if key == _light_balance or avatar == null:
+	# scene light match (2026-10-18, Selwyn: "she looks pasted on: flat even lighting while the world is overcast
+	# grey"): her light takes the scene's colour (the sun's and the sky's, half way to white so she stays readable)
+	# and a soft rim in the sky's colour - she sits inside the scene's light instead of on top of it
+	var tint := Color(1, 1, 1)
+	var sky := Color(0, 0, 0)
+	if not RenderProfile.options.has("no-scene-light"):
+		var env: Environment = get_world_3d().environment if get_world_3d() else null
+		var sun_col := Color(1, 1, 1)
+		for l in get_tree().root.find_children("Sun", "DirectionalLight3D", true, false):
+			if (l as DirectionalLight3D).is_visible_in_tree():
+				sun_col = (l as DirectionalLight3D).light_color
+				break
+		if env:
+			var amb := env.ambient_light_color
+			var w := clampf(ambient_energy / maxf(ambient_energy + sun_energy, 0.01), 0.0, 1.0)
+			var mixc := sun_col.lerp(amb, w)
+			var mx := maxf(mixc.r, maxf(mixc.g, mixc.b))
+			if mx > 0.001:
+				mixc = Color(mixc.r / mx, mixc.g / mx, mixc.b / mx)
+			tint = Color(1, 1, 1).lerp(mixc, float(Progression.mages.get(character_id, {}).get("face", {}).get("scene_tint", 0.5)) if Progression.mages else 0.5)
+			sky = amb * clampf(ambient_energy, 0.2, 1.2) * 0.28
+	var tkey := Vector3(snappedf(tint.r, 0.02), snappedf(tint.g, 0.02), snappedf(tint.b, 0.02))
+	if key == _light_balance and tkey == _scene_tint_key or avatar == null:
 		return
 	_light_balance = key
+	_scene_tint_key = tkey
 	for mi in avatar.find_children("*", "MeshInstance3D", true, false):
 		var m: MeshInstance3D = mi
 		if m.mesh == null:
@@ -562,6 +622,8 @@ func apply_light_balance(sun_energy: float, ambient_energy: float) -> void:
 				if sm.get_shader_parameter("_ShadeShift") != null:
 					sm.set_shader_parameter("_CharSunScale", key.x)
 					sm.set_shader_parameter("_CharAmbientScale", key.y)
+					sm.set_shader_parameter("_CharLightTint", Vector3(tint.r, tint.g, tint.b))
+					sm.set_shader_parameter("_CharSkyRim", Vector3(sky.r, sky.g, sky.b))
 				elif sm.shader and String(sm.shader.resource_path).ends_with("natural_hair.gdshader"):
 					sm.set_shader_parameter("sun_scale", key.x)          # the hair sits in the same light key as her face
 				mat = sm.next_pass
@@ -862,6 +924,13 @@ func _skin_tone() -> void:
 			if cfg.has("rim"):
 				var rc: Array = cfg.rim
 				sm.set_shader_parameter("_RimColor", Color(float(rc[0]), float(rc[1]), float(rc[2]), 1.0))
+			# one skin tone (2026-10-18, Selwyn: "face almost white, legs and hands bright pink"): the body's skin
+			# gets the face's soft shading (profile.skin.body_shading = [shift, toony] in MToon 0.x terms; the face
+			# is at about -0.80 / 0.90 after the VRM1 conversion) so arms and legs are not mostly in the pink shade
+			if cfg.has("body_shading") and String(sm.resource_name).ends_with("_Body_00_SKIN"):
+				var bs: Array = cfg.body_shading
+				sm.set_shader_parameter("_ShadeShift", float(bs[0]))
+				sm.set_shader_parameter("_ShadeToony", float(bs[1]))
 	_face_colors()
 
 
@@ -1119,7 +1188,11 @@ func _build_library() -> AnimationLibrary:
 		if src_spec.ends_with("~rev"):
 			reverse = true
 			src_spec = src_spec.trim_suffix("~rev")
-		if src_spec.contains(":") and not src_spec.ends_with(".fbx"):
+		if src_spec.begins_with("mocap:"):
+			anim = MocapBake.bake(skeleton, MOCAP_DIR + src_spec.trim_prefix("mocap:") + ".json")
+			if anim == null:
+				continue
+		elif src_spec.contains(":") and not src_spec.ends_with(".fbx"):
 			var pid := src_spec.get_slice(":", 0)
 			var an := src_spec.get_slice(":", 1)
 			var ual: AnimationPlayer = packs.get(pid)
@@ -1148,7 +1221,139 @@ func _build_library() -> AnimationLibrary:
 		lib.add_animation(clip_name, anim)
 	for src_node in pack_srcs:
 		src_node.free()
+	if lib.has_animation("walk") and lib.has_animation("catwalk"):
+		var gw := _blend_cycles(lib.get_animation("walk"), lib.get_animation("catwalk"), 0.5)
+		gw.loop_mode = Animation.LOOP_LINEAR
+		lib.add_animation("walk_goddess", gw)
+	if lib.has_animation("catwalk_turn"):
+		turn_yaw_curves["catwalk_turn"] = _strip_hip_yaw(lib.get_animation("catwalk_turn"))
 	return lib
+
+
+static var turn_yaw_curves := {}
+
+## The left thigh's most forward swing (largest x of its rotation): the phase anchor of a walk cycle.
+static func _cycle_anchor(anim: Animation) -> float:
+	var ti := -1
+	for t in anim.get_track_count():
+		if anim.track_get_type(t) == Animation.TYPE_ROTATION_3D and String(anim.track_get_path(t)).ends_with(":LeftUpperLeg"):
+			ti = t
+	if ti < 0:
+		return 0.0
+	var best := -INF
+	var at := 0.0
+	for k in 120:
+		var tt := anim.length * k / 120.0
+		var q := anim.rotation_track_interpolate(ti, tt)
+		if q.x > best:
+			best = q.x
+			at = tt
+	return at
+
+
+## Two walk cycles blended at weight w (0 = a, 1 = b), sampled by phase from each one's own anchor so the feet stay in
+## step: rotations slerped, positions lerped, 30 Hz, length between the two.
+static func _blend_cycles(a: Animation, b: Animation, w: float) -> Animation:
+	var out := Animation.new()
+	var la := a.length
+	var lb := b.length
+	var L := lerpf(la, lb, w)
+	var oa := _cycle_anchor(a)
+	var ob := _cycle_anchor(b)
+	var paths_b := {}
+	for t in b.get_track_count():
+		paths_b[str(b.track_get_path(t)) + "|" + str(b.track_get_type(t))] = t
+	var step := 1.0 / 30.0
+	for ti in a.get_track_count():
+		var type := a.track_get_type(ti)
+		if type != Animation.TYPE_POSITION_3D and type != Animation.TYPE_ROTATION_3D:
+			continue
+		var key := str(a.track_get_path(ti)) + "|" + str(type)
+		var tb: int = paths_b.get(key, -1)
+		var nt := out.add_track(type)
+		out.track_set_path(nt, a.track_get_path(ti))
+		var tt := 0.0
+		while tt <= L + 1e-4:
+			var u := tt / L
+			var ta := fmod(oa + u * la, la)
+			var tbb := fmod(ob + u * lb, lb)
+			if type == Animation.TYPE_POSITION_3D:
+				var va := a.position_track_interpolate(ti, ta)
+				out.position_track_insert_key(nt, tt, va.lerp(b.position_track_interpolate(tb, tbb), w) if tb >= 0 else va)
+			else:
+				var qa := a.rotation_track_interpolate(ti, ta)
+				out.rotation_track_insert_key(nt, tt, qa.slerp(b.rotation_track_interpolate(tb, tbb), w) if tb >= 0 else qa)
+			tt += step
+	out.length = L
+	return out
+
+
+## A turn clip's hip yaw is taken out of the clip (the hips keep their pitch and roll) and returned as a curve (radians
+## per 1/30 s from the start) for the character's root to follow - she ends the clip facing the new way without the
+## blend back to idle snapping her round.
+static func _strip_hip_yaw(anim: Animation) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	var ti := -1
+	for t in anim.get_track_count():
+		if anim.track_get_type(t) == Animation.TYPE_ROTATION_3D and String(anim.track_get_path(t)).ends_with(":Hips"):
+			ti = t
+	if ti < 0:
+		return out
+	var yaw0 := (anim.rotation_track_interpolate(ti, 0.0) * Vector3.FORWARD)
+	var a0 := atan2(-yaw0.x, -yaw0.z)
+	var prev := 0.0
+	var acc := 0.0
+	var keys := anim.track_get_key_count(ti)
+	# the curve, unwrapped
+	var tt := 0.0
+	while tt <= anim.length + 1e-4:
+		var f := anim.rotation_track_interpolate(ti, tt) * Vector3.FORWARD
+		var ang := atan2(-f.x, -f.z) - a0
+		var d := wrapf(ang - prev, -PI, PI)
+		acc += d
+		prev = ang
+		out.append(acc)
+		tt += 1.0 / 30.0
+	# strip it from the keys
+	for k in keys:
+		var kt := anim.track_get_key_time(ti, k)
+		var q: Quaternion = anim.track_get_key_value(ti, k)
+		var f := q * Vector3.FORWARD
+		var ang := wrapf(atan2(-f.x, -f.z) - a0, -PI, PI)
+		anim.track_set_key_value(ti, k, Quaternion(Vector3.UP, -ang) * q)
+	return out
+
+
+## Plays a turn clip with its yaw on her root (see _strip_hip_yaw).
+func play_turn(clip := "catwalk_turn", fade_in := 0.3, fade_out := 0.4) -> bool:
+	var curve: PackedFloat32Array = turn_yaw_curves.get(clip, PackedFloat32Array())
+	if curve.is_empty() or not play_gesture(clip, fade_in, fade_out):
+		return false
+	# the yaw goes on the avatar node (her own facing logic steers the body's rotation.y and would fight a tween);
+	# when the clip ends the turn is handed to the body in one step, invisible because the sum is unchanged
+	# (BodyReaction owns the avatar's rest rotation, _avatar_q, and restores it every frame: the turn goes through it)
+	var av := avatar
+	var base := av.rotation.y
+	var set_yaw := func(y: float):
+		var q := Quaternion(Vector3.UP, y)
+		if reaction and is_instance_valid(reaction):
+			reaction.set("_avatar_q", q)
+		av.quaternion = q
+	var tw := create_tween()
+	tw.tween_method(func(i: float): set_yaw.call(base + curve[clampi(int(i), 0, curve.size() - 1)]), 0.0, float(curve.size() - 1), (curve.size() - 1) / 30.0)
+	tw.tween_callback(func():
+		var total := curve[curve.size() - 1]
+		set_yaw.call(base)
+		rotation.y += total
+		_look_target = global_position - global_transform.basis.z * 3.0)
+	return true
+
+
+## Swap the walk cycle the locomotion uses ("walk", "walk_goddess", ...).
+func set_walk_clip(clip: String) -> void:
+	if anim_tree and has_clip(clip):
+		var loco := (anim_tree.tree_root as AnimationNodeBlendTree).get_node("loco") as AnimationNodeBlendSpace1D
+		(loco.get_blend_point_node(1) as AnimationNodeAnimation).animation = "mx/" + clip
 
 
 ## A held pose (freeze at time t, 0.1 s loop) or the clip played backwards, baked at 30 Hz from the sampled
@@ -1403,6 +1608,9 @@ func navigate_to(target: Vector3, run := false) -> void:
 	if casting:
 		action_finished.emit("navigate_to", false, "busy casting")
 		return
+	if RenderProfile.options.has("trace-nav"):
+		var st1 := get_stack()
+		print("[trace-nav] %s navigate_to %s by %s" % [character_id, str(target.snappedf(0.1)), " < ".join(st1.slice(1, 4).map(func(f): return "%s:%d %s" % [String(f.source).get_file(), int(f.line), String(f.function)]))])
 	_finish_action(false, "superseded by navigate_to")
 	var map := get_world_3d().navigation_map
 	if NavigationServer3D.map_get_iteration_id(map) == 0:
@@ -1485,6 +1693,10 @@ func play_gesture(clip: String, fade_in := 0.35, fade_out := 0.55) -> bool:
 	# lying / sitting on the ground: only the ground's own clips (and reactions, waking). A wave or a point replaced the
 	# lying loop and she was drawn standing beside her friend for the rest of a stargaze (stage check 2026-10-17)
 	if ground_pose != "" and not (clip.begins_with(ground_pose) or clip.begins_with("rx_") or clip == "waking"):
+		return false
+	# seated (a bench, the boat): only the seat's own clips and reactions. A level-up dance replaced Luna's sitting loop
+	# in the boat and she hovered 21 cm over the cushion, hands off the oars (boat check 2026-10-19)
+	if seated and not (clip.begins_with("sit") or clip.begins_with("rx_")):
 		return false
 	var bt := anim_tree.tree_root as AnimationNodeBlendTree
 	var shot := bt.get_node("cast") as AnimationNodeOneShot
@@ -1729,16 +1941,35 @@ func _physics_process(delta: float) -> void:
 				_finish_action(false, "timeout")
 	if face_dir != Vector3.ZERO:
 		var target_yaw := atan2(-face_dir.x, -face_dir.z)
-		rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-turn_speed * delta))
+		var to_yaw := lerp_angle(rotation.y, target_yaw, 1.0 - exp(-turn_speed * delta))
+		if hv.length() <= 0.2 and not casting:
+			# standing: a turn on the spot is a few steps round, never a spin on planted feet (a half turn took 0.3 s,
+			# 21 rad/s: the feet were dragged 25-36 cm)
+			var d := angle_difference(rotation.y, to_yaw)
+			to_yaw = rotation.y + clampf(d, -STAND_TURN * delta, STAND_TURN * delta)
+		rotation.y = to_yaw
 
 	# a held LOOPING gesture (a talking idle, folded arms ...) never rides on a moving body: it overrides the whole
 	# skeleton, so she would slide along with no walk cycle (2026-10-17 stream). The dodge's sprint is the exception.
 	if hv.length() > 0.6 and current_gesture != "" and current_gesture != "dodge_dash" and ground_pose == "" and not lifted \
 			and CLIPS.has(current_gesture) and bool(CLIPS[current_gesture][1]) and bool(anim_tree.get("parameters/cast/active")):
 		end_gesture()
-	# locomotion blend: 0 idle, 1 walk, 2 run; time scale keeps feet planted
-	var spd := hv.length()
-	_speed_smoothed = lerpf(_speed_smoothed, spd, 1.0 - exp(-8.0 * delta))
+	# locomotion from the ground she REALLY covers: pressed against a wall, a rail or a friend, velocity can stay up
+	# while she does not move - the walk cycle then treads in place (moving platforms carry her: not her own steps)
+	var real := get_real_velocity() - get_platform_velocity()
+	_update_loco(delta, minf(hv.length(), Vector2(real.x, real.z).length()))
+
+
+## Locomotion blend (0 idle, 1 walk, 2 run) and the time scale that keeps planted feet planted, from her ground speed.
+## Settles into idle quicker than it leaves it: a girl who stops is standing within ~0.3 s, not treading on.
+func _update_loco(delta: float, spd: float) -> void:
+	if anim_tree == null:
+		return
+	if spd < 0.05:
+		spd = 0.0
+	_speed_smoothed = lerpf(_speed_smoothed, spd, 1.0 - exp(-(8.0 if spd > _speed_smoothed else 14.0) * delta))
+	if spd == 0.0 and _speed_smoothed < 0.03:
+		_speed_smoothed = 0.0
 	var blend := 0.0
 	if _speed_smoothed < walk_speed:
 		# the full walk clip from 85 % of walk speed up (a blend of 7 % idle into it shortened her stride while she
@@ -1749,7 +1980,9 @@ func _physics_process(delta: float) -> void:
 	anim_tree.set("parameters/loco/blend_position", blend)
 	var ref := 1.0
 	if blend > 0.05 and blend <= 1.0:
-		ref = clampf(_speed_smoothed / walk_speed, 0.6, 1.3) if blend >= 0.999 else 1.0
+		# the stride shrinks with the walk's weight in the idle mix: the tempo follows the speed per unit of stride (a slow
+		# walk beside a friend at the full tempo slid her planted feet 0.18-0.20 m/s; at this one 0.13 - foot_slide sweep)
+		ref = clampf(_speed_smoothed / (blend * walk_speed), 0.6, 1.3)
 	elif blend > 1.0:
 		ref = clampf(_speed_smoothed / lerpf(walk_speed, run_speed, blend - 1.0), 0.7, 1.25)
 	anim_tree.set("parameters/loco_speed/scale", ref * float(motion.get("loco_tempo", 1.0)))
@@ -1799,6 +2032,13 @@ func _try_step_up(dir: Vector3) -> void:
 func _process(delta: float) -> void:
 	_update_expressions(delta)
 	_idle_glance(delta)
+	if not is_physics_processing():
+		# placed, not simulated (a scene stood her there and turned her physics off): she is not walking under her own
+		# power, so the locomotion settles into idle - the blend used to freeze on whatever the last physics frame left
+		# (Luna treading a walk cycle in place on the pier, 2026-10-19)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_update_loco(delta, 0.0)
 
 
 # ------------------------------------------------------------------ observation

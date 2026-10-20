@@ -174,6 +174,10 @@ func _on_message(m: Dictionary) -> void:
 			_chat_card(m)
 			if bool(m.get("active", false)) and main.get("chat") and main.chat.addressee(String(m.get("message", ""))) == "luna":
 				_luna_answers(m)
+			if bool(m.get("active", false)):
+				_lantern_from_chat(m)
+		"youtube-live-subscriber", "youtube-live-member", "youtube-live-superchat", "viewer-lantern":
+			_lantern_event(m)
 		"lifestyle-action":
 			_action(m)
 		"lifestyle-cancel":
@@ -183,6 +187,29 @@ func _on_message(m: Dictionary) -> void:
 			_glance("mika")
 		_:
 			pass
+
+
+# ------------------------------------------------------------------ viewers' lanterns (Lantern Lake)
+## A new subscriber, member or Super Chat - or a chat wish ("I wish ..." / "!wish ...") - becomes a lantern with the
+## viewer's name at Lantern Lake (LakeRitual: queued, one at a time; they look up at it and thank the viewer by name).
+## Server messages: {"type": "youtube-live-subscriber" | "youtube-live-member" | "youtube-live-superchat", "author",
+## "amount"?} or {"type": "viewer-lantern", "author", "kind": subscriber|member|superchat|chat, "wish"?: bool}.
+## A selected chat message with "paid": true is a Super Chat lantern as well (the same one is never sent up twice).
+func _lantern_event(m: Dictionary) -> void:
+	if LakeRitual.instance == null:
+		return
+	var kinds := {"youtube-live-subscriber": "subscriber", "youtube-live-member": "member", "youtube-live-superchat": "superchat"}
+	var kind := String(kinds.get(String(m.get("type", "")), String(m.get("kind", "chat"))))
+	LakeRitual.instance.offer(String(m.get("author", "")), kind, bool(m.get("wish", kind == "chat")))
+
+
+func _lantern_from_chat(m: Dictionary) -> void:
+	if LakeRitual.instance == null:
+		return
+	if bool(m.get("paid", false)):
+		LakeRitual.instance.offer(String(m.get("author", "")), "superchat")
+	elif LakeRitual.is_wish(String(m.get("message", ""))):
+		LakeRitual.instance.offer(String(m.get("author", "")), "chat", true)
 
 
 # ------------------------------------------------------------------ Mika passes chat on to Luna

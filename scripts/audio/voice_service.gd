@@ -50,7 +50,7 @@ const LIVE_VOICES := {
 	"mika": {"provider": "kokoro", "voice": "af_heart:0.6,jf_alpha:0.4", "gain": 0.7, "speed": 1.0, "note": "live: heart + alpha (developer's pick 2026-10-16)"},
 	"luna": {"provider": "kokoro", "voice": "af_nicole", "gain": 0.7, "speed": 1.0, "note": "live: nicole (developer's pick 2026-10-16)"},
 }
-const GPU_PYTHON := "/home/selwyn/.cache/mika_qa/kokoro-gpu/bin/python"   # onnxruntime-gpu venv (optional)
+const GPU_PYTHON := "/home/selwyn/Documents/Mika-Live/tools/kokoro/.venv-gpu/bin/python"   # onnxruntime-gpu venv (optional)
 const GEMINI_INTERACTIONS := "https://generativelanguage.googleapis.com/v1beta/interactions"
 const IDENTITY_SHIPPED := "res://assets/voice"
 const IDENTITY_CACHE := "user://voice_cache"
@@ -186,17 +186,23 @@ func _start_service() -> void:
 		"--voices", models + "/voices-v1.0.bin", "--voice", VOICES.wandering_mage.voice, "--threads", "3", "--parent-pid", str(OS.get_process_id())]
 	# the RTX GPU when its venv is there (onnxruntime-gpu): ~0.2 s a line instead of 3 s (idle CPU) to 25 s (busy CPU)
 	var gpu_py := OS.get_environment("MIKA_DEV_KOKORO_GPU_PYTHON") if OS.get_environment("MIKA_DEV_KOKORO_GPU_PYTHON") != "" else GPU_PYTHON
+	var tries := [[py, args]]
 	if FileAccess.file_exists(gpu_py) and not RenderProfile.options.has("kokoro-cpu"):
-		py = gpu_py
-		args.append_array(["--provider", "cuda"])
-	_pid = OS.create_process(py, args)
-	for i in 160:
-		await get_tree().create_timer(0.5).timeout
-		if await _health():
-			available = true
-			status = "ready (DEV service pid %d on %d)" % [_pid, PORT]
-			print("[voice] ", status)
-			return
+		tries.push_front([gpu_py, args + ["--provider", "cuda"]])    # the GPU first, the CPU if it never comes up
+	for attempt in tries:
+		_pid = OS.create_process(String(attempt[0]), attempt[1] as Array)
+		for i in 80:
+			await get_tree().create_timer(0.5).timeout
+			if await _health():
+				available = true
+				status = "ready (DEV service pid %d on %d, %s)" % [_pid, PORT, "GPU" if (attempt[1] as Array).has("cuda") else "CPU"]
+				print("[voice] ", status)
+				return
+			if not OS.is_process_running(_pid):
+				break
+		if OS.is_process_running(_pid):
+			OS.kill(_pid)
+		push_warning("[voice] the %s speech service did not come up" % ("GPU" if (attempt[1] as Array).has("cuda") else "CPU"))
 	status = "unavailable: DEV speech service did not become ready"
 	push_warning("[voice] " + status)
 
