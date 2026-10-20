@@ -93,6 +93,7 @@ func _build() -> void:
 	mat.set_shader_parameter("near_fade", float(o.get("near", 0.0 if bool(o.get("flat", false)) else size * 0.9)))
 	mat.set_shader_parameter("soft_depth", float(o.get("soft_depth", 0.02 if bool(o.get("flat", false)) else 0.6)))
 	mat.set_shader_parameter("edge_mask", float(o.get("edge_mask", 0.47)))
+	mat.set_shader_parameter("edge_soft", float(o.get("edge_soft", 0.08)))
 	if o.has("tint"):
 		mat.set_shader_parameter("tint", o.tint)
 	card.material_override = mat
@@ -151,6 +152,10 @@ func _process(delta: float) -> void:
 	var hold := float(o.get("hold_end", 0.0))
 	var fade := clampf(t / maxf(fi, 0.001), 0.0, 1.0) * clampf((dur + hold - t) / maxf(fo, 0.001), 0.0, 1.0)
 	mat.set_shader_parameter("fade", fade)
+	if o.has("dim_after"):
+		# (bright only at its start: after dim_after s it settles to dim_to of its brightness over 0.3 s)
+		var k := smoothstep(float(o.dim_after), float(o.dim_after) + 0.3, t)
+		mat.set_shader_parameter("intensity", float(o.get("intensity", 2.2)) * lerpf(1.0, float(o.get("dim_to", 0.4)), k))
 	# her light: the frame's brightness against the sheet's brightest, in the frame's own colour
 	if not _frames.is_empty():
 		var fd: Dictionary = _frames[clampi(int(fr), 0, _frames.size() - 1)]

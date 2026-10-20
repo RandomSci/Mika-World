@@ -19,14 +19,34 @@ extends Node3D
 
 const MODELS := {"mika": "res://assets/weapons/MikaGaleRapier_L20.glb"}
 const NAMES := {"mika": "Gale Rapier", "luna": "Shadow Blade"}
-## [butt below the grip, tip above the grip, blade starts at] (m), from the exports' bounds. (2026-10-20, Selwyn: "Change
-## luna's weapon to sword as well it's so bad when using spear": the Shadow Glaive is retired from fights; Luna fights
-## with the Shadow Blade, a two-handed longsword built here, both hands on its hilt as the great sword clips hold it)
-const SPAN := {"mika": [0.062, 0.936, 0.13], "luna": [0.27, 1.13, 0.06]}
+## [butt below the grip, tip above the grip, blade starts at] (m), from the exports' bounds (origin at the grip)
+## (2026-10-20, Selwyn: "replace the placeholder longsword with Luna's real glaive", both hands on the shaft 40 cm apart)
+## (Selwyn, later the same evening: "remove that spear. Luna should USE A sword": the Shadow Blade longsword again,
+## its two-hand grip from the library's longsword hands, top hand under the guard, bottom hand near the pommel)
+const SPAN := {"mika": [0.062, 0.936, 0.13], "luna": [0.3, 1.13, 0.06]}
 const MODEL_GRIP := {"mika": 0.062}
-const SHAFT_SPREAD := {}
 const TWO_HANDS := ["luna"]
-const BLADE_ANGLE := 45.0                     # deg from the thumb side toward the fingers (the diagonal grip)
+## The real grips (assets/animations/grips/grip_library.json, Grip_Library_v1 through MediaPipe Hands): which one each
+## weapon is held with, and its fit to the real handle (weapon_measure): the handle's radius (the palm sits that far
+## off its line, the fingers curl a little less round a thicker one) and where along it the fist closes (m from the
+## export's origin: the rapier's grip runs 6 cm below its swept guard)
+const GRIP_OF := {"mika": "rapier", "luna": "longsword"}
+const FIT := {"mika": {"r": 0.019, "grip_y": -0.03, "curl": 1.0}, "luna": {"r": 0.017, "grip_y": -0.05, "curl": 1.0}}
+const SHAFT_SPREAD := {"luna": 0.12}
+const BLADE_ANGLE := 45.0                     # deg from the thumb side toward the fingers (fallback, no library)
+static var _grips := {}
+
+
+static func grips() -> Dictionary:
+	if _grips.is_empty():
+		var j = JSON.parse_string(FileAccess.get_file_as_string("res://assets/animations/grips/grip_library.json"))
+		_grips = j if typeof(j) == TYPE_DICTIONARY else {"_none": true}
+	return _grips
+
+
+static func blade_angle(who_: String) -> float:
+	var g: Dictionary = grips().get(String(GRIP_OF.get(who_, "")), {})
+	return float(g.get("blade_angle", BLADE_ANGLE)) if g.get("blade_angle") != null else BLADE_ANGLE
 const RADIUS := 0.025
 const MAX_DEFLECT := 70.0
 
@@ -227,9 +247,18 @@ func _place() -> void:
 	if not _alive or not is_instance_valid(f.sk):
 		return
 	grip.hold[side] = hold_w
+	var g: Dictionary = grips().get(String(GRIP_OF.get(who, "")), {})
+	if g.has("fingers"):
+		grip.pose[side] = g.fingers
+		grip.pose_scale[side] = float(FIT.get(who, {}).get("curl", 1.0))
 	if who in TWO_HANDS:
-		grip.hold["Left" if side == "Right" else "Right"] = hold_w        # (her other hand closes on the hilt too)
-		grip.shaft = {"hand": side, "spread": 0.11 * f.k, "w": hold_w, "diag": true}
+		var other_h := "Left" if side == "Right" else "Right"
+		grip.hold[other_h] = hold_w        # (her other hand closes on the shaft too)
+		if g.has("fingers"):
+			grip.pose[other_h] = g.fingers
+			grip.pose_scale[other_h] = float(FIT.get(who, {}).get("curl", 1.0))
+		grip.shaft = {"hand": side, "spread": float(SHAFT_SPREAD.get(who, 0.4)) * f.k, "w": hold_w, "diag": true, "diag_deg": blade_angle(who),
+			"offset": (float(FIT.get(who, {}).get("r", 0.015)) + 0.006) * f.k}
 	var sk := f.sk
 	var hb := sk.find_bone(side + "Hand")
 	var mb := sk.find_bone(side + "MiddleProximal")
@@ -252,7 +281,8 @@ func _place() -> void:
 	# the fist between the thumb side and the fingers (45 deg, the angle the strikes' contacts fit best)
 	var at := hand.lerp(mid, 0.55)
 	var ln := length.normalized()
-	var blade := (y * cos(deg_to_rad(BLADE_ANGLE)) + ln * sin(deg_to_rad(BLADE_ANGLE))).normalized()
+	var ba := blade_angle(who)
+	var blade := (y * cos(deg_to_rad(ba)) + ln * sin(deg_to_rad(ba))).normalized()
 	# (two hands, 2026-10-20 after Selwyn's close-ups: the handle through both fists' clip positions left the fingers
 	# curling beside it; now the sword follows her main hand's diagonal grip like Mika's and GripPose.shaft brings
 	# her other fist onto the handle below it, wrapped round it)
@@ -261,7 +291,9 @@ func _place() -> void:
 		z = blade.cross(Vector3.UP).normalized()
 	var x := blade.cross(z).normalized()
 	y = blade
-	at += z * 0.012 * f.k
+	# (the fist closes round the handle's middle, the handle's line a radius off the palm)
+	var fit: Dictionary = FIT.get(who, {"r": 0.012, "grip_y": 0.0})
+	at += z * (float(fit.r) + 0.006) * f.k - blade * float(fit.grip_y) * f.k
 	var b := Basis(x, y, z).scaled(Vector3.ONE * f.k)
 	global_transform = Transform3D(b, at)
 	if RenderProfile.options.has("grip-qa") and Engine.get_frames_drawn() % 10 == 0:

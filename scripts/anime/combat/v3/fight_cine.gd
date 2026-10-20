@@ -85,13 +85,11 @@ func _weapon_windup(who: String, clip: String) -> void:
 			# (paired, Download(7): her face as she commits every third windup, else both bodies; a long travel from the
 			# side, it crosses the frame)
 			_wc += 1
-			var k3 := "profile" if far else ("face" if _wc % 3 == 1 else _fresh(["two_mid", "profile", "orbit", "face_ots"]))
+			var k3 := "profile" if far else _fresh(["duo", "profile", "orbit", "wide_low"])
 			var o3 := {"k": 1.0, "high": 0.25}
 			if k3 == "orbit":
 				o3 = {"from": sim.rng.randf_range(-20.0, 20.0), "to": sim.rng.randf_range(40.0, 70.0), "r": 4.2}
-			elif k3 == "face":
-				o3 = {"side": 0.35}
-			_cut(k3, who if k3 != "face_ots" else String(sim.d.F[who].other), o3, 0.55, "windup " + clip)
+			_cut(k3, who, o3, 0.55, "windup " + clip)
 			return
 		if far:
 			_cut("feet", who, {}, 0.5, "dash " + clip)
@@ -131,19 +129,18 @@ func update() -> void:
 				var gapc := sim._flat(sim.d.pos(vs2) - sim.d.pos(by)).length()
 				var flip := 1.0 if rng.randf() < 0.5 else -1.0
 				var trav := absf(float(BodyMoves.entry(String(a.move)).get("travel", 0.0)))
-				if oc in ["block", "parry"] and _pc % 2 == 0 and p.distance_to(mid) < 1.2 and trav < 1.5:
-					_cut("blade_close", by, {"at": p, "flip": flip}, 0.45, "%s %s close" % [oc, a.move])
-				else:
-					_cut("clash", by, {"at": mid, "dist": 1.3 + gapc * 0.5, "flip": flip}, 0.45, "%s %s" % [oc, a.move])
+				# (whole bodies only, 2026-10-20: both of them at the contact from the side or low, the struck girl's
+				# recoil from the side)
+				_cut("duo" if _pc % 2 == 0 else "profile", by, {"k": 1.0, "high": 0.2} if _pc % 2 == 0 else {}, 0.5, "%s %s" % [oc, a.move])
 				if oc == "hit" and vs2 != "":
 					sim.at(0.4, func():
 						if sim.t >= float(sim.get("cine_hold")):
-							_cut("face", vs2, {"side": 0.3}, 0.6, "reaction face"))
+							_cut("profile", vs2, {}, 0.6, "reaction"))
 				_quiet_since = sim.t
 				return
 			if bool(a.get("weapon", false)):
 				# blade contact: close on the clash or the cut, then the struck girl's face (Download(7))
-				_cut("blade_close", by, {"at": p, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, 0.5, "%s %s" % [oc, a.move])
+				_cut("duo", by, {"k": 1.0, "high": 0.2}, 0.5, "%s %s" % [oc, a.move])
 				var vs := String(a.get("vs", ""))
 				if oc == "hit" and vs != "":
 					sim.at(0.45, func():

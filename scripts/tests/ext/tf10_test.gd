@@ -35,7 +35,7 @@ static func run(t) -> void:
 	d.anim(who, "ualf:Idle", 0.0, -1.0, 1.0, 0.2, true)
 	d.anim(other, "ualf:Idle", 0.7, -1.0, 1.0, 0.2, true)
 	# (the opening shot already on her before the sequence rolls: no setup frames, no other girl's opening)
-	d.cut(d.ft + 0.001, "eyes", who, {"k": 1.0, "fov": 22.0})
+	d.cut(d.ft + 0.001, "hero_low", who, {})
 	await t._wait(1.2)
 	var tf := Tf10.make(d, who)
 	print("[tf10test] rolling at frame %d" % Engine.get_frames_drawn())

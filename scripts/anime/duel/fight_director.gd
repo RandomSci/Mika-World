@@ -514,7 +514,7 @@ func _camera(delta: float) -> void:
 		pc.name = "FIGHT_%02d_%s" % [ni, _shot[1]]
 		main.add_child(pc)
 		pc.set_tween_duration(float(opts.get("tween", 0.0)))
-		pc.set_tween_transition(Tween.TRANS_EXPO)
+		pc.set_tween_transition(int(opts.get("tween_trans", Tween.TRANS_EXPO)))     # (a glide: TRANS_SINE)
 		_pcs.append(pc)
 		if _pcs.size() > 3:
 			(_pcs.pop_front() as Node).queue_free()
@@ -523,7 +523,12 @@ func _camera(delta: float) -> void:
 	var opts2: Dictionary = _shot[3]
 	var u := ft - _shot_t0
 	var next_t := float(_shots[_shot_i + 1][0]) if _shot_i + 1 < _shots.size() else _shot_t0 + 3.0
-	var cp := shot_cam(String(_shot[1]), String(_shot[2]), u, maxf(next_t - _shot_t0, 0.1), opts2)
+	var kind0 := String(_shot[1])
+	if whole_body and CLOSE_TO_WHOLE.has(kind0):
+		kind0 = String(CLOSE_TO_WHOLE[kind0])
+	var cp := shot_cam(kind0, String(_shot[2]), u, maxf(next_t - _shot_t0, 0.1), opts2)
+	if whole_body:
+		cp = _whole_body(cp, String(_shot[2]))
 	var pc2: PhantomCamera3D = _pcs[_pcs.size() - 1]
 	var look: Vector3 = cp.look
 	var p: Vector3 = _unblock(look, cp.pos)
@@ -536,7 +541,7 @@ func _camera(delta: float) -> void:
 			str(lc.global_position.snappedf(0.01)) if lc else "-", str((-lc.global_basis.z).snappedf(0.01)) if lc else "-",
 			str(pos("mika").snappedf(0.01)), str(pos("luna").snappedf(0.01)), str(bone(String(_shot[2]) if F.has(String(_shot[2])) else "mika", "Head").snappedf(0.01))])
 	_lens.fov = cp.fov
-	_attrs.exposure_multiplier = float(cp.get("exposure", 1.0))
+	_attrs.exposure_multiplier = float(cp.get("exposure", opts2.get("exposure", 1.0)))
 	_lens.roll = deg_to_rad(float(opts2.get("roll", 0.0))) * (0.7 + 0.3 * sin(u * 1.3))
 	var fd: float = (cp.focus - p).length()
 	_attrs.dof_blur_far_distance = fd + float(cp.far)
@@ -584,6 +589,44 @@ func _list_particles() -> void:
 			var m: Material = (g as GPUParticles3D).draw_pass_1.surface_get_material(0)
 			mat = (m as ShaderMaterial).shader.resource_path if m is ShaderMaterial else str(m)
 		print("[fightparts] %d %.1f m %s %s %s" % [frame, near, g.get_path(), g.get_class(), mat])
+
+
+## The camera rule (2026-10-20, Selwyn: "No close ups of faces, hands or upper bodies. Every shot shows the whole body
+## from head to feet, medium wide at closest", for fights, transformations and everything else): every close-up kind
+## is played as a whole-body angle, and any lens nearer than the whole body fits (head to feet with a margin, at its
+## field of view) is pulled back along its own line, aimed at the middle of her body.
+var whole_body := not RenderProfile.options.has("close-ups")
+const CLOSE_TO_WHOLE := {"face": "hero_low", "eyes": "hero_low", "eye": "hero_low", "hand": "hero_low", "sign": "hero_low",
+	"push": "orbit_her", "blade_close": "duo", "hit_close": "duo", "clash": "duo", "feet": "profile", "face_ots": "duo",
+	"ots": "duo", "impact": "duo"}
+const BODY_HALF := 1.15                     # m: half her height and a margin (head to feet in frame)
+
+
+func _whole_body(cp: Dictionary, who: String) -> Dictionary:
+	var a := who if F.has(who) else "mika"
+	var b := String(F[a].other)
+	var gy := ground_y(F[a].c, pos(a))
+	var look: Vector3 = cp.look
+	var lift := float(F[a].get("lift", 0.0))
+	look.y = gy + 0.95 + lift
+	var fov := float(cp.fov)
+	var dmin := BODY_HALF / tan(deg_to_rad(fov * 0.5))
+	# (a shot that frames both girls: the subject point is between them and the pair must fit side by side too)
+	if _flat(look - (pos(a) + pos(b)) * 0.5).length() < 0.6:
+		dmin = maxf(dmin, (_flat(pos(a) - pos(b)).length() * 0.5 + 0.9) / (tan(deg_to_rad(fov * 0.5)) * 16.0 / 9.0))
+	var p: Vector3 = cp.pos
+	var dv := p - look
+	if dv.length() < dmin:
+		if dv.length() < 0.05:
+			dv = _flat(pos(a) - pos(b)).cross(Vector3.UP)
+		p = look + dv.normalized() * dmin
+		p.y = maxf(p.y, gy + 0.3)
+	var out := cp.duplicate()
+	out.pos = p
+	out.look = look
+	out.focus = look
+	out.far = maxf(float(cp.get("far", 1.0)), 2.0)
+	return out
 
 
 ## The camera pulled in front of anything between it and what it looks at (the ruined walls, trees, stones).

@@ -23,6 +23,7 @@ uniform float soft_depth = 0.6;     // fades where the card meets the ground or 
 uniform float upright = 0.0;
 uniform float roll = 0.0;
 uniform float edge_mask = 0.47;     // radius (in card UV) where our round fade ends
+uniform float edge_soft = 0.08;     // how wide that fade is (a burst: wide, no visible rim)
 uniform float fade = 1.0;
 uniform float top_fade = 0.0;
 uniform float near_fade = 0.0;      // m: the card fades out closer to the lens than this (a burst never fills a close-up)       // the top share of the card fades out (a pillar thins upward, no dome edge)
@@ -70,7 +71,7 @@ void fragment() {
 	vec3 col = mix(a, b, fract(frame));
 	float l = max(col.r, max(col.g, col.b));
 	col *= smoothstep(black_cut, black_cut + knee, l);
-	col *= 1.0 - smoothstep(edge_mask - 0.08, edge_mask, length(uv - 0.5));
+	col *= 1.0 - smoothstep(edge_mask - edge_soft, edge_mask, length(uv - 0.5));
 	col *= smoothstep(0.0, max(top_fade, 1e-3), uv.y) * step(1e-4, top_fade) + (1.0 - step(1e-4, top_fade));
 	float d = texture(depth_tex, SCREEN_UV).r;
 	vec4 v = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, d, 1.0);

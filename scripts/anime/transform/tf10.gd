@@ -126,9 +126,11 @@ func start() -> void:
 		"fade_out": 0.6, "intensity": 1.5, "light": 2.0, "black_cut": 0.15, "near": 2.0}), "spiral")
 	_at(7.0, func(): FlipbookFX.play(d.main, g + "_tf_cocoon", body, {"size": 3.1, "upright": true, "sink": 0.1, "dur": 4.5, "fade_in": 0.4,
 		"fade_out": 0.4, "intensity": 1.4, "light": 2.2, "black_cut": 0.15, "near": 2.0}), "cocoon")
-	_at(11.0, func(): FlipbookFX.play(d.main, g + "_tf_burst", body, {"size": 6.5, "upright": true, "sink": 0.3, "dur": 4.0, "fade_in": 0.05,
-		"fade_out": 1.0, "intensity": 0.95, "light": 2.0, "black_cut": 0.3, "near": 4.5}), "burst")
-	_at(12.0, func(): _petal_rain(), "petal rain")
+	_at(11.0, func(): FlipbookFX.play(d.main, g + "_tf_burst", body, {"size": 5.2, "upright": true, "sink": 0.3, "dur": 2.8, "fade_in": 0.05,
+		"fade_out": 0.9, "intensity": 0.9 if who == "luna" else 0.6, "light": 0.8, "black_cut": 0.3, "near": 0.0, "edge_mask": 0.4, "edge_soft": 0.3,
+		"dim_after": 0.3, "dim_to": 0.28 if who == "luna" else 0.18}), "burst")
+	_at(12.0, func(): _petal_rain(2), "petal rain")
+	_at(13.1, func(): _petal_rain(1), "petal rain behind the two-shot")
 	# ---- the flash: the same for both girls, two white frames
 	_at(11.0, func():
 		if d.sfx:
@@ -147,21 +149,60 @@ func start() -> void:
 	_at(0.4, func():
 		var oc: WorldCharacter = d.F[other].c
 		oc.set_expression("surprised", 0.6), "other watches")
-	_at(13.0, func():
+	_at(12.8, func():
 		var nm := "ml_" + String(REACT[who])
 		if FightDeck.clip_length(d.F[other].c, nm) > 0.0:
 			d.anim(other, nm, 0.0, -1.0, 1.0, 0.35)
 		(d.F[other].c as WorldCharacter).set_expression("happy", 0.8), "other reacts")
 	# ---- the camera: one continuous move per beat, blended from the last
-	_at(0.0, func(): d.cut(d.ft + 0.001, "eyes", who, {"k": 1.0, "fov": 22.0}), "cam eyes")
-	_at(1.1, func(): d.cut(d.ft + 0.001, "hand", who, {"bone": "RightHand", "tween": 0.7}), "cam hands")
-	_at(2.0, func(): d.cut(d.ft + 0.001, "orbit_her", who, {"from": -55.0, "to": 35.0, "r": 3.4, "h": 0.5, "fov": 46.0, "tween": 2.2}), "cam orbit")
-	_at(7.0, func(): d.cut(d.ft + 0.001, "orbit_her", who, {"from": 35.0, "to": 70.0, "r": 4.2, "h": 1.1, "fov": 46.0, "tween": 1.6}), "cam cocoon")
-	_at(10.2, func(): d.cut(d.ft + 0.001, "hero_low", who, {"tween": 1.2}), "cam hero")
-	_at(12.6, func(): d.cut(d.ft + 0.001, "orbit_her", who, {"from": 0.0, "to": 18.0, "r": 3.0, "h": 0.35, "fov": 42.0, "tween": 1.6}), "cam pose")
-	_at(13.6, func(): d.cut(d.ft + 0.001, "two_mid", who, {"tween": 1.4}), "cam both")
+	_at(0.0, func(): d.cut(d.ft + 0.001, "hero_low", who, {"exposure": 0.85}), "cam low hero")
+	_at(2.0, func(): d.cut(d.ft + 0.001, "orbit_her", who, {"from": -55.0, "to": 35.0, "r": 4.6, "h": 0.5, "fov": 48.0, "tween": 2.2, "tween_trans": Tween.TRANS_SINE}), "cam orbit")
+	_at(7.0, func(): d.cut(d.ft + 0.001, "orbit_her", who, {"from": 35.0, "to": 70.0, "r": 4.2, "h": 1.1, "fov": 46.0, "tween": 1.6, "tween_trans": Tween.TRANS_SINE}), "cam cocoon")
+	_at(10.2, func(): d.cut(d.ft + 0.001, "hero_low", who, {"tween": 1.2, "tween_trans": Tween.TRANS_SINE}), "cam hero")
+	_at(12.6, func(): d.cut(d.ft + 0.001, "orbit_her", who, {"from": 0.0, "to": 18.0, "r": 4.6, "h": 0.35, "fov": 46.0, "tween": 1.4, "tween_trans": Tween.TRANS_SINE}), "cam pose")
+	_at(12.9, func(): d.cut(d.ft + 0.001, "fixed", who, _two_shot()), "cam both")
 	_ev.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
+	# (the close ups crisp: half the bloom while they run, then back)
+	var env: Environment = d.main.world.get("env") if d.main.get("world") and d.main.world.get("env") else null
+	if env:
+		var g0 := env.glow_intensity
+		env.glow_intensity = g0 * 0.5
+		_at(2.8, func(): create_tween().tween_property(env, "glow_intensity", g0, 1.0), "bloom back")
+		_ev.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
 	print("[tf10] %s start at frame %d" % [who, Engine.get_frames_drawn()])
+
+
+## The last 2 s: both girls in one medium two-shot from the side of the line between them, a little toward her (the
+## other girl's reaction clearly in frame).
+func _two_shot() -> Dictionary:
+	var a := d.pos(who)
+	var b := d.pos(other)
+	var ax := d._flat(b - a)
+	var gap := ax.length()
+	ax = ax.normalized()
+	var perp := ax.cross(Vector3.UP)
+	var cam_o := get_viewport().get_camera_3d()
+	if cam_o and perp.dot(cam_o.global_position - a) < 0.0:
+		perp = -perp                                     # (the side the lens is already on: a glide, not a jump)
+	var gy := FightDirector.ground_y(c, a)
+	var mid := (a + b) * 0.5
+	var look := Vector3(mid.x, gy + 1.1, mid.z)
+	# (the side with a clear view of both: a trunk between pulled the lens in and lost the other girl)
+	var pos := Vector3.ZERO
+	var best := -1.0
+	for sgn in [1.0, -1.0]:
+		for dist in [gap * 0.8 + 2.0, gap * 0.8 + 1.2]:
+			var cand: Vector3 = look + perp * sgn * dist + Vector3.UP * 0.2
+			var got: Vector3 = d._unblock(look, cand)
+			var clear := got.distance_to(look)
+			if got.distance_to(cand) < 0.05:
+				clear += 100.0
+			if clear > best:
+				best = clear
+				pos = got
+	print("[tf10] two-shot %s at %s, %s at %s (drawn %s, visible %s), lens %s looking at %s" % [who, str(a), other, str(b),
+		str((d.F[other].c as Node3D).global_position), str((d.F[other].c as Node3D).is_visible_in_tree()), str(pos), str(look)])
+	return {"pos": pos, "look": look, "fov": 50.0, "tween": 1.0, "tween_trans": Tween.TRANS_SINE}
 
 
 ## The old avatar handed over and frozen as burning light; the new one in her place, wearing the light already.
@@ -202,20 +243,22 @@ func _light(avatar: Node, on: bool) -> void:
 		(mi as MeshInstance3D).material_overlay = light_mat if on else null
 
 
-## Petal rain from 12 s: several cards at depth round her (never one sheet over the screen); Luna's violet.
-func _petal_rain() -> void:
+## Petal rain from 12 s: a few cards at depth BEHIND the girls as the lens sees them (her pose reads in front of it),
+## half the old density; a second pair when the final two-shot starts. Luna's violet.
+func _petal_rain(n := 2) -> void:
 	var tint := Color(1, 1, 1) if who == "mika" else Color(0.72, 0.55, 1.0)
-	var fw := d._flat(d.pos(other) - base).normalized()
-	var sd := fw.cross(Vector3.UP)
-	var spots := [[-1.8, 1.4, 4.2], [2.0, 0.8, 3.8], [0.4, -2.2, 5.2], [-2.6, -1.6, 3.6]]
-	for i in spots.size():
+	var cam := get_viewport().get_camera_3d()
+	var mid := (base + d.pos(other)) * 0.5
+	var away := d._flat(mid - cam.global_position).normalized() if cam else d._flat(d.pos(other) - base).normalized()
+	var across := away.cross(Vector3.UP)
+	var spots := [[-1.4, 2.2, 4.0], [1.6, 3.0, 4.6]]
+	for i in mini(n, spots.size()):
 		var sp: Array = spots[i]
-		var p: Vector3 = base + sd * float(sp[0]) + fw * float(sp[1])
+		var p: Vector3 = mid + across * float(sp[0]) + away * float(sp[1])
 		p.y = FightDirector.ground_y(c, base) + 0.2
 		var pf := func() -> Vector3: return p
-		get_tree().create_timer(0.12 * float(i)).timeout.connect(func():
-			FlipbookFX.play(d.main, "mika_petal_rain", pf, {"size": float(sp[2]), "upright": true, "sink": 0.0, "dur": 3.2, "fade_in": 0.3,
-				"fade_out": 0.9, "intensity": 0.7, "light": 0.4, "black_cut": 0.18, "near": 2.0, "tint": tint}))
+		FlipbookFX.play(d.main, "mika_petal_rain", pf, {"size": float(sp[2]), "upright": true, "sink": 0.0, "dur": 3.0, "fade_in": 0.3,
+			"fade_out": 0.9, "intensity": 0.7, "light": 0.3, "black_cut": 0.18, "near": 2.0, "tint": tint})
 
 
 func _process(delta: float) -> void:
