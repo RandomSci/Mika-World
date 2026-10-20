@@ -21,6 +21,11 @@ const SHEETS := {
 	"fx_blade_ring": "res://assets/vfx/flipbook/fx_blade_ring_8x8.webp",
 	"fx_ghost_slash": "res://assets/vfx/flipbook/fx_ghost_slash_8x8.webp",
 	"mika_petal_rain": "res://assets/vfx/flipbook/mika_petal_rain_8x8.webp",
+	# Transformation_Kit_v1 (Selwyn, 20 October): the Level 10 transformation, four beats per girl
+	"mika_tf_gather": "res://assets/vfx/flipbook/mika_tf_gather_8x8.webp", "mika_tf_spiral": "res://assets/vfx/flipbook/mika_tf_spiral_8x8.webp",
+	"mika_tf_cocoon": "res://assets/vfx/flipbook/mika_tf_cocoon_8x8.webp", "mika_tf_burst": "res://assets/vfx/flipbook/mika_tf_burst_8x8.webp",
+	"luna_tf_gather": "res://assets/vfx/flipbook/luna_tf_gather_8x8.webp", "luna_tf_spiral": "res://assets/vfx/flipbook/luna_tf_spiral_8x8.webp",
+	"luna_tf_cocoon": "res://assets/vfx/flipbook/luna_tf_cocoon_8x8.webp", "luna_tf_burst": "res://assets/vfx/flipbook/luna_tf_burst_8x8.webp",
 }
 static var _light_data := {}
 static var _tex := {}
@@ -88,6 +93,8 @@ func _build() -> void:
 	mat.set_shader_parameter("near_fade", float(o.get("near", 0.0 if bool(o.get("flat", false)) else size * 0.9)))
 	mat.set_shader_parameter("soft_depth", float(o.get("soft_depth", 0.02 if bool(o.get("flat", false)) else 0.6)))
 	mat.set_shader_parameter("edge_mask", float(o.get("edge_mask", 0.47)))
+	if o.has("tint"):
+		mat.set_shader_parameter("tint", o.tint)
 	card.material_override = mat
 	# (a card is drawn after the bodies' transparent pass order does not matter for additive light)
 	card.extra_cull_margin = size
@@ -133,6 +140,8 @@ func _process(delta: float) -> void:
 	var f0 := float(o.get("f0", 0.0))
 	var f1 := float(o.get("f1", 63.0))
 	var fr := lerpf(f0, f1, u) if not stopped else _fr
+	if o.has("loop_s") and not stopped:
+		fr = f0 + fposmod(t / maxf(float(o.loop_s), 0.05), 1.0) * (f1 - f0)       # (cycles every loop_s, a sigil held long)
 	_fr = fr
 	mat.set_shader_parameter("frame", fr)
 	if o.has("roll_fn"):

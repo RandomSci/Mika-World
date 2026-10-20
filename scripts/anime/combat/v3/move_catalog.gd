@@ -222,6 +222,9 @@ const CLIPS := {
 	"s_sign_blade_raised": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "cinematic", "sign", "cast"], "note": "a sign made with the blade raised"},
 	"s_running_slash": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "attack", "slash", "movement", "run"], "note": "running in and cutting (the first second trimmed: she is far away)"},
 	"s_kneel_recover": {"lib": "v4w", "cat": "weapon", "use": "body", "who": "both", "weapon": "sword", "tags": ["sword", "movement", "recover"], "note": "up from a kneel on the blade"},
+	# Transformation_Kit_v1 (2026-10-20): the Level 10 transformation's body (video mocap, depth lifted, hands on)
+	"tf_rise": {"lib": "tf", "cat": "transformation", "use": "body", "who": "both", "tags": ["transformation", "prayer", "open_arms", "cinematic"], "note": "prayer sign at the chest, arms open wide, face lifting (0 to 7 s of the sequence)"},
+	"tf_reveal": {"lib": "tf", "cat": "transformation", "use": "body", "who": "both", "tags": ["transformation", "pose", "cinematic"], "note": "lowers, hand to chest, other arm extends, turns into the finishing pose (12 to 15 s)"},
 }
 
 

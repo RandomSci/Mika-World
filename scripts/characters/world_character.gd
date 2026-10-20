@@ -415,7 +415,12 @@ func stage_profile() -> Dictionary:
 
 ## Change her appearance to another VRM of the same humanoid (a transformation form, or back to base).
 ## Refused while casting or holding something. `scene` may be a preloaded PackedScene (no hitch).
-func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = null) -> bool:
+## keep_old (the transformation, 2026-10-20): the old avatar is not freed but handed over in `released_avatar` (out of
+## the tree, its last pose and transform kept, "released_xf"), for the old outfit to burn away as light.
+var released_avatar: Node3D
+
+
+func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = null, keep_old := false) -> bool:
 	if casting or (handler and handler.held != null):
 		return false
 	if scene == null and instance == null:
@@ -425,8 +430,13 @@ func swap_avatar(path: String, scene: PackedScene = null, instance: Node3D = nul
 		scene = load(path)
 	var old := avatar
 	old.name = "AvatarOld"
-	remove_child(old)
-	old.queue_free()
+	if keep_old:
+		old.set_meta("released_xf", old.global_transform)
+		remove_child(old)
+		released_avatar = old
+	else:
+		remove_child(old)
+		old.queue_free()
 	_expr.clear()
 	_expr_weight.clear()
 	_expr_target.clear()
