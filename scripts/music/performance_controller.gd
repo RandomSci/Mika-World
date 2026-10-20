@@ -80,6 +80,18 @@ func _process(_d: float) -> void:
 	requests.pop_front()
 	var opts := {"dance": String(r.get("dance", "")), "why": String(r.get("why", ""))}
 	var partner := String(r.get("with", ""))
+	# the stream's mage owns the camera (main._spotlight): another mage's dance (Luna's level up, a viewer's "Luna
+	# dance!") becomes a duet the stream's mage leads, so the camera stays on her with both in frame; with her too
+	# far away or busy it is dropped, never a song with the camera on Luna (20 October soak)
+	var home := String(main.get("stream_profile")) if main.get("stream_profile") != null else "mika"
+	if home != "shared" and who != home and main.characters.has(home):
+		var hc := main.characters[home] as Node3D
+		if hc.visible and hc.global_position.distance_to((main.characters[who] as Node3D).global_position) < 14.0 and available(home).ok and _partner_free(who):
+			partner = who
+			who = home
+		else:
+			print("[perform] %s's dance (%s) dropped: %s is not close and free to lead it" % [who, String(r.get("why", "")), home])
+			return
 	if partner == "" and bool(r.get("partner_if_near", false)):
 		for other in main.characters:
 			if other != who and (main.characters[other] as Node3D).visible and (main.characters[other] as Node3D).global_position.distance_to((main.characters[who] as Node3D).global_position) < 14.0:
@@ -221,6 +233,17 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	active = {"who": who, "mode": mode, "song": song, "title": String(MusicLibrary.song(song).get("title", song)), "planned_total": snappedf(total, 0.1),
 		"preview": preview, "stage": "starting", "clips": [], "singing": false, "started_unix": int(Time.get_unix_time_from_system())}
 	var brain = main.mage_brains.get(who)
+	# a dance she did not choose herself (a request, a celebration): her own planner is held until it ends, or it
+	# walked her off to the ferns while her song played (20 October soak)
+	if brain and not brain.hold and String(brain.current.get("kind", "")) != "perform":
+		brain.hold = true
+		brain.interrupt("a dance")
+		active["held_brain"] = true
+		var tw := Time.get_ticks_msec()
+		while not brain.current.is_empty() and Time.get_ticks_msec() - tw < 10000:
+			await get_tree().process_frame
+		if c.current_action == "navigate_to":
+			c.stop_action()
 	var voice_id := String(Progression.mages.get(who, {}).get("voice", who))
 	var dir_was: bool = main.director.enabled if main.director else false
 	# the camera films every performance in view: music with no dancer on screen looked broken on stream (2026-10-17:
@@ -478,6 +501,8 @@ func _finish(c: WorldCharacter, brain, dir_was: bool, res: Dictionary, _t0: int)
 		main.director.end_performance()
 		main.director.enabled = dir_was
 	var who := String(res.get("who", active.get("who", "")))
+	if bool(active.get("held_brain", false)) and brain:
+		brain.hold = false
 	if not bool(res.get("preview", true)) and who != "":
 		_remember(who, res)
 		if String(res.get("partner", "")) != "":

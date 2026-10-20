@@ -39,6 +39,12 @@ static func run(t) -> void:
 	var lake_push := false
 	var subscribed := false
 	var monsters_seen := 0
+	var lake_at := -1.0
+	var off_cam := 0                  # samples with the camera on someone other than Mika
+	var lone_music := 0               # samples with a song playing and no dancer dancing
+	var shots := 0
+	var shot_dir := String(RenderProfile.options.get("shots", ""))
+	var next_shot := 0.0
 	var cb := func(d): kinds[String(d.get("kind", ""))] = int(kinds.get(String(d.get("kind", "")), 0)) + 1
 	mb.decided.connect(cb)
 	var last_t := Time.get_ticks_usec()
@@ -62,11 +68,14 @@ static func run(t) -> void:
 			subscribed = true
 			main.live_link._on_message({"type": "youtube-live-subscriber", "author": "NightOwl"})
 			print("[golive] %4.0fs subscriber NightOwl" % el)
-		if not lake_push and el >= 720.0 and main.streaming.current_id != "lantern_lake":
+		if not lake_push and el >= 60.0 and main.streaming.current_id != "lantern_lake":
 			lake_push = true
 			mb.mind.knowledge["lake_night"] = SanctuaryBrain.night_id() - 3
 			print("[golive] %4.0fs the lake's longing raised (they had not gone yet)" % el)
-		if not danced and el >= 1260.0 and main.live_link:
+		if main.streaming.current_id == "lantern_lake" and lake_at < 0.0:
+			lake_at = el
+		# the show's dance at the lake (a minute after they arrive), or wherever they are by minute 21
+		if not danced and main.live_link and ((lake_at >= 0.0 and el - lake_at >= 60.0 and main.streaming.current_id == "lantern_lake") or el >= 1260.0):
 			danced = true
 			print("[golive] %4.0fs the show asks for a dance (in %s)" % [el, main.streaming.current_id])
 			main.live_link._on_message({"type": "lifestyle-action", "id": "golive-dance", "action": "dance_session", "args": {"routine": ""}})
@@ -76,15 +85,30 @@ static func run(t) -> void:
 			var mem := Performance.get_monitor(Performance.MEMORY_STATIC)
 			var vmem := Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)
 			var area := String(main.streaming.current_id)
+			var subj := String(main.director.mika.character_id) if main.director and main.director.mika else "-"
+			var music: bool = main.performance != null and main.performance.player.playing
+			var pstage := String(main.performance.active.get("stage", "")) if main.performance else ""
+			if subj != "mika" and main.streaming.state == "idle":
+				off_cam += 1
+			if music and pstage != "dancing" and pstage != "ending":
+				lone_music += 1
 			areas[area] = int(areas.get(area, 0)) + 1
 			monsters_seen = maxi(monsters_seen, main.spawner.alive.size() if main.spawner.get("alive") != null else 0)
 			samples.append({"t": snappedf(el, 1.0), "fps": snappedf(fps, 0.1), "worst_ms": snappedf(worst, 0.1), "mem_mb": snappedf(mem / 1048576.0, 1.0),
-				"vmem_mb": snappedf(vmem / 1048576.0, 1.0), "area": area})
-			print("[golive] %4.0fs %s %s fps %.1f worst %.0f ms mem %.0f MB vmem %.0f MB | mika: %s | luna: %s" % [el, WorldState.clock_text().right(5), area, fps, worst,
-				mem / 1048576.0, vmem / 1048576.0, String(mb.current.get("label", "-")).left(48), String(main.mage_brains.luna.current.get("label", "-")).left(48)])
+				"vmem_mb": snappedf(vmem / 1048576.0, 1.0), "area": area, "cam": subj, "music": music, "perf": pstage})
+			print("[golive] %4.0fs %s %s fps %.1f worst %.0f ms mem %.0f MB vmem %.0f MB cam %s music %s %s | mika: %s | luna: %s" % [el, WorldState.clock_text().right(5), area, fps, worst,
+				mem / 1048576.0, vmem / 1048576.0, subj, "on" if music else "off", pstage, String(mb.current.get("label", "-")).left(48), String(main.mage_brains.luna.current.get("label", "-")).left(48)])
 			frames = 0
 			acc = 0.0
 			worst = 0.0
+		# review frames (small jpgs): every 20 s, every 2 s at the lake and while a song plays
+		if shot_dir != "" and el >= next_shot and main.streaming.state == "idle":
+			var dense: bool = main.streaming.current_id == "lantern_lake" or (main.performance and main.performance.busy())
+			next_shot = el + (2.0 if dense else 20.0)
+			var img: Image = t.get_viewport().get_texture().get_image()
+			img.resize(640, 360, Image.INTERPOLATE_BILINEAR)
+			img.save_jpg("%s/f_%05d.jpg" % [shot_dir, int(el * 10.0)], 0.8)
+			shots += 1
 	# the report
 	var fps_all := samples.map(func(s): return float(s.fps))
 	fps_all.sort()
@@ -101,6 +125,9 @@ static func run(t) -> void:
 	print("[golive] fights: creatures seen %d, duel %s, transformation %s" % [monsters_seen, str(FightHook.running), str(main.transformer.playing if main.transformer else "")])
 	t._check(areas.has("lantern_lake"), "they went to Lantern Lake (%s)" % str(areas.keys()))
 	t._check(perf_log.any(func(e): return bool(e.get("ok", false))), "the show's dance played")
+	print("[golive] camera off Mika in %d samples, a song with nobody dancing in %d samples, %d review frames" % [off_cam, lone_music, shots])
 	t._check(monsters_seen == 0, "no creature appeared")
+	t._check(off_cam == 0, "the camera stayed on Mika (%d samples off)" % off_cam)
+	t._check(lone_music == 0, "no song without a dancer (%d samples)" % lone_music)
 	t._check(fps_all[fps_all.size() / 2] >= 29.0, "fps median %.1f" % fps_all[fps_all.size() / 2])
 	t._check(growth < 10.0, "memory growth %.1f%%" % growth)
