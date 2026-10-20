@@ -70,12 +70,20 @@ func _weapon_windup(who: String, clip: String) -> void:
 	var spec: Array = WeaponPlay.STRIKES.get(clip, [])
 	var travel := String(spec[5]) if spec.size() > 5 else ""
 	var far := travel == "through" or (travel == "forward" and spec.size() > 6 and float(spec[6]) >= 0.8)
+	if BodyMoves.has(clip):
+		far = absf(float(BodyMoves.entry(clip).get("travel", 0.0))) >= 1.5      # (the suit mocap's own travel: a dash, a long combo)
 	var lead := 0.0
 	if sim.t - _quiet_since > 2.5:
 		_cut("wide_low", who, {}, 0.55, "reset " + clip)
 		lead = 0.55
 	var go := func():
 		if sim.t < float(sim.get("cine_hold")):
+			return
+		if sim.has_meta("paired"):
+			# (paired: both bodies always in frame; a long travel from the side, it crosses the frame)
+			var k3 := "profile" if far else _fresh(["duo", "profile", "orbit"])
+			var o3 := {"from": sim.rng.randf_range(-20.0, 20.0), "to": sim.rng.randf_range(40.0, 70.0), "r": 5.0} if k3 == "orbit" else {"k": 1.0, "high": 0.25}
+			_cut(k3, who, o3, 0.7, "windup " + clip)
 			return
 		if far:
 			_cut("feet", who, {}, 0.5, "dash " + clip)
@@ -106,6 +114,18 @@ func update() -> void:
 		if oc in ["hit", "block", "parry"] and p != Vector3.INF and _can_cut(true):
 			var by := String(a.by)
 			# (a spell landing is a burst of light: a lens 1 m from it is a white screen, so it is framed from 4.6 m)
+			if bool(a.get("paired", false)):
+				# a paired exchange: the clash with both bodies in frame, then the struck girl from the side
+				var mid: Vector3 = (sim.d.chest(by) + sim.d.chest(String(a.vs))) * 0.5
+				var gapc := sim._flat(sim.d.pos(String(a.vs)) - sim.d.pos(by)).length()
+				_cut("clash", by, {"at": mid, "dist": 1.5 + gapc * 0.6, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, 0.5, "%s %s" % [oc, a.move])
+				var vs2 := String(a.get("vs", ""))
+				if oc == "hit" and vs2 != "":
+					sim.at(0.45, func():
+						if sim.t >= float(sim.get("cine_hold")):
+							_cut("profile", vs2, {}, 0.6, "reaction"))
+				_quiet_since = sim.t
+				return
 			if bool(a.get("weapon", false)):
 				# blade contact: close on the clash or the cut, then the struck girl's face (Download(7))
 				_cut("blade_close", by, {"at": p, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, 0.5, "%s %s" % [oc, a.move])
@@ -133,7 +153,7 @@ func update() -> void:
 					var k := _fresh(["profile", "ots", "face_ots"] if rng.randf() < 0.6 else ["ots", "profile", "wide_low"])
 					# (a weapon windup: the side that shows both bodies and the blade's line; over the shoulder put the
 					# other girl's hair over half the frame for a second, Selwyn's spar, 20 October)
-					if String(MoveCatalog.CLIPS.get(String(e[3]), {}).get("cat", "")) == "weapon":
+					if String(MoveCatalog.CLIPS.get(String(e[3]), {}).get("cat", "")) == "weapon" or BodyMoves.has(String(e[3])):
 						_weapon_windup(who, String(e[3]))
 						continue
 					var target_who := who if k != "face_ots" else String(sim.d.F[who].other)
@@ -159,7 +179,7 @@ func update() -> void:
 					_cut("track", who, {}, 0.6, "rush")
 			"evade":
 				if _can_cut(true):
-					_cut(_fresh(["track", "wide_low"]), who, {}, 0.55, "evade " + String(e[3]))
+					_cut("profile" if sim.has_meta("paired") else _fresh(["track", "wide_low"]), who, {}, 0.55, "evade " + String(e[3]))
 			"travel":
 				if _can_cut(true):
 					_cut("crane", who, {}, 1.1, "travel " + String(e[3]))
@@ -173,6 +193,8 @@ func update() -> void:
 		var k2 := _fresh(["duo", "wide_low", "orbit"])
 		if sim.has_meta("weapon_play"):
 			k2 = _fresh(["orbit", "profile", "orbit", "track"])      # (a weapon fight: both in frame, the lens always moving)
+			if sim.has_meta("paired"):
+				k2 = _fresh(["orbit", "profile", "duo"])
 		var o2 := {"k": rng.randf_range(0.9, 1.05), "high": rng.randf_range(0.0, 0.4), "min": 3.2}
 		if k2 == "orbit":
 			o2 = {"from": rng.randf_range(10.0, 40.0), "to": rng.randf_range(60.0, 100.0), "r": 4.6}

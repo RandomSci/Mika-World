@@ -55,7 +55,7 @@ static func run(t) -> void:
 		if String(a.get("outcome", "")) == "hit":
 			hits += 1
 	print("[duel] end at frame %d, %d exchanges, %d hits" % [Engine.get_frames_drawn(), duel.rows.size(), hits])
-	t._check(duel.rows.size() >= 10, "they fought (%d exchanges)" % duel.rows.size())
+	t._check(duel.rows.size() >= int(length / 4.5), "they fought (%d exchanges in %.0f s)" % [duel.rows.size(), length])
 	for id in ["mika", "luna"]:
 		duel.wp.sheathe(id)
 	await t._wait(0.5)

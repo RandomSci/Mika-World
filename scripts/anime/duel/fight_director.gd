@@ -787,6 +787,16 @@ func shot_cam(kind: String, who: String, u: float, len_: float, o: Dictionary) -
 			var dirb := (perp * flb + ax * 0.5 + up * 0.15).normalized()
 			var pb := at_b + dirb * lerpf(1.25, 0.95, e)
 			return {"pos": pb, "look": at_b, "fov": 34.0, "focus": at_b, "far": 0.45, "amount": 0.14, "exposure": 0.85}
+		"clash":
+			# a paired exchange's contact (2026-10-20): both bodies and the blades in a medium shot on the point between
+			# their chests, 55 deg off their line, pushing in through the hit stop (the blade close-up framed empty
+			# ground or a skirt when the glaive's tip was 2 m out)
+			var at_c: Vector3 = o.get("at", chest(a))
+			var flc := float(o.get("flip", 1.0))
+			var dist_c := float(o.get("dist", 2.4))
+			var dirc := (perp * flc + ax * 0.35 + up * 0.18).normalized()
+			var pc := at_c + dirc * lerpf(dist_c * 1.12, dist_c, e)
+			return {"pos": pc, "look": at_c, "fov": 42.0, "focus": at_c, "far": 1.2, "amount": 0.1, "exposure": 0.9}
 		"feet":
 			# low beside her feet as she dashes (the references cut to the feet on a dash)
 			var gf := pos(a)

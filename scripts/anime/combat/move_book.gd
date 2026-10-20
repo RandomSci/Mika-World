@@ -51,6 +51,26 @@ const MOVES := {
 		"hits": [0.45, 0.62], "dmg": 7.0, "travel": 0.8, "knock": 2.6, "fx": "ring_slash"},
 	"spike_line": {"clip": "ml_cast_two_hand_blast", "seg": [0.10, 0.75], "speed": 1.3, "kind": "ranged", "tier": 3, "range": [3.0, 12.0], "stam": 20,
 		"hits": [0.62], "dmg": 12.0, "travel": -0.3, "launch": 1.6, "fx": "spikes"},
+	# ------------------------------------------------------------------ suit mocap (2026-10-20: Mixamo and UAL are the
+	# fight's body; the Move Library video clips stay for hand signs, gestures and ultimate poses)
+	"rapier_thrust": {"clip": "ualf:Sword_Attack", "seg": [0.0, 1.0], "speed": 1.0, "kind": "dash", "tier": 1, "range": [1.5, 3.6], "stam": 10,
+		"hits": [0.267], "dmg": 7.0, "travel": 1.5, "knock": 0.8, "fx": "jab"},
+	"rapier_combo": {"clip": "ualf:Sword_Regular_Combo", "seg": [0.0, 1.0], "speed": 1.0, "kind": "melee", "tier": 1, "range": [1.2, 4.0], "stam": 14,
+		"hits": [0.078, 0.244, 0.411, 0.522], "dmg": 3.5, "travel": 2.3, "knock": 0.5, "fx": "jab"},
+	"rapier_dash": {"clip": "ualf:Sword_Dash", "seg": [0.0, 1.0], "speed": 1.0, "kind": "dash", "tier": 2, "range": [2.5, 5.5], "stam": 14,
+		"hits": [0.216], "dmg": 9.0, "travel": 3.7, "knock": 1.2, "fx": "slide"},
+	"heavy_combo": {"clip": "ualf:Sword_Heavy_Combo", "seg": [0.0, 1.0], "speed": 1.0, "kind": "melee", "tier": 3, "range": [1.2, 6.0], "stam": 22,
+		"hits": [0.108, 0.269, 0.423, 0.6], "dmg": 5.0, "travel": 5.3, "knock": 2.4, "down": true, "fx": "ring_slash"},
+	"glaive_cleave": {"clip": "sword:great_sword_slash_4", "seg": [0.0, 1.0], "speed": 1.0, "kind": "melee", "tier": 1, "range": [1.8, 3.6], "stam": 10,
+		"hits": [0.426], "dmg": 7.0, "travel": 1.0, "knock": 1.0, "fx": "crescent"},
+	"glaive_triple": {"clip": "sword:great_sword_slash_2", "seg": [0.0, 1.0], "speed": 1.0, "kind": "melee", "tier": 2, "range": [2.0, 5.5], "stam": 16,
+		"hits": [0.217, 0.472, 0.745], "dmg": 5.0, "travel": 2.9, "knock": 1.6, "fx": "crescent_big"},
+	"hook": {"clip": "ualf:Melee_Hook", "seg": [0.0, 1.0], "speed": 1.0, "kind": "melee", "tier": 1, "range": [0.0, 1.6], "stam": 8,
+		"hits": [0.583], "dmg": 5.0, "travel": 0.3, "knock": 0.8, "fx": "jab"},
+	"duck": {"clip": "sword:great_sword_crouching_4", "seg": [0.0, 1.0], "speed": 1.0, "kind": "dodge", "tier": 0, "range": [0.0, 99.0], "stam": 5,
+		"travel": 0.0, "fx": ""},
+	"jump_over": {"clip": "sword:great_sword_jump_2", "seg": [0.0, 1.0], "speed": 1.0, "kind": "dodge", "tier": 0, "range": [0.0, 99.0], "stam": 7,
+		"travel": 0.0, "lift": 0.6, "fx": "ghosts"},
 	# ------------------------------------------------------------------ defence and movement
 	"dodge_left": {"clip": "ml_dodge_left", "seg": [0.12, 0.78], "speed": 1.7, "kind": "dodge", "tier": 0, "range": [0.0, 99.0], "stam": 8,
 		"travel": "side_l", "dist": 2.4, "fx": "ghosts"},
@@ -62,7 +82,7 @@ const MOVES := {
 		"travel": "side_r", "dist": 3.4, "fx": "ghosts"},
 	"jump_away": {"clip": "lift_off", "seg": [0.25, 1.0], "speed": 1.4, "kind": "jump", "tier": 0, "range": [0.0, 99.0], "stam": 10,
 		"travel": -3.6, "lift": 1.8, "fx": "ghosts"},
-	"block": {"clip": "ml_block_high", "seg": [0.15, 0.7], "speed": 1.2, "kind": "block", "tier": 0, "range": [0.0, 99.0], "stam": 5, "fx": "shield"},
+	"block": {"clip": "ualf:Sword_Block", "seg": [0.0, 0.8], "speed": 1.0, "kind": "block", "tier": 0, "range": [0.0, 99.0], "stam": 5, "fx": "shield"},
 	"parry": {"clip": "ml_parry_counter", "seg": [0.08, 0.86], "speed": 1.45, "kind": "parry", "tier": 0, "range": [0.0, 2.6], "stam": 12,
 		"hits": [0.62], "dmg": 9.0, "travel": 0.6, "knock": 2.0, "fx": "parry"},
 	"charge": {"clip": "ml_charge_up", "seg": [0.1, 0.9], "speed": 1.2, "kind": "charge", "tier": 0, "range": [5.0, 99.0], "stam": -30, "fx": "aura"},
@@ -73,8 +93,9 @@ const MOVES := {
 const ULTIMATE := {"clip": "ml_finisher_combo", "seg": [0.05, 0.95], "speed": 1.0, "charge_clip": "ml_charge_up"}
 
 ## Reactions when hit (chosen by the hit, never by the brain).
-const REACT := {"light": ["ml_hit_light", 0.15, 0.75, 1.6], "heavy": ["ml_hit_heavy_stagger", 0.1, 0.8, 1.35],
-	"down": ["ml_knockdown_getup", 0.08, 0.92, 1.65], "air": ["lift_off", 0.2, 0.9, 1.0], "land": ["land_soft", 0.0, 1.0, 1.2]}
+## (2026-10-20: the suit mocap's hits and knock-back)
+const REACT := {"light": ["ualf:Hit_Chest", 0.0, 1.0, 1.0], "heavy": ["ualf:Idle_Shield_Break", 0.0, 1.0, 1.0],
+	"down": ["ualf:Hit_Knockback", 0.0, 1.0, 1.0], "air": ["lift_off", 0.2, 0.9, 1.0], "land": ["land_soft", 0.0, 1.0, 1.2]}
 
 ## Locomotion loops between moves.
 const LOCO := {"run": "run", "jog": "jog", "strafe_l": "sword:great_sword_strafe", "strafe_r": "sword:great_sword_strafe_2",

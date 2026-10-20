@@ -11,7 +11,12 @@ extends SkeletonModifier3D
 
 const SWORD_DIR := "res://assets/animations/mixamo_sword/"
 const UAL := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_rest": "res://assets/animations/ual/ual_rest.glb",
-	"ual_react": "res://assets/animations/ual/ual_react.glb"}
+	"ual_react": "res://assets/animations/ual/ual_react.glb", "ualf": "res://assets/animations/ual/ual_fight.glb"}
+const MIXAMO_DIR := "res://assets/animations/mixamo/"
+## (2026-10-20, Selwyn: suit mocap is the fight's body) UAL's root motion, read from its _RM export (the clips in
+## ual_fight.glb are the in-place ones): clip -> {fps, len, fwd [m per frame], left [m per frame]}
+const UAL_ROOT := "res://assets/animations/ual/ual_fight_root.json"
+static var _root := {}
 
 static var _ext := {}                    # "sword:x" / "ual:x" -> Animation (shared by both fighters)
 
@@ -42,8 +47,8 @@ static func anim_for(ch: WorldCharacter, clip: String) -> Animation:
 	if _ext.has(clip):
 		return _ext[clip]
 	var a: Animation = null
-	if clip.begins_with("sword:"):
-		var path := SWORD_DIR + clip.trim_prefix("sword:") + ".fbx"
+	if clip.begins_with("sword:") or clip.begins_with("mixamo:"):
+		var path := (SWORD_DIR if clip.begins_with("sword:") else MIXAMO_DIR) + clip.get_slice(":", 1) + ".fbx"
 		if ResourceLoader.exists(path):
 			var src: Node = (load(path) as PackedScene).instantiate()
 			var ap: AnimationPlayer = src.find_child("AnimationPlayer", true, false)
@@ -63,6 +68,42 @@ static func anim_for(ch: WorldCharacter, clip: String) -> Animation:
 		push_warning("[fight] no clip " + clip)
 	_ext[clip] = a
 	return a
+
+
+## The clip's own travel over the ground (root motion) at clip time t, in her frame: x = metres to her left, y = metres
+## forward. UAL clips: their _RM export's root bone; Mixamo clips: the hips' horizontal track (the deck itself keeps
+## the hips on her mark, so this is the travel the fight gives her mark instead).
+static func root_at(ch: WorldCharacter, clip: String, t: float) -> Vector2:
+	if clip.begins_with("ualf:"):
+		if _root.is_empty():
+			var j = JSON.parse_string(FileAccess.get_file_as_string(UAL_ROOT))
+			_root = j if typeof(j) == TYPE_DICTIONARY else {"_none": true}
+		var r: Dictionary = _root.get(clip.get_slice(":", 1), _root.get(clip.get_slice(":", 1) + "_Loop", {}))   # (the import drops "_Loop")
+		if r.is_empty():
+			return Vector2.ZERO
+		var fw: Array = r.fwd
+		var lf: Array = r.left
+		var x := clampf(t * float(r.fps), 0.0, float(fw.size() - 1))
+		var i := int(floor(x))
+		var j2 := mini(i + 1, fw.size() - 1)
+		var u := x - float(i)
+		return Vector2(lerpf(float(lf[i]), float(lf[j2]), u), lerpf(float(fw[i]), float(fw[j2]), u))
+	if clip.begins_with("sword:") or clip.begins_with("mixamo:"):
+		var a := anim_for(ch, clip)
+		if a == null or ch == null:
+			return Vector2.ZERO
+		var sk := ch.skeleton
+		var ti := -1
+		for k in a.get_track_count():
+			if a.track_get_type(k) == Animation.TYPE_POSITION_3D and String(a.track_get_path(k)).get_slice(":", 1) == "Hips":
+				ti = k
+		if ti < 0:
+			return Vector2.ZERO
+		var left := (sk.get_bone_global_rest(sk.find_bone("LeftUpperArm")).origin - sk.get_bone_global_rest(sk.find_bone("RightUpperArm")).origin).normalized()
+		var fwd := left.cross(Vector3.UP).normalized()
+		var dv := (a.position_track_interpolate(ti, clampf(t, 0.0, a.length)) - a.position_track_interpolate(ti, 0.0)) * sk.motion_scale
+		return Vector2(dv.dot(left), dv.dot(fwd))
+	return Vector2.ZERO
 
 
 static func clip_length(ch: WorldCharacter, clip: String) -> float:

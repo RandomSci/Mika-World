@@ -1,0 +1,1809 @@
+{
+ "ualf:Sword_Attack": {
+  "clip": "ualf:Sword_Attack",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "thrust",
+   "lunge",
+   "movement"
+  ],
+  "len": 1.5,
+  "hits": [
+   0.4
+  ],
+  "reach": [
+   1.133
+  ],
+  "travel": 1.5,
+  "hips_low": 0.646,
+  "measured": true
+ },
+ "ualf:Sword_Regular_A": {
+  "clip": "ualf:Sword_Regular_A",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "slash",
+   "light",
+   "combo_start"
+  ],
+  "len": 0.417,
+  "hits": [
+   0.233
+  ],
+  "reach": [
+   1.19
+  ],
+  "travel": 0.83,
+  "hips_low": 0.677,
+  "measured": true
+ },
+ "ualf:Sword_Regular_A_Rec": {
+  "clip": "ualf:Sword_Regular_A_Rec",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "recover"
+  ],
+  "len": 0.958,
+  "hits": [
+   0.333
+  ],
+  "reach": [
+   0.537
+  ],
+  "travel": 0.309,
+  "hips_low": 0.685,
+  "measured": true
+ },
+ "ualf:Sword_Regular_B": {
+  "clip": "ualf:Sword_Regular_B",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "slash",
+   "light",
+   "parry"
+  ],
+  "len": 0.5,
+  "hits": [
+   0.267
+  ],
+  "reach": [
+   0.498
+  ],
+  "travel": -0.045,
+  "hips_low": 0.57,
+  "measured": true
+ },
+ "ualf:Sword_Regular_B_Rec": {
+  "clip": "ualf:Sword_Regular_B_Rec",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "recover"
+  ],
+  "len": 1.0,
+  "hits": [],
+  "reach": [],
+  "travel": 0.37,
+  "hips_low": 0.601,
+  "measured": true
+ },
+ "ualf:Sword_Regular_C": {
+  "clip": "ualf:Sword_Regular_C",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "slash",
+   "heavy",
+   "movement"
+  ],
+  "len": 2.0,
+  "hits": [
+   0.667
+  ],
+  "reach": [
+   1.917
+  ],
+  "travel": 1.556,
+  "hips_low": 0.614,
+  "measured": true
+ },
+ "ualf:Sword_Regular_Combo": {
+  "clip": "ualf:Sword_Regular_Combo",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "combo",
+   "movement"
+  ],
+  "len": 3.0,
+  "hits": [
+   0.233,
+   0.733,
+   1.233,
+   1.567
+  ],
+  "reach": [
+   1.19,
+   1.296,
+   1.74,
+   2.675
+  ],
+  "travel": 2.342,
+  "hips_low": 0.551,
+  "measured": true
+ },
+ "ualf:Sword_Heavy_Combo": {
+  "clip": "ualf:Sword_Heavy_Combo",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "combo",
+   "heavy",
+   "movement",
+   "cinematic"
+  ],
+  "len": 4.333,
+  "hits": [
+   0.467,
+   1.167,
+   1.833,
+   2.6
+  ],
+  "reach": [
+   1.142,
+   1.316,
+   3.28,
+   5.348
+  ],
+  "travel": 5.324,
+  "hips_low": 0.587,
+  "measured": true
+ },
+ "ualf:Sword_Dash": {
+  "clip": "ualf:Sword_Dash",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "attack",
+   "dash",
+   "movement",
+   "cinematic"
+  ],
+  "len": 1.542,
+  "hits": [
+   0.333
+  ],
+  "reach": [
+   3.196
+  ],
+  "travel": 3.692,
+  "hips_low": 0.572,
+  "measured": true
+ },
+ "ualf:Sword_Idle": {
+  "clip": "ualf:Sword_Idle",
+  "source": "Quaternius UAL (CC0)",
+  "category": "sword",
+  "weapon": "rapier",
+  "tags": [
+   "stance",
+   "loop"
+  ],
+  "len": 1.667,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.876,
+  "measured": true
+ },
+ "sword:great_sword_attack": {
+  "clip": "sword:great_sword_attack",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "slash",
+   "light"
+  ],
+  "len": 1.2,
+  "hits": [
+   0.167,
+   0.467
+  ],
+  "reach": [
+   0.16,
+   0.419
+  ],
+  "travel": 0.0,
+  "hips_low": 0.876,
+  "measured": true
+ },
+ "sword:great_sword_slash": {
+  "clip": "sword:great_sword_slash",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "slash"
+  ],
+  "len": 1.267,
+  "hits": [
+   0.6,
+   0.967
+  ],
+  "reach": [
+   0.817,
+   0.434
+  ],
+  "travel": 0.0,
+  "hips_low": 0.846,
+  "measured": true
+ },
+ "sword:great_sword_slash_2": {
+  "clip": "sword:great_sword_slash_2",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "combo",
+   "movement"
+  ],
+  "len": 3.533,
+  "hits": [
+   0.767,
+   1.667,
+   2.633
+  ],
+  "reach": [
+   0.854,
+   1.456,
+   2.448
+  ],
+  "travel": 2.898,
+  "hips_low": 0.819,
+  "measured": true
+ },
+ "sword:great_sword_slash_3": {
+  "clip": "sword:great_sword_slash_3",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "combo",
+   "heavy"
+  ],
+  "len": 1.833,
+  "hits": [
+   0.267,
+   0.567,
+   0.833
+  ],
+  "reach": [
+   0.498,
+   0.277,
+   0.853
+  ],
+  "travel": -0.011,
+  "hips_low": 0.789,
+  "measured": true
+ },
+ "sword:great_sword_slash_4": {
+  "clip": "sword:great_sword_slash_4",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "slash",
+   "movement"
+  ],
+  "len": 1.8,
+  "hits": [
+   0.333,
+   0.767
+  ],
+  "reach": [
+   -0.118,
+   0.751
+  ],
+  "travel": 1.053,
+  "hips_low": 0.896,
+  "measured": true
+ },
+ "sword:great_sword_slash_5": {
+  "clip": "sword:great_sword_slash_5",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "combo",
+   "low"
+  ],
+  "len": 1.433,
+  "hits": [
+   0.4,
+   0.833
+  ],
+  "reach": [
+   0.931,
+   0.93
+  ],
+  "travel": 0.015,
+  "hips_low": 0.489,
+  "measured": true
+ },
+ "sword:great_sword_high_spin_attack": {
+  "clip": "sword:great_sword_high_spin_attack",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "spin",
+   "movement",
+   "cinematic"
+  ],
+  "len": 1.867,
+  "hits": [
+   0.067,
+   0.6,
+   1.1
+  ],
+  "reach": [
+   0.695,
+   1.101,
+   2.518
+  ],
+  "travel": 2.182,
+  "hips_low": 0.896,
+  "measured": true
+ },
+ "sword:great_sword_jump_attack": {
+  "clip": "sword:great_sword_jump_attack",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "aerial",
+   "movement",
+   "cinematic"
+  ],
+  "len": 2.167,
+  "hits": [
+   0.067,
+   0.533,
+   1.067
+  ],
+  "reach": [
+   0.586,
+   0.852,
+   2.314
+  ],
+  "travel": 2.973,
+  "hips_low": 0.859,
+  "measured": true
+ },
+ "sword:great_sword_slide_attack": {
+  "clip": "sword:great_sword_slide_attack",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "slide",
+   "low",
+   "movement"
+  ],
+  "len": 2.133,
+  "hits": [
+   0.2,
+   1.5
+  ],
+  "reach": [
+   1.018,
+   2.738
+  ],
+  "travel": 3.256,
+  "hips_low": 0.187,
+  "measured": true
+ },
+ "sword:standalone_great_sword_slash": {
+  "clip": "sword:standalone_great_sword_slash",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "combo",
+   "movement"
+  ],
+  "len": 3.533,
+  "hits": [
+   0.733,
+   1.667,
+   2.633
+  ],
+  "reach": [
+   0.708,
+   1.456,
+   2.448
+  ],
+  "travel": 2.898,
+  "hips_low": 0.819,
+  "measured": true
+ },
+ "sword:draw_a_great_sword_1": {
+  "clip": "sword:draw_a_great_sword_1",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "draw"
+  ],
+  "len": 0.5,
+  "hits": [],
+  "reach": [],
+  "travel": -0.031,
+  "hips_low": 1.028,
+  "measured": true
+ },
+ "sword:draw_a_great_sword_2": {
+  "clip": "sword:draw_a_great_sword_2",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "draw"
+  ],
+  "len": 0.8,
+  "hits": [],
+  "reach": [],
+  "travel": 0.051,
+  "hips_low": 1.009,
+  "measured": true
+ },
+ "sword:great_sword_power_up": {
+  "clip": "sword:great_sword_power_up",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "charge",
+   "cinematic"
+  ],
+  "len": 3.5,
+  "hits": [],
+  "reach": [],
+  "travel": -0.056,
+  "hips_low": 1.004,
+  "measured": true
+ },
+ "sword:great_sword_idle": {
+  "clip": "sword:great_sword_idle",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "stance",
+   "loop"
+  ],
+  "len": 2.0,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.009,
+  "measured": true
+ },
+ "sword:great_sword_idle_2": {
+  "clip": "sword:great_sword_idle_2",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "stance",
+   "loop"
+  ],
+  "len": 3.7,
+  "hits": [],
+  "reach": [],
+  "travel": -0.012,
+  "hips_low": 0.997,
+  "measured": true
+ },
+ "sword:great_sword_idle_3": {
+  "clip": "sword:great_sword_idle_3",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "stance",
+   "loop"
+  ],
+  "len": 3.667,
+  "hits": [],
+  "reach": [],
+  "travel": 0.002,
+  "hips_low": 1.01,
+  "measured": true
+ },
+ "sword:great_sword_idle_4": {
+  "clip": "sword:great_sword_idle_4",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "stance",
+   "loop"
+  ],
+  "len": 3.767,
+  "hits": [],
+  "reach": [],
+  "travel": 0.004,
+  "hips_low": 1.01,
+  "measured": true
+ },
+ "sword:great_sword_idle_5": {
+  "clip": "sword:great_sword_idle_5",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "stance",
+   "loop"
+  ],
+  "len": 7.567,
+  "hits": [],
+  "reach": [],
+  "travel": 0.002,
+  "hips_low": 1.005,
+  "measured": true
+ },
+ "sword:standalone_great_sword_idle": {
+  "clip": "sword:standalone_great_sword_idle",
+  "source": "Mixamo great sword pack",
+  "category": "sword",
+  "weapon": "glaive",
+  "tags": [
+   "stance",
+   "loop"
+  ],
+  "len": 7.567,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.005,
+  "measured": true
+ },
+ "ualf:Melee_Hook": {
+  "clip": "ualf:Melee_Hook",
+  "source": "Quaternius UAL (CC0)",
+  "category": "melee",
+  "weapon": "",
+  "tags": [
+   "attack",
+   "punch"
+  ],
+  "len": 0.458,
+  "hits": [
+   0.267
+  ],
+  "reach": [
+   0.941
+  ],
+  "travel": 0.341,
+  "hips_low": 0.516,
+  "measured": true
+ },
+ "ualf:Melee_Hook_Rec": {
+  "clip": "ualf:Melee_Hook_Rec",
+  "source": "Quaternius UAL (CC0)",
+  "category": "melee",
+  "weapon": "",
+  "tags": [
+   "recover"
+  ],
+  "len": 0.583,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.648,
+  "measured": true
+ },
+ "ualf:Punch_Jab": {
+  "clip": "ualf:Punch_Jab",
+  "source": "Quaternius UAL (CC0)",
+  "category": "melee",
+  "weapon": "",
+  "tags": [
+   "attack",
+   "punch",
+   "light"
+  ],
+  "len": 0.833,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.976,
+  "measured": true
+ },
+ "ualf:Punch_Cross": {
+  "clip": "ualf:Punch_Cross",
+  "source": "Quaternius UAL (CC0)",
+  "category": "melee",
+  "weapon": "",
+  "tags": [
+   "attack",
+   "punch"
+  ],
+  "len": 1.0,
+  "hits": [
+   0.233
+  ],
+  "reach": [
+   0.477
+  ],
+  "travel": 0.0,
+  "hips_low": 0.984,
+  "measured": true
+ },
+ "ualf:Shield_Dash": {
+  "clip": "ualf:Shield_Dash",
+  "source": "Quaternius UAL (CC0)",
+  "category": "melee",
+  "weapon": "",
+  "tags": [
+   "attack",
+   "charge",
+   "movement"
+  ],
+  "len": 1.083,
+  "hits": [
+   0.067
+  ],
+  "reach": [
+   -0.309
+  ],
+  "travel": 1.0,
+  "hips_low": 0.532,
+  "measured": true
+ },
+ "sword:great_sword_kick": {
+  "clip": "sword:great_sword_kick",
+  "source": "Mixamo great sword pack",
+  "category": "melee",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "kick",
+   "disabled"
+  ],
+  "len": 1.5,
+  "hits": [
+   0.333,
+   1.1
+  ],
+  "reach": [
+   0.344,
+   0.054
+  ],
+  "travel": 0.0,
+  "hips_low": 0.944,
+  "measured": true
+ },
+ "sword:great_sword_kick_2": {
+  "clip": "sword:great_sword_kick_2",
+  "source": "Mixamo great sword pack",
+  "category": "melee",
+  "weapon": "glaive",
+  "tags": [
+   "attack",
+   "kick",
+   "disabled"
+  ],
+  "len": 1.733,
+  "hits": [
+   0.167,
+   0.6
+  ],
+  "reach": [
+   0.4,
+   0.385
+  ],
+  "travel": 0.0,
+  "hips_low": 0.887,
+  "measured": true
+ },
+ "mixamo:standing_1h_magic_attack_03": {
+  "clip": "mixamo:standing_1h_magic_attack_03",
+  "source": "Mixamo",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "one_hand"
+  ],
+  "len": 2.3,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.655,
+  "measured": true
+ },
+ "mixamo:standing_2h_magic_attack_01": {
+  "clip": "mixamo:standing_2h_magic_attack_01",
+  "source": "Mixamo",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "two_hand"
+  ],
+  "len": 2.7,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.816,
+  "measured": true
+ },
+ "mixamo:wide_arm_spell_casting": {
+  "clip": "mixamo:wide_arm_spell_casting",
+  "source": "Mixamo",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "channel"
+  ],
+  "len": 3.533,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.883,
+  "measured": true
+ },
+ "mixamo:prepare_and_cast": {
+  "clip": "mixamo:prepare_and_cast",
+  "source": "Mixamo",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "gather"
+  ],
+  "len": 7.467,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.782,
+  "measured": true
+ },
+ "mixamo:spell_casting": {
+  "clip": "mixamo:spell_casting",
+  "source": "Mixamo",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "channel"
+  ],
+  "len": 4.2,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.741,
+  "measured": true
+ },
+ "ualf:Spell_Simple_Enter": {
+  "clip": "ualf:Spell_Simple_Enter",
+  "source": "Quaternius UAL (CC0)",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "gather"
+  ],
+  "len": 0.5,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.03,
+  "measured": true
+ },
+ "ualf:Spell_Simple_Shoot": {
+  "clip": "ualf:Spell_Simple_Shoot",
+  "source": "Quaternius UAL (CC0)",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "release"
+  ],
+  "len": 0.5,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.028,
+  "measured": true
+ },
+ "ualf:Spell_Simple_Exit": {
+  "clip": "ualf:Spell_Simple_Exit",
+  "source": "Quaternius UAL (CC0)",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "recover"
+  ],
+  "len": 0.417,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.028,
+  "measured": true
+ },
+ "ualf:Spell_Simple_Idle": {
+  "clip": "ualf:Spell_Simple_Idle",
+  "source": "Quaternius UAL (CC0)",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "loop"
+  ],
+  "len": 2.083,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.025,
+  "measured": true
+ },
+ "ualf:OverhandThrow": {
+  "clip": "ualf:OverhandThrow",
+  "source": "Quaternius UAL (CC0)",
+  "category": "magic",
+  "weapon": "",
+  "tags": [
+   "cast",
+   "throw"
+  ],
+  "len": 1.333,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.674,
+  "measured": true
+ },
+ "sword:great_sword_casting": {
+  "clip": "sword:great_sword_casting",
+  "source": "Mixamo great sword pack",
+  "category": "magic",
+  "weapon": "glaive",
+  "tags": [
+   "cast",
+   "weapon"
+  ],
+  "len": 4.8,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.573,
+  "measured": true
+ },
+ "sword:spell_cast": {
+  "clip": "sword:spell_cast",
+  "source": "Mixamo great sword pack",
+  "category": "magic",
+  "weapon": "glaive",
+  "tags": [
+   "cast",
+   "weapon"
+  ],
+  "len": 1.133,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.992,
+  "measured": true
+ },
+ "ualf:Sword_Block": {
+  "clip": "ualf:Sword_Block",
+  "source": "Quaternius UAL (CC0)",
+  "category": "defend",
+  "weapon": "rapier",
+  "tags": [
+   "defend",
+   "block"
+  ],
+  "len": 1.208,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.765,
+  "measured": true
+ },
+ "sword:great_sword_blocking": {
+  "clip": "sword:great_sword_blocking",
+  "source": "Mixamo great sword pack",
+  "category": "defend",
+  "weapon": "glaive",
+  "tags": [
+   "defend",
+   "block"
+  ],
+  "len": 0.5,
+  "hits": [],
+  "reach": [],
+  "travel": -0.019,
+  "hips_low": 0.777,
+  "measured": true
+ },
+ "sword:great_sword_blocking_2": {
+  "clip": "sword:great_sword_blocking_2",
+  "source": "Mixamo great sword pack",
+  "category": "defend",
+  "weapon": "glaive",
+  "tags": [
+   "defend",
+   "block"
+  ],
+  "len": 0.967,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.775,
+  "measured": true
+ },
+ "sword:great_sword_blocking_3": {
+  "clip": "sword:great_sword_blocking_3",
+  "source": "Mixamo great sword pack",
+  "category": "defend",
+  "weapon": "glaive",
+  "tags": [
+   "defend",
+   "block"
+  ],
+  "len": 0.5,
+  "hits": [],
+  "reach": [],
+  "travel": 0.019,
+  "hips_low": 0.777,
+  "measured": true
+ },
+ "ualf:Roll": {
+  "clip": "ualf:Roll",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "roll",
+   "movement"
+  ],
+  "len": 1.458,
+  "hits": [],
+  "reach": [],
+  "travel": 4.991,
+  "hips_low": -0.806,
+  "measured": true
+ },
+ "ualf:NinjaJump_Start": {
+  "clip": "ualf:NinjaJump_Start",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "jump"
+  ],
+  "len": 0.958,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.276,
+  "measured": true
+ },
+ "ualf:NinjaJump_Idle": {
+  "clip": "ualf:NinjaJump_Idle",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "jump",
+   "loop"
+  ],
+  "len": 2.0,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.275,
+  "measured": true
+ },
+ "ualf:NinjaJump_Land": {
+  "clip": "ualf:NinjaJump_Land",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "land"
+  ],
+  "len": 1.25,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.292,
+  "measured": true
+ },
+ "ualf:Slide_Start": {
+  "clip": "ualf:Slide_Start",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "slide",
+   "movement"
+  ],
+  "len": 0.833,
+  "hits": [],
+  "reach": [],
+  "travel": 4.0,
+  "hips_low": 0.087,
+  "measured": true
+ },
+ "ualf:Slide": {
+  "clip": "ualf:Slide",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "slide",
+   "loop"
+  ],
+  "len": 2.0,
+  "hits": [],
+  "reach": [],
+  "travel": 9.0,
+  "hips_low": 0.086,
+  "measured": true
+ },
+ "ualf:Slide_Exit": {
+  "clip": "ualf:Slide_Exit",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "slide"
+  ],
+  "len": 0.5,
+  "hits": [],
+  "reach": [],
+  "travel": 2.0,
+  "hips_low": 0.087,
+  "measured": true
+ },
+ "ualf:Jump_Start": {
+  "clip": "ualf:Jump_Start",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "jump"
+  ],
+  "len": 1.333,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.555,
+  "measured": true
+ },
+ "ualf:Jump_Land": {
+  "clip": "ualf:Jump_Land",
+  "source": "Quaternius UAL (CC0)",
+  "category": "dodge",
+  "weapon": "",
+  "tags": [
+   "dodge",
+   "land"
+  ],
+  "len": 1.25,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.509,
+  "measured": true
+ },
+ "sword:great_sword_jump": {
+  "clip": "sword:great_sword_jump",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "dodge",
+   "jump",
+   "movement"
+  ],
+  "len": 0.633,
+  "hits": [],
+  "reach": [],
+  "travel": 1.594,
+  "hips_low": 0.473,
+  "measured": true
+ },
+ "sword:great_sword_jump_2": {
+  "clip": "sword:great_sword_jump_2",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "dodge",
+   "jump"
+  ],
+  "len": 0.9,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.577,
+  "measured": true
+ },
+ "sword:great_sword_crouching": {
+  "clip": "sword:great_sword_crouching",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "dodge",
+   "duck"
+  ],
+  "len": 0.667,
+  "hits": [],
+  "reach": [],
+  "travel": -0.314,
+  "hips_low": 0.544,
+  "measured": true
+ },
+ "sword:great_sword_crouching_2": {
+  "clip": "sword:great_sword_crouching_2",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "dodge",
+   "duck"
+  ],
+  "len": 0.7,
+  "hits": [],
+  "reach": [],
+  "travel": 0.3,
+  "hips_low": 0.53,
+  "measured": true
+ },
+ "sword:great_sword_crouching_3": {
+  "clip": "sword:great_sword_crouching_3",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "dodge",
+   "duck",
+   "loop"
+  ],
+  "len": 1.833,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.529,
+  "measured": true
+ },
+ "sword:great_sword_crouching_4": {
+  "clip": "sword:great_sword_crouching_4",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "dodge",
+   "duck"
+  ],
+  "len": 0.367,
+  "hits": [],
+  "reach": [],
+  "travel": -0.073,
+  "hips_low": 0.53,
+  "measured": true
+ },
+ "sword:great_sword_crouching_5": {
+  "clip": "sword:great_sword_crouching_5",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "dodge",
+   "duck"
+  ],
+  "len": 1.4,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.555,
+  "measured": true
+ },
+ "sword:great_sword_crouching_6": {
+  "clip": "sword:great_sword_crouching_6",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "dodge",
+   "duck"
+  ],
+  "len": 0.467,
+  "hits": [],
+  "reach": [],
+  "travel": 0.073,
+  "hips_low": 0.53,
+  "measured": true
+ },
+ "sword:great_sword_strafe": {
+  "clip": "sword:great_sword_strafe",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "sidestep",
+   "movement",
+   "loop"
+  ],
+  "len": 1.1,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.897,
+  "measured": true
+ },
+ "sword:great_sword_strafe_2": {
+  "clip": "sword:great_sword_strafe_2",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "sidestep",
+   "movement",
+   "loop"
+  ],
+  "len": 1.167,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.887,
+  "measured": true
+ },
+ "sword:great_sword_strafe_3": {
+  "clip": "sword:great_sword_strafe_3",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "sidestep",
+   "movement",
+   "loop"
+  ],
+  "len": 0.567,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.903,
+  "measured": true
+ },
+ "sword:great_sword_strafe_4": {
+  "clip": "sword:great_sword_strafe_4",
+  "source": "Mixamo great sword pack",
+  "category": "dodge",
+  "weapon": "glaive",
+  "tags": [
+   "sidestep",
+   "movement",
+   "loop"
+  ],
+  "len": 0.633,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.876,
+  "measured": true
+ },
+ "ualf:Hit_Chest": {
+  "clip": "ualf:Hit_Chest",
+  "source": "Quaternius UAL (CC0)",
+  "category": "hit",
+  "weapon": "",
+  "tags": [
+   "hit",
+   "chest",
+   "light"
+  ],
+  "len": 0.333,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.013,
+  "measured": true
+ },
+ "ualf:Hit_Head": {
+  "clip": "ualf:Hit_Head",
+  "source": "Quaternius UAL (CC0)",
+  "category": "hit",
+  "weapon": "",
+  "tags": [
+   "hit",
+   "head",
+   "light"
+  ],
+  "len": 0.417,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.026,
+  "measured": true
+ },
+ "ualf:Idle_Shield_Break": {
+  "clip": "ualf:Idle_Shield_Break",
+  "source": "Quaternius UAL (CC0)",
+  "category": "hit",
+  "weapon": "",
+  "tags": [
+   "hit",
+   "stagger",
+   "guard_break"
+  ],
+  "len": 1.042,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.962,
+  "measured": true
+ },
+ "sword:great_sword_impact": {
+  "clip": "sword:great_sword_impact",
+  "source": "Mixamo great sword pack",
+  "category": "hit",
+  "weapon": "glaive",
+  "tags": [
+   "hit",
+   "light"
+  ],
+  "len": 0.867,
+  "hits": [],
+  "reach": [],
+  "travel": -0.001,
+  "hips_low": 0.771,
+  "measured": true
+ },
+ "sword:great_sword_impact_2": {
+  "clip": "sword:great_sword_impact_2",
+  "source": "Mixamo great sword pack",
+  "category": "hit",
+  "weapon": "glaive",
+  "tags": [
+   "hit"
+  ],
+  "len": 1.2,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.841,
+  "measured": true
+ },
+ "sword:great_sword_impact_3": {
+  "clip": "sword:great_sword_impact_3",
+  "source": "Mixamo great sword pack",
+  "category": "hit",
+  "weapon": "glaive",
+  "tags": [
+   "hit",
+   "heavy"
+  ],
+  "len": 1.267,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.989,
+  "measured": true
+ },
+ "sword:great_sword_impact_4": {
+  "clip": "sword:great_sword_impact_4",
+  "source": "Mixamo great sword pack",
+  "category": "hit",
+  "weapon": "glaive",
+  "tags": [
+   "hit",
+   "low"
+  ],
+  "len": 0.667,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.534,
+  "measured": true
+ },
+ "sword:great_sword_impact_5": {
+  "clip": "sword:great_sword_impact_5",
+  "source": "Mixamo great sword pack",
+  "category": "hit",
+  "weapon": "glaive",
+  "tags": [
+   "hit",
+   "low",
+   "heavy"
+  ],
+  "len": 0.967,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.518,
+  "measured": true
+ },
+ "ualf:Hit_Knockback": {
+  "clip": "ualf:Hit_Knockback",
+  "source": "Quaternius UAL (CC0)",
+  "category": "knockdown",
+  "weapon": "",
+  "tags": [
+   "knockdown",
+   "fall",
+   "movement"
+  ],
+  "len": 0.833,
+  "hits": [],
+  "reach": [],
+  "travel": -3.0,
+  "hips_low": -0.333,
+  "measured": true
+ },
+ "ualf:LayToIdle": {
+  "clip": "ualf:LayToIdle",
+  "source": "Quaternius UAL (CC0)",
+  "category": "knockdown",
+  "weapon": "",
+  "tags": [
+   "get_up"
+  ],
+  "len": 1.5,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.062,
+  "measured": true
+ },
+ "ualf:Death01": {
+  "clip": "ualf:Death01",
+  "source": "Quaternius UAL (CC0)",
+  "category": "knockdown",
+  "weapon": "",
+  "tags": [
+   "knockdown",
+   "finish"
+  ],
+  "len": 2.375,
+  "hits": [],
+  "reach": [],
+  "travel": -0.65,
+  "hips_low": -0.264,
+  "measured": true
+ },
+ "mixamo:standing_react_death_forward": {
+  "clip": "mixamo:standing_react_death_forward",
+  "source": "Mixamo",
+  "category": "knockdown",
+  "weapon": "",
+  "tags": [
+   "knockdown",
+   "finish"
+  ],
+  "len": 3.667,
+  "hits": [],
+  "reach": [],
+  "travel": 1.258,
+  "hips_low": -0.665,
+  "measured": true
+ },
+ "sword:two_handed_sword_death": {
+  "clip": "sword:two_handed_sword_death",
+  "source": "Mixamo great sword pack",
+  "category": "knockdown",
+  "weapon": "glaive",
+  "tags": [
+   "knockdown",
+   "finish"
+  ],
+  "len": 2.4,
+  "hits": [],
+  "reach": [],
+  "travel": -0.796,
+  "hips_low": 0.005,
+  "measured": true
+ },
+ "sword:two_handed_sword_death_2": {
+  "clip": "sword:two_handed_sword_death_2",
+  "source": "Mixamo great sword pack",
+  "category": "knockdown",
+  "weapon": "glaive",
+  "tags": [
+   "knockdown",
+   "finish"
+  ],
+  "len": 2.6,
+  "hits": [],
+  "reach": [],
+  "travel": 1.17,
+  "hips_low": -0.061,
+  "measured": true
+ },
+ "ualf:Walk": {
+  "clip": "ualf:Walk",
+  "source": "Quaternius UAL (CC0)",
+  "category": "locomotion",
+  "weapon": "",
+  "tags": [
+   "walk",
+   "loop"
+  ],
+  "len": 1.333,
+  "hits": [],
+  "reach": [],
+  "travel": 1.3,
+  "hips_low": 0.961,
+  "measured": true
+ },
+ "ualf:Jog_Fwd": {
+  "clip": "ualf:Jog_Fwd",
+  "source": "Quaternius UAL (CC0)",
+  "category": "locomotion",
+  "weapon": "",
+  "tags": [
+   "run",
+   "loop"
+  ],
+  "len": 0.917,
+  "hits": [],
+  "reach": [],
+  "travel": 4.821,
+  "hips_low": 0.668,
+  "measured": true
+ },
+ "ualf:Sprint": {
+  "clip": "ualf:Sprint",
+  "source": "Quaternius UAL (CC0)",
+  "category": "locomotion",
+  "weapon": "",
+  "tags": [
+   "sprint",
+   "loop"
+  ],
+  "len": 0.667,
+  "hits": [],
+  "reach": [],
+  "travel": 5.5,
+  "hips_low": 0.779,
+  "measured": true
+ },
+ "ualf:Crouch_Fwd": {
+  "clip": "ualf:Crouch_Fwd",
+  "source": "Quaternius UAL (CC0)",
+  "category": "locomotion",
+  "weapon": "",
+  "tags": [
+   "crouch",
+   "loop"
+  ],
+  "len": 2.0,
+  "hits": [],
+  "reach": [],
+  "travel": 1.5,
+  "hips_low": 0.495,
+  "measured": true
+ },
+ "ualf:Crouch_Idle": {
+  "clip": "ualf:Crouch_Idle",
+  "source": "Quaternius UAL (CC0)",
+  "category": "locomotion",
+  "weapon": "",
+  "tags": [
+   "crouch",
+   "loop"
+  ],
+  "len": 2.917,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 0.543,
+  "measured": true
+ },
+ "ualf:Idle": {
+  "clip": "ualf:Idle",
+  "source": "Quaternius UAL (CC0)",
+  "category": "locomotion",
+  "weapon": "",
+  "tags": [
+   "idle",
+   "loop"
+  ],
+  "len": 2.5,
+  "hits": [],
+  "reach": [],
+  "travel": 0.0,
+  "hips_low": 1.018,
+  "measured": true
+ },
+ "sword:great_sword_walk": {
+  "clip": "sword:great_sword_walk",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "walk",
+   "loop"
+  ],
+  "len": 1.367,
+  "hits": [],
+  "reach": [],
+  "travel": 1.387,
+  "hips_low": 0.883,
+  "measured": true
+ },
+ "sword:great_sword_walk_2": {
+  "clip": "sword:great_sword_walk_2",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "walk",
+   "back",
+   "loop"
+  ],
+  "len": 1.3,
+  "hits": [],
+  "reach": [],
+  "travel": -1.223,
+  "hips_low": 0.914,
+  "measured": true
+ },
+ "sword:great_sword_run": {
+  "clip": "sword:great_sword_run",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "run",
+   "back",
+   "loop"
+  ],
+  "len": 0.733,
+  "hits": [],
+  "reach": [],
+  "travel": -1.771,
+  "hips_low": 0.922,
+  "measured": true
+ },
+ "sword:great_sword_run_2": {
+  "clip": "sword:great_sword_run_2",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "run",
+   "loop"
+  ],
+  "len": 0.6,
+  "hits": [],
+  "reach": [],
+  "travel": 2.4,
+  "hips_low": 0.828,
+  "measured": true
+ },
+ "sword:great_sword_turn": {
+  "clip": "sword:great_sword_turn",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "turn"
+  ],
+  "len": 0.733,
+  "hits": [],
+  "reach": [],
+  "travel": 0.162,
+  "hips_low": 0.993,
+  "measured": true
+ },
+ "sword:great_sword_turn_2": {
+  "clip": "sword:great_sword_turn_2",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "turn"
+  ],
+  "len": 0.833,
+  "hits": [],
+  "reach": [],
+  "travel": 0.074,
+  "hips_low": 0.985,
+  "measured": true
+ },
+ "sword:great_sword_180_turn": {
+  "clip": "sword:great_sword_180_turn",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "turn"
+  ],
+  "len": 0.8,
+  "hits": [],
+  "reach": [],
+  "travel": -0.013,
+  "hips_low": 0.864,
+  "measured": true
+ },
+ "sword:great_sword_180_turn_2": {
+  "clip": "sword:great_sword_180_turn_2",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "turn"
+  ],
+  "len": 0.567,
+  "hits": [],
+  "reach": [],
+  "travel": 0.219,
+  "hips_low": 0.772,
+  "measured": true
+ },
+ "sword:standalone_great_sword_180_turn": {
+  "clip": "sword:standalone_great_sword_180_turn",
+  "source": "Mixamo great sword pack",
+  "category": "locomotion",
+  "weapon": "glaive",
+  "tags": [
+   "turn"
+  ],
+  "len": 0.567,
+  "hits": [],
+  "reach": [],
+  "travel": 0.219,
+  "hips_low": 0.772,
+  "measured": true
+ }
+}
