@@ -36,8 +36,18 @@ static func run(t) -> void:
 		var fwd := sim._flat(d.pos(other) - d.pos(id)).normalized()
 		var gy := FightDirector.ground_y(d.F[id].c, c0)
 		for view in String(RenderProfile.options.get("views", "hand,front")).split(","):
+			# (2026-10-20, Selwyn: "show me the sword grip close ups ... hand side and front"): a lens of the test's
+			# own locked on her hands every frame, 1 m out on her weapon-hand side or in front of her
+			var cam: Camera3D = null
+			if view in ["grip_side", "grip_front"]:
+				cam = Camera3D.new()
+				cam.fov = 38.0
+				d.main.add_child(cam)
+				cam.make_current()
 			for clip in CLIPS[id]:
-				if view == "hand":
+				if cam:
+					pass
+				elif view == "hand":
 					d.cut(d.ft + 0.001, "hand", id, {"bone": "RightHand"})
 				elif view == "side":
 					d.cut(d.ft + 0.001, "fixed", id, {"pos": c0 - fwd.cross(Vector3.UP) * 2.4 + fwd * 0.4 + Vector3(0, gy - c0.y + 1.15, 0),
@@ -51,7 +61,17 @@ static func run(t) -> void:
 				while sim.t < w0 + maxf(L, 1.2) + 0.2:
 					pp.update()
 					d.F[id].pos = c0
+					if cam:
+						var rh: Vector3 = d.bone(id, "RightHand")             # (her final pose, FightProbe)
+						var lh: Vector3 = d.bone(id, "LeftHand")
+						var mid := rh.lerp(lh, 0.35 if id == "luna" else 0.0)
+						var sd := -fwd.cross(Vector3.UP)                      # her right
+						var off := (sd * 1.0 + fwd * 0.25 + Vector3.UP * 0.12) if view == "grip_side" else (fwd * 1.05 + sd * 0.3 + Vector3.UP * 0.1)
+						cam.global_position = mid + off
+						cam.look_at(mid, Vector3.UP)
 					await t.get_tree().process_frame
+			if cam:
+				cam.queue_free()
 	t._check(true, "holds shown")
 	pp.wp.sheathe("luna")
 	pp.wp.sheathe("mika")

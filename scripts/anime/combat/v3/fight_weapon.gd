@@ -229,7 +229,7 @@ func _place() -> void:
 	grip.hold[side] = hold_w
 	if who in TWO_HANDS:
 		grip.hold["Left" if side == "Right" else "Right"] = hold_w        # (her other hand closes on the hilt too)
-		grip.two = hold_w
+		grip.shaft = {"hand": side, "spread": 0.11 * f.k, "w": hold_w, "diag": true}
 	var sk := f.sk
 	var hb := sk.find_bone(side + "Hand")
 	var mb := sk.find_bone(side + "MiddleProximal")
@@ -253,19 +253,9 @@ func _place() -> void:
 	var at := hand.lerp(mid, 0.55)
 	var ln := length.normalized()
 	var blade := (y * cos(deg_to_rad(BLADE_ANGLE)) + ln * sin(deg_to_rad(BLADE_ANGLE))).normalized()
-	if who in TWO_HANDS:
-		# two hands: the grip runs through both fists (GripPose turns each fist round it); the guard above the upper
-		var other := "Left" if side == "Right" else "Right"
-		var ob := sk.find_bone(other + "Hand")
-		var om := sk.find_bone(other + "MiddleProximal")
-		var o_at: Vector3 = (gx * sk.get_bone_global_pose(ob).origin).lerp(gx * sk.get_bone_global_pose(om).origin, 0.55)
-		var line := at - o_at
-		if line.length() > 0.04:
-			line = line.normalized()
-			if line.dot(blade) < 0.0:
-				line = -line
-				at = o_at
-			blade = line
+	# (two hands, 2026-10-20 after Selwyn's close-ups: the handle through both fists' clip positions left the fingers
+	# curling beside it; now the sword follows her main hand's diagonal grip like Mika's and GripPose.shaft brings
+	# her other fist onto the handle below it, wrapped round it)
 	var z := blade.cross(ln).normalized()
 	if z.length() < 0.5:
 		z = blade.cross(Vector3.UP).normalized()
@@ -274,6 +264,13 @@ func _place() -> void:
 	at += z * 0.012 * f.k
 	var b := Basis(x, y, z).scaled(Vector3.ONE * f.k)
 	global_transform = Transform3D(b, at)
+	if RenderProfile.options.has("grip-qa") and Engine.get_frames_drawn() % 10 == 0:
+		# (QA: each palm's centre against the handle's line, on her final pose)
+		var row := []
+		for sd2 in ["Left", "Right"]:
+			var pc: Vector3 = (gx * sk.get_bone_global_pose(sk.find_bone(sd2 + "Hand")).origin).lerp(gx * sk.get_bone_global_pose(sk.find_bone(sd2 + "MiddleProximal")).origin, 0.55)
+			row.append("%s %.3f" % [sd2, pc.distance_to(Geometry3D.get_closest_point_to_segment(pc, butt_point(), tip_point(0.0)))])
+		print("[gripqa] %s %s palm_to_handle %s" % [who, String(sim.d.F[who].deck.current()) if sim.d.F.has(who) else "", " ".join(row)])
 	_collide()
 	_trail_step()
 
@@ -432,7 +429,7 @@ func sheathe() -> void:
 		var other := "Left" if side == "Right" else "Right"
 		tw.parallel().tween_method(func(v: float):
 			grip.hold[other] = v
-			grip.two = v, hold_w, 0.0, 0.25)
+			grip.shaft.w = v, hold_w, 0.0, 0.25)
 	if real:
 		tw.parallel().tween_property(body, "scale", Vector3.ONE * 0.01, 0.2)
 	else:
