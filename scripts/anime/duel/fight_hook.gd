@@ -22,6 +22,8 @@ static var log: Array = []
 
 ## A chat message: a vote if it carries one of the words. Returns the mode voted for ("" = not a vote).
 static func chat(main: Node, m: Dictionary) -> String:
+	if not StreamFlags.fights():
+		return ""                 # (go live 20 October: fights off)
 	var text := String(m.get("message", m.get("text", ""))).strip_edges().to_lower()
 	var who := String(m.get("author", m.get("user", m.get("name", "viewer"))))
 	var mode := ""
@@ -46,6 +48,8 @@ static func chat(main: Node, m: Dictionary) -> String:
 
 
 static func can_start(main: Node) -> bool:
+	if not StreamFlags.fights():
+		return false
 	if running or Time.get_ticks_msec() - last_end < COOLDOWN_MS:
 		return false
 	if main.get("performance") and main.performance and main.performance.busy():
@@ -55,6 +59,8 @@ static func can_start(main: Node) -> bool:
 
 ## The show asked for a fight (or reports a vote tally). {ok, value?, reason?}
 static func act(main: Node, action: String, args: Dictionary) -> Dictionary:
+	if not StreamFlags.fights():
+		return {}                 # (go live 20 October: fights off)
 	var mode := "duel"
 	match action:
 		"training_fight":
@@ -71,6 +77,8 @@ static func act(main: Node, action: String, args: Dictionary) -> Dictionary:
 
 ## Runs one fight start to finish and puts everything back. Returns the fight's result.
 static func start(main: Node, mode: String) -> Dictionary:
+	if not StreamFlags.fights():
+		return {}                 # (go live 20 October: fights off)
 	if running:
 		return {}
 	running = true
