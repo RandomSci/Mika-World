@@ -15,7 +15,7 @@ extends Node3D
 ##                  capsules (BodyCapsules) every frame: inside her own body or the other girl it turns about the grip
 ##                  to the nearest place that is out (at most 70 deg; four passes); during a strike the other girl's
 ##                  surface may take it 2 cm deep (`strike` true), never more
-##   trail          a ribbon from the blade's middle to its tip while `trail_on` (CombatVFX trail, her colours)
+##   trail          thin GPUTrail ribbons on the tip and down the blade while `trail_on` (_trail_step)
 
 const MODELS := {"mika": "res://assets/weapons/MikaGaleRapier_L20.glb", "luna": "res://assets/weapons/LunaShadowGlaive_L20.glb"}
 const NAMES := {"mika": "Gale Rapier", "luna": "Shadow Glaive"}
@@ -163,18 +163,69 @@ func _place() -> void:
 	var b := Basis(x, y, z).scaled(Vector3.ONE * f.k)
 	global_transform = Transform3D(b, at)
 	_collide()
-	if trail_on and _trail == null:
-		# (the references' weapon arcs: a wide bright ribbon from near the grip to past the tip, a long history)
-		_trail = sim.vfx.trail(func() -> Array: return [tip_point(0.2), tip_point(1.08)] if _alive else [Vector3.ZERO, Vector3.ZERO], who, 9999.0, 3.4, 3.0)
-		if _trail is Dictionary:
-			(_trail as Dictionary)["hist_max"] = 12
-	elif not trail_on and _trail != null:
-		_stop_trail()
+	_trail_step()
+
+
+## The weapon trail (Selwyn 2026-10-20: "thin glowing weapon trails, about 2 to 5 cm wide, fading fast, never a flat
+## rectangle"): a GPUTrail ribbon on the tip and a fainter one a third of the way down the blade, each 3 and 2 cm
+## wide, turned to face the camera every frame, 8 frames long at 30 fps (a quarter second), white hot at the head
+## to her colour and out. Off, it stops emitting and its tail runs out.
+const TRAIL_W := [0.03, 0.02]
+const TRAIL_AT := [1.0, 0.65]
+
+
+func _trail_step() -> void:
+	if _trail == null:
+		if not trail_on:
+			return
+		_trail = []
+		var col := Color(1.0, 0.55, 0.8) if who == "mika" else Color(0.66, 0.42, 1.0)
+		for i in 2:
+			var tr := GPUTrail3D.new()
+			tr.name = "WeaponTrail%d" % i
+			tr.top_level = true
+			sim.d.main.add_child(tr)
+			tr.fixed_fps = 30
+			tr.length = 8
+			var ramp := GradientTexture1D.new()
+			var gr := Gradient.new()
+			gr.set_color(0, Color(col.r, col.g, col.b, 0.0))
+			gr.add_point(0.55, Color(col.r * 1.6, col.g * 1.6, col.b * 1.6, 0.55 if i == 0 else 0.35))
+			gr.set_color(1, Color(2.2, 2.0, 2.2, 0.95 if i == 0 else 0.6))
+			ramp.gradient = gr
+			ramp.use_hdr = true
+			tr.color_ramp = ramp
+			(_trail as Array).append(tr)
+	var cam := get_viewport().get_camera_3d()
+	var tg := (tip_point(1.0) - _tip_prev) if _tip_prev.is_finite() else global_basis.x
+	_tip_prev = tip_point(1.0)
+	for i in (_trail as Array).size():
+		var tr: GPUTrail3D = _trail[i]
+		if not is_instance_valid(tr):
+			continue
+		var p := tip_point(TRAIL_AT[i])
+		# its width across the motion, in the plane facing the camera (never seen edge on, never a flat sheet)
+		var view := (cam.global_position - p).normalized() if cam else Vector3.UP
+		var wdir := tg.cross(view)
+		if wdir.length() < 1e-5:
+			wdir = global_basis.x
+		wdir = wdir.normalized()
+		var xb := wdir.cross(view).normalized()
+		# (off: new segments have no width, so the drawn tail runs out over its 8 frames instead of freezing)
+		var w := float(TRAIL_W[i]) * 0.5 if (trail_on and _alive) else 0.0001
+		tr.global_transform = Transform3D(Basis(xb, wdir * w, view), p)
+
+
+var _tip_prev := Vector3.INF
 
 
 func _stop_trail() -> void:
-	if _trail is Dictionary:
-		(_trail as Dictionary)["left"] = 0.0
+	trail_on = false
+	if _trail is Array:
+		for tr in _trail:
+			if is_instance_valid(tr):
+				var t2 := get_tree().create_timer(0.6)
+				t2.timeout.connect((tr as Node).queue_free)
 	_trail = null
 
 
@@ -189,7 +240,9 @@ func butt_point() -> Vector3:
 	return global_transform * Vector3(0, -float(sp[0]), 0)
 
 
-## The blade out of both bodies: test points along it against the capsules, turn it about the grip toward the way out.
+## The weapon out of both bodies (2026-10-20: the whole length, the shaft below her hand too; the glaive's butt end is
+## 68 cm of shaft): test points along it against the capsules, and turn it about the grip by the turn that takes the
+## deepest point out (the point's own lever: a point below the hand turns the weapon the other way).
 func _collide() -> void:
 	deflect_deg = 0.0
 	contact_other = false
@@ -198,31 +251,38 @@ func _collide() -> void:
 	var oth_caps := _caps(other, false)
 	var g := global_position
 	var start := global_basis
+	var sp: Array = SPAN[who]
+	var local_pts := []
+	for u in [0.35, 0.55, 0.75, 0.95]:
+		local_pts.append(Vector3(0, float(sp[1]) * u, 0))
+	if float(sp[0]) > 0.15:
+		for u in [0.35, 0.65, 1.0]:
+			local_pts.append(Vector3(0, -float(sp[0]) * u, 0))
 	for pass_i in 4:
 		var worst := 0.0
 		var push := Vector3.ZERO
-		var lever := 0.0
-		for u in [0.35, 0.55, 0.75, 0.95]:
-			var p := tip_point(u)
+		var at := Vector3.ZERO
+		for lp in local_pts:
+			var p: Vector3 = global_transform * (lp as Vector3)
 			for set in [[own_caps, 0.0], [oth_caps, -0.02 if strike else 0.0]]:
 				var dp: Array = BodyCapsules.deepest(p, RADIUS * f.k, set[0])
 				var depth := float(dp[0]) + float(set[1])
 				if depth > worst:
 					worst = depth
 					push = (dp[1] as Vector3) * depth
-					lever = p.distance_to(g)
+					at = p
 					if set[0] == oth_caps:
 						contact_other = true
-		if worst <= 0.001 or lever < 0.05:
+		if worst <= 0.001:
 			break
-		var tip := tip_point(1.0)
-		var dir := (tip - g).normalized()
-		var want := (tip - g + push * (tip.distance_to(g) / lever) * 1.15).normalized()
-		var ax := dir.cross(want)
-		if ax.length() < 1e-5:
+		var arm := at - g
+		if arm.length() < 0.05:
 			break
-		var ang := dir.angle_to(want)
-		global_basis = Basis(ax.normalized(), ang) * global_basis
+		var want := arm + push * 1.15
+		var ax := arm.cross(want)
+		if ax.length() < 1e-6:
+			break
+		global_basis = Basis(ax.normalized(), arm.angle_to(want)) * global_basis
 	deflect_deg = rad_to_deg(start.y.normalized().angle_to(global_basis.y.normalized()))
 	if deflect_deg > MAX_DEFLECT:
 		var ax2 := start.y.cross(global_basis.y)

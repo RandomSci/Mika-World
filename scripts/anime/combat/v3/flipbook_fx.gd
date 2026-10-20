@@ -36,6 +36,7 @@ var t := 0.0
 var _frames: Array = []
 var _peak := 1.0
 var stopped := false
+var _fr := 0.0
 
 
 static func enabled() -> bool:
@@ -131,7 +132,8 @@ func _process(delta: float) -> void:
 	var u := clampf(t / dur, 0.0, 1.0)
 	var f0 := float(o.get("f0", 0.0))
 	var f1 := float(o.get("f1", 63.0))
-	var fr := lerpf(f0, f1, u) if not stopped else float(mat.get_shader_parameter("frame"))
+	var fr := lerpf(f0, f1, u) if not stopped else _fr
+	_fr = fr
 	mat.set_shader_parameter("frame", fr)
 	if o.has("roll_fn"):
 		mat.set_shader_parameter("roll", float((o.roll_fn as Callable).call()))

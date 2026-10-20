@@ -536,6 +536,7 @@ func _camera(delta: float) -> void:
 			str(lc.global_position.snappedf(0.01)) if lc else "-", str((-lc.global_basis.z).snappedf(0.01)) if lc else "-",
 			str(pos("mika").snappedf(0.01)), str(pos("luna").snappedf(0.01)), str(bone(String(_shot[2]) if F.has(String(_shot[2])) else "mika", "Head").snappedf(0.01))])
 	_lens.fov = cp.fov
+	_attrs.exposure_multiplier = float(cp.get("exposure", 1.0))
 	_lens.roll = deg_to_rad(float(opts2.get("roll", 0.0))) * (0.7 + 0.3 * sin(u * 1.3))
 	var fd: float = (cp.focus - p).length()
 	_attrs.dof_blur_far_distance = fd + float(cp.far)
@@ -748,15 +749,29 @@ func shot_cam(kind: String, who: String, u: float, len_: float, o: Dictionary) -
 			var eb := "LeftEye" if float(o.get("flip", 1.0)) > 0.0 else "RightEye"
 			var ep: Vector3 = bone(a, eb) if sk_e.find_bone(eb) >= 0 else bone(a, "Head") + up * 0.07 + fa * 0.07 + sa * 0.032
 			var eyp: Vector3 = _sm("eye", ep, 0.5)
-			var p_y := eyp + fa * lerpf(0.34, 0.27, e) + sa * 0.05 + up * 0.005
-			return {"pos": p_y, "look": eyp, "fov": float(o.get("fov", 14.0)), "focus": eyp, "far": 0.08, "amount": 0.22}
+			# 40 deg off her face on the eye's side, a little above; if a hand is near the line from the lens to the eye
+			# (a cast with the hands raised to the face), the other side, then higher (2026-10-20: Mika's opening shot
+			# filmed her sleeve)
+			var p_y := eyp + fa * lerpf(0.3, 0.25, e) + sa * 0.2 * float(o.get("flip", 1.0)) + up * 0.04
+			for tries in 3:
+				var blocked := false
+				for hb2 in ["LeftHand", "RightHand"]:
+					var hp2 := bone(a, hb2)
+					var seg_d := Geometry3D.get_closest_point_to_segment(hp2, eyp, p_y).distance_to(hp2)
+					if seg_d < 0.09:
+						blocked = true
+				if not blocked:
+					break
+				p_y = eyp + fa * 0.27 + sa * 0.2 * float(o.get("flip", 1.0)) * (-1.0 if tries == 0 else 1.0) + up * (0.04 + 0.12 * tries)
+			return {"pos": p_y, "look": eyp, "fov": float(o.get("fov", 16.0)), "focus": eyp, "far": 0.08, "amount": 0.22, "exposure": 0.85}
 		"sign":
 			# an extreme close-up on her two hands forming the sign (the point between them)
 			var hl := bone(a, "LeftHand")
 			var hr := bone(a, "RightHand")
 			var hm: Vector3 = _sm("sign", (hl + hr) * 0.5 + (hl - hr).length() * 0.0 * up, 0.45)
 			var p_s := hm + fa * lerpf(0.62, 0.5, e) + sa * 0.22 + up * 0.06
-			return {"pos": p_s, "look": hm, "fov": float(o.get("fov", 26.0)), "focus": hm, "far": 0.25, "amount": 0.18}
+			# (exposure down: skin, white sleeves and the cast's light burned to white in this close-up)
+			return {"pos": p_s, "look": hm, "fov": float(o.get("fov", 26.0)), "focus": hm, "far": 0.25, "amount": 0.18, "exposure": 0.62}
 		"push":
 			# a fast push-in on her, from a medium shot to her face in the shot's length (the release's held breath)
 			var chp: Vector3 = _sm("ch", chest(a) + up * 0.12, 0.35)
@@ -764,6 +779,21 @@ func shot_cam(kind: String, who: String, u: float, len_: float, o: Dictionary) -
 			var dir_p := (fa + sa * 0.45 - up * 0.12).normalized()
 			var p_p := chp + dir_p * lerpf(float(o.get("from", 3.4)), float(o.get("to", 0.95)), ee2)
 			return {"pos": p_p, "look": chp, "fov": lerpf(44.0, 32.0, ee2), "focus": chp, "far": 0.8, "amount": 0.1}
+		"blade_close":
+			# a close-up on the point where the blades meet or the blade lands (Download(7): the camera on the clash),
+			# 50 deg off the line between them, pushing in through the hit stop
+			var at_b: Vector3 = o.get("at", chest(a))
+			var flb := float(o.get("flip", 1.0))
+			var dirb := (perp * flb + ax * 0.5 + up * 0.15).normalized()
+			var pb := at_b + dirb * lerpf(1.25, 0.95, e)
+			return {"pos": pb, "look": at_b, "fov": 34.0, "focus": at_b, "far": 0.45, "amount": 0.14, "exposure": 0.85}
+		"feet":
+			# low beside her feet as she dashes (the references cut to the feet on a dash)
+			var gf := pos(a)
+			gf.y = (F[a].c as Node3D).global_position.y
+			# (no lag on the feet: at a dash's speed a smoothed lens was left on empty ground)
+			var pf: Vector3 = gf + sa * 1.3 + fa * 0.9 + up * 0.2
+			return {"pos": pf, "look": gf + up * 0.3 + fa * 0.35, "fov": 46.0, "focus": gf, "far": 0.8, "amount": 0.08}
 		"orbit_her":
 			# a low orbit round HER (an ultimate's gather: the sigil and the blades forming round her)
 			var chq: Vector3 = _sm("ch", chest(a), 0.3)

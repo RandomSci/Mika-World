@@ -131,6 +131,12 @@ static func bake(sk: Skeleton3D, json_path: String) -> Animation:
 	for f in frames:
 		var P: Array = f
 		actor_leg = maxf(actor_leg, _v(P, 23).distance_to(_v(P, 25)) + _v(P, 25).distance_to(_v(P, 27)))
+	# her foot's rest angle to her shin (her shoes: about 116 deg barefoot, 141 to 151 in heels)
+	var foot_rest := {}
+	for side in ["Left", "Right"]:
+		if B.call(side + "Toes") >= 0:
+			var a_r: Vector3 = rest_pos.call(side + "Foot")
+			foot_rest[side + "Foot"] = rad_to_deg(((rest_pos.call(side + "LowerLeg") as Vector3) - a_r).angle_to((rest_pos.call(side + "Toes") as Vector3) - a_r))
 	var limb_of := {}
 	for l in limbs:
 		limb_of[l[0]] = l
@@ -193,6 +199,12 @@ static func bake(sk: Skeleton3D, json_path: String) -> Animation:
 						var c := B.call(String(l[1])) as int
 						var to: Vector3 = ((_v(P, LM_LEFT.Index if n.begins_with("Left") else LM_RIGHT.Index) + _v(P, LM_LEFT.Pinky if n.begins_with("Left") else LM_RIGHT.Pinky)) * 0.5) if int(l[3]) < 0 else _v(P, int(l[3]))
 						var aim := F * (to - _v(P, int(l[2])))
+						if n.ends_with("Foot") and foot_rest.has(n):
+							# (2026-10-20) the actor is barefoot, she is in her shoes: the actor's ankle BEND from a
+							# standing foot goes onto her foot from its own rest, not the actor's absolute foot angle
+							# (copied as it was, a heel was pressed flat, toes up 35 to 70 deg inside the shoe)
+							var L3: Dictionary = LM_LEFT if n.begins_with("Left") else LM_RIGHT
+							aim = _foot_aim(aim, F * (_v(P, int(L3.Knee)) - _v(P, int(L3.Ankle))), float(foot_rest[n]))
 						if c >= 0 and aim.length() > 1e-4:
 							var d0 := (sk.get_bone_global_rest(c).origin - sk.get_bone_global_rest(bi).origin).normalized()
 							if HINGE.has(n):
@@ -444,6 +456,20 @@ static func _cost(d: Basis, rest_b: Basis, pg: Basis, prb: Basis, lim: float, le
 	return c
 
 
+## The actor's standing foot to her shin (MediaPipe ankle -> foot index against ankle -> knee): the median of every
+## still, upright frame of the move library (557 frames, 2026-10-20), 101.8 deg.
+const ACTOR_FOOT_NEUTRAL := 101.8
+
+
+## The actor's foot direction turned in the plane of the shin so that the actor's neutral lands on her rest angle:
+## her bend from neutral is the actor's bend from neutral.
+static func _foot_aim(aim: Vector3, up_shin: Vector3, rest_deg: float) -> Vector3:
+	var ax := up_shin.cross(aim)
+	if ax.length() < 1e-6 or aim.length() < 1e-6:
+		return aim
+	return Basis(ax.normalized(), deg_to_rad(rest_deg - ACTOR_FOOT_NEUTRAL)) * aim
+
+
 static func _v(P: Array, i: int) -> Vector3:
 	var a: Array = P[i]
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))
@@ -689,7 +715,7 @@ static func _leg_to(ps: PoseSkel, ids: Array, want: Vector3) -> void:
 ## skeleton (tests/ext/movelib_prebake.gd) into BAKED_DIR/<rest key>/<clip>.res, signed with its sources; at load a
 ## character pulls hers in on background threads. A cache whose sources or bake version changed is never used.
 const BAKED_DIR := "res://assets/animations/movelib_baked/"
-const BAKE_VERSION := 3                  # (bump when the bake itself changes: every cached clip is rebuilt)
+const BAKE_VERSION := 4                  # (bump when the bake itself changes: every cached clip is rebuilt)
 
 
 ## The skeleton's identity for the cache: its bone names and rest transforms (two avatars with the same names but other

@@ -750,8 +750,8 @@ func _limb_target(s: Dictionary, o: Dictionary, atk: Dictionary) -> Vector3:
 
 ## Every big hit (Selwyn 2026-10-20, FX_Cinematic_v1): the impact starburst at the contact, 1 to 1.5 m, played fast.
 func big_hit_fx(at: Vector3, power: float) -> void:
-	FlipbookFX.play(d.main, "fx_impact_starburst", func() -> Vector3: return at, {"size": lerpf(1.0, 1.5, clampf(power, 0.0, 1.0)), "f0": 4.0,
-		"f1": 63.0, "dur": 0.6, "fade_in": 0.02, "fade_out": 0.25, "intensity": 1.5, "light": 3.0, "black_cut": 0.16})
+	FlipbookFX.play(d.main, "fx_impact_starburst", func() -> Vector3: return at, {"size": lerpf(0.8, 1.2, clampf(power, 0.0, 1.0)), "f0": 8.0,
+		"f1": 63.0, "dur": 0.45, "fade_in": 0.02, "fade_out": 0.2, "intensity": 1.2, "light": 3.0, "black_cut": 0.18, "near": 2.0})
 
 
 func _lunge(s: Dictionary, o: Dictionary, dt: float) -> void:

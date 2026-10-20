@@ -98,7 +98,8 @@ func _plan(g0: float, T: float, L: float, shape: String) -> void:
 	d.cut(t0 + T - 0.42, "hero_low", who, {"snap": true, "roll": -4.0})
 	d.cut(t0 + T - 0.16, "push", who, {"snap": true, "from": 3.6, "to": 1.05})
 	d.cut(t0 + T - 0.01, "pullback", who, {"snap": true, "dist": 12.0, "high": 3.8})
-	d.cut(t0 + L + 0.3, "two_mid", who, {"snap": true})
+	# (the aftermath in a medium shot of both: the wide two-shot left two tiny figures in the dark)
+	d.cut(t0 + L + 0.3, "profile", who, {"snap": true})
 	# colour, vignette, the domain
 	sfx.wash2(col[0], col[1], 0.6, 0.35, hold_cast, 0.7)
 	sfx.vignette_hold(0.55, 0.3, hold_cast, 0.5)
@@ -173,8 +174,9 @@ func on_hit(p: Vector3) -> void:
 	_hit_done = true
 	var sfx := sfx_of(d)
 	d.impact(1.0, false)                              # (the hit stop and the shake; the frames are ours)
-	FlipbookFX.play(d.main, "fx_impact_starburst", func() -> Vector3: return p, {"size": 1.8, "f0": 4.0, "f1": 63.0, "dur": 0.6,
-		"fade_in": 0.02, "fade_out": 0.25, "intensity": 1.6, "light": 4.0, "black_cut": 0.16})
+	# (from frame 8 and over 0.4 s: frames 4 to 12 are a white core that bloomed into a lingering white blob)
+	FlipbookFX.play(d.main, "fx_impact_starburst", func() -> Vector3: return p, {"size": 1.6, "f0": 8.0, "f1": 63.0, "dur": 0.4,
+		"fade_in": 0.02, "fade_out": 0.2, "intensity": 1.1, "light": 2.5, "black_cut": 0.18})
 	sfx.flash_seq([["invert_bw", 2], ["burst", 1], ["white", 1]], atan2(1.0, 0.4))
 	sfx.speed_lines(0.9, 0.5, _uv(p), Color(1, 1, 1))
 	sfx.chroma(1.0, 0.4)
@@ -187,7 +189,7 @@ func _flare() -> void:
 	var hl: Vector3 = f.trace.get("LeftHand", f.sk.global_position)
 	var hr: Vector3 = f.trace.get("RightHand", f.sk.global_position)
 	var col: Array = GRADE[who]
-	sfx_of(d).lens_flare(_uv((hl + hr) * 0.5), (col[1] as Color).lerp(col[0], 0.35), 0.7, 0.8)
+	sfx_of(d).lens_flare(_uv((hl + hr) * 0.5), (col[1] as Color).lerp(col[0], 0.35), 0.5, 0.5)
 
 
 func _uv(p: Vector3) -> Vector2:
@@ -329,8 +331,8 @@ func _blades_step(delta: float) -> void:
 				var at: Vector3 = st.to
 				if bursts < 4:
 					bursts += 1
-					FlipbookFX.play(d.main, "mika_petal_burst", func() -> Vector3: return at + Vector3.UP * 0.6, {"size": 2.6, "f0": 11.0,
-						"dur": 1.3, "fade_in": 0.03, "fade_out": 0.5, "intensity": 1.6, "light": 3.0, "black_cut": 0.16})
+					FlipbookFX.play(d.main, "mika_petal_burst", func() -> Vector3: return at + Vector3.UP * 0.6, {"size": 2.2, "f0": 14.0,
+						"dur": 1.2, "fade_in": 0.03, "fade_out": 0.5, "intensity": 1.1, "light": 2.0, "black_cut": 0.18})
 				sim.magic.arts.impact(at + Vector3.UP * 0.3, at.y - 0.05, who, 0.5)
 				var mt: ShaderMaterial = b[1]
 				var tw := mi.create_tween()
@@ -362,11 +364,12 @@ func _ghost_slash() -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var m := ShaderMaterial.new()
 	m.shader = load("res://shaders/magic/ult_glow.gdshader")
-	m.set_shader_parameter("col", Vector3(0.62, 0.38, 1.0))
-	m.set_shader_parameter("hi", Vector3(1.0, 0.86, 0.55))
-	m.set_shader_parameter("intensity", 1.0)
+	# (a violet glow with a white-hot leading edge, the part behind it fading: at an even cream it read flat)
+	m.set_shader_parameter("col", Vector3(0.55, 0.3, 1.0))
+	m.set_shader_parameter("hi", Vector3(0.88, 0.78, 1.0))
+	m.set_shader_parameter("intensity", 2.2)
 	m.set_shader_parameter("reveal", 0.0)
-	m.set_shader_parameter("along_tail", 0.0)
+	m.set_shader_parameter("along_tail", 0.45)
 	mi.material_override = m
 	mi.top_level = true
 	d.main.add_child(mi)
@@ -383,8 +386,11 @@ func _ghost_slash() -> void:
 	# the ghost weapon: her scythe, four times her size, swinging through the arc with it
 	var piv := base + Vector3.UP * (R * 0.15 - R * 0.05)
 	var t_s := sim.t
-	FlipbookFX.play(d.main, "fx_ghost_slash", func() -> Vector3: return piv + Vector3.UP * R * 0.45 + fa * 0.4, {"size": 9.0, "f0": 0.0,
-		"f1": 63.0, "dur": 1.5, "fade_in": 0.03, "fade_out": 0.4, "intensity": 1.6, "light": 5.0, "light_range": 10.0, "black_cut": 0.16,
+	# (the ghost slash sheet a step toward the camera from the arc, so it is drawn over it, not lost behind)
+	var cam_g := d.get_viewport().get_camera_3d()
+	var to_cam := ((cam_g.global_position - (piv + Vector3.UP * R * 0.45)).normalized() * 1.2) if cam_g else Vector3.ZERO
+	FlipbookFX.play(d.main, "fx_ghost_slash", func() -> Vector3: return piv + Vector3.UP * R * 0.45 + fa * 0.4 + to_cam, {"size": 9.0, "f0": 0.0,
+		"f1": 63.0, "dur": 1.4, "fade_in": 0.03, "fade_out": 0.4, "intensity": 2.0, "light": 5.0, "light_range": 10.0, "black_cut": 0.14,
 		"roll_fn": func() -> float: return sim.magic.arts.screen_roll(piv + Vector3.UP * R + fa * 0.5, piv + fa * R * 0.9)})
 	if FlipbookFX.enabled():
 		return
@@ -470,12 +476,39 @@ func _domain_on(dur: float) -> void:
 		tw.parallel().tween_method(func(v: float): m.set_shader_parameter("eclipse", v), 0.0, 1.0, 1.6)
 	tw.tween_interval(maxf(dur - 1.6, 0.5))
 	tw.tween_method(func(v: float): m.set_shader_parameter("realm_k", v), 1.0, 0.0, 0.8)
-	tw.tween_callback(func(): env.sky = saved_sky)
+	tw.tween_callback(func():
+		env.sky = saved_sky
+		# (its light must be recomputed at once: left to its own pace the world stayed nearly black for seconds)
+		if saved_sky:
+			var pm := saved_sky.process_mode
+			saved_sky.process_mode = Sky.PROCESS_MODE_REALTIME
+			get_tree().create_timer(1.5).timeout.connect(func():
+				if is_instance_valid(saved_sky):
+					saved_sky.process_mode = pm))
 	if who == "mika":
 		_petal_fall(dur)
-		_petal_rain(dur)
+		_petal_rain_cards(dur)
 
 
+## The petal rain through Mika's domain (Selwyn 2026-10-20: "several cards at depth in the world ... never one sheet
+## stretched over the screen"): five cards of the petal rain sheet round the fight at 3 to 8 m, at different heights,
+## each facing the camera, with a soft round edge (the sheet itself has none), each at its own pace; with the 3D petals
+## falling over the whole arena (_petal_fall) they give depth.
+func _petal_rain_cards(dur: float) -> void:
+	if not FlipbookFX.enabled():
+		return
+	var c0 := (sim.d.pos(who) + sim.d.pos(other)) * 0.5
+	for i in 5:
+		var ang := TAU * float(i) / 5.0 + 0.4
+		var r := 3.0 + 1.2 * float(i)
+		var at := c0 + Vector3(cos(ang) * r, 2.0 + 0.6 * float(i % 3), sin(ang) * r)
+		var fb := FlipbookFX.play(d.main, "mika_petal_rain", func() -> Vector3: return at, {"size": 5.0 + float(i), "f0": float(i * 9),
+			"f1": float(i * 9 + 50), "dur": dur, "fade_in": 0.6, "fade_out": 0.8, "intensity": 0.75, "light": 0.0, "black_cut": 0.12,
+			"edge_mask": 0.42, "near": 2.5})
+		_nodes.append(fb)
+
+
+## (unused since 2026-10-20: the full-screen sheet looked flat and blurred; kept for a later screen-space version)
 ## The petal rain sheet over the whole screen through Mika's domain (FX_Cinematic_v1 mika_petal_rain: full frame,
 ## no edge fade), added, looping at 16 fps, eased in and out.
 func _petal_rain(dur: float) -> void:

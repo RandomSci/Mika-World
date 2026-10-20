@@ -61,6 +61,35 @@ func _can_cut(urgent := false) -> bool:
 	return sim.t - since >= (0.22 if urgent else MIN_SHOT)
 
 
+var _quiet_since := -99.0                 # the last blade contact (a new exchange after a pause resets with a wide)
+
+
+## A weapon windup (Download(7)): a new exchange after a pause opens wide to set the space; a dash, lunge or run is
+## on her feet then alongside her; anything else from the side or over her shoulder.
+func _weapon_windup(who: String, clip: String) -> void:
+	var spec: Array = WeaponPlay.STRIKES.get(clip, [])
+	var travel := String(spec[5]) if spec.size() > 5 else ""
+	var far := travel == "through" or (travel == "forward" and spec.size() > 6 and float(spec[6]) >= 0.8)
+	var lead := 0.0
+	if sim.t - _quiet_since > 2.5:
+		_cut("wide_low", who, {}, 0.55, "reset " + clip)
+		lead = 0.55
+	var go := func():
+		if sim.t < float(sim.get("cine_hold")):
+			return
+		if far:
+			_cut("feet", who, {}, 0.5, "dash " + clip)
+			sim.at(0.5, func():
+				if sim.t >= float(sim.get("cine_hold")) and cur == "feet":
+					_cut("track", who, {}, 0.7, "dash " + clip))
+		else:
+			_cut(_fresh(["profile", "track", "duo"]), who, {}, 0.7, "windup " + clip)
+	if lead > 0.0:
+		sim.at(lead, go)
+	else:
+		go.call()
+
+
 ## Called by the sim every frame (fight time).
 func update() -> void:
 	if sim.t < float(sim.get("cine_hold")):
@@ -77,7 +106,17 @@ func update() -> void:
 		if oc in ["hit", "block", "parry"] and p != Vector3.INF and _can_cut(true):
 			var by := String(a.by)
 			# (a spell landing is a burst of light: a lens 1 m from it is a white screen, so it is framed from 4.6 m)
-			if bool(a.get("spell", false)) or bool(a.get("weapon", false)):
+			if bool(a.get("weapon", false)):
+				# blade contact: close on the clash or the cut, then the struck girl's face (Download(7))
+				_cut("blade_close", by, {"at": p, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, 0.5, "%s %s" % [oc, a.move])
+				var vs := String(a.get("vs", ""))
+				if oc == "hit" and vs != "":
+					sim.at(0.45, func():
+						if sim.t >= float(sim.get("cine_hold")):
+							_cut("track", vs, {}, 0.6, "reaction"))      # (her recoil alongside her: the face close-up landed behind her hair)
+				_quiet_since = sim.t
+				return
+			if bool(a.get("spell", false)):
 				_cut("impact", by, {"at": p}, HIT_HOLD, "%s %s" % [oc, a.move])
 				return
 			_cut("hit_close", by, {"at": p, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, HIT_HOLD, "%s %s" % [oc, a.move])
@@ -95,7 +134,8 @@ func update() -> void:
 					# (a weapon windup: the side that shows both bodies and the blade's line; over the shoulder put the
 					# other girl's hair over half the frame for a second, Selwyn's spar, 20 October)
 					if String(MoveCatalog.CLIPS.get(String(e[3]), {}).get("cat", "")) == "weapon":
-						k = _fresh(["profile", "wide_low", "track"])
+						_weapon_windup(who, String(e[3]))
+						continue
 					var target_who := who if k != "face_ots" else String(sim.d.F[who].other)
 					_cut(k, target_who, {}, 0.32, "windup " + String(e[3]))
 			"spell", "cast":
@@ -110,6 +150,8 @@ func update() -> void:
 						if sim.t >= float(sim.get("cine_hold")) and cur == "hero_low":
 							if wide:
 								_cut("wide_low", caster, {"k": 1.25, "high": 0.5, "min": 5.0}, 1.0, "release wide")
+							elif sim.has_meta("weapon_play"):
+								_cut("duo", caster, {"k": 1.1}, 0.7, "release")    # (both in frame: behind her looked at the back of a head)
 							else:
 								_cut("behind", caster, {}, 0.7, "release"))
 			"rush":
@@ -129,7 +171,9 @@ func update() -> void:
 	# 3 between exchanges: a wide that does not sit still for long
 	if sim.t >= until and sim.t - since >= NEUTRAL_MAX:
 		var k2 := _fresh(["duo", "wide_low", "orbit"])
+		if sim.has_meta("weapon_play"):
+			k2 = _fresh(["orbit", "profile", "orbit", "track"])      # (a weapon fight: both in frame, the lens always moving)
 		var o2 := {"k": rng.randf_range(0.9, 1.05), "high": rng.randf_range(0.0, 0.4), "min": 3.2}
 		if k2 == "orbit":
 			o2 = {"from": rng.randf_range(10.0, 40.0), "to": rng.randf_range(60.0, 100.0), "r": 4.6}
-		_cut(k2, String(sim.S.keys()[0]), o2, NEUTRAL_MAX, "neutral")
+		_cut(k2, String(sim.S.keys()[rng.randi() % sim.S.size()]), o2, NEUTRAL_MAX, "neutral")

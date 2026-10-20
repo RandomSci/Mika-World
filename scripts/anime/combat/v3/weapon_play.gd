@@ -37,6 +37,11 @@ const GUARD := {
 	"s_weapon_lock": [1.0, "block", 0.0],
 }
 
+const WIND := 0.95                          # s of a strike clip played before its contact
+const AFTER := 0.75                         # and after it
+const GUARD_LEAD := 0.5                     # s of a guard clip before its block frame
+const GUARD_AFTER := 0.6
+
 var sim: MeleeSim
 var weapons := {}                          # id -> FightWeapon
 var defending := {}                        # id -> {kind, from, to}
@@ -96,20 +101,22 @@ func defend(id: String, clip: String, at: float) -> void:
 	if not f.c.has_clip("ml_" + clip):
 		return
 	var L := FightDeck.clip_length(f.c, "ml_" + clip)
-	var start := at - float(g[0])
+	var c0 := maxf(float(g[0]) - GUARD_LEAD, 0.0)
+	var c1 := minf(float(g[0]) + GUARD_AFTER + (1.4 if clip == "r_parry_riposte" else 0.0), L)
+	var start := at - (float(g[0]) - c0)
 	var s: Dictionary = sim.S[id]
 	sim.at(maxf(start - sim.t, 0.0), func():
-		var from := maxf(sim.t - start, 0.0)
-		sim.d.anim(id, "ml_" + clip, from, L, 1.0, 0.1)
+		var from := c0 + maxf(sim.t - start, 0.0)
+		sim.d.anim(id, "ml_" + clip, from, c1, 1.0, 0.1)
 		f.rig_w = 0.0
-		f.play([{"dur": L - from, "ease": "hold", "pose": {}}])
+		f.play([{"dur": c1 - from, "ease": "hold", "pose": {}}])
 		s.state = "defend"
-		s.until = sim.t + L - from
+		s.until = sim.t + c1 - from
 		defending[id] = {"kind": String(g[1]), "from": at - 0.35, "to": at + 0.25}
 		if float(g[2]) > 0.0:
 			var away := sim._flat(sim.d.pos(id) - sim.d.pos(String(sim.d.F[id].other))).normalized()
 			s.glide = {"from": sim.d.pos(id), "to": sim.d.clamp_arena(sim.d.pos(id) + away * float(g[2])), "t": 0.0, "dur": 0.45, "ease": "out"}
-		sim.at(L - from, func():
+		sim.at(c1 - from, func():
 			defending.erase(id)
 			if String(s.state) == "defend":
 				s.state = "free"
@@ -130,8 +137,12 @@ func strike(a: String, b: String, clip: String, speed := 1.0) -> Dictionary:
 	var c_t := float(spec[0])
 	var limb := String(spec[1])
 	var L := FightDeck.clip_length(f.c, "ml_" + clip)
-	var wind := c_t / speed
-	var total := L / speed
+	# (the clip from its windup into the contact and a short follow through, not the actor's idle lead-in: whole 4 s
+	# clips made one exchange every 6 s)
+	var from := maxf(c_t - WIND, 0.0)
+	var c_end := minf(c_t + AFTER, L)
+	var wind := (c_t - from) / speed
+	var total := (c_end - from) / speed
 	var w: FightWeapon = draw(a, "Right" if limb == "rh" else "Left")
 	var m := {"weight": String(spec[3]), "dmg": float(spec[4]), "aim": String(spec[2]) if String(spec[2]) != "area" else "chest",
 		"height": "mid", "recover": 0.4, "knock": 0.6 if String(spec[3]) == "heavy" else 0.3}
@@ -141,7 +152,7 @@ func strike(a: String, b: String, clip: String, speed := 1.0) -> Dictionary:
 	s.state = "attack"
 	s.atk = atk
 	f.move_tag = "weapon:" + clip
-	sim.d.anim(a, "ml_" + clip, 0.0, L, speed, 0.1)
+	sim.d.anim(a, "ml_" + clip, from, c_end, speed, 0.1)
 	f.rig_w = 0.0
 	f.upper_clip = 0.0
 	f.play([{"dur": total, "ease": "hold", "pose": {}}])
@@ -233,9 +244,9 @@ func followup(a: String, b: String, clip: String, delay: float) -> Dictionary:
 func _resolve(a: String, b: String, atk: Dictionary) -> void:
 	if String(atk.outcome) != "":
 		return
+	if not is_instance_valid(atk.weapon):
+		return                                   # (sheathed before the contact: the fight ended)
 	var w: FightWeapon = atk.weapon
-	if not is_instance_valid(w):
-		return
 	var s: Dictionary = sim.S[a]
 	var o: Dictionary = sim.S[b]
 	var of: MeleeFighter = sim.F[b]
@@ -295,8 +306,9 @@ func _resolve(a: String, b: String, atk: Dictionary) -> void:
 			sim.d.impact(0.45 if outcome == "block" else 0.6, false)
 			sim.d.shake(0.3)
 			sim.vfx.impact(at, -dir, b, 0.7, "block")
-			FlipbookFX.play(sim.d.main, "fx_impact_starburst", func() -> Vector3: return at, {"size": 1.0, "f0": 4.0, "f1": 63.0, "dur": 0.45,
-				"fade_in": 0.02, "fade_out": 0.2, "intensity": 1.3, "light": 2.5, "black_cut": 0.16})
+			# (small and quick, fading near the lens: at 1 m in a close-up it filled the frame with a white ball)
+			FlipbookFX.play(sim.d.main, "fx_impact_starburst", func() -> Vector3: return at, {"size": 0.55, "f0": 8.0, "f1": 63.0, "dur": 0.3,
+				"fade_in": 0.02, "fade_out": 0.15, "intensity": 1.0, "light": 2.0, "black_cut": 0.18, "near": 1.6})
 			if outcome == "parry":
 				sim.d.F[a].yaw_extra = 0.35
 				sim.at(0.3, func(): sim.d.F[a].yaw_extra = 0.0)

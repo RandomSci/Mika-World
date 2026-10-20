@@ -431,6 +431,9 @@ func _release_card(c: Dictionary) -> void:
 func impact_card(p: Vector3, who: String, power: float) -> void:
 	if who != "mika" or not FlipbookFX.enabled():
 		return
+	var kit = sim.get("ult_kit")
+	if kit and is_instance_valid(kit) and String(kit.who) == who:
+		return                                        # (her ultimate: the blades' own bursts carry the landing)
 	# (from frame 14 and softer: frames 11 to 13 still carried a white core that bloomed into a white ball)
 	FlipbookFX.play(sim.d.main, "mika_petal_burst", func() -> Vector3: return p, {"size": 2.2 + 1.4 * clampf(power, 0.0, 1.0),
 		"f0": 14.0, "f1": 63.0, "dur": 1.3 + 0.6 * power, "fade_in": 0.04, "fade_out": 0.5, "intensity": 1.4, "light": 3.0 + 2.0 * power,
