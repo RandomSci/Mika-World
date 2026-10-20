@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://d0lnxlopxtdtt"
+path="res://.godot/imported/ShortLance.efkmodel-1d4f6fb7a50a48e1d2597ec84ea16f72.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/Model/ShortLance.efkmodel"
+dest_files=["res://.godot/imported/ShortLance.efkmodel-1d4f6fb7a50a48e1d2597ec84ea16f72.res"]
+
+[params]
+
+compress=true

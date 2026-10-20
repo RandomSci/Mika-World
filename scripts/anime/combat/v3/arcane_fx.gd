@@ -101,7 +101,7 @@ func flood(at: Vector3, who: String, energy := 5.0, rng := 9.0, dur := 0.7) -> v
 	add_child(l)
 	l.global_position = at + Vector3.UP * 1.2
 	var tw := l.create_tween()
-	tw.tween_property(l, "light_energy", energy, 0.06)
+	tw.tween_property(l, "light_energy", energy * 0.35, 0.06)       # (a third: stacked floods whited out the frame)
 	tw.tween_property(l, "light_energy", 0.0, maxf(dur, 0.05)).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 	tw.tween_callback(l.queue_free)
 

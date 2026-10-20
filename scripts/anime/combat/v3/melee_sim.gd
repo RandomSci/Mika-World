@@ -68,7 +68,12 @@ func _setup(director: FightDirector, opts: Dictionary) -> void:
 	ult_pick = opts.get("ult_pick", {})
 	var teams: Dictionary = opts.get("teams", {"mika": 0, "luna": 1})
 	var ids: Array = teams.keys()
-	var gap := float(opts.get("start_gap", 1.2))
+	# (Selwyn 2026-10-20: a long range duel; --duel-melee keeps the old close start for the melee labs)
+	var ranged: bool = not RenderProfile.options.has("duel-melee") and not opts.get("melee", false) and not opts.get("demo", false)
+	var gap := float(opts.get("start_gap", 7.0 if ranged else 1.2))
+	if ranged:
+		mode = "range"
+		mode_until = 0.6
 	for i in ids.size():
 		var id: String = ids[i]
 		var sgn := -1.0 if i == 0 else 1.0
@@ -108,6 +113,8 @@ func _hide_props() -> void:
 func start() -> void:
 	SpellVFX.fight_glow(d.main, true)                # (only magic blooms while they fight)
 	_hide_props()
+	if not demo and RenderProfile.options.has("realm"):                # (opt in: Selwyn wants the surroundings left alone)
+		realm = FightRealm.make(d)
 	for id in S:
 		F[id] = MeleeFighter.make(d, id)
 	set_process(true)
@@ -124,7 +131,9 @@ func run() -> Dictionary:
 var gestures: GestureDirector
 ## The cinematographer (FightCine): cuts timed to the fight; --old-fight-camera keeps the old follow shot.
 var cine: FightCine
-var cine_hold := 0.0                      # fight time until which an ultimate's own cinematic owns the camera
+var cine_hold := 0.0
+## The duel's realm (FightRealm): the world turns into the realm of whoever pushes the fight with big magic.
+var realm: FightRealm                      # fight time until which an ultimate's own cinematic owns the camera
 
 
 func at(dt: float, fn: Callable) -> void:
@@ -221,6 +230,8 @@ func _tick(s: Dictionary, dt: float) -> void:
 	var fwd := to_o / maxf(dist, 0.001)
 	var side := fwd.cross(Vector3.UP)
 	s.stam = minf(float(s.stam) + dt * 9.0, 100.0)
+	# (her magic comes back: at range fast enough for a big spell every 2 to 3 s; up close slowly)
+	s.energy = minf(float(s.get("energy", 100.0)) + dt * (8.0 if mode == "range" else 3.0), 100.0)
 	# she sees a windup (only after it started, 0.10 - 0.20 s later)
 	var th: Dictionary = s.threat
 	if not th.is_empty() and not th.get("seen", false) and t >= float(th.perceive_at) and String(th.outcome) == "":
@@ -234,7 +245,7 @@ func _tick(s: Dictionary, dt: float) -> void:
 		_lunge(s, o, dt)
 	match String(s.state):
 		"free":
-			if (demo and not footwork) or (magic and magic.performing(String(s.id))):
+			if (demo and not footwork) or (magic and magic.performing(String(s.id))) or (gestures and gestures.busy(String(s.id))):
 				pass                                      # (a gesture clip owns her body: no stepping under it)
 			else:
 				_footwork(s, o, dist, fwd, side, dt)
@@ -249,9 +260,13 @@ func _tick(s: Dictionary, dt: float) -> void:
 					else:
 						_choose_attack(s, o, dist)
 				elif mode == "range" and t >= mode_until:
-					if magic and rng.randf() < 0.7 * float(s.p.get("magic", 1.0)) and _cast_any(s, o, dist, false):
+					# (Selwyn 2026-10-20: the duel is mostly long range, powerful spells and creative escapes; close
+					# exchanges are rare bursts, and the fight travels across the area)
+					if _relocate_due():
+						_relocate()
+					elif magic and rng.randf() < 0.93 * float(s.p.get("magic", 1.0)) and _cast_any(s, o, dist, false):
 						pass
-					elif float(s.p.aggr) + rng.randf() * 0.4 > 0.6:
+					elif float(s.p.aggr) + rng.randf() * 0.4 > 0.85:
 						_rush(s, o)
 		"defend":
 			if t >= float(s.until):
@@ -341,6 +356,8 @@ func _choose_attack(s: Dictionary, o: Dictionary, dist: float) -> void:
 		var m: Dictionary = MeleeBook.MOVES[n]
 		var w := float(base[n])
 		if m.limb in ["lf", "rf"]:
+			if not RenderProfile.options.has("duel-kicks"):
+				continue                             # (Selwyn 2026-10-20: no kicks in the duel)
 			w *= float(s.p.kick)
 		if m.get("separator", false):
 			w *= 4.0 if sep_due else 0.5
@@ -1145,13 +1162,131 @@ func _defend(s: Dictionary, o: Dictionary, kind: String, atk: Dictionary) -> voi
 				s.glide = {"from": d.pos(s.id), "to": d.clamp_arena(d.pos(s.id) - dirv * 0.9 * f.k), "t": 0.0, "dur": rise + 0.14, "ease": "out"}
 				f.skim(rise + 0.16)
 			"sidestep":
-				var sv2 := dirv.cross(Vector3.UP) * sgn
-				s.glide = {"from": d.pos(s.id), "to": d.clamp_arena(d.pos(s.id) + sv2 * 1.0 - dirv * 0.15), "t": 0.0, "dur": rise + 0.14, "ease": "out"}
-				f.skim(rise + 0.16)
+				_spell_evade(s, o, atk, sgn)
 				d.fx.afterimages(f.c, s.id, 3, 0.04)
 			"jump":
 				d.hop(s.id, float(g.lift) * 1.2, 0.5)
 	events.append([snappedf(t, 0.01), "defend", s.id, kind])
+
+
+## A creative escape from a spell (Selwyn 2026-10-20): a real mocap evade (a side dodge, a roll, a back flip, a
+## cartwheel) carrying her 3 to 5 m across the field, sideways to the spell's line, timed late (just before it
+## arrives), afterimages behind her and dust where she leaves and lands.
+const EVADES := [["dodge_left", 0.9, 1.7, 4.2, 0.0], ["roll_dodge", 0.7, 2.0, 3.4, 0.0], ["backflip_evade", 0.9, 1.9, 3.6, 0.0],
+	["cartwheel_evade", 0.8, 1.9, 4.0, 0.0], ["dodge_right", 1.1, 1.9, 4.2, 0.0]]
+
+
+func _spell_evade(s: Dictionary, o: Dictionary, atk: Dictionary, sgn: float) -> void:
+	var f: MeleeFighter = F[s.id]
+	var pick: Array = EVADES[rng.randi() % EVADES.size()]
+	var clip := String(pick[0])
+	if clip == "dodge_left" or clip == "dodge_right":
+		clip = "dodge_left" if sgn > 0.0 else "dodge_right"
+	var dirv := _flat(d.pos(o.id) - d.pos(s.id)).normalized()
+	var sv := dirv.cross(Vector3.UP) * sgn
+	var dist := float(pick[3]) * rng.randf_range(0.85, 1.15)
+	var from_c := float(pick[1])
+	var to_c := float(pick[2])
+	var dur := (to_c - from_c) / 1.1
+	var start := maxf(float(atk.t_hit) - t - dur * 0.55, 0.0)
+	at(start, func():
+		if String(s.state) in ["react", "down"]:
+			return
+		s.state = "defend"
+		s.until = t + dur
+		var to := d.clamp_arena(d.pos(s.id) + sv * dist - dirv * rng.randf_range(0.0, 1.2))
+		s.glide = {"from": d.pos(s.id), "to": to, "t": 0.0, "dur": dur * 0.8, "ease": "out"}
+		if f.c.has_clip("ml_" + clip):
+			d.anim(s.id, "ml_" + clip, from_c, to_c, 1.1, 0.08)
+			f.rig_w = 0.0
+			f.play([{"dur": dur, "ease": "hold", "pose": {}}])
+		else:
+			f.skim(dur * 0.8)
+		if clip == "backflip_evade":
+			d.hop(s.id, 0.9, dur * 0.7)
+		d.fx.afterimages(f.c, s.id, 6, 0.05)
+		vfx.dust(d.pos(s.id), -sv, 22, 1.2)
+		events.append([snappedf(t, 0.01), "evade", s.id, clip])
+		at(dur * 0.8, func(): vfx.dust(d.pos(s.id), sv, 18, 1.0))
+		at(dur, func():
+			if f.rig_w < 0.5 and String(s.state) == "defend":
+				f.replant()
+				f.rig_w = 1.0
+				d.stance(s.id, 0.25)
+			if String(s.state) == "defend":
+				s.state = "free"))
+
+
+## The fight travels (Selwyn 2026-10-20: "change the location frequently, not fixed in that position"): every 7 to 11 s
+## of range play both girls leap and dash to a new part of the area 9 to 16 m away, the arena's centre moving with
+## them; a spot must be on the walkable ground with a clear line from here (no trunk or wall in the way).
+var _next_reloc := 7.0
+
+
+func _relocate_due() -> bool:
+	if RenderProfile.options.has("duel-fixed") or t < _next_reloc:
+		return false
+	for x in S.values():
+		if String(x.state) != "free" or (magic and magic.performing(String(x.id))):
+			return false
+	return true
+
+
+func _relocate() -> void:
+	_next_reloc = t + rng.randf_range(7.0, 11.0)
+	var c: WorldCharacter = (F.values()[0] as MeleeFighter).c
+	var map := c.get_world_3d().navigation_map
+	var space := c.get_world_3d().direct_space_state
+	var best := Vector3.INF
+	for tries in 16:
+		var ang := rng.randf() * TAU
+		var r := rng.randf_range(9.0, 16.0)
+		var want := d.center + Vector3(cos(ang) * r, 0, sin(ang) * r)
+		var p := NavigationServer3D.map_get_closest_point(map, want)
+		if _flat(p - want).length() > 1.5:
+			continue
+		var q := PhysicsRayQueryParameters3D.create(d.center + Vector3.UP * 1.2, p + Vector3.UP * 1.2)
+		if not space.intersect_ray(q).is_empty():
+			continue
+		# room for the duel there: its sides on the ground too
+		var ok := true
+		for k in 4:
+			var a2 := TAU * float(k) / 4.0
+			var side_p := p + Vector3(cos(a2), 0, sin(a2)) * 4.0
+			if _flat(NavigationServer3D.map_get_closest_point(map, side_p) - side_p).length() > 1.2:
+				ok = false
+		if ok:
+			best = p
+			break
+	if best == Vector3.INF:
+		return
+	var old := d.center
+	var tw := d.create_tween()
+	tw.tween_property(d, "center", best, 0.9).set_trans(Tween.TRANS_SINE)
+	var dir := _flat(best - old).normalized()
+	var i := 0
+	for x in S.values():
+		var f: MeleeFighter = F[x.id]
+		var lat := dir.cross(Vector3.UP) * (3.2 if i == 0 else -3.2)
+		var land: Vector3 = best + lat + dir * rng.randf_range(-1.0, 1.0)
+		var delay := 0.12 * float(i)
+		var dur := rng.randf_range(0.8, 1.05)
+		x.state = "dash"
+		at(delay, func():
+			x.glide = {"from": d.pos(x.id), "to": land, "t": 0.0, "dur": dur, "ease": "inout"}
+			d.hop(x.id, rng.randf_range(1.0, 1.8), dur)
+			f.skim(dur)
+			d.fx.afterimages(f.c, x.id, 8, 0.06)
+			vfx.dust(d.pos(x.id), -dir, 24, 1.3))
+		at(delay + dur, func():
+			vfx.dust(d.pos(x.id), dir, 20, 1.1)
+			f.replant()
+			if String(x.state) == "dash":
+				x.state = "free"
+			x.next_at = t + rng.randf_range(0.3, 0.7))
+		i += 1
+	mode_until = t + 1.4
+	events.append([snappedf(t, 0.01), "travel", String(S.keys()[0]), "%.0f m" % _flat(best - old).length()])
 
 
 # ------------------------------------------------------------------------------------------------ phases
@@ -1159,12 +1294,12 @@ func _defend(s: Dictionary, o: Dictionary, kind: String, atk: Dictionary) -> voi
 func _separation(s: Dictionary, o: Dictionary) -> void:
 	exchanges += 1
 	_blows = 0
-	_target_blows = rng.randi_range(3, 6)
+	_target_blows = rng.randi_range(2, 3)
 	mode = "range"
 	mode_until = t + rng.randf_range(0.35, 0.6)
 	var dirv := _flat(d.pos(o.id) - d.pos(s.id)).normalized()
 	for x in [s, o]:
-		x.range_d = rng.randf_range(4.8, 6.2)
+		x.range_d = rng.randf_range(6.5, 9.0)
 		x.next_at = mode_until + rng.randf_range(0.0, 0.25)
 	# the one knocked back pushes off further (a hop back), the kicker hops away too
 	at(0.32, func():
@@ -1252,6 +1387,8 @@ func result() -> Dictionary:
 
 func teardown() -> void:
 	SpellVFX.fight_glow(d.main, false)
+	if realm and is_instance_valid(realm):
+		realm.teardown()
 	for n in _hidden:
 		if is_instance_valid(n):
 			(n as Node3D).visible = true

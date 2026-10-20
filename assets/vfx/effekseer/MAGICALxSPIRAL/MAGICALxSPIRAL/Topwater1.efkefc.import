@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dkyhbdva1q13i"
+path="res://.godot/imported/Topwater1.efkefc-9bfb442f07533cd1884604ca2bfd9271.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Topwater1.efkefc"
+dest_files=["res://.godot/imported/Topwater1.efkefc-9bfb442f07533cd1884604ca2bfd9271.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

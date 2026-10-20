@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://v0sdb5ca0r3"
+path="res://.godot/imported/sakura1.efkefc-4eb4dd77325a48665c04df30d5df29cd.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/HATO01/HATO-Springhascome/Flowersbloom/sakura1.efkefc"
+dest_files=["res://.godot/imported/sakura1.efkefc-4eb4dd77325a48665c04df30d5df29cd.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

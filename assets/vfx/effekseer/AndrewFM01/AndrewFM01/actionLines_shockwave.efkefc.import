@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dpn55vfs8cek5"
+path="res://.godot/imported/actionLines_shockwave.efkefc-fbe17a78b1d91b0ab91e1b837dd6f08f.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/AndrewFM01/AndrewFM01/actionLines_shockwave.efkefc"
+dest_files=["res://.godot/imported/actionLines_shockwave.efkefc-fbe17a78b1d91b0ab91e1b837dd6f08f.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

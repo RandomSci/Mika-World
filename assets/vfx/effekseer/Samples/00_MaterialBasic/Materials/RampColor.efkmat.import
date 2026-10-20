@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://caxl83vwagscd"
+path="res://.godot/imported/RampColor.efkmat-80c938729eaba6b59c4480b774114147.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_MaterialBasic/Materials/RampColor.efkmat"
+dest_files=["res://.godot/imported/RampColor.efkmat-80c938729eaba6b59c4480b774114147.res"]
+
+[params]
+
+compress=true

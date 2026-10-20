@@ -82,7 +82,7 @@ static func run(t) -> void:
 				if not some.is_empty() and not (spell in some):
 					continue
 				var sp: Dictionary = SpellBook.SPELLS[spell]
-				var r: Array = sp.range
+				var r: Array = sp.get("range", [2.0, 4.0])
 				var gap := clampf((float(r[0]) + float(r[1])) * 0.5, float(r[0]) + 0.1, 5.5)
 				await _place(t, d, sim, who, gap, front)
 				for id in sim.S:

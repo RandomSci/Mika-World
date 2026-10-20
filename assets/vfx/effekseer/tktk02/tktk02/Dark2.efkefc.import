@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dsfqh0u836u4g"
+path="res://.godot/imported/Dark2.efkefc-d68c0906f43c26b087e288a55be8f5cd.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk02/tktk02/Dark2.efkefc"
+dest_files=["res://.godot/imported/Dark2.efkefc-d68c0906f43c26b087e288a55be8f5cd.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

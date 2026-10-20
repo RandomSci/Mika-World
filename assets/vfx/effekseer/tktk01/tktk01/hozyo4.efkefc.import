@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dlgrtkpsfo3fx"
+path="res://.godot/imported/hozyo4.efkefc-1033190ad7dae18d326dd4f64dbf4012.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk01/tktk01/hozyo4.efkefc"
+dest_files=["res://.godot/imported/hozyo4.efkefc-1033190ad7dae18d326dd4f64dbf4012.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

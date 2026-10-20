@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://4vkscaxgq4a6"
+path="res://.godot/imported/Flame.efkefc-eb312cf7a717295c50b13216c704f764.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre01/Pierre01/Flame.efkefc"
+dest_files=["res://.godot/imported/Flame.efkefc-eb312cf7a717295c50b13216c704f764.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

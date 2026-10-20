@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://ba1lenj6scj1j"
+path="res://.godot/imported/IcicleBroken.efkefc-0a47e791dcaa12e7ffb1d789549339ad.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/IcicleBroken.efkefc"
+dest_files=["res://.godot/imported/IcicleBroken.efkefc-0a47e791dcaa12e7ffb1d789549339ad.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

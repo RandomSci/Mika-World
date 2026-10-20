@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://cyjm5s8cay643"
+path="res://.godot/imported/Round.efkmodel-22eebfbe91a9c12108d98b77d588c28e.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/02_Tktk03/Parts/Round.efkmodel"
+dest_files=["res://.godot/imported/Round.efkmodel-22eebfbe91a9c12108d98b77d588c28e.res"]
+
+[params]
+
+compress=true

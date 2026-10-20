@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dwh5pcxraonay"
+path="res://.godot/imported/hozyo1.efkefc-e10ba67b00ff71eae1b8e4a526978080.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk01/tktk01/hozyo1.efkefc"
+dest_files=["res://.godot/imported/hozyo1.efkefc-e10ba67b00ff71eae1b8e4a526978080.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

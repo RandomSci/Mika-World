@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dagtp51b7pl1f"
+path="res://.godot/imported/Magic2_fire.efkefc-1c710f8528c6c01df48d5efe0c410274.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Magic2_fire.efkefc"
+dest_files=["res://.godot/imported/Magic2_fire.efkefc-1c710f8528c6c01df48d5efe0c410274.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

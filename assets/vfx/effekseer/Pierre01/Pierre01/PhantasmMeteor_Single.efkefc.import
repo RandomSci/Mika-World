@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://ekhqtjs4xktm"
+path="res://.godot/imported/PhantasmMeteor_Single.efkefc-deb198314e63f725771d09b96e90ae22.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre01/Pierre01/PhantasmMeteor_Single.efkefc"
+dest_files=["res://.godot/imported/PhantasmMeteor_Single.efkefc-deb198314e63f725771d09b96e90ae22.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

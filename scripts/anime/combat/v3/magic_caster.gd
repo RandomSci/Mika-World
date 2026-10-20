@@ -17,6 +17,8 @@ extends RefCounted
 var sim: MeleeSim
 var svfx: SpellVFX
 var afx: ArcaneFX                          # motes, wisps, sigils, billows, volleys, moons, lights
+var arts: PetalArts                        # the petal arts: what the spells look like (PETALS)
+var cvfx: CombatVFX                        # the sparks of the spells (hidden with the old spell look under PETALS)
 var barriers := {}                        # id -> barrier handle while up
 var _perf := {}                           # id -> the gesture she is performing {atk, g, charge, motes, until}
 var log_casts: Array = []                 # QA: [t, id, spell, clip, gather start, release, end] (fight seconds)
@@ -25,8 +27,19 @@ var log_casts: Array = []                 # QA: [t, id, spell, clip, gather star
 static func make(s: MeleeSim) -> MagicCaster:
 	var m := MagicCaster.new()
 	m.sim = s
-	m.svfx = SpellVFX.make(s.vfx.get_parent(), s.vfx)
-	m.afx = ArcaneFX.make(s.vfx.get_parent(), s.vfx, m.svfx)
+	m.cvfx = s.vfx
+	m.arts = PetalArts.make(s)
+	if PETALS:
+		# (Selwyn 2026-10-20: one look, the petal arts; the old spell shapes keep their timing and hits but are not
+		# drawn: their nodes live under hidden parents)
+		m.cvfx = CombatVFX.make(s.vfx.get_parent())
+		m.cvfx.name = "SpellSparksHidden"
+		m.cvfx.visible = false
+	m.svfx = SpellVFX.make(s.vfx.get_parent(), m.cvfx)
+	m.afx = ArcaneFX.make(s.vfx.get_parent(), m.cvfx, m.svfx)
+	if PETALS:
+		m.svfx.visible = false
+		m.afx.visible = false
 	return m
 
 
@@ -92,8 +105,16 @@ func abort(id: String) -> void:
 		svfx.cancel(p.charge)
 	if p.get("motes"):
 		afx.stop(p.motes, 0.3)
+	var st_a = p.get("storm")
+	if st_a and is_instance_valid(st_a):
+		var at_a: Vector3 = hand_point(sim.F[id], "Right")
+		(st_a as PetalStorm).scatter(func() -> Vector3: return at_a, 0.9, 0.8)
+		(st_a as PetalStorm).finish()
 	if p.get("weapon"):
 		svfx.weapon_vanish(p.weapon)
+	var card_a = p.get("card")
+	if card_a and is_instance_valid(card_a):
+		(card_a as FlipbookFX).stop(0.1)
 	_release_body(id)
 
 
@@ -198,13 +219,25 @@ func cast(s: Dictionary, o: Dictionary, name: String, over := {}, opts := {}) ->
 			var c: Vector3 = f.trace.get("UpperChest", p)
 			var v := p - c
 			return v.normalized() if v.length() > 0.05 else sim.d.fwd(who)
-		afx.sigil(src, nrm, who, (0.5 if big else 0.32) * f.k, gather_len + 0.2, 0.12, 6.0 if who == "mika" else 8.0)
-		_perf[who].motes = afx.motes(src, who, 110 if big else 50, 0.55, 0.9 if big else 0.45, "gather", 2.0)
+		if PETALS:
+			# (Selwyn 2026-10-20: the petal technique; no more circles) the storm gathers into her hand
+			var n_g := 3200 if big else 2000
+			if PetalArts.carded(who, String(sp.kind)):
+				n_g = int(n_g * PetalArts.CARD_EXTRA)          # (the video card is the look; the petals an extra layer)
+			var storm := PetalStorm.make(sim.d.main, who, n_g)
+			storm.ground(sim.d.pos(who).y)
+			storm.gather(src, gather_len)
+			_perf[who].storm = storm
+			_perf[who].card = arts.gather_card(who, src, gather_len, big)
+			arts.aura(f, who, gather_len * 0.8, gather_len * 0.2 + 0.1, big)
+		else:
+			afx.sigil(src, nrm, who, (0.5 if big else 0.32) * f.k, gather_len + 0.2, 0.12, 6.0 if who == "mika" else 8.0)
+			_perf[who].motes = afx.motes(src, who, 110 if big else 50, 0.55, 0.9 if big else 0.45, "gather", 2.0)
 		afx.glow(src, who, 4.0 if big else 2.4, 3.5 if big else 2.2, gather_len + 0.25, minf(gather_len * 0.6, 0.5), 0.25)
 		if big:
 			afx.wisps(func() -> Vector3: return f.sk.global_position + Vector3.UP * 1.0 * f.k, who, 1.0, gather_len + 0.4, 4, 3.0)
 			_wind(f.c, Vector3.UP * 0.6 + sim.d.fwd(who) * -0.4, gather_len + 0.3)
-		if sp.get("sigil_drawn", false):
+		if sp.get("sigil_drawn", false) and not PETALS:
 			_drawn_sigil(f, who, g, src)
 		if String(sp.kind) == "array":
 			var ta := GestureBook.at(g, float(g.extra.array)) * k - t_g0
@@ -261,6 +294,13 @@ func _release(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, ch:
 	var of: MeleeFighter = sim.F[o.id]
 	var f: MeleeFighter = sim.F[s.id]
 	var from: Vector3 = src.call()
+	var card0 = _perf.get(String(s.id), {}).get("card")
+	if card0 and is_instance_valid(card0) and not ch.is_empty():
+		(card0 as FlipbookFX).stop(0.12)
+	if sim.realm:
+		var big_r := String(sp.kind) in ["beam", "meteor", "sky", "domain", "eclipse", "pillars", "seal", "rows", "orb", "vortex", "wave"]
+		sim.realm.push(String(s.id), 1.0 if sp.get("ultimate", false) else (0.32 if big_r else 0.14))
+		sim.realm.pulse(1.0 if sp.get("ultimate", false) else (0.7 if big_r else 0.35))
 	var core: MeshInstance3D = svfx.release(ch) if not ch.is_empty() else null
 	if core:
 		svfx._vanish(core, 0.06)
@@ -288,7 +328,7 @@ func _release(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, ch:
 			afx.volley(func() -> Vector3: return (src.call() as Vector3) + Vector3.UP * 0.3 * f.k,
 				func() -> Vector3: return f.sk.global_position, func() -> Vector3: return sim.d.fwd(s.id), who, int(sp.get("n", 12)), hold_v, tgt_fn,
 				func(i: int, p: Vector3):
-					sim.vfx.impact(p, fl, who, 0.5, "hit")
+					cvfx.impact(p, fl, who, 0.5, "hit")
 					afx.motes(p, who, 24, 0.9, 0.08, "burst", 1.6)
 					if not first.done:
 						first.done = true
@@ -325,7 +365,7 @@ func _release(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, ch:
 					var p_i: Vector3 = a_r + dirr * step * float(i + 1) + sd * lane * (0.35 + 0.08 * float(i))
 					sim.at(0.055 * float(i) + (0.025 if lane > 0 else 0.0), func():
 						svfx.crystal_burst(p_i, who, 0.45 + 0.04 * float(i), 6, 0.9 + 0.08 * float(i))
-						sim.vfx.dust(p_i, Vector3.UP, 4, 0.5))
+						cvfx.dust(p_i, Vector3.UP, 4, 0.5))
 			sim.at((dl / step) * 0.055, func():
 				svfx.crystal_burst(b_r, who, 1.1, 16, 1.5)
 				afx.motes(b_r + Vector3.UP * 0.4, who, 140, 1.6, 0.5, "burst", 2.5)
@@ -372,7 +412,7 @@ func _release(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, ch:
 						svfx.crystal_burst(p, who, 0.9, 10, 1.0)
 						afx.shock_ring(p + Vector3.UP * 0.04, Vector3.UP, who, 2.0, 0.35)
 						afx.flood(p, who, 3.0, 5.0, 0.4)
-						sim.vfx.dust(p, Vector3.UP, 10, 0.8)
+						cvfx.dust(p, Vector3.UP, 10, 0.8)
 						sim.d.shake(0.15)
 						if (p - sim.d.pos(o.id)).length() < 1.2:
 							if not first_m.done:
@@ -412,7 +452,7 @@ func _release(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, ch:
 				var spread := (float(i) - float(n_a - 1) * 0.5) * 0.16
 				var to_a := from + (tgt0 - from).rotated(Vector3.UP, spread) if i != n_a / 2 else tgt0
 				svfx.streak(from, func() -> Vector3: return to_a, who, dist_a / float(sp.get("speed", 24.0)), 0.8, func(p: Vector3):
-					sim.vfx.impact(p, fl, who, 0.5, "hit")
+					cvfx.impact(p, fl, who, 0.5, "hit")
 					svfx.crystal_burst(Vector3(p.x, gy, p.z), who, 0.4, 5, 0.6)
 					if not first_a.done and (p - tgt0).length() < 0.6:
 						first_a.done = true
@@ -549,7 +589,7 @@ func _release(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, ch:
 				sim.at(0.5 + 0.16 * float(i), func():
 					var to_e: Vector3 = sim.d.pos(o.id) + Vector3(sim.rng.randf_range(-0.6, 0.6), 0.9, sim.rng.randf_range(-0.6, 0.6))
 					svfx.streak(hang, func() -> Vector3: return to_e, who, 0.18, 0.7, func(p: Vector3):
-						sim.vfx.impact(p, Vector3.DOWN, who, 0.5, "hit")
+						cvfx.impact(p, Vector3.DOWN, who, 0.5, "hit")
 						afx.shock_ring(Vector3(p.x, gy + 0.04, p.z), Vector3.UP, who, 1.0, 0.3)
 						if not first_e.done:
 							first_e.done = true
@@ -577,6 +617,17 @@ func _release(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, ch:
 			var to_x := tgt0
 			atk.locked = to_x
 			svfx.streak(from, func() -> Vector3: return to_x, who, from.distance_to(to_x) / 28.0, 1.0, func(p: Vector3): land.call(p, 0.2))
+	if PETALS:
+		# the look of it: the storm gathered in her hand leaves it in this spell's shape (the last release takes it)
+		var pf: Dictionary = _perf.get(who, {})
+		var storm = pf.get("storm") if not ch.is_empty() else null
+		if not ch.is_empty():
+			pf.erase("storm")
+		var locked: Vector3 = atk.get("locked", tgt0)
+		arts.release({"who": who, "kind": String(sp.kind), "src": src, "from": from,
+			"target": func() -> Vector3: return of.trace.get("Chest", sim.d.chest(String(o.id))),
+			"at": locked, "fly": float(atk.get("t_hit", sim.t + 0.5)) - sim.t, "gy": gy, "fl": fl, "side": side, "size": size,
+			"n": int(sp.get("n", 0)) if sp.has("n") else 12, "ult": bool(sp.get("ultimate", false)), "ok": of.k, "storm": storm, "sp": sp})
 
 
 ## Luna's sigil beam: her fingertip draws the circle and its line in the air (the clip's draw window) and the circle
@@ -603,6 +654,11 @@ func _array_open(s: Dictionary, o: Dictionary, src: Callable) -> void:
 	afx.sigil(Vector3(q.x, gy + 0.03, q.z), Vector3.UP, who, 1.4, 1.6, 0.2, 8.0)
 
 
+## The petal arts (Selwyn 2026-10-20, his Bankai reference): every spell is drawn as her petal storm taking the
+## spell's shape (PetalArts); the old spell shapes keep their timing and hits, hidden.
+const PETALS := true
+
+
 ## Her wall (barrier_raise): it forms at her palms at the clip's release frame and widens as her arms spread, held
 ## until the clip ends.
 func _barrier(s: Dictionary, o: Dictionary, sp: Dictionary, t_rel: float, L: float, src: Callable) -> Dictionary:
@@ -614,6 +670,11 @@ func _barrier(s: Dictionary, o: Dictionary, sp: Dictionary, t_rel: float, L: flo
 	var toward := func() -> Vector3: return (sim.F[o.id] as MeleeFighter).trace.get("Chest", sim.d.pos(o.id))
 	var center := func() -> Vector3: return (src.call() as Vector3) + sim.d.fwd(who) * 0.15 * f.k
 	afx.glow(src, who, 2.5, 2.5, t_rel + 0.1, t_rel * 0.7, 0.1)
+	if PETALS:
+		var ws := PetalStorm.make(sim.d.main, who, 2200)
+		var body := func() -> Vector3: return f.trace.get("Chest", sim.d.chest(who))
+		ws.gather(src, maxf(t_rel, 0.3)).shield(body, 0.8 * f.k, maxf(L - t_rel, 0.6) + 0.4).scatter(body, 1.3, 1.0)
+		ws.finish()
 	sim.at(t_rel, func():
 		if not _perf.has(who):
 			return
@@ -657,6 +718,8 @@ func _conjure(s: Dictionary, sp: Dictionary, hand: String) -> Dictionary:
 			b = b.scaled(Vector3(2.4, 2.4, 2.4))
 		return Transform3D(b, gt.origin.lerp(mp, 0.6))
 	var w := svfx.weapon(String(sp.weapon), xf, s.id)
+	if PETALS:
+		(w.root as Node).reparent(svfx.get_parent())          # (the conjured weapon stays drawn: it is in her hand)
 	afx.sigil(func() -> Vector3: return f.trace.get(side + "Hand", f.sk.global_position), func() -> Vector3: return sim.d.fwd(s.id), s.id, 0.3, 0.45, 0.08)
 	afx.motes(func() -> Vector3: return svfx.weapon_tip(w), s.id, 50, 0.7, 0.2, "burst", 1.2)
 	afx.glow(func() -> Vector3: return svfx.weapon_tip(w), s.id, 2.5, 2.5, 1.5, 0.2, 0.4)
@@ -683,6 +746,22 @@ func _weapon(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, rels
 			atk.locked = to_p
 			var dur := from.distance_to(to_p) / float(sp.speed)
 			atk.t_hit = sim.t + dur
+			if PETALS:
+				# the spear flies as one heavy petal comet, the burst at her hand as it leaves
+				var card_t = _perf[who].get("card")
+				if card_t and is_instance_valid(card_t):
+					(card_t as FlipbookFX).stop(0.12)
+				if who == "mika":
+					FlipbookFX.play(sim.d.main, "mika_petal_burst", func() -> Vector3: return from, {"size": 2.0, "f0": 11.0, "dur": 1.3, "fade_in": 0.05,
+						"fade_out": 0.5, "intensity": 1.7, "light": 3.0, "black_cut": 0.16})
+				var st_t = _perf[who].get("storm")
+				_perf[who].erase("storm")
+				if st_t == null or not is_instance_valid(st_t):
+					st_t = PetalStorm.make(sim.d.main, who, 2000)
+				(st_t as PetalStorm).ground(sim.d.pos(o.id).y)
+				(st_t as PetalStorm).comets(func() -> Vector3: return from, func() -> Array: return [Vector4(to_p.x, to_p.y, to_p.z, 0.0)], dur + 0.05, dur, 0.16, 0.15, 0.1)
+				(st_t as PetalStorm).scatter(func() -> Vector3: return to_p, 1.2, 1.0)
+				(st_t as PetalStorm).finish()
 			var core := svfx.body(svfx.crystal(1.4, 0.05, 6, 0.75), who, 3.4)
 			afx.flood(sim.d.pos(who), who, 3.0, 6.0, 0.5)
 			afx.lens_streak(from, who, 2.0, 0.15)
@@ -692,6 +771,21 @@ func _weapon(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, rels
 				_land(s, o, atk, p, 0.25))
 			sim.at(0.3, func(): _done(s, atk)))
 		return
+	if PETALS:
+		# the petals wind round the conjured blade while she fights with it, and fall away when it vanishes
+		var span := float(rels[rels.size() - 1]) - float(rels[0]) + 0.35
+		sim.at(float(rels[0]) - 0.1, func():
+			var st_w = _perf.get(who, {}).get("storm")
+			if st_w == null or not is_instance_valid(st_w):
+				return
+			_perf[who].erase("storm")
+			var side := "Left" if String(s.get("weapon_hand", "rh")) == "lh" else "Right"
+			var w: Dictionary = _perf[who].get("weapon", {})
+			var hand := func() -> Vector3: return f.trace.get(side + "Hand", f.sk.global_position)
+			var tip := func() -> Vector3: return svfx.weapon_tip(w) if not w.is_empty() else (hand.call() as Vector3)
+			(st_w as PetalStorm).stream(hand, tip, span, 0.09, 0.08)
+			(st_w as PetalStorm).scatter(tip, 0.9, 0.9)
+			(st_w as PetalStorm).finish())
 	for i in rels.size():
 		var tr := float(rels[i])
 		sim.at(tr, func():
@@ -713,6 +807,14 @@ func _weapon(s: Dictionary, o: Dictionary, atk: Dictionary, sp: Dictionary, rels
 			afx.stop(afx.motes(func() -> Vector3: return svfx.weapon_tip(w), who, 30, 0.6, 0.05, "drift"), 0.6)
 			sim.vfx.trail(func() -> Array: return [(f.trace.get("RightHand", Vector3.ZERO) as Vector3).lerp(svfx.weapon_tip(w), 0.4), svfx.weapon_tip(w)], who, 0.14, 2.8, 1.0)
 			_blade_touch(s, o, atk, w, i)
+			if PETALS:
+				arts.swing_card(who, tip0.lerp(sh, 0.3), fwd.rotated(Vector3.UP, 0.0).cross(nrm) * (1.0 if i % 2 == 0 else -1.0), big)
+				if i == 0 and who == "mika":
+					var card_w = _perf[who].get("card")
+					if card_w and is_instance_valid(card_w):
+						(card_w as FlipbookFX).stop(0.12)
+					FlipbookFX.play(sim.d.main, "mika_petal_burst", func() -> Vector3: return svfx.weapon_tip(w), {"size": 2.0, "f0": 11.0, "dur": 1.3,
+						"fade_in": 0.05, "fade_out": 0.5, "intensity": 1.7, "light": 3.0, "black_cut": 0.16})
 			if sp.get("wave", false):
 				# the draw cut leaves the blade as a crescent wave along the ground at her
 				var gy := sim.d.pos(o.id).y
@@ -748,6 +850,8 @@ func _land(s: Dictionary, o: Dictionary, atk: Dictionary, p: Vector3, r: float) 
 		atk.outcome = "block"
 		atk.touch = p
 		svfx.barrier_hit(barriers[o.id], p, s.id)
+		if PETALS:
+			arts.impact(p, sim.d.pos(o.id).y, String(s.id), 0.5)
 		sim.d.impact(0.3, false)
 		_log(s, atk, "block", "barrier")
 		return
@@ -762,6 +866,8 @@ func _land(s: Dictionary, o: Dictionary, atk: Dictionary, p: Vector3, r: float) 
 	if best.is_empty():
 		atk.outcome = "miss"
 		svfx.burst_at(p, dir, s.id, 0.4)
+		if PETALS:
+			arts.impact(p, sim.d.pos(o.id).y, String(s.id), 0.35)
 		_log(s, atk, "miss", "")
 		return
 	atk.outcome = "hit"
@@ -773,6 +879,8 @@ func _land(s: Dictionary, o: Dictionary, atk: Dictionary, p: Vector3, r: float) 
 	sim.d.impact(power, false)
 	sim.d.shake(0.3 + power * 0.5)
 	svfx.burst_at(best.point, dir, s.id, power)
+	if PETALS:
+		arts.impact(best.point, sim.d.pos(o.id).y, String(s.id), power)
 	sim.d.face_fx(o.id, "hurt", 1.0, 0.5)
 	sim._interrupt(o)
 	atk.reaction = HitReactions.hit(sim, o, String(best.zone), dir, power, atk.m)

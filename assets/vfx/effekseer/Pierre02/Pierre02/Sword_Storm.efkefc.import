@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cj0asvltn7yl4"
+path="res://.godot/imported/Sword_Storm.efkefc-bbfdeede9caf5b2899d3854c399490c5.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/Sword_Storm.efkefc"
+dest_files=["res://.godot/imported/Sword_Storm.efkefc-bbfdeede9caf5b2899d3854c399490c5.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://bwp0vdimeisn"
+path="res://.godot/imported/gohlem_arm.efkmodel-d7772b5a9fc96d3fddaaf03b5dcea8ae.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Model/gohlem_arm.efkmodel"
+dest_files=["res://.godot/imported/gohlem_arm.efkmodel-d7772b5a9fc96d3fddaaf03b5dcea8ae.res"]
+
+[params]
+
+compress=true

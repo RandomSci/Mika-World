@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://bd3brslv4xuux"
+path="res://.godot/imported/Gohlem_Shield2.efkefc-0ba24f1310f6bbe0aa3ffb4ef7380248.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Gohlem_Shield2.efkefc"
+dest_files=["res://.godot/imported/Gohlem_Shield2.efkefc-0ba24f1310f6bbe0aa3ffb4ef7380248.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

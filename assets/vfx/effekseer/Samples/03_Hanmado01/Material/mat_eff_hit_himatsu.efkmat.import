@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://bj7bj2gujj1vi"
+path="res://.godot/imported/mat_eff_hit_himatsu.efkmat-acffadc51c4c32ddaee38b6a7d1abb7e.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/03_Hanmado01/Material/mat_eff_hit_himatsu.efkmat"
+dest_files=["res://.godot/imported/mat_eff_hit_himatsu.efkmat-acffadc51c4c32ddaee38b6a7d1abb7e.res"]
+
+[params]
+
+compress=true

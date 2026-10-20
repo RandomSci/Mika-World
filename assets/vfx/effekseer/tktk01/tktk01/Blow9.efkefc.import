@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dnjspv8cx3v6j"
+path="res://.godot/imported/Blow9.efkefc-e245545b879f550f7d86e8f1403e624b.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk01/tktk01/Blow9.efkefc"
+dest_files=["res://.godot/imported/Blow9.efkefc-e245545b879f550f7d86e8f1403e624b.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

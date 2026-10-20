@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cbcgekcspk0nk"
+path="res://.godot/imported/HolySandstorm.efkefc-4d6615810161eb59785d4775068c0780.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre01/Pierre01/HolySandstorm.efkefc"
+dest_files=["res://.godot/imported/HolySandstorm.efkefc-4d6615810161eb59785d4775068c0780.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

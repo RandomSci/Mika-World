@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://b8fram2qxtcko"
+path="res://.godot/imported/Sylph3.efkefc-2d4d16e765315b68e9ca61f5372618ef.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Sylph3.efkefc"
+dest_files=["res://.godot/imported/Sylph3.efkefc-2d4d16e765315b68e9ca61f5372618ef.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

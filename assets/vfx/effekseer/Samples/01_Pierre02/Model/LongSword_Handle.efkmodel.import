@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://r5aj1paw0a8s"
+path="res://.godot/imported/LongSword_Handle.efkmodel-e564eb8706df030d090ee49350eec9d5.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/01_Pierre02/Model/LongSword_Handle.efkmodel"
+dest_files=["res://.godot/imported/LongSword_Handle.efkmodel-e564eb8706df030d090ee49350eec9d5.res"]
+
+[params]
+
+compress=true

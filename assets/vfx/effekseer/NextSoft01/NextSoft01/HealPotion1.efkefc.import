@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://d2byigs2noana"
+path="res://.godot/imported/HealPotion1.efkefc-3b1f77cccc334ae5cd13dafca5e1ab95.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/NextSoft01/NextSoft01/HealPotion1.efkefc"
+dest_files=["res://.godot/imported/HealPotion1.efkefc-3b1f77cccc334ae5cd13dafca5e1ab95.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

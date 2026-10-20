@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://ctruavi0kk3qt"
+path="res://.godot/imported/Wind2.efkefc-bfec1f4c9ed834f1b5ac533dd4ed4b30.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk01/tktk01/Wind2.efkefc"
+dest_files=["res://.godot/imported/Wind2.efkefc-bfec1f4c9ed834f1b5ac533dd4ed4b30.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

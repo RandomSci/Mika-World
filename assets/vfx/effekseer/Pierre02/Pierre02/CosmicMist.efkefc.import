@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cyflaovtjnp6g"
+path="res://.godot/imported/CosmicMist.efkefc-5ee610b1eaf80596277bda480ea1c67f.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/CosmicMist.efkefc"
+dest_files=["res://.godot/imported/CosmicMist.efkefc-5ee610b1eaf80596277bda480ea1c67f.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

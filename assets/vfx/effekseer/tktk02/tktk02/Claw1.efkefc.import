@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://bttvb2fhk3vod"
+path="res://.godot/imported/Claw1.efkefc-51d67d1f160681f4169d86d618df78ea.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk02/tktk02/Claw1.efkefc"
+dest_files=["res://.godot/imported/Claw1.efkefc-51d67d1f160681f4169d86d618df78ea.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

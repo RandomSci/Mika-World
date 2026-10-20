@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://bhjdjs7fi7tar"
+path="res://.godot/imported/A_Salamander4.efkefc-ef0109679afc373fdd121db712adb718.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/A_Salamander4.efkefc"
+dest_files=["res://.godot/imported/A_Salamander4.efkefc-ef0109679afc373fdd121db712adb718.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

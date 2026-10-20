@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://lptdauf5u0qx"
+path="res://.godot/imported/AquaPoint.efkefc-53a5df8cdf963aad165238cb9460a72a.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/AquaPoint.efkefc"
+dest_files=["res://.godot/imported/AquaPoint.efkefc-53a5df8cdf963aad165238cb9460a72a.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

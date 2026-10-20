@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://dx7wpxhlggxdm"
+path="res://.godot/imported/ball2.efkmodel-6890a08d619dc477393de87f4197cad2.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Suzuki01/Suzuki01/001_magma_effect/mqo/ball2.efkmodel"
+dest_files=["res://.godot/imported/ball2.efkmodel-6890a08d619dc477393de87f4197cad2.res"]
+
+[params]
+
+compress=true

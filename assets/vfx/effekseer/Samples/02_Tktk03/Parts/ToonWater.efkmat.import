@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://chebsp5jo3y6g"
+path="res://.godot/imported/ToonWater.efkmat-9a43d1195ba3d7699605c37e9901662f.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/02_Tktk03/Parts/ToonWater.efkmat"
+dest_files=["res://.godot/imported/ToonWater.efkmat-9a43d1195ba3d7699605c37e9901662f.res"]
+
+[params]
+
+compress=true

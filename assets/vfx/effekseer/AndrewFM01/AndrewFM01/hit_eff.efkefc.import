@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dhu3glvei20kv"
+path="res://.godot/imported/hit_eff.efkefc-5fcdcd28d4cf70d25f3c105b6623283f.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/AndrewFM01/AndrewFM01/hit_eff.efkefc"
+dest_files=["res://.godot/imported/hit_eff.efkefc-5fcdcd28d4cf70d25f3c105b6623283f.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

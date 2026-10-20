@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://bsfe2adahhuiw"
+path="res://.godot/imported/Wind_Impact.efkefc-6cb76fe0b5a8aaac7733cb3ab170fd2f.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Wind_Impact.efkefc"
+dest_files=["res://.godot/imported/Wind_Impact.efkefc-6cb76fe0b5a8aaac7733cb3ab170fd2f.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

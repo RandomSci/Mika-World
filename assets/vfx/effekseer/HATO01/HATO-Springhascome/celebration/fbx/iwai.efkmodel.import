@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://tdpeq4wvo258"
+path="res://.godot/imported/iwai.efkmodel-96c0821914f4c73b3a86ab40e3708528.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/HATO01/HATO-Springhascome/celebration/fbx/iwai.efkmodel"
+dest_files=["res://.godot/imported/iwai.efkmodel-96c0821914f4c73b3a86ab40e3708528.res"]
+
+[params]
+
+compress=true

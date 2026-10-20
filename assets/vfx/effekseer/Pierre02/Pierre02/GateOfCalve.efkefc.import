@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://be5qrweotfh4f"
+path="res://.godot/imported/GateOfCalve.efkefc-7be258f548f69707762926d5b8d55ac5.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/GateOfCalve.efkefc"
+dest_files=["res://.godot/imported/GateOfCalve.efkefc-7be258f548f69707762926d5b8d55ac5.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

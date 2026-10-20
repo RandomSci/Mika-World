@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://cnnjn0foh53ok"
+path="res://.godot/imported/hane2.efkmodel-6221fb3459ea80e2820d9f25ffad535b.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/HATO01/HATO-Springhascome/Butterfliesflutter/fbx/hane2.efkmodel"
+dest_files=["res://.godot/imported/hane2.efkmodel-6221fb3459ea80e2820d9f25ffad535b.res"]
+
+[params]
+
+compress=true

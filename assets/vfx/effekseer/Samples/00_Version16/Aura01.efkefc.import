@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://chpg81cjjbhmm"
+path="res://.godot/imported/Aura01.efkefc-bbd22531ba11df9fa4762eb785af035c.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_Version16/Aura01.efkefc"
+dest_files=["res://.godot/imported/Aura01.efkefc-bbd22531ba11df9fa4762eb785af035c.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dbvyfg6ymtona"
+path="res://.godot/imported/ToonHit.efkefc-019b528bca00157096267e46bff088c2.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/02_Tktk03/ToonHit.efkefc"
+dest_files=["res://.godot/imported/ToonHit.efkefc-019b528bca00157096267e46bff088c2.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

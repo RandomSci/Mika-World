@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://cc7ud6bnjmuvu"
+path="res://.godot/imported/LongSword_Blade.efkmodel-9725f8148843910e6aebca39b3585358.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/01_Pierre02/Model/LongSword_Blade.efkmodel"
+dest_files=["res://.godot/imported/LongSword_Blade.efkmodel-9725f8148843910e6aebca39b3585358.res"]
+
+[params]
+
+compress=true

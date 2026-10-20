@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cw8sdl2sv62ha"
+path="res://.godot/imported/Sword_Ember.efkefc-2dd321ab1d88961cdfe7ca31562ed8c0.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/Sword_Ember.efkefc"
+dest_files=["res://.godot/imported/Sword_Ember.efkefc-2dd321ab1d88961cdfe7ca31562ed8c0.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

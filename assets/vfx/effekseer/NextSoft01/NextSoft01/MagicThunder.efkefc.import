@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://mmm3oii0e6uu"
+path="res://.godot/imported/MagicThunder.efkefc-565c9931da21e91c70e2e1fdc7034b0a.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/NextSoft01/NextSoft01/MagicThunder.efkefc"
+dest_files=["res://.godot/imported/MagicThunder.efkefc-565c9931da21e91c70e2e1fdc7034b0a.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

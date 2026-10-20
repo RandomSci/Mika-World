@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dcfg0gmr6lqg2"
+path="res://.godot/imported/BloodLance.efkefc-42b5c44ea179e2f9ef45530b9cf1bbaa.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/BloodLance.efkefc"
+dest_files=["res://.godot/imported/BloodLance.efkefc-42b5c44ea179e2f9ef45530b9cf1bbaa.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

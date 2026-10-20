@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://c0ypx0j3ju4tn"
+path="res://.godot/imported/Fire6.efkefc-b265e6bf888ee288647c87d8dcd29d71.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk02/tktk02/Fire6.efkefc"
+dest_files=["res://.godot/imported/Fire6.efkefc-b265e6bf888ee288647c87d8dcd29d71.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

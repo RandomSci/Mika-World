@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cxc5h8qpoyx60"
+path="res://.godot/imported/WHead3.efkefc-d5f8e8d52fc2e0ba42bd2065dfafa74d.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/WHead3.efkefc"
+dest_files=["res://.godot/imported/WHead3.efkefc-d5f8e8d52fc2e0ba42bd2065dfafa74d.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

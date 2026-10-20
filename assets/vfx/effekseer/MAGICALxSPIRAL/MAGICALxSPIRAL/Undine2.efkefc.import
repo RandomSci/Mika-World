@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://ctrrje0yr2n2a"
+path="res://.godot/imported/Undine2.efkefc-58fa53d36fb683ed3b9e9c46f209e5b2.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Undine2.efkefc"
+dest_files=["res://.godot/imported/Undine2.efkefc-58fa53d36fb683ed3b9e9c46f209e5b2.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

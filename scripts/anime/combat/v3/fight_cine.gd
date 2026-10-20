@@ -76,6 +76,10 @@ func update() -> void:
 		var p: Vector3 = a.get("touch", Vector3.INF)
 		if oc in ["hit", "block", "parry"] and p != Vector3.INF and _can_cut(true):
 			var by := String(a.by)
+			# (a spell landing is a burst of light: a lens 1 m from it is a white screen, so it is framed from 4.6 m)
+			if bool(a.get("spell", false)):
+				_cut("impact", by, {"at": p}, HIT_HOLD, "%s %s" % [oc, a.move])
+				return
 			_cut("hit_close", by, {"at": p, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, HIT_HOLD, "%s %s" % [oc, a.move])
 			return
 	# 2 the events: windups, casts, dashes, falls
@@ -94,12 +98,25 @@ func update() -> void:
 				if _can_cut():
 					_cut("hero_low", who, {}, 0.6, "gather " + String(e[3]))
 					var caster := who
+					# (the big forms, spires, a funnel from the sky, a tide, are framed wide at the release to show
+					# their scale; the rest over her shoulder down the line of the spell)
+					var sk := String(SpellBook.SPELLS.get(String(e[3]), {}).get("kind", ""))
+					var wide := sk in ["pillars", "rows", "array", "sky", "seal", "meteor", "eclipse", "domain", "vortex", "wave"]
 					sim.at(0.65, func():
 						if sim.t >= float(sim.get("cine_hold")) and cur == "hero_low":
-							_cut("behind", caster, {}, 0.7, "release"))
+							if wide:
+								_cut("wide_low", caster, {"k": 1.25, "high": 0.5, "min": 5.0}, 1.0, "release wide")
+							else:
+								_cut("behind", caster, {}, 0.7, "release"))
 			"rush":
 				if _can_cut():
 					_cut("track", who, {}, 0.6, "rush")
+			"evade":
+				if _can_cut(true):
+					_cut(_fresh(["track", "wide_low"]), who, {}, 0.55, "evade " + String(e[3]))
+			"travel":
+				if _can_cut(true):
+					_cut("crane", who, {}, 1.1, "travel " + String(e[3]))
 			"knockdown":
 				if _can_cut(true):
 					_cut("crane", who, {}, 1.0, "knockdown")

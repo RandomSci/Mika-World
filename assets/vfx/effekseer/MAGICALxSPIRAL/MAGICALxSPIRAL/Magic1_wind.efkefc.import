@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dm2keomohvhl7"
+path="res://.godot/imported/Magic1_wind.efkefc-cc9a51dd46cdf39993ff2be0355572da.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Magic1_wind.efkefc"
+dest_files=["res://.godot/imported/Magic1_wind.efkefc-cc9a51dd46cdf39993ff2be0355572da.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

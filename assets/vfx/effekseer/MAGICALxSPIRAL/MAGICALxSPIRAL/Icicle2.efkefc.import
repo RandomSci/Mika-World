@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://bpwatl4vqq1k5"
+path="res://.godot/imported/Icicle2.efkefc-457a76f5623d86e62df0351a8c9a0255.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Icicle2.efkefc"
+dest_files=["res://.godot/imported/Icicle2.efkefc-457a76f5623d86e62df0351a8c9a0255.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

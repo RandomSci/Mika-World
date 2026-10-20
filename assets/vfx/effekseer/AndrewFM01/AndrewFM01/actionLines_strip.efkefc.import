@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dkerlss8a7q6p"
+path="res://.godot/imported/actionLines_strip.efkefc-f6c562b3db241588110a90c1409d29a9.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/AndrewFM01/AndrewFM01/actionLines_strip.efkefc"
+dest_files=["res://.godot/imported/actionLines_strip.efkefc-f6c562b3db241588110a90c1409d29a9.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cppofdxiltwcp"
+path="res://.godot/imported/Impact.efkefc-88131d592ee777f92191c335a440bb98.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Impact.efkefc"
+dest_files=["res://.godot/imported/Impact.efkefc-88131d592ee777f92191c335a440bb98.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

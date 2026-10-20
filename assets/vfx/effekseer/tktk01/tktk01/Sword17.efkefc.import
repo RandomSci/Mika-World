@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://64gtpxnsybrs"
+path="res://.godot/imported/Sword17.efkefc-740c9eb9bf44117ce09b501c8d7d0fff.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk01/tktk01/Sword17.efkefc"
+dest_files=["res://.godot/imported/Sword17.efkefc-740c9eb9bf44117ce09b501c8d7d0fff.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

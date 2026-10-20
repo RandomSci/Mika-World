@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dyaqwiguh7k7a"
+path="res://.godot/imported/FeatherBomb.efkefc-429a55e9c993a97696dfe2a9c8452dd6.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/FeatherBomb.efkefc"
+dest_files=["res://.godot/imported/FeatherBomb.efkefc-429a55e9c993a97696dfe2a9c8452dd6.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://d36xgmodcjoix"
+path="res://.godot/imported/Sword_Moonlight.efkefc-3da7fc44b25a0f30d25b7bb5b9692b69.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/Sword_Moonlight.efkefc"
+dest_files=["res://.godot/imported/Sword_Moonlight.efkefc-3da7fc44b25a0f30d25b7bb5b9692b69.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

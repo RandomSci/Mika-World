@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://lhe6g6gn3moq"
+path="res://.godot/imported/VertexTransform.efkmat-41c083684d988dc524877c05c9fe44da.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_MaterialBasic/Materials/VertexTransform.efkmat"
+dest_files=["res://.godot/imported/VertexTransform.efkmat-41c083684d988dc524877c05c9fe44da.res"]
+
+[params]
+
+compress=true

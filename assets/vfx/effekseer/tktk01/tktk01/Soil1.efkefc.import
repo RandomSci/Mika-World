@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dgu60h1nrgev5"
+path="res://.godot/imported/Soil1.efkefc-1d43b6a9ab275109590acd03bacf152d.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk01/tktk01/Soil1.efkefc"
+dest_files=["res://.godot/imported/Soil1.efkefc-1d43b6a9ab275109590acd03bacf152d.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

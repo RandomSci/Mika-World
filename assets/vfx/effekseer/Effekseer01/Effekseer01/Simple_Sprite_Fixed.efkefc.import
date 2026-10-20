@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cxt60ol158tjd"
+path="res://.godot/imported/Simple_Sprite_Fixed.efkefc-b6dd10b83b6c40c74aa980fb948ae440.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Effekseer01/Effekseer01/Simple_Sprite_Fixed.efkefc"
+dest_files=["res://.godot/imported/Simple_Sprite_Fixed.efkefc-b6dd10b83b6c40c74aa980fb948ae440.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

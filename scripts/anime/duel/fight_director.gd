@@ -432,12 +432,13 @@ func impact(power: float, big := false, decisive := false) -> void:
 	if big and mode != "duel":
 		big = false                               # (training stays light: no flash frames, no speed lines)
 		sfx.chroma(0.4, 0.25)
+	# (2026-10-20: no white frames in the duel, they stacked with the spells' light into white screens; the big hit
+	# keeps the anime impact frame, an ink burst and one inverted frame)
 	if big:
-		sfx.flash_seq([["burst", 2], ["invert", 1], ["white", 1]], rng.randf_range(0.2, 1.2))
+		sfx.flash_seq([["burst", 2], ["invert", 1]], rng.randf_range(0.2, 1.2))
 		sfx.speed_lines(1.0, 0.6)
 		sfx.chroma(1.0, 0.35)
 	elif mode == "duel" and p > 0.45:
-		sfx.flash_seq([["white", 1]])
 		sfx.chroma(0.6, 0.25)
 	_lens.shake = maxf(float(_lens.shake), lerpf(0.35, 1.3, p))
 	hit_log.append([snappedf(ft, 0.01), "big" if big else "hit", snappedf(power, 0.01)])

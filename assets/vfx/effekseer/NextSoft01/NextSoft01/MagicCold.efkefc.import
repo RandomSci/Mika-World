@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://g1s42qf1e01k"
+path="res://.godot/imported/MagicCold.efkefc-4e4a40cfaa1e4813d298e72461a7b341.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/NextSoft01/NextSoft01/MagicCold.efkefc"
+dest_files=["res://.godot/imported/MagicCold.efkefc-4e4a40cfaa1e4813d298e72461a7b341.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

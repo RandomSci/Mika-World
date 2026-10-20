@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://re3yd8qvw51h"
+path="res://.godot/imported/Simple_Model_UV.efkefc-ea5627a4d2eea97f89fe1d625e447ed5.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Effekseer01/Effekseer01/Simple_Model_UV.efkefc"
+dest_files=["res://.godot/imported/Simple_Model_UV.efkefc-ea5627a4d2eea97f89fe1d625e447ed5.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

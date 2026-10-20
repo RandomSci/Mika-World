@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://d2vjtiqcktkrh"
+path="res://.godot/imported/Simple_Turbulence_Fireworks.efkefc-9768d4dbbbacbcaef6758a6c21936605.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_Basic/Simple_Turbulence_Fireworks.efkefc"
+dest_files=["res://.godot/imported/Simple_Turbulence_Fireworks.efkefc-9768d4dbbbacbcaef6758a6c21936605.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://v8qcqog2eqqf"
+path="res://.godot/imported/snowstorm11.efkefc-d85c40040cf1fb4e5627a65a68a21fa9.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Suzuki01/Suzuki01/003_snowstorm_effect/snowstorm11.efkefc"
+dest_files=["res://.godot/imported/snowstorm11.efkefc-d85c40040cf1fb4e5627a65a68a21fa9.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cw3r4yes2jgxm"
+path="res://.godot/imported/Attack5.efkefc-9c22622de463563f56e20c2143b6c6c5.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Attack5.efkefc"
+dest_files=["res://.godot/imported/Attack5.efkefc-9c22622de463563f56e20c2143b6c6c5.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

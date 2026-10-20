@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://beh2bidjhal2o"
+path="res://.godot/imported/block3.efkmodel-84a9bf5242d6ecbf944b35e4db4c0621.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Model/block3.efkmodel"
+dest_files=["res://.godot/imported/block3.efkmodel-84a9bf5242d6ecbf944b35e4db4c0621.res"]
+
+[params]
+
+compress=true

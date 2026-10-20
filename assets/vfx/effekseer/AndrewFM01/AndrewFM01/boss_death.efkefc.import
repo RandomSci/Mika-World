@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dchgs5tky6nrg"
+path="res://.godot/imported/boss_death.efkefc-2a4087f2edb3bfadb685ed0d20e488b2.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/AndrewFM01/AndrewFM01/boss_death.efkefc"
+dest_files=["res://.godot/imported/boss_death.efkefc-2a4087f2edb3bfadb685ed0d20e488b2.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

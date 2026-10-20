@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://r6ars6xt1squ"
+path="res://.godot/imported/Aura01_HDR.efkefc-a4d5e0035ba6c7ca5eb0401edc6227cc.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_Version16/Aura01_HDR.efkefc"
+dest_files=["res://.godot/imported/Aura01_HDR.efkefc-a4d5e0035ba6c7ca5eb0401edc6227cc.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

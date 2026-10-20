@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://djovf7ysibdiu"
+path="res://.godot/imported/Sword2.efkefc-f3ced47167b6989a5af6e72c6129bacf.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/NextSoft01/NextSoft01/Sword2.efkefc"
+dest_files=["res://.godot/imported/Sword2.efkefc-f3ced47167b6989a5af6e72c6129bacf.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

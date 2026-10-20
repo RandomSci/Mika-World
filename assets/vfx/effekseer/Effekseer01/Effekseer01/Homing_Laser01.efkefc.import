@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cyt06i7y1q6bj"
+path="res://.godot/imported/Homing_Laser01.efkefc-3160b9635a1595743fcf3e3752b71b3f.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Effekseer01/Effekseer01/Homing_Laser01.efkefc"
+dest_files=["res://.godot/imported/Homing_Laser01.efkefc-3160b9635a1595743fcf3e3752b71b3f.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

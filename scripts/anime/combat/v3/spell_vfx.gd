@@ -812,17 +812,19 @@ static func fight_glow(main: Node, on: bool) -> void:
 		e.glow_enabled = true
 		e.glow_normalized = false
 		e.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
-		e.glow_intensity = 0.8
-		e.glow_strength = 1.15
+		# (2026-10-20: stacked release lights blew the whole frame white for a second; a gentler bloom, a higher threshold)
+		e.glow_intensity = 0.45
+		e.glow_strength = 1.0
 		e.glow_bloom = 0.0
-		e.glow_hdr_threshold = 1.7
+		e.glow_hdr_threshold = 2.3
 		for i in 7:
 			e.set_glow_level(i, [0.0, 0.5, 1.0, 1.0, 0.9, 0.6, 0.3][i])
-		# the fight grade (the reference: the world dimmed and greyed while they fight, so their magic is what glows)
+		# the fight grade (2026-10-20, Selwyn: "the scene is too dark"; the old grade, brightness 0.82 and saturation
+		# 0.72, made the night grey and the petals paper; now a small lift with the colour kept)
 		e.adjustment_enabled = true
-		e.adjustment_brightness = 0.82
-		e.adjustment_saturation = 0.72
-		e.adjustment_contrast = 1.08
+		e.adjustment_brightness = 1.1
+		e.adjustment_saturation = 1.0
+		e.adjustment_contrast = 1.04
 	elif e.has_meta("fight_glow_saved"):
 		var sv: Array = e.get_meta("fight_glow_saved")
 		e.glow_enabled = sv[0]

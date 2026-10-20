@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://brhonsduvp5pc"
+path="res://.godot/imported/smallTexturesSquareWave_orbital.efkefc-9680fb477e32e672553001f87d0d9762.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/AndrewFM01/AndrewFM01/smallTexturesSquareWave_orbital.efkefc"
+dest_files=["res://.godot/imported/smallTexturesSquareWave_orbital.efkefc-9680fb477e32e672553001f87d0d9762.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

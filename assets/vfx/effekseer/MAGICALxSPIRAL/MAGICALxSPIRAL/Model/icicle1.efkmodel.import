@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://607y55osexen"
+path="res://.godot/imported/icicle1.efkmodel-f32180a90da36ffa2a3221a95a2948ae.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Model/icicle1.efkmodel"
+dest_files=["res://.godot/imported/icicle1.efkmodel-f32180a90da36ffa2a3221a95a2948ae.res"]
+
+[params]
+
+compress=true

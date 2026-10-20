@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dktw7psdjequu"
+path="res://.godot/imported/foot_smoke8.efkefc-5e85964ee2ffff132965afbe9ff67ff2.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/foot_smoke8.efkefc"
+dest_files=["res://.godot/imported/foot_smoke8.efkefc-5e85964ee2ffff132965afbe9ff67ff2.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

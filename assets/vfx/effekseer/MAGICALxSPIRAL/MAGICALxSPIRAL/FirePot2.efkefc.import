@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://vkvmyaspwu1l"
+path="res://.godot/imported/FirePot2.efkefc-d2a1bd78a266a179284f33af6b14d6bc.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/FirePot2.efkefc"
+dest_files=["res://.godot/imported/FirePot2.efkefc-d2a1bd78a266a179284f33af6b14d6bc.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

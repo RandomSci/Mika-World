@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://bbh56b1141fy8"
+path="res://.godot/imported/Thunder1.efkefc-a5cdabd0d64c649bfcf3a3cc5a91386e.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Thunder1.efkefc"
+dest_files=["res://.godot/imported/Thunder1.efkefc-a5cdabd0d64c649bfcf3a3cc5a91386e.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

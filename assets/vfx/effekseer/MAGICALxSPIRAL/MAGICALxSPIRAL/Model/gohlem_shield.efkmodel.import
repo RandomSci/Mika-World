@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://cmhmgyxgfouwi"
+path="res://.godot/imported/gohlem_shield.efkmodel-88436015b36dc1b223c0525c5ad9a06b.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Model/gohlem_shield.efkmodel"
+dest_files=["res://.godot/imported/gohlem_shield.efkmodel-88436015b36dc1b223c0525c5ad9a06b.res"]
+
+[params]
+
+compress=true

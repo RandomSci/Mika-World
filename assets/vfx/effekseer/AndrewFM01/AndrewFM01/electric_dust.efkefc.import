@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://o6s86juphdpn"
+path="res://.godot/imported/electric_dust.efkefc-151ca149dbd9c897aba954fb081fcb33.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/AndrewFM01/AndrewFM01/electric_dust.efkefc"
+dest_files=["res://.godot/imported/electric_dust.efkefc-151ca149dbd9c897aba954fb081fcb33.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

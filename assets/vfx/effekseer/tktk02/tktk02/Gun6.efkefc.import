@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://deushxjwq7oat"
+path="res://.godot/imported/Gun6.efkefc-9a770c770799adcda6758357b3ca77d6.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk02/tktk02/Gun6.efkefc"
+dest_files=["res://.godot/imported/Gun6.efkefc-9a770c770799adcda6758357b3ca77d6.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

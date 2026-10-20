@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://bmbcu53udmjcv"
+path="res://.godot/imported/Lance3.efkefc-0670cb4c6f5bde4c59bdb053a1079a70.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Lance3.efkefc"
+dest_files=["res://.godot/imported/Lance3.efkefc-0670cb4c6f5bde4c59bdb053a1079a70.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

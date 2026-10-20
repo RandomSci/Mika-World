@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dfyq0ycc40dhw"
+path="res://.godot/imported/hit_hanmado_0409.efkefc-3c8e2c18d51c7ad7b72dbc65a1d06088.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/03_Hanmado01/Effect/hit_hanmado_0409.efkefc"
+dest_files=["res://.godot/imported/hit_hanmado_0409.efkefc-3c8e2c18d51c7ad7b72dbc65a1d06088.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

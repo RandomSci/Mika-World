@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://mrgcde62ft8i"
+path="res://.godot/imported/Magic1_earth.efkefc-8c9bb82907c064862a3ba7230c89d17c.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Magic1_earth.efkefc"
+dest_files=["res://.godot/imported/Magic1_earth.efkefc-8c9bb82907c064862a3ba7230c89d17c.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

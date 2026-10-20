@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://chiqpi6xq8b7l"
+path="res://.godot/imported/ForceFieldTornado.efkefc-05c0219d726de27c447e5aa41138e07c.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_Version16/ForceFieldTornado.efkefc"
+dest_files=["res://.godot/imported/ForceFieldTornado.efkefc-05c0219d726de27c447e5aa41138e07c.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

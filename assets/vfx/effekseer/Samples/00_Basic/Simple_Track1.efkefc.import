@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://boupounqdu1b"
+path="res://.godot/imported/Simple_Track1.efkefc-45c84bfd7140d5e04f5ff75583aa9591.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_Basic/Simple_Track1.efkefc"
+dest_files=["res://.godot/imported/Simple_Track1.efkefc-45c84bfd7140d5e04f5ff75583aa9591.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

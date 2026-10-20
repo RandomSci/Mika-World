@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://bkigfvp108baq"
+path="res://.godot/imported/aura.efkefc-b6655a4948405ca73df0c45da5ec1245.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Suzuki01/Suzuki01/001_magma_effect/aura.efkefc"
+dest_files=["res://.godot/imported/aura.efkefc-b6655a4948405ca73df0c45da5ec1245.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

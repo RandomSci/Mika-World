@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://crply851bpqh"
+path="res://.godot/imported/Sphare.efkmodel-0d9b75fae16bf63b6184d0cd6200d8df.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_MaterialBasic/Models/Sphare.efkmodel"
+dest_files=["res://.godot/imported/Sphare.efkmodel-0d9b75fae16bf63b6184d0cd6200d8df.res"]
+
+[params]
+
+compress=true

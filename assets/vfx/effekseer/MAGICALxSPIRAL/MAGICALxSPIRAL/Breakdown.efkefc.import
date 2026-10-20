@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dyntxsm66cmhv"
+path="res://.godot/imported/Breakdown.efkefc-eaaa0b941a1ccfff43be70609c2e74a1.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Breakdown.efkefc"
+dest_files=["res://.godot/imported/Breakdown.efkefc-eaaa0b941a1ccfff43be70609c2e74a1.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

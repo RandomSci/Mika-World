@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://bvrgfhh5x2cd1"
+path="res://.godot/imported/Hammer.efkmodel-2750de0375c52132e8255f9485c953b5.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Model/Hammer.efkmodel"
+dest_files=["res://.godot/imported/Hammer.efkmodel-2750de0375c52132e8255f9485c953b5.res"]
+
+[params]
+
+compress=true

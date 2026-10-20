@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://qwdr6o7fa2jv"
+path="res://.godot/imported/Salamander5.efkefc-e3020459246fdd6cece2969d75f1516d.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Salamander5.efkefc"
+dest_files=["res://.godot/imported/Salamander5.efkefc-e3020459246fdd6cece2969d75f1516d.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

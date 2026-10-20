@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://bajf7erc6bepl"
+path="res://.godot/imported/Tube.efkmodel-6fa24473ff3ffd5da299ec5ea7ad45ba.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/02_Tktk03/Parts/Tube.efkmodel"
+dest_files=["res://.godot/imported/Tube.efkmodel-6fa24473ff3ffd5da299ec5ea7ad45ba.res"]
+
+[params]
+
+compress=true

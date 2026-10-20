@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://d2tjxhm25ip1a"
+path="res://.godot/imported/A_Gohlem1.efkefc-dba25b596f1ea5f93a66f923ab843c88.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/A_Gohlem1.efkefc"
+dest_files=["res://.godot/imported/A_Gohlem1.efkefc-dba25b596f1ea5f93a66f923ab843c88.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

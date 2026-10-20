@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cq3vsidcvgmnr"
+path="res://.godot/imported/Cure1.efkefc-31a4390b64b7a5082fdce49310a41655.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk01/tktk01/Cure1.efkefc"
+dest_files=["res://.godot/imported/Cure1.efkefc-31a4390b64b7a5082fdce49310a41655.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

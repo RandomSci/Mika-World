@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://crwnpj7toqocd"
+path="res://.godot/imported/kiroi-chou.efkefc-f4583e63581272d30ab37888020bcf10.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/HATO01/HATO-Springhascome/Butterfliesflutter/kiroi-chou.efkefc"
+dest_files=["res://.godot/imported/kiroi-chou.efkefc-f4583e63581272d30ab37888020bcf10.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

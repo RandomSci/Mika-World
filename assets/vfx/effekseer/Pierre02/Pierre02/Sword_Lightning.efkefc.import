@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://dfp0486vrww7k"
+path="res://.godot/imported/Sword_Lightning.efkefc-deb5b5b647b937fb2ef17b4e7ec8a1be.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/Sword_Lightning.efkefc"
+dest_files=["res://.godot/imported/Sword_Lightning.efkefc-deb5b5b647b937fb2ef17b4e7ec8a1be.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

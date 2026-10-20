@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://dir85147ex1x"
+path="res://.godot/imported/Emissive.efkmat-d82895810227ae44969d66fa8e20adc5.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_Basic/Material/Emissive.efkmat"
+dest_files=["res://.godot/imported/Emissive.efkmat-d82895810227ae44969d66fa8e20adc5.res"]
+
+[params]
+
+compress=true

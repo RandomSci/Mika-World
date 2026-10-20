@@ -71,7 +71,10 @@ static func perform(sim: MeleeSim, who: String, other: String, ult: String) -> f
 	sim.cine_hold = sim.t + L + 1.6                 # (the cinematographer waits for the ultimate's own cuts)
 	print("[ultimate] %s (%s, %s) from %.2f gather %.2f release %.2f end %.2f" % [sp.title, who, ult, t0, t0 + t_g0, t0 + t_rel, t0 + L])
 	# the domain falls, close on her eyes
-	d.domain(who, true, 0.8)
+	if sim.realm:
+		sim.realm.push(who, 0.6)                     # (her realm takes the world as the ultimate opens; the release completes it)
+	else:
+		d.domain(who, true, 0.8)
 	d.cut(t0 + 0.001, "eyes", who, {})
 	# her hands forming the sign
 	d.cut(t0 + maxf(t_g0, 0.6), "hand", who, {"bone": hand_bone})
@@ -84,7 +87,8 @@ static func perform(sim: MeleeSim, who: String, other: String, ult: String) -> f
 	d.cut(t0 + t_rel - 0.02, "pullback", who, {"dist": 11.0, "high": 3.6})
 	# the aftermath
 	d.cut(t0 + L + 0.3, "two_mid", who, {})
-	sim.at(L + 1.2, func(): d.domain(who, false, 1.2))
+	if not sim.realm:
+		sim.at(L + 1.2, func(): d.domain(who, false, 1.2))
 	if sp.get("afterimages", false):
 		for r2 in rels:
 			sim.at(float(r2) - 0.05, func(): d.fx.afterimages((sim.F[who] as MeleeFighter).c, who, 3, 0.04))

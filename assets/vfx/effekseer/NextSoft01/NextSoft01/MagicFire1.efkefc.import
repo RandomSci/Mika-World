@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://buslhxnthjptd"
+path="res://.godot/imported/MagicFire1.efkefc-292d77773dac47e1fe361ec684041a72.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/NextSoft01/NextSoft01/MagicFire1.efkefc"
+dest_files=["res://.godot/imported/MagicFire1.efkefc-292d77773dac47e1fe361ec684041a72.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

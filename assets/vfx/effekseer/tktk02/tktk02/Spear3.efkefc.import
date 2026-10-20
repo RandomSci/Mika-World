@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://btetcs5s4vn05"
+path="res://.godot/imported/Spear3.efkefc-df1a92585c38f090a64f44736ba30c00.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/tktk02/tktk02/Spear3.efkefc"
+dest_files=["res://.godot/imported/Spear3.efkefc-df1a92585c38f090a64f44736ba30c00.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

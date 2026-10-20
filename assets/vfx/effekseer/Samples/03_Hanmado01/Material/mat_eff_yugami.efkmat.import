@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://dildt7w4qcqcw"
+path="res://.godot/imported/mat_eff_yugami.efkmat-f49cff8321709097c42de23198ae7345.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/03_Hanmado01/Material/mat_eff_yugami.efkmat"
+dest_files=["res://.godot/imported/mat_eff_yugami.efkmat-f49cff8321709097c42de23198ae7345.res"]
+
+[params]
+
+compress=true

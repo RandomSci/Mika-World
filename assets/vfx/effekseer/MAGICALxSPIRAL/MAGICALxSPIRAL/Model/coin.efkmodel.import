@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://bsju60d0cm46f"
+path="res://.godot/imported/coin.efkmodel-1a5538849e0105485be66cd9f85c1129.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Model/coin.efkmodel"
+dest_files=["res://.godot/imported/coin.efkmodel-1a5538849e0105485be66cd9f85c1129.res"]
+
+[params]
+
+compress=true

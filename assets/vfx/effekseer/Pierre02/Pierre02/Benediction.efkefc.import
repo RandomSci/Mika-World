@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://e0r3eh5wcqd"
+path="res://.godot/imported/Benediction.efkefc-63051a6b5aad22a3d5f3f8358dff384d.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Pierre02/Pierre02/Benediction.efkefc"
+dest_files=["res://.godot/imported/Benediction.efkefc-63051a6b5aad22a3d5f3f8358dff384d.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

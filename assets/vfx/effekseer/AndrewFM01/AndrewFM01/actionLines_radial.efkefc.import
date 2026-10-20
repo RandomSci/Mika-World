@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://ofi4xyigqrqv"
+path="res://.godot/imported/actionLines_radial.efkefc-eba6b87e968a897fac22f4505a62ee31.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/AndrewFM01/AndrewFM01/actionLines_radial.efkefc"
+dest_files=["res://.godot/imported/actionLines_radial.efkefc-eba6b87e968a897fac22f4505a62ee31.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

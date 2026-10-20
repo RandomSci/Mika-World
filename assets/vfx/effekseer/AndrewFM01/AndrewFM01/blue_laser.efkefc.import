@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://cyycx54hws1do"
+path="res://.godot/imported/blue_laser.efkefc-d9f9d12dd656e6ba6472c42eecf4451f.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/AndrewFM01/AndrewFM01/blue_laser.efkefc"
+dest_files=["res://.godot/imported/blue_laser.efkefc-d9f9d12dd656e6ba6472c42eecf4451f.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

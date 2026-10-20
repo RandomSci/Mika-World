@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://d3wk4f5vbw6ti"
+path="res://.godot/imported/Snowman1.efkefc-f69022fddfff07ba1c79e67bbcda2cb9.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/MAGICALxSPIRAL/MAGICALxSPIRAL/Snowman1.efkefc"
+dest_files=["res://.godot/imported/Snowman1.efkefc-f69022fddfff07ba1c79e67bbcda2cb9.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

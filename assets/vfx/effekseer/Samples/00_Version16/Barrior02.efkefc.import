@@ -1,0 +1,17 @@
+[remap]
+
+importer="effekseer.effect"
+type="Resource"
+uid="uid://csmvq2uk2j1fl"
+path="res://.godot/imported/Barrior02.efkefc-383fd5fcca11c99f124c717007f0aefe.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_Version16/Barrior02.efkefc"
+dest_files=["res://.godot/imported/Barrior02.efkefc-383fd5fcca11c99f124c717007f0aefe.res"]
+
+[params]
+
+scale=1.0
+data_type=0
+compress=true

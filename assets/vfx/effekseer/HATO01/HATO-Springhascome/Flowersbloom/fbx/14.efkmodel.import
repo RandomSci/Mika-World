@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://dbqkxy5hsmmi7"
+path="res://.godot/imported/14.efkmodel-36ec3cea5312f2d80032dbdcf96de832.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/HATO01/HATO-Springhascome/Flowersbloom/fbx/14.efkmodel"
+dest_files=["res://.godot/imported/14.efkmodel-36ec3cea5312f2d80032dbdcf96de832.res"]
+
+[params]
+
+compress=true

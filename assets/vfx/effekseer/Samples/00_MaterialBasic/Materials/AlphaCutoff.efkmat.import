@@ -1,0 +1,15 @@
+[remap]
+
+importer="effekseer.resource"
+type="Resource"
+uid="uid://cegvfv0pboorx"
+path="res://.godot/imported/AlphaCutoff.efkmat-d3621027326c37d27d0e37a655f26522.res"
+
+[deps]
+
+source_file="res://assets/vfx/effekseer/Samples/00_MaterialBasic/Materials/AlphaCutoff.efkmat"
+dest_files=["res://.godot/imported/AlphaCutoff.efkmat-d3621027326c37d27d0e37a655f26522.res"]
+
+[params]
+
+compress=true
