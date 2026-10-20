@@ -55,6 +55,8 @@ func _duelists_ok(a: SanctuaryBrain, b: SanctuaryBrain) -> bool:
 
 
 func run(a: SanctuaryBrain, b: SanctuaryBrain) -> Dictionary:
+	if not StreamFlags.fights():
+		return {"ok": false, "detail": "fights are off"}
 	if busy():
 		return {"ok": false, "detail": "already sparring"}
 	var ca := a.me

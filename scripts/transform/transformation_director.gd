@@ -122,7 +122,7 @@ func _process(delta: float) -> void:
 		if Time.get_ticks_msec() / 1000.0 > float(surges[who].until) and playing == "":
 			end_surge(who)
 	_check -= delta
-	if _check > 0.0 or queue.is_empty() or playing != "":
+	if _check > 0.0 or queue.is_empty() or playing != "" or not StreamFlags.transformations():
 		return
 	_check = SAFE_CHECK_S
 	var q: Dictionary = queue[0]
@@ -149,6 +149,8 @@ func _safe_to_start(who: String) -> bool:
 
 # ------------------------------------------------------------------ the sequence
 func play(who: String, version := "full", preview := false, level := 10) -> Dictionary:
+	if not StreamFlags.transformations():
+		return {"ok": false, "detail": "transformations are off"}     # (go live 20 October)
 	if playing != "":
 		return {"ok": false, "detail": "another transformation is playing"}
 	var c: WorldCharacter = main.characters.get(who)

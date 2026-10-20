@@ -303,7 +303,7 @@ func invite(a: SanctuaryBrain, other: String, kind: String, target: Dictionary) 
 		"rest_together":
 			res = await _rest_together(a, b, target)
 		"train_together":
-			if main.get("duel"):
+			if main.get("duel") and StreamFlags.fights():
 				res = await main.duel.run(a, b)
 			else:
 				res = {"ok": false, "detail": "no training ground"}

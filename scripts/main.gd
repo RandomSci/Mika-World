@@ -254,6 +254,8 @@ func _ready() -> void:
 	spawner.setup(self)
 	if quiet_test and not RenderProfile.options.has("monsters"):
 		spawner.enabled = false
+	if not StreamFlags.fights():
+		spawner.enabled = false                       # (go live 20 October: fights off)
 	spawner.mage_hit.connect(func(mage, m, _a): if mage_brains.has(mage.character_id): mage_brains[mage.character_id].on_threat(m))
 
 	# Cinematographer + Mika's own decision layer for her home region (both local, no network)

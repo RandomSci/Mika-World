@@ -70,6 +70,8 @@ func _pick_kind() -> String:
 
 ## Spawn one creature (kind "" = weighted pick) at a valid anchor; `at` overrides (tests). Returns it or null.
 func spawn(kind: String = "", at = null) -> Monster:
+	if not StreamFlags.fights():
+		return null                                   # (go live 20 October: fights off, no creature ever appears)
 	alive = alive.filter(func(x): return is_instance_valid(x) and not x.is_queued_for_deletion() and x.alive())
 	if kind == "":
 		kind = _pick_kind()

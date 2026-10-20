@@ -368,7 +368,7 @@ func options() -> Array:
 					"attuned": mind.activity_counts.has("attune:" + id)})
 	# hunt: only creatures SHE can see right now (no knowledge of what lurks out of sight)
 	if main.spawner and here == "sanctuary":
-		for mon in main.spawner.perceived_by(me):
+		for mon in (main.spawner.perceived_by(me) if StreamFlags.fights() else []):
 			var mk: String = mon.kind
 			var mdef: Dictionary = Spawner.data.monsters.get(mk, {})
 			out.append({"kind": "hunt", "key": "hunt:" + mon.id, "monster": mon.id, "monster_kind": mk, "tier": mon.tier(),
@@ -407,7 +407,7 @@ func options() -> Array:
 			if not cands.is_empty():
 				out.append({"kind": "together", "key": "together:explore:" + other_id, "other": other_id, "sub": "explore_together",
 					"target": {"pos": cands[0].pos, "fill": {"place": String(cands[0].describe)}}, "label": "ask %s to explore %s together" % [MagicSystem.display_name(other_id), cands[0].describe]})
-			if mind.vigor > 0.75 and float(needs.energy) > 0.6 and main.get("duel") and main.streaming.current_id == "sanctuary":
+			if StreamFlags.fights() and mind.vigor > 0.75 and float(needs.energy) > 0.6 and main.get("duel") and main.streaming.current_id == "sanctuary":
 				out.append({"kind": "together", "key": "together:spar:" + other_id, "other": other_id, "sub": "train_together",
 					"target": {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}}, "label": "ask %s to spar at the training grounds" % MagicSystem.display_name(other_id)})
 			var area_info: Dictionary = WorldState.areas.get(main.streaming.current_id, {})

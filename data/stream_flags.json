@@ -1,0 +1,5 @@
+{
+ "_note": "Go live 20 October 2026 (Selwyn: fights off tonight). fights false: no monster spawns (hunts, camp encounters, territories, road ambushes), no spars or training duels. transformations false: no transformation plays (level ups still count; the form waits). Tests may force them on with --fights or --transformations.",
+ "fights": false,
+ "transformations": false
+}

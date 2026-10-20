@@ -38,6 +38,8 @@ func setup(m: Node) -> void:
 ## Run one ambush on the mages present in this area (awaitable). opts: {"bearing": radians (where the band hides,
 ## relative to the party's facing), "distance": m, "fight_s": max seconds of fighting}
 func run(band_id := "road_thieves", opts := {}) -> Dictionary:
+	if not StreamFlags.fights():
+		return {"ok": false, "detail": "fights are off"}
 	if busy:
 		return {"ok": false, "detail": "an ambush is already happening"}
 	var band: Dictionary = cfg.get("bands", {}).get(band_id, {})
