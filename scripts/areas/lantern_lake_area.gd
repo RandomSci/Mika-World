@@ -23,8 +23,20 @@ func env_preset() -> Dictionary:
 	return {"sun_shadows": false}
 
 
+const SLICES := 10
+var _pending: Array = []                 # the prebuilt lake's parts still to join the scene (a slice per frame)
+var _pending_n := 0
+
+
+## "frame" asks WorldStreamingManager for a frame boundary: the prebuilt lake joins the scene a slice per frame (all of
+## it in one frame was a 500 ms frame behind the travel card, the renderer taking every mesh and instance at once).
 func build_steps() -> Array:
-	return [_lake, _ground, _links]
+	var st: Array = [_lake]
+	for i in SLICES:
+		st.append("frame")
+		st.append(_attach_slice.bind(i))
+	st.append_array(["frame", _ground, _links])
+	return st
 
 
 func _lake() -> void:
@@ -34,15 +46,56 @@ func _lake() -> void:
 	lake = LAKE.take_prebuilt()             # built on a thread while they walked down (WorldStreamingManager.prebuild)
 	if lake == null:
 		lake = LAKE.new()
+	else:
+		# colliders stay (the navmesh bake needs the pier); everything else joins a slice per frame
+		for ch in lake.get_children():
+			if ch is StaticBody3D or not ch.find_children("*", "StaticBody3D", true, false).is_empty():
+				continue
+			lake.remove_child(ch)
+			_pending.append(ch)
+		_pending_n = _pending.size()
 	lake.name = "Lake"
 	lake.set("embedded", true)
 	lake.set("host_env", env)
 	add_child(lake)                          # (its _ready builds the place into this area's environment)
+	if not _pending.is_empty():
+		lake.set_process(false)              # (its lanterns are not all in the scene yet)
+		lake.set_physics_process(false)
+
+
+var _hidden: Array = []                  # slices attached hidden: shown one per frame in warm_up (the camera is at the lake then)
+
+
+func _attach_slice(i: int) -> void:
+	var n := _pending.size() if i == SLICES - 1 else ceili(_pending_n / float(SLICES))
+	var sl := []
+	for k in mini(n, _pending.size()):
+		var ch: Node = _pending.pop_front()
+		if ch is Node3D and (ch as Node3D).visible:
+			(ch as Node3D).visible = false
+			sl.append(ch)
+		lake.add_child(ch)
+	if not sl.is_empty():
+		_hidden.append(sl)
+	if _pending.is_empty() and lake:
+		lake.set_process(true)
+		lake.set_physics_process(true)
 
 
 ## Behind the travel card, after the build (WorldStreamingManager.travel): every material of the lake, its boat and
 ## the dance glows drawn once, so none compiles on screen.
 func warm_up(camera: Camera3D) -> void:
+	# the lake's parts appear one slice per frame in front of the arrival camera: their materials compile a few at a time
+	# (all of them in one frame was a 265 ms frame behind the travel card)
+	for sl in _hidden:
+		for ch in sl:
+			if is_instance_valid(ch):
+				(ch as Node3D).visible = true
+		await get_tree().process_frame
+	_hidden.clear()
+	# the boat moored at the pier is built now too (1.2 s after the reveal it was a 140 ms frame on screen)
+	if LakeRitual.instance and (not RenderProfile.options.has("mktest") or RenderProfile.options.has("lake-ritual") or String(RenderProfile.options.get("mktest", "")) == "golive_soak"):
+		LakeRitual.instance._ensure_boat()
 	await ShaderPrewarm.area(camera, self, ["res://shaders/lantern_lake", "res://shaders/real", "res://shaders/moonbloom",
 		"res://shaders/anime/boat", "res://shaders/anime/dance"])
 

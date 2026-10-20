@@ -204,6 +204,29 @@ func _perf_look(what: String) -> Vector3:
 
 ## Follow another mage (the spotlight in main picks whoever is doing the most watchable thing).
 ## The `mika` field is the current subject; the name is kept for older callers.
+var _chase_mate_off := 0.0
+var _chase_mate_tgt := 0.0
+var _chase_mate_clear := 0.0
+
+
+## Another visible character's body (hips to head) within half a metre of the line from the lens to her.
+func _mate_blocks(from: Vector3, to: Vector3) -> bool:
+	var seg := to - from
+	var l2 := seg.length_squared()
+	if l2 < 0.01:
+		return false
+	for c in main.characters.values():
+		var oc := c as WorldCharacter
+		if oc == null or oc == mika or not oc.visible:
+			continue
+		for hgt: float in [0.9, 1.4]:
+			var q := oc.global_position + Vector3(0, hgt, 0)
+			var t := (q - from).dot(seg) / l2
+			if t > 0.05 and t < 0.97 and (from + seg * t).distance_to(q) < 0.5:
+				return true
+	return false
+
+
 func set_subject(c: WorldCharacter) -> void:
 	if c == null or c == mika:
 		return
@@ -460,7 +483,28 @@ func _frame(delta: float) -> void:
 			# the rig's spring arm handles collisions; we only steer its yaw/pitch behind her heading
 			var moving := Vector2(mika.velocity.x, mika.velocity.z).length() > 0.3
 			var k := 1.0 - exp(-(2.2 if moving else 0.6) * delta)
-			rig.yaw = lerp_angle(rig.yaw, mika.rotation.y, k)
+			# the other mage between the lens and her (Luna walking right behind her: the chase shot was all Luna with
+			# Mika hidden in front of her, 20 October): the lens swings round to a side that sees Mika and stays there
+			# while Luna is close behind; back to straight behind her once the line is clear for a while
+			var head0 := mika.global_position + Vector3(0, 1.3, 0)
+			var rel := rig.camera.global_position - head0
+			if _mate_blocks(rig.camera.global_position, head0):
+				_chase_mate_clear = 0.0
+				if _chase_mate_tgt == 0.0 or _mate_blocks(head0 + rel.rotated(Vector3.UP, _chase_mate_tgt - _chase_mate_off), head0):
+					for off: float in [0.9, -0.9, 1.5, -1.5, 2.2, -2.2]:
+						if not _mate_blocks(head0 + rel.rotated(Vector3.UP, off - _chase_mate_off), head0):
+							_chase_mate_tgt = off
+							# a cut, not a glide: the glide still showed Luna's back for half a second
+							_chase_mate_off = off
+							rig.yaw = mika.rotation.y + off
+							rig.rotation = Vector3(rig.pitch, rig.yaw, 0.0)
+							break
+			else:
+				_chase_mate_clear += delta
+				if _chase_mate_clear > 4.0:
+					_chase_mate_tgt = 0.0
+			_chase_mate_off = lerpf(_chase_mate_off, _chase_mate_tgt, 1.0 - exp(-3.0 * delta))
+			rig.yaw = lerp_angle(rig.yaw, mika.rotation.y + _chase_mate_off, maxf(k, 1.0 - exp(-3.0 * delta)) if _chase_mate_tgt != 0.0 else k)
 			# spring arm squeezed by a wall, or a wall / house between the lens and her: rise quickly, and swing
 			# round to the most open side (a doorway, a narrow lane) instead of ending up inside her hair or
 			# staring at a wall with her behind it

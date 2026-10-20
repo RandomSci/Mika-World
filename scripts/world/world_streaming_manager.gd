@@ -234,6 +234,9 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 	while i < steps.size():
 		var f0 := Time.get_ticks_usec()
 		while i < steps.size() and (Time.get_ticks_usec() - f0) < BUILD_BUDGET_MS * 1000.0:
+			if steps[i] is String:          # "frame": the area asks for a frame boundary here
+				i += 1
+				break
 			var s0 := Time.get_ticks_usec()
 			steps[i].call()
 			var dt := (Time.get_ticks_usec() - s0) / 1000.0

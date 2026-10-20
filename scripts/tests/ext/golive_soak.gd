@@ -22,6 +22,19 @@ static func run(t) -> void:
 	var mb: SanctuaryBrain = main.mage_brains["mika"]
 	print("[golive] start: fights %s transformations %s, spawner enabled %s, %d min, clock %s" % [StreamFlags.fights(), StreamFlags.transformations(),
 		main.spawner.enabled, mins, WorldState.clock_text()])
+	# who is who in the review frames: a still with only Mika shown, then only Luna (same camera)
+	var shot_dir0 := String(RenderProfile.options.get("shots", ""))
+	if shot_dir0 != "":
+		for who in ["mika", "luna"]:
+			for w2 in ["mika", "luna"]:
+				(main.characters[w2] as Node3D).visible = (w2 == who)
+			await t.get_tree().process_frame
+			await t.get_tree().process_frame
+			var im: Image = t.get_viewport().get_texture().get_image()
+			im.resize(960, 540, Image.INTERPOLATE_BILINEAR)
+			im.save_jpg("%s/only_%s.jpg" % [shot_dir0, who], 0.85)
+		for w2 in ["mika", "luna"]:
+			(main.characters[w2] as Node3D).visible = true
 	var t0: float = t._game_t
 	var next_s := 0.0
 	var worst := 0.0
@@ -40,6 +53,9 @@ static func run(t) -> void:
 	var subscribed := false
 	var monsters_seen := 0
 	var lake_at := -1.0
+	var slow := 0
+	var lake_who := false
+	var tiny := 0                     # samples with Mika on screen but under a tenth of its height
 	var lake_next := 0.0
 	var off_cam := 0                  # samples with the camera on someone other than Mika
 	var lone_music := 0               # samples with a song playing and no dancer dancing
@@ -57,6 +73,10 @@ static func run(t) -> void:
 		frames += 1
 		acc += dt
 		worst = maxf(worst, dt)
+		if dt > 100.0:
+			slow += 1
+			print("[golive] slow frame %d ms at %.1fs, travel %s, area %s | mika: %s | luna: %s" % [int(dt), t._game_t - t0, main.streaming.state, main.streaming.current_id,
+				String(mb.current.get("key", "-")), String(main.mage_brains.luna.current.get("key", "-"))])
 		var el: float = t._game_t - t0
 		# the show's side: chat, a subscriber, the dance request
 		if el >= next_chat and main.live_link:
@@ -76,6 +96,20 @@ static func run(t) -> void:
 			print("[golive] %4.0fs the lake's longing raised (they had not gone yet)" % el)
 		if main.streaming.current_id == "lantern_lake" and lake_at < 0.0:
 			lake_at = el
+		# who is who at the lake (its night light makes both look violet): only Mika, then only Luna, 6 s after arriving
+		if lake_at >= 0.0 and not lake_who and el - lake_at > 6.0 and shot_dir != "":
+			lake_who = true
+			for who in ["mika", "luna"]:
+				for w2 in ["mika", "luna"]:
+					(main.characters[w2] as Node3D).visible = (w2 == who)
+				await t.get_tree().process_frame
+				await t.get_tree().process_frame
+				var im2: Image = t.get_viewport().get_texture().get_image()
+				im2.resize(960, 540, Image.INTERPOLATE_BILINEAR)
+				im2.save_jpg("%s/lake_only_%s.jpg" % [shot_dir, who], 0.85)
+			for w2 in ["mika", "luna"]:
+				(main.characters[w2] as Node3D).visible = true
+			last_t = Time.get_ticks_usec()
 		# the show's dance at the lake (a minute after they arrive), or wherever they are by minute 21
 		if not danced and main.live_link and ((lake_at >= 0.0 and el - lake_at >= 60.0 and main.streaming.current_id == "lantern_lake") or el >= 1260.0):
 			danced = true
@@ -90,8 +124,19 @@ static func run(t) -> void:
 			var subj := String(main.director.mika.character_id) if main.director and main.director.mika else "-"
 			var music: bool = main.performance != null and main.performance.player.playing
 			var pstage := String(main.performance.active.get("stage", "")) if main.performance else ""
-			if subj != "mika" and main.streaming.state == "idle":
-				off_cam += 1
+			# what the viewer really sees: Mika's head in the picture, nobody between the lens and her, and not a speck
+			var vcam: Camera3D = t.get_viewport().get_camera_3d()
+			var mk: WorldCharacter = main.characters["mika"]
+			if main.streaming.state == "idle" and mk.visible and vcam:
+				var mhead := mk.global_position + Vector3(0, 1.35, 0)
+				var vs: Vector2 = t.get_viewport().get_visible_rect().size
+				var on: bool = not vcam.is_position_behind(mhead) and Rect2(Vector2.ZERO, vs).has_point(vcam.unproject_position(mhead))
+				if not on or main.director._mate_blocks(vcam.global_position, mhead):
+					off_cam += 1
+					subj = "NOT-MIKA"
+				elif absf(vcam.unproject_position(mk.global_position).y - vcam.unproject_position(mhead + Vector3(0, 0.25, 0)).y) < vs.y * 0.1:
+					tiny += 1
+					subj = "mika-tiny"
 			if music and pstage != "dancing" and pstage != "ending":
 				lone_music += 1
 			areas[area] = int(areas.get(area, 0)) + 1
@@ -122,7 +167,9 @@ static func run(t) -> void:
 		fps_all[0], worst_all, mem0 / 1048576.0, mem_end / 1048576.0, growth, vmem0 / 1048576.0, Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0])
 	print("[golive] areas %s" % JSON.stringify(areas))
 	print("[golive] kinds %s" % JSON.stringify(kinds))
-	print("[golive] dances %s" % JSON.stringify(perf_log.map(func(e): return {"who": e.get("who", ""), "ok": e.get("ok", false), "clips": e.get("clips", [])})))
+	print("[golive] dances %s" % JSON.stringify(perf_log.map(func(e): return {"who": e.get("who", ""), "ok": e.get("ok", false), "clips": e.get("clips", []),
+		"detail": e.get("detail", ""), "partner": e.get("partner", "")})))
+	print("[golive] slow frames over 100 ms %d, Mika tiny in %d samples" % [slow, tiny])
 	print("[golive] lake: night %s, rituals %s" % [str(mb.mind.knowledge.get("lake_night", -1)), str(mb.mind.activity_counts.get("lakeboat", {}))])
 	print("[golive] fights: creatures seen %d, duel %s, transformation %s" % [monsters_seen, str(FightHook.running), str(main.transformer.playing if main.transformer else "")])
 	t._check(areas.has("lantern_lake"), "they went to Lantern Lake (%s)" % str(areas.keys()))

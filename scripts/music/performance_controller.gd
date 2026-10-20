@@ -64,7 +64,15 @@ func request(who: String, opts := {}) -> void:
 
 
 func _process(_d: float) -> void:
-	if requests.is_empty() or busy():
+	if busy():
+		# the dancer and her partner stay held the whole dance, whoever else lets go of them (an activity of Luna's
+		# that ended released Mika mid-intro; her planner took her into the boat and the dance stopped, 20 October)
+		for w in [String(active.get("who", "")), String(active.get("partner", ""))]:
+			var hb = main.mage_brains.get(w)
+			if hb and String(hb.current.get("kind", "")) != "perform":
+				hb.hold = true
+		return
+	if requests.is_empty():
 		return
 	var r: Dictionary = requests[0]
 	if Time.get_ticks_msec() - int(r.asked) > 180000:
