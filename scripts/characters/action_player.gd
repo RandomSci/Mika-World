@@ -467,7 +467,7 @@ func _reacts(e: Dictionary, t: Dictionary, kind: String, p: Vector3) -> void:
 ## Her partner's answer to a mischief: a jump, a laugh, a shield, a chase back (from the catalog, through her own
 ## action player).
 func _partner_reacts(other: WorldCharacter, id: String) -> void:
-	var answer := {"sneak_up_scare": "hit_light", "tickle_magic_poke": "victory_dance_silly", "pull_hair_tease": "roll_eyes_shove",
+	var answer: String = {"sneak_up_scare": "hit_light", "tickle_magic_poke": "victory_dance_silly", "pull_hair_tease": "roll_eyes_shove",
 		"splash_water_tease": "dodge_right", "roll_eyes_shove": "hit_light", "chase_run_laugh": "chase_run_laugh",
 		"blow_raspberry_run": "taunt_beckon", "stick_sword_play": "block_side_right"}.get(id, "hit_light")
 	var po := ActionPlayer.of(other)

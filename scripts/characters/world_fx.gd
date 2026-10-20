@@ -22,7 +22,7 @@ static func _particles(host: Node, at: Vector3, n: int, life: float, col: Color,
 	p.damping_max = 0.8
 	p.scale_amount_min = size * 0.6
 	p.scale_amount_max = size * 1.3
-	var m := QuadMesh.new() if quad else SphereMesh.new()
+	var m: PrimitiveMesh = QuadMesh.new() if quad else SphereMesh.new()
 	if quad:
 		(m as QuadMesh).size = Vector2(1, 1)
 	else:

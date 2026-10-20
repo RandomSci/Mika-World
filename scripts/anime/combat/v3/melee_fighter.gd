@@ -18,8 +18,8 @@ const RAW_CLIP_HOLD := ["FootGuard", "FootLock", "ClothClearance", "HandGuard", 
 const RAW_BODY_GUARD := ["JointLimits", "JointLimitsPost", "TwistSpread", "BodyGuard", "BodyGuardIK_Left", "BodyGuardIK_Right",
 	"BodyGuardPost", "SpeedLimit_Spine", "SpeedLimit_Head", "SpeedLimit_Arms", "SpeedLimit_Legs", "SpeedLimit_Fingers"]
 const STRIKE_CONTACT := 0.02             # m a strike may sink into the other girl's body (Selwyn; _land holds it to that)
-const W := 24.0                          # reaction springs: stiffness (rad/s) and damping ratio
-const Z := 0.42
+const W := 16.0                          # reaction springs: stiffness (rad/s) and damping ratio
+const Z := 0.9                           # (was 24 and 0.42: every hit wobbled 4 times a second, part of the tremble)
 
 var id := ""
 var d: FightDirector
@@ -30,6 +30,7 @@ var P := {}                              # the current pose (MeleeBook keys, sca
 var trace := {}                          # final bone positions (TraceFight)
 var traced := 0
 var look_at := Vector3.INF               # world point her eyes and head follow
+var _look_s := Vector3.INF               # the same, smoothed
 var rig_w := 1.0                         # 1 = this rig, 0 = the clip (knock-down / get-up)
 var upper_clip := 0.0                    # 1 = the clip owns her torso, head, arms, hands and fingers; the rig keeps hips and legs
 var _up := 0.0                           # (eased toward upper_clip)
@@ -119,6 +120,8 @@ func _build() -> void:
 		ik.set_target_node(0, ik.get_path_to(t))
 		ik.set_pole_node(0, ik.get_path_to(p))
 		ik.influence = 1.0
+		if RenderProfile.options.has("ik-fixed-axes"):
+			ik.mutable_bone_axes = false
 		_ik[limb] = ik
 		_tgt[limb] = t
 		_pole[limb] = p
@@ -231,6 +234,14 @@ func scaled(over: Dictionary) -> Dictionary:
 ## Vector3}, start: Callable, end: Callable}. A new play starts from wherever she is now (no reset pose).
 func play(segs: Array) -> void:
 	_segs = segs.duplicate()
+	# (2026-10-20, Selwyn: the fight is too fast and the bodies jerk. A snapped pose change shorter than 0.1 fight
+	# seconds jumped the hand 10 cm and the shoulder 6 cm in one frame: never faster than that)
+	for i in _segs.size():
+		var sg: Dictionary = _segs[i]
+		if String(sg.get("ease", "")) == "snap" and float(sg.get("dur", 0.0)) < 0.1 and not RenderProfile.options.has("fight-legacy-motion"):
+			sg = sg.duplicate()
+			sg.dur = 0.1
+			_segs[i] = sg
 	_cur = {}
 	_dyn.clear()
 	_next()
@@ -310,11 +321,17 @@ func update(dt: float) -> void:
 			if end_fn.is_valid():
 				end_fn.call()
 	# reaction springs (fight time: hit-stop freezes them)
+	var legacy := RenderProfile.options.has("fight-legacy-motion")
+	var nsub := 1 if legacy else maxi(int(ceil(dt * 120.0)), 1)
+	var hsub := dt / float(nsub)
+	var ww := 24.0 if legacy else W
+	var zz := 0.42 if legacy else Z
 	for key in _sp:
 		var s: Array = _sp[key]
-		var acc: Vector3 = -(s[0] as Vector3) * W * W - (s[1] as Vector3) * 2.0 * Z * W
-		s[1] = (s[1] as Vector3) + acc * dt
-		s[0] = (s[0] as Vector3) + (s[1] as Vector3) * dt
+		for _i in nsub:
+			var acc: Vector3 = -(s[0] as Vector3) * ww * ww - (s[1] as Vector3) * 2.0 * zz * ww
+			s[1] = (s[1] as Vector3) + acc * hsub
+			s[0] = (s[0] as Vector3) + (s[1] as Vector3) * hsub
 	_guard_drop = maxf(_guard_drop - dt / 0.3, 0.0)
 	var still := move_tag == "" and _cur.is_empty() and _root_vel.length() < 0.2 and rs_hip_len() < 0.02
 	for side in feet:
@@ -339,8 +356,13 @@ func update(dt: float) -> void:
 	# reach), the hips slide toward the support a little each frame (the torso's mass follows); inside, it eases off
 	if traced > 3 and rig_w >= 0.5 and not move_tag.begins_with("react:"):
 		var bv := balance_vec()
-		if bv.x != INF and bv.length() > 0.005:
+		var lg := RenderProfile.options.has("fight-legacy-motion")
+		if lg and bv.x != INF and bv.length() > 0.005:
 			_bal += Vector3(bv.x, 0.0, bv.y) * minf(dt * 24.0, 0.8)
+		elif bv.x != INF and bv.length() > 0.012:
+			# (a gentle, slow correction: at 0.8 per frame on a measure one frame late it overshot every frame and her
+			# hips and legs shook, 4 cm at the root; now a quarter second time constant past a 1.2 cm dead band)
+			_bal += Vector3(bv.x, 0.0, bv.y) * minf(dt * 4.0, 0.15)
 			if _bal.length() > 0.22 * k:
 				_bal = _bal.normalized() * 0.22 * k
 		else:
@@ -349,15 +371,17 @@ func update(dt: float) -> void:
 		_bal = _bal.move_toward(Vector3.ZERO, dt * 0.4)
 	# a strike's hand may land on the other girl (up to STRIKE_CONTACT); every other hand keeps clear of her
 	var pp := PosePipeline.of(c)
-	pp.contact = {"Left": -1.0 if strike_limb == "lh" else 0.0, "Right": -1.0 if strike_limb == "rh" else 0.0}
+	var stl := String(_steer.get("limb", ""))
+	pp.contact = {"Left": -1.0 if strike_limb == "lh" or stl == "lh" else 0.0, "Right": -1.0 if strike_limb == "rh" or stl == "rh" else 0.0}
 	_rig = move_toward(_rig, rig_w, dt / 0.15)
 	_up = move_toward(_up, upper_clip, dt / 0.15)
 	# the rig's own limbs are smooth by construction and fast on purpose: the body's speed limits step back from them
-	pp.rig = {"arms": _rig > 0.5 and _up < 0.5, "legs": _rig > 0.5}
+	pp.rig = {"arms": (_rig > 0.5 and _up < 0.5) or stl in ["lh", "rh"], "legs": _rig > 0.5 or stl in ["lf", "rf"]}
 	_body.influence = _rig
 	_post.influence = _rig
 	for l in _ik:
 		(_ik[l] as TwoBoneIK3D).influence = _rig * ((1.0 - _up) if l in ["lh", "rh"] else 1.0)
+	_steer_update()
 	_feet(dt)
 	if phys:
 		phys.update(dt)
@@ -482,17 +506,21 @@ func _feet(dt: float) -> void:
 		if bool(ft.urgent):
 			off = maxf(off, 0.2 * k)                     # (the body left it behind: it steps now, never locks the knee)
 		ft.reach = false
-		var thr := 0.11 * k
+		# (2026-10-20, the trembling: steps of 2 to 4 frames started by any 3.5 cm drift or 5 deg of knee error made her
+		# feet patter constantly, 37 % of all frames. A fighter re-plants a foot when it is clearly out of place, in a
+		# quarter to a third of a second)
+		var lgs := RenderProfile.options.has("fight-legacy-motion")
+		var thr := (0.11 if lgs else 0.2) * k
 		if move_tag == "" and _root_vel.length() < 0.2:
-			thr = 0.035 * k                              # (a quiet stance: small settling steps keep her feet on their spots)
-			# near a straight leg a 2 cm slip is 10 deg of knee: a foot whose knee is off its stance angle and that
-			# is off its spot at all settles too
+			thr = (0.035 if lgs else 0.09) * k                               # (a quiet stance: a settling step only when clearly off its spot)
 			var want := STANCE_FRONT if side == front_leg() else STANCE_REAR
-			if traced > 3 and absf(bend_of(side) - want) > 5.0 and off > 0.012 * k:
+			if traced > 3 and absf(bend_of(side) - want) > (5.0 if lgs else 14.0) and off > (0.012 if lgs else 0.04) * k:
 				off = maxf(off, thr + 0.001)
 		if off > thr and (not stepping or bool(ft.get("urgent", false)) or _root_vel.length() > 0.9):
-			var dur := clampf(off / 2.6, 0.07, 0.15)
-			ft.step = {"from": ft.plant, "t": 0.0, "dur": dur, "h": clampf(off * 0.25, 0.025, 0.08), "lead": _root_vel * dur * 0.7}
+			var dur := clampf(0.2 + off * 0.35, 0.22, 0.36) if not bool(ft.get("urgent", false)) else clampf(off / 1.8, 0.14, 0.26)
+			if lgs:
+				dur = clampf(off / 2.6, 0.07, 0.15)
+			ft.step = {"from": ft.plant, "t": 0.0, "dur": dur, "h": clampf(off * 0.22, 0.03, 0.09), "lead": _root_vel * dur * 0.7}
 			stepping = true
 		ft.pos = Vector3((ft.plant as Vector3).x, gy, (ft.plant as Vector3).z)
 
@@ -524,10 +552,18 @@ func apply(s: Skeleton3D) -> void:
 	var bob := sin(life_t * TAU * 1.7) * 0.0025 * k
 	var hip_off: Vector3 = (P.hip as Vector3) + (_sp.hip[0] as Vector3) + Vector3(0, bob + stance_corr, stance_shift) + gx.basis.inverse() * _bal
 	if vibrate and d._freeze > 0:
-		hip_off.x += (0.012 if Engine.get_frames_drawn() % 2 == 0 else -0.012) * k
+		if RenderProfile.options.has("fight-legacy-motion"):
+			hip_off.x += (0.012 if Engine.get_frames_drawn() % 2 == 0 else -0.012) * k
+		else:
+			hip_off.x += 0.008 * k              # (the hit stop compresses her once; it no longer flips side to side each frame)
 	var hi: int = _ids.Hips
 	var rest_h: Transform3D = _rest.Hips
 	s.set_bone_pose_position(hi, rest_h.origin + hip_off)
+	if RenderProfile.options.has("ik-trace") and id == "luna":
+		var dk := c.skeleton.get_node_or_null("FightDeck")
+		print("[hiptr] %d hip_off %s P.hip %s sp %s bal %s corr %.4f shift %.4f rise %.4f rig %.2f up %.2f deck %s %s" % [Engine.get_frames_drawn(),
+			str(hip_off.snappedf(0.0001)), str((P.hip as Vector3).snappedf(0.0001)), str((_sp.hip[0] as Vector3).snappedf(0.0001)),
+			str(_bal.snappedf(0.0001)), stance_corr, stance_shift, rise, _rig, _up, dk.current() if dk else "", str(dk._cur.get("t", -1.0)) if dk else ""])
 	s.set_bone_pose_rotation(hi, rest_h.basis.get_rotation_quaternion() * _q(P.hip_rot as Vector3))
 	# a high kick: when the kicking foot's point is above what her leg reaches from here, she rises onto the ball of
 	# her support foot (the heel lifts, up to 7 cm) - the hips go up with it
@@ -587,9 +623,12 @@ func apply(s: Skeleton3D) -> void:
 			var g := s.get_bone_global_pose(bi3)
 			var q := Quaternion(Vector3.UP, deg_to_rad(-amt if side == "Left" else amt))
 			s.set_bone_global_pose(bi3, Transform3D(Basis(q) * g.basis, g.origin))
-	# the head and neck follow her opponent, plus the snap of a blow
+	# the head and neck follow her opponent, plus the snap of a blow. The point is smoothed (0.15 s): following the
+	# other girl's head raw, two heads chased each other's every shake
 	if look_at != Vector3.INF:
-		var tl: Vector3 = inv * look_at
+		var ldt := maxf(get_process_delta_time(), 0.001)
+		_look_s = look_at if (_look_s == Vector3.INF or RenderProfile.options.has("fight-legacy-motion")) else _look_s.lerp(look_at, 1.0 - exp(-ldt / 0.15))
+		var tl: Vector3 = inv * _look_s
 		for pair in [["Neck", 0.4], ["Head", 1.0]]:
 			var bi4: int = _ids[pair[0]]
 			var g2 := s.get_bone_global_pose(bi4)
@@ -627,8 +666,10 @@ func apply(s: Skeleton3D) -> void:
 		var pd: Vector3 = (P.lp if limb == "lh" else P.rp)
 		var cb := s.get_bone_global_pose(_ids.UpperChest).basis.orthonormalized()
 		var pole := (sh + at) * 0.5 + (cb * pd).normalized() * 0.4 * k     # (the elbow's way in HER chest's frame: it turns with her)
+		if _steer.get("limb", "") == limb:
+			continue                                  # (a mocap strike steers this limb itself)
 		(_tgt[limb] as Node3D).global_position = gx * at
-		(_pole[limb] as Node3D).global_position = gx * pole
+		(_pole[limb] as Node3D).global_position = _smooth_pole(limb, gx * pole)
 	for limb in ["lf", "rf"]:
 		var ft: Dictionary = feet[limb]
 		var ankle: Vector3 = (ft.pos as Vector3) + Vector3(0, _ankle_h, 0)
@@ -675,8 +716,79 @@ func apply(s: Skeleton3D) -> void:
 		# hinge is the pelvis's left-right axis turned with the foot); a straight-up leg gets its knee up, a back
 		# kick its knee down - never backwards
 		var knee := (hipj + al) * 0.5 + knee_dir(s, limb, al - hipj) * 0.5 * k
+		if _steer.get("limb", "") == limb:
+			continue
 		(_tgt[limb] as Node3D).global_position = ankle
-		(_pole[limb] as Node3D).global_position = gx * knee
+		(_pole[limb] as Node3D).global_position = _smooth_pole(limb, gx * knee)
+		if RenderProfile.options.has("ik-trace") and id == "luna":
+			print("[legtr] %d %s ratio %.4f strike %s air %s step %s" % [Engine.get_frames_drawn(), limb, (al - hipj).length() / maxf(dmax, 0.001),
+				strike_limb, str(ft.air), str(not (ft.step as Dictionary).is_empty())])
+		if RenderProfile.options.has("ik-trace") and id == "luna" and limb == "rf":
+			var tr_ := gx.affine_inverse()
+			print("[iktr] %d %s %s %s %s %s %d %s" % [Engine.get_frames_drawn(), str((tr_ * ankle).snappedf(0.0001)), str(hipj.snappedf(0.0001)),
+				str((tr_ * (_tgt.rh as Node3D).global_position).snappedf(0.0001)), str(s.get_bone_global_pose(_ids[ARM_BONES.rh[0]]).origin.snappedf(0.0001)),
+				str(gx.origin.snappedf(0.0001)), 1 if not (feet[limb].step as Dictionary).is_empty() else 0, move_tag])
+
+
+## A mocap strike's landing limb steered onto its target by its IK (2026-10-20): influence 0 until fight time t0, up to 1
+## at t1 (the contact), held to t2, released over 0.2 s. The pole keeps the clip's own elbow / knee side.
+var _steer := {}
+
+
+func steer_limb(limb: String, fn: Callable, t0: float, t1: float, t2: float) -> void:
+	_steer = {} if limb == "" else {"limb": limb, "fn": fn, "t0": t0, "t1": t1, "t2": t2}
+
+
+func steering() -> bool:
+	return not _steer.is_empty()
+
+
+func _steer_update() -> void:
+	if _steer.is_empty():
+		return
+	var limb := String(_steer.limb)
+	var ft := float(d.ft)
+	var w := 0.0
+	if ft >= float(_steer.t0):
+		w = smoothstep(float(_steer.t0), float(_steer.t1), ft) if ft < float(_steer.t1) else (1.0 if ft <= float(_steer.t2) else 1.0 - smoothstep(float(_steer.t2), float(_steer.t2) + 0.2, ft))
+	if ft > float(_steer.t2) + 0.2:
+		_steer = {}
+		w = 0.0
+	var ik: TwoBoneIK3D = _ik[limb]
+	ik.influence = maxf(ik.influence, w)
+	if w <= 0.0:
+		return
+	var tp: Vector3 = (_steer.fn as Callable).call()
+	(_tgt[limb] as Node3D).global_position = tp
+	if RenderProfile.options.has("steer-debug"):
+		var bn: Array = ARM_BONES[limb] if ARM_BONES.has(limb) else LEG_BONES[limb]
+		var rt: Vector3 = trace.get(bn[0], Vector3.ZERO)
+		var en: Vector3 = trace.get(bn[2], Vector3.ZERO)
+		print("[steer] %s %s w %.2f ik %.2f reach %.3f of %.3f end_to_target %.3f" % [id, limb, w, ik.influence, rt.distance_to(tp), limb_len(limb), en.distance_to(tp)])
+	var bones: Array = ARM_BONES[limb] if ARM_BONES.has(limb) else LEG_BONES[limb]
+	var r: Vector3 = trace.get(bones[0], Vector3.ZERO)
+	var mid: Vector3 = trace.get(bones[1], Vector3.ZERO)
+	if r != Vector3.ZERO and mid != Vector3.ZERO:
+		var lm := (r + tp) * 0.5
+		var out := mid - lm
+		if out.length() > 0.01:
+			(_pole[limb] as Node3D).global_position = mid + out.normalized() * 0.5 * k
+
+
+## The elbow's / knee's pole, followed over 0.06 s in her own frame (2026-10-20, the trembling: recomputed raw each frame
+## from a moving body, a nearly straight limb's pole jumped between solutions and the IK flipped the limb back and
+## forth, the arm and leg IK added 8 deg of shake per frame).
+var _pole_s := {}
+
+
+func _smooth_pole(limb: String, want: Vector3) -> Vector3:
+	var gx := sk.global_transform
+	var lw := gx.affine_inverse() * want
+	var dt := maxf(get_process_delta_time(), 0.001)
+	var cur: Vector3 = _pole_s.get(limb, lw)
+	cur = cur.lerp(lw, 1.0 - exp(-dt / 0.06))
+	_pole_s[limb] = cur
+	return gx * cur
 
 
 ## FightBodyPost: the hands (fist or open, the knuckles leading) and the feet (flat, heel up, or pointed in a kick).

@@ -68,6 +68,7 @@ static func perform(sim: MeleeSim, who: String, other: String, ult: String) -> f
 	var hand := String(g.hand)
 	var hand_bone := "LeftHand" if hand == "lh" else "RightHand"
 	var t0 := d.ft
+	sim.cine_hold = sim.t + L + 1.6                 # (the cinematographer waits for the ultimate's own cuts)
 	print("[ultimate] %s (%s, %s) from %.2f gather %.2f release %.2f end %.2f" % [sp.title, who, ult, t0, t0 + t_g0, t0 + t_rel, t0 + L])
 	# the domain falls, close on her eyes
 	d.domain(who, true, 0.8)

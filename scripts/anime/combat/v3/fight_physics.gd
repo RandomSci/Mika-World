@@ -28,8 +28,13 @@ const CHAINS := {
 	"legs": ["Spine", "Chest", "Head"],
 }
 const ORDER := ["Spine", "Chest", "UpperChest", "LeftShoulder", "RightShoulder", "LeftUpperArm", "RightUpperArm", "Neck", "Head"]
-const FREQ := 8.0                         # Hz: how fast a struck bone rings
-const DAMP := 0.35
+## (2026-10-20, Selwyn: "their bodies are trembling so bad during battle". At 8 Hz and damping 0.35 the struck chain
+## rang a full shake every 3.75 frames at 30 fps, integrated at w*dt 1.67 near its stability edge, so it flipped back
+## and forth frame to frame; the head's shake after this layer was 19.5 deg per frame. Now one lurch away from the blow
+## and a slow settle, critically damped, integrated in 1/120 s steps.)
+const FREQ := 2.2                         # Hz: how fast a struck bone swings back
+const DAMP := 1.0
+const SUBSTEP := 1.0 / 120.0
 
 var sk: Skeleton3D
 var k := 1.0
@@ -85,7 +90,7 @@ func hit(zone: String, dir: Vector3, power: float) -> void:
 			axis = Vector3(1, 0, 0)
 		axis = (axis.normalized() + up * rng.randf_range(-0.35, 0.35)).normalized()
 		var share := 1.0 if b == struck else 0.5
-		var speed := deg_to_rad(lerpf(160.0, 420.0, p)) * share * rng.randf_range(0.8, 1.2) / float(spec[1])
+		var speed := deg_to_rad(lerpf(160.0, 420.0, p) if RenderProfile.options.has("fight-legacy-motion") else lerpf(90.0, 240.0, p)) * share * rng.randf_range(0.8, 1.2) / float(spec[1])
 		var st: Array = state.get(b, [Vector3.ZERO, Vector3.ZERO])
 		st[1] = (st[1] as Vector3) + axis * speed
 		state[b] = st
@@ -95,13 +100,18 @@ func update(dt: float) -> void:
 	if _t < 0.0:
 		return
 	_t += dt
-	var w0 := TAU * FREQ
+	var legacy := RenderProfile.options.has("fight-legacy-motion")     # (QA: the old ringing, for before renders)
+	var w0 := TAU * (8.0 if legacy else FREQ)
+	var damp := 0.35 if legacy else DAMP
+	var n := 1 if legacy else maxi(int(ceil(dt / SUBSTEP)), 1)
+	var h := dt / float(n)
 	for b in state:
 		var st: Array = state[b]
 		var th: Vector3 = st[0]
 		var om: Vector3 = st[1]
-		om += (-th * w0 * w0 - om * 2.0 * DAMP * w0) * dt
-		th += om * dt
+		for _i in n:
+			om += (-th * w0 * w0 - om * 2.0 * damp * w0) * h
+			th += om * h
 		var lim := deg_to_rad(float(BONES.get(b, [16.0])[0]))
 		if th.length() > lim:
 			th = th.normalized() * lim                  # (the joint's cone: it stops there, the push dies)

@@ -122,6 +122,9 @@ func run() -> Dictionary:
 
 ## The gesture director (LimboAI, one tree per girl): every spell and ultimate gesture goes through it.
 var gestures: GestureDirector
+## The cinematographer (FightCine): cuts timed to the fight; --old-fight-camera keeps the old follow shot.
+var cine: FightCine
+var cine_hold := 0.0                      # fight time until which an ultimate's own cinematic owns the camera
 
 
 func at(dt: float, fn: Callable) -> void:
@@ -159,7 +162,12 @@ func _process(delta: float) -> void:
 			f.look_at = (F[o.id] as MeleeFighter).trace.get("Head", d.bone(o.id, "Head"))
 		f.update(dt)
 	if not demo:
-		_camera()
+		if cine == null and not RenderProfile.options.has("old-fight-camera"):
+			cine = FightCine.make(self)
+		if cine:
+			cine.update()
+		else:
+			_camera()
 	if t >= length and _quiet():
 		done = true
 
@@ -266,6 +274,16 @@ func _tick(s: Dictionary, dt: float) -> void:
 				d.anim(s.id, "combat_idle", 0.0, -1.0, 1.0, 0.2, true)
 	# root motion: an eased glide (lunges, steps, dashes) plus a sliding velocity (knock-backs)
 	var g: Dictionary = s.glide
+	var wa: Dictionary = (s.atk as Dictionary).get("warp", {}) if s.atk is Dictionary else {}
+	if not wa.is_empty() and t < float(s.atk.t_hit) and not o.is_empty():
+		var dv := _flat(d.pos(o.id) - d.pos(s.id)).normalized()
+		var want_w: Vector3 = d.clamp_arena(d.pos(o.id) - dv * float(wa.reach))
+		if g.is_empty():
+			if _flat(want_w - d.pos(s.id)).length() > 0.03:
+				s.glide = {"from": d.pos(s.id), "to": want_w, "t": 0.0, "dur": maxf(float(s.atk.t_hit) - t, 0.05), "ease": "out"}
+				g = s.glide
+		else:
+			g.to = want_w
 	if not g.is_empty():
 		g.t = float(g.t) + dt
 		var u := clampf(float(g.t) / float(g.dur), 0.0, 1.0)
@@ -289,6 +307,10 @@ func _separate() -> void:
 			var v := _flat((b.pos as Vector3) - (a.pos as Vector3))
 			var l := v.length()
 			var mind := 0.62
+			# (a strike landing: close enough for the arm or leg to reach her, as fighters step in to hit)
+			for x in [S[ids[i]], S[ids[j]]]:
+				if String(x.state) == "attack" and (x.atk as Dictionary).has("warp"):
+					mind = 0.4
 			if l < mind and l > 0.0001:
 				var push := v / l * (mind - l) * 0.5
 				a.pos = (a.pos as Vector3) - push
@@ -356,7 +378,7 @@ func _choose_attack(s: Dictionary, o: Dictionary, dist: float) -> void:
 ## procedural strike lands it). A move with no catalog entry strikes directly.
 func _act_strike(s: Dictionary, o: Dictionary, pick: String) -> void:
 	var e := String(ActionPlayer.FIGHT_MOVES.get(pick, ""))
-	if e == "" or RenderProfile.options.has("no-action-player"):
+	if e == "" or ActionPlayer.entry(e).is_empty() or RenderProfile.options.has("no-action-player"):
 		_attack(s, o, pick)
 		return
 	ActionPlayer.of((F[s.id] as MeleeFighter).c).play(e, {"sim": self, "s": s, "o": o, "move": pick})
@@ -388,14 +410,14 @@ func _cast_any(s: Dictionary, o: Dictionary, dist: float, close: bool) -> bool:
 		if gestures.busy(String(s.id)):
 			return false
 		var clip_id := String(SpellBook.SPELLS[pick].clip)
-		if RenderProfile.options.has("no-action-player"):
+		if RenderProfile.options.has("no-action-player") or ActionPlayer.entry(clip_id).is_empty():
 			if not gestures.request(s, o, pick):
 				return false
 		else:
 			# through her action player: a blocked gesture clip is refused (its body scan failed), another is picked
-			if not ActionPlayer.entry(clip_id).is_empty() and not ActionPlayer.allowed(clip_id):
+			if not ActionPlayer.allowed(clip_id):
 				return false
-			ActionPlayer.of((F[s.id] as MeleeFighter).c).play(clip_id, {"sim": self, "s": s, "o": o, "spell": pick, "force": ActionPlayer.entry(clip_id).is_empty()})
+			ActionPlayer.of((F[s.id] as MeleeFighter).c).play(clip_id, {"sim": self, "s": s, "o": o, "spell": pick})
 	else:
 		magic.cast(s, o, pick)
 	var g := GestureBook.of(String(SpellBook.SPELLS[pick].clip))
@@ -439,8 +461,27 @@ func _weighted(names: Array, weights: Array) -> String:
 	return names[-1]
 
 
+## Mocap strikes (2026-10-20, Selwyn: the actions are "not smooth at all", the goal Download(7)): each MeleeBook move
+## plays a real Move Library strike clip around one of its hits: [clip, contact time in the clip (s), the limb that lands
+## there in the mocap, windup lead (s)]. Times are the action catalog's, checked by eye at 10 fps; the landing limb is
+## read off the mocap (the fastest hand or foot at that hit). A blocked clip (failed body scan) or --procedural-strikes
+## falls back to the key pose strike.
+const STRIKE_CLIPS := {
+	"jab": ["combo_jab_cross_hook", 0.68, "rh", 0.42], "cross": ["three_hit_combo", 1.12, "rh", 0.45],
+	"hook": ["combo_jab_cross_hook", 1.62, "lh", 0.5], "body_hook": ["three_hit_combo", 1.85, "rh", 0.5],
+	"uppercut": ["uppercut_launcher", 1.15, "lh", 0.5], "launcher": ["uppercut_launcher", 1.15, "lh", 0.55],
+	"front_kick": ["front_kick", 1.33, "rf", 0.6], "roundhouse": ["jump_spin_kick", 1.5, "rf", 0.7],
+	"low_sweep": ["low_sweep", 1.7, "rf", 0.65], "crescent_kick": ["crescent_kick", 1.5, "rf", 0.7],
+	"axe_kick": ["axe_kick", 1.55, "rf", 0.7], "hook_kick": ["hook_kick", 1.9, "rf", 0.65],
+	"spin_back_kick": ["spin_back_kick", 1.5, "rf", 0.7], "palm_strike": ["dash_palm_strike", 1.45, "lh", 0.6],
+}
+const STRIKE_AFTER := 0.5                 # s of the clip played after the contact (the follow through)
+
+
 ## One strike: key poses on her rig, the limb on a live contact point, the defender warned of the windup.
 func _attack(s: Dictionary, o: Dictionary, name: String, pre := []) -> void:
+	if pre.is_empty() and _mocap_strike(s, o, name):
+		return
 	var m: Dictionary = MeleeBook.MOVES[name]
 	var f: MeleeFighter = F[s.id]
 	f.move_tag = name
@@ -499,6 +540,122 @@ func _attack(s: Dictionary, o: Dictionary, name: String, pre := []) -> void:
 		"end": func(): _attack_done(s, o, atk)})
 	f.play(segs)
 	events.append([snappedf(t, 0.01), "attack", s.id, name])
+
+
+## The mocap version of a strike (STRIKE_CLIPS): the clip plays full body from its windup through the follow through,
+## she closes the distance over the windup, and over the last 0.18 s before the contact the landing limb is steered by
+## its IK onto the live point on the other girl, then released. The contact is judged on her real pose as always.
+func _mocap_strike(s: Dictionary, o: Dictionary, name: String) -> bool:
+	if RenderProfile.options.has("procedural-strikes") or not STRIKE_CLIPS.has(name):
+		return false
+	var spec: Array = STRIKE_CLIPS[name]
+	var clip := String(spec[0])
+	var f: MeleeFighter = F[s.id]
+	var e := ActionPlayer.entry(clip)
+	if not e.is_empty() and not ActionPlayer.allowed(clip):
+		return false
+	if not f.c.has_clip("ml_" + clip):
+		return false
+	var m: Dictionary = (MeleeBook.MOVES[name] as Dictionary).duplicate()
+	var limb := String(spec[2])
+	m.limb = limb
+	var c_t := float(spec[1])
+	var from := maxf(c_t - float(spec[3]), float(e.get("start_s", 0.0)) if not e.is_empty() else 0.0)
+	var L_clip := FightDeck.clip_length(f.c, "ml_" + clip)
+	var to := minf(c_t + STRIKE_AFTER, L_clip)
+	var spd := clampf(float(s.p.speed), 0.9, 1.12) * rng.randf_range(0.96, 1.04)
+	var wind := (c_t - from) / spd
+	var total := (to - from) / spd
+	f.move_tag = name
+	(F[o.id] as MeleeFighter).move_tag = "facing:" + name
+	var surf := "ball" if name == "front_kick" else ("shin" if limb in ["lf", "rf"] else ("palm" if m.get("open", false) or name == "palm_strike" else "fist"))
+	var atk := {"name": name, "m": m, "by": s.id, "vs": o.id, "t0": t, "t_hit": t + wind, "limb": limb, "surf": surf,
+		"locked": Vector3.INF, "outcome": "", "contact": Vector3.INF, "dir": Vector3.ZERO, "phase": "wind", "react_delay": -1.0, "defence": "",
+		"clip": clip}
+	s.state = "attack"
+	s.atk = atk
+	s.stam = float(s.stam) - (14.0 if m.weight == "heavy" else 7.0)
+	(s.recent as Array).append(name)
+	if (s.recent as Array).size() > 4:
+		(s.recent as Array).pop_front()
+	_blows += 1
+	action_starts.append(t)
+	o.threat = atk
+	atk.perceive_at = t + rng.randf_range(0.10, 0.20)
+	# she closes to where the mocap body's own fist / foot reaches at the contact (measured on the clip itself, her
+	# skeleton): the procedural reach left the target 20 to 40 cm out of the arm's reach
+	var dirv := _flat(d.pos(o.id) - d.pos(s.id)).normalized()
+	var cr := _clip_reach(f, clip, c_t, limb)
+	# the source actor is rarely square to the camera: she turns so the clip's own strike line points at the other girl
+	# (the strike's end at the contact lies at this angle to her left of her facing), then closes to its full reach
+	var aim := atan2(float(cr.y), float(cr.x))
+	d.F[s.id].yaw_extra = -aim
+	var want: Vector3 = d.pos(o.id) - dirv * (maxf(cr.length(), 0.25) + 0.06)
+	if _flat(want - d.pos(s.id)).length() > 0.02:
+		s.glide = {"from": d.pos(s.id), "to": d.clamp_arena(want), "t": 0.0, "dur": wind * 0.9, "ease": "inout"}
+	# motion warping: until the contact, her glide's end and her aim follow where the other girl really is now
+	# (a punch filmed facing the camera loses its depth in the mocap: the arm barely reaches forward, so the arm IK
+	# throws it; her body stands where the arm, extended, lands on her)
+	var arm_strike := limb in ["lh", "rh"]
+	var reach_w := maxf(cr.length(), 0.25) + 0.06
+	if arm_strike:
+		reach_w = maxf(reach_w, f.limb_len(limb) * 0.72 + 0.1 * f.k)
+	atk.warp = {"reach": reach_w, "aim": aim}
+	# the body: the clip, the rig steps back (her feet planted where the clip leaves them at the end)
+	d.anim(s.id, "ml_" + clip, from, to, spd, 0.1)
+	f.rig_w = 0.0
+	f.upper_clip = 0.0
+	f.play([{"dur": total, "ease": "hold", "pose": {}}])
+	if limb in ["lh", "rh"]:
+		f.palm[limb] = String(m.get("palm", "down"))
+	var lead := 0.3 if arm_strike else 0.18
+	f.steer_limb(limb, func() -> Vector3: return _limb_target(s, o, atk), d.ft + wind - lead, d.ft + wind - 0.03, d.ft + wind + 0.12)
+	at(maxf(wind - 0.14, 0.0), func():
+		if String(atk.outcome) == "" and s.atk == atk:
+			_limb_target(s, o, atk)
+			_active(s, o, atk))
+	at(wind, func():
+		if s.atk == atk:
+			_impact(s, o, atk))
+	at(total, func():
+		f.steer_limb("", Callable(), 0.0, 0.0, 0.0)
+		d.F[s.id].yaw_extra = 0.0
+		if f.move_tag == name:
+			f.move_tag = ""
+		f.strike_limb = ""
+		if f.rig_w < 0.5 and String(s.state) != "down":
+			f.replant()
+			f.rig_w = 1.0
+			d.stance(s.id, 0.2)
+		_attack_done(s, o, atk))
+	events.append([snappedf(t, 0.01), "attack", s.id, name])
+	return true
+
+
+## How far in front of her root (forward, metres) and to her left the landing limb's end is at clip time t, on her own
+## skeleton (the deck freezes the clip's hips over the ground at its first frame, so the hips' own travel counts).
+var _reach_cache := {}
+
+
+func _clip_reach(f: MeleeFighter, clip: String, t_c: float, limb: String) -> Vector2:
+	var key := "%s|%s|%.2f|%s" % [f.id, clip, t_c, limb]
+	if _reach_cache.has(key):
+		return _reach_cache[key]
+	var a := FightDeck.anim_for(f.c, "ml_" + clip)
+	var out := Vector2(0.55 * f.k, 0.0)
+	if a:
+		var ps := PoseSkel.from(f.sk)
+		JointAudit.pose_at(ps, a, 0.0)
+		var h0: Vector3 = ps.get_bone_global_pose(ps.find_bone("Hips")).origin
+		JointAudit.pose_at(ps, a, t_c)
+		var ht: Vector3 = ps.get_bone_global_pose(ps.find_bone("Hips")).origin
+		var end_b := ("Left" if limb in ["lh", "lf"] else "Right") + ("Hand" if limb in ["lh", "rh"] else "Foot")
+		var e: Vector3 = ps.get_bone_global_pose(ps.find_bone(end_b)).origin - Vector3(ht.x - h0.x, 0.0, ht.z - h0.z)
+		var sc := f.sk.global_transform.basis.get_scale().x
+		out = Vector2(e.z * sc, e.x * sc)                 # (skeleton +Z faces the other girl, +X her left)
+	_reach_cache[key] = out
+	print("[strike] %s %s at %.2f: %s reaches %.2f m ahead, %.2f m to the side" % [f.id, clip, t_c, limb, out.x, out.y])
+	return out
 
 
 ## A kick's aim one step lower down her body (when the higher point is out of the leg's reach).
@@ -685,7 +842,8 @@ func _impact(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 				s.until = t + 0.32
 				(F[s.id] as MeleeFighter).play([{"dur": 0.3, "ease": "out", "pose": {"hip_rot": Vector3(-2, 10, 0), "spine": Vector3(-6, 40, 0)}}, {"dur": 0.16, "ease": "inout", "pose": {}}]))
 	attacks.append({"t": snappedf(float(atk.t0), 0.01), "by": s.id, "move": atk.name, "outcome": outcome, "defence": atk.defence, "part": atk.part, "zone": atk.zone, "reaction": String(atk.get("reaction", "")),
-		"react_delay": snappedf(float(atk.react_delay), 0.001), "frame": Engine.get_frames_drawn(), "err": -1.0})
+		"react_delay": snappedf(float(atk.react_delay), 0.001), "frame": Engine.get_frames_drawn(), "err": -1.0,
+		"touch": atk.get("touch", Vector3.INF), "vs": atk.get("vs", ""), "limb": atk.get("limb", "")})
 	var rec_i := attacks.size() - 1
 	print("[melee] %s %s by %s at %.2f s at frame %d (defence %s, seen after %.2f s)" % [outcome.to_upper(), atk.name, s.id, t, Engine.get_frames_drawn(), atk.defence, float(atk.react_delay)])
 	if outcome in ["hit", "block"]:
@@ -694,7 +852,7 @@ func _impact(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 			var af: MeleeFighter = F[s.id]
 			var surf: Vector3 = af.surface(atk.limb, atk.surf)
 			# (a strike locked on the air she left measures nothing: where it touched her is the capsules' business)
-			attacks[rec_i].err = snappedf(surf.distance_to(atk.contact), 0.001) if atk.locked == Vector3.INF else -1.0
+			attacks[rec_i].err = snappedf(surf.distance_to(atk.contact), 0.001) if atk.locked == Vector3.INF and atk.contact != Vector3.INF else -1.0
 			if float(attacks[rec_i].err) > 0.09:
 				var sd0 := "Left" if atk.limb in ["lh", "lf"] else "Right"
 				print("[melee] DBG miss %s: surf %s contact %s wrist %s ik %s phase %s" % [atk.name, str(surf.snappedf(0.001)), str((atk.contact as Vector3).snappedf(0.001)),
@@ -724,6 +882,12 @@ func _attack_done(s: Dictionary, o: Dictionary, atk: Dictionary) -> void:
 func _interrupt(s: Dictionary) -> void:
 	if magic and magic.performing(String(s.id)):
 		magic.abort(String(s.id))                 # (a blow breaks her gesture: the clip stops, the charge fizzles)
+	var fi: MeleeFighter = F[s.id]
+	if fi.steering():
+		fi.steer_limb("", Callable(), 0.0, 0.0, 0.0)  # (a mocap strike broken off: the rig takes her back for the reaction)
+		d.F[s.id].yaw_extra = 0.0
+		fi.replant()
+		fi.rig_w = 1.0
 	if String(s.state) == "attack":
 		var atk: Dictionary = s.atk
 		atk.outcome = "interrupted"

@@ -52,6 +52,31 @@ static func run(t) -> void:
 	await t.get_tree().process_frame
 	await t.get_tree().process_frame
 	sim.start()
+	if RenderProfile.options.has("jitter-log"):
+		# (the trembling probe) every rendered frame: each girl's root and the final rotation of her main bones
+		for id in ["mika", "luna"]:
+			var jt := JitterTap.new()
+			jt.name = "TraceJitter"
+			jt.id = id
+			jt.c = (sim.F[id] as MeleeFighter).c
+			(sim.F[id] as MeleeFighter).sk.add_child(jt)
+			PosePipeline.arrange_for((sim.F[id] as MeleeFighter).sk)
+	if RenderProfile.options.has("jitter-layers"):
+		# (which layer adds the tremble) a tap after every modifier of Luna's stack
+		var sk: Skeleton3D = (sim.F.luna as MeleeFighter).sk
+		var mods := []
+		for m in sk.get_children():
+			if m is SkeletonModifier3D:
+				mods.append(m)
+		var order := PackedStringArray()
+		for m in mods:
+			order.append(String(m.name) + ("" if (m as SkeletonModifier3D).active else "(off)"))
+			var lt := LayerJit.new()
+			lt.name = "LJ_" + String(m.name)
+			lt.layer = String(m.name)
+			sk.add_child(lt)
+			sk.move_child(lt, (m as Node).get_index() + 1)
+		print("[ljit] order %s" % ", ".join(order))
 	await t._wait(0.6)
 	# she faces the other girl: skeleton +Z toward her
 	var fm: MeleeFighter = sim.F.mika
@@ -93,3 +118,41 @@ static func run(t) -> void:
 	t._check(gmax < 1.3, "actions keep coming: longest gap between any two actions %.2f s" % gmax)
 	sim.teardown()
 	d.teardown()
+
+
+## (--jitter-log) "[jit] <id> <frame> <px> <py> <pz> <yaw> then x y z w per bone" of the final pose, every frame.
+class JitterTap extends SkeletonModifier3D:
+	const BONES := ["Hips", "Spine", "Chest", "UpperChest", "Neck", "Head", "LeftUpperArm", "LeftLowerArm", "LeftHand",
+		"RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"]
+	var id := ""
+	var c: Node3D
+
+	func _process_modification() -> void:
+		var sk := get_skeleton()
+		var parts := PackedStringArray()
+		var g := sk.global_transform
+		parts.append("%.4f %.4f %.4f %.4f" % [g.origin.x, g.origin.y, g.origin.z, c.rotation.y if c else 0.0])
+		for b in BONES:
+			var q := sk.get_bone_global_pose(sk.find_bone(b)).basis.get_rotation_quaternion()
+			parts.append("%.4f %.4f %.4f %.4f" % [q.x, q.y, q.z, q.w])
+		print("[jit] %s %d %s" % [id, Engine.get_frames_drawn(), " ".join(parts)])
+		if RenderProfile.options.has("ankle-log"):
+			var al := PackedStringArray()
+			for side in ["Left", "Right"]:
+				var a := JointAudit.ankle(sk, side)
+				al.append("%s %.1f %.1f %.1f" % [side, a.flex, a.side, a.twist])
+			var fm: MeleeFighter = null
+			print("[ank] %s %d %s" % [id, Engine.get_frames_drawn(), " ".join(al)])
+
+
+## (--jitter-layers) after one modifier: "[ljit] <layer> <frame> x y z w" for Head, RightHand, RightUpperLeg, UpperChest.
+class LayerJit extends SkeletonModifier3D:
+	var layer := ""
+
+	func _process_modification() -> void:
+		var sk := get_skeleton()
+		var parts := PackedStringArray()
+		for b in ["Head", "RightHand", "RightUpperLeg", "UpperChest"]:
+			var q := sk.get_bone_global_pose(sk.find_bone(b)).basis.get_rotation_quaternion()
+			parts.append("%.4f %.4f %.4f %.4f" % [q.x, q.y, q.z, q.w])
+		print("[ljit] %s %d %s" % [layer, Engine.get_frames_drawn(), " ".join(parts)])

@@ -31,6 +31,7 @@ func _tick(delta: float) -> Status:
 	var rf: Vector3 = gd.sim.limb_vel.get(id + ":rf", Vector3.ZERO)
 	if (lf.length() < 0.05 and rf.length() < 0.05) or _t >= GestureDirector.PLANT_WAIT:
 		e.row.plant_wait = snappedf(_t, 0.01)
+		e.row.feet_at_plant = snappedf(maxf(lf.length(), rf.length()), 0.01)
 		e.row.moving = false
 		e.phase = "perform"
 		return SUCCESS

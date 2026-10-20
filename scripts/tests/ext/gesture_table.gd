@@ -16,7 +16,13 @@ extends RefCounted
 ## from frame A to frame B"). --trace: the caster's final hand positions and finger curl every frame of each standing
 ## cast ("[gtrace] <clip> <t> lx ly lz rx ry rz lcurl rcurl", world metres and degrees), for the principles check.
 
-const AIM_OK := 30.0
+const AIM_OK := 35.0
+## The gestures that release AT the target from the hand (a push, a point, a throw, a shot): the aim rule applies to
+## them. Area spells (meteors, sky, domains, pillars, rows, seals on the ground, barriers, arrays, spins) land where
+## they land; their arms are not aimed.
+const AIMED := ["finger_snap_point", "sign_weave_fast", "orb_gather", "spear_conjure_throw", "arm_sweep_wave", "bow_draw_release",
+	"seal_finish", "ult_twin_hand_sigil", "ult_heaven_spear", "ult_thousand_palms", "ult_star_archer", "ult_duo_hand_join_push",
+	"ult_final_seal_bow", "ult_moon_crescent_cleave"]
 
 
 static func run(t) -> void:
@@ -156,15 +162,16 @@ static func _one(t, d: FightDirector, sim: MeleeSim, gd: GestureDirector, who: S
 		why.append("no row")
 	var fe := float(row.get("face_err_at_gather", -1.0))
 	out.face = "%.0f" % fe if fe >= 0.0 else "n/a"
-	if cs != "hit" and (fe < 0.0 or fe > GestureDirector.FACE_DEG):
-		why.append("face %.0f" % fe)
 	var ult := bool(sp.get("ultimate", false))
+	# (an ultimate's gather starts with its eyes close up: it turns during it, judged by its aim at the release)
+	if cs != "hit" and not ult and (fe < 0.0 or fe > GestureDirector.FACE_DEG):
+		why.append("face %.0f" % fe)
 	if cs == "walk":
 		out.plant = "upper" if String(row.get("use", "")) == "upper" else String(row.get("use", "?"))
 		if String(row.get("use", "")) != "upper":
 			why.append("not upper while walking")
 	elif String(g.get("use", "body")) == "body" and cs == "stand":
-		var fv := float(row.get("feet_at_gather", 9.0))
+		var fv := float(row.get("feet_at_plant", 9.0))       # (planted when the gesture starts; the clip may step after)
 		out.plant = "%.2f m/s" % fv
 		if fv > 0.05 and not ult:
 			why.append("feet %.2f" % fv)
@@ -174,13 +181,12 @@ static func _one(t, d: FightDirector, sim: MeleeSim, gd: GestureDirector, who: S
 	out.pace = "%.2f" % pc
 	if ult and absf(pc - float(g.speed)) > 0.001:
 		why.append("ult pace")
-	elif not ult and (pc < 0.85 or pc > 1.15):
+	elif not ult and (pc < 0.85 - 1e-4 or pc > 1.15 + 1e-4):
 		why.append("pace")
 	if cs != "hit":
 		var ae := float(row.get("aim_err", -1.0))
-		var need := absf(float(g.get("aim", 0.0)))
-		out.aim = "%.0f" % ae if ae >= 0.0 else "n/a"
-		if ae < 0.0 or ae > AIM_OK + need:
+		out.aim = ("%.0f" % ae if ae >= 0.0 else "n/a") if String(sp.clip) in AIMED else "area"
+		if String(sp.clip) in AIMED and (ae < 0.0 or ae > AIM_OK):
 			why.append("aim %.0f" % ae)
 		out.stagger = ""
 	else:

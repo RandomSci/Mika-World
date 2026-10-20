@@ -1,0 +1,114 @@
+class_name FightCine
+extends RefCounted
+## The live fight's cinematographer (2026-10-20, Selwyn: "the camera angles like close timings are so critical like in
+## those videos especially during fights", his references Download 3, 4, 5, 7). It replaces the old follow shot
+## (one two-shot every 2.6 to 4.2 s) with cuts timed to what happens, from the director's shot library:
+##   a strike's windup       a side profile of both, or over the attacker's shoulder, or the defender's face
+##   the blow lands          a close up on the contact point (hit_close), held through the hit stop
+##   the recoil              a low wide shot as she is driven back, or a crane on a launch / knockdown
+##   a dash or a rush        tracking alongside her
+##   a spell's gather        the low hero angle on the caster
+##   the release             behind the caster along the spell's path, then the impact
+##   between exchanges       a wide or a slow orbit, held at most 1.2 s
+## Rules from the references: a cut every 0.3 to 1.2 s in an exchange, never two of the same kind in a row, a close up
+## only at a hit, the 180 degree line kept (the director's side), and an ultimate's own cinematic is never interrupted
+## (UltimateCast holds the camera through sim.cine_hold).
+## Every choice is logged to `log` [t, kind, who, why] for the review sheets.
+
+const MIN_SHOT := 0.3                     # fight seconds
+const NEUTRAL_MAX := 1.2
+const HIT_HOLD := 0.42
+
+var sim: MeleeSim
+var cur := ""
+var since := 0.0
+var until := 0.0                          # the current shot is kept at least until then
+var _ev_i := 0
+var _atk_i := 0
+var _last_kinds: Array = []
+var log: Array = []
+
+
+static func make(s: MeleeSim) -> FightCine:
+	var c := FightCine.new()
+	c.sim = s
+	return c
+
+
+func _cut(kind: String, who: String, opts: Dictionary, hold: float, why: String) -> void:
+	var t := sim.t
+	sim.d.cut(sim.d.ft + 0.001, kind, who, opts)
+	cur = kind
+	since = t
+	until = t + hold
+	_last_kinds.append(kind)
+	if _last_kinds.size() > 3:
+		_last_kinds.pop_front()
+	log.append([snappedf(t, 0.01), kind, who, why])
+	sim._next_cam = t + 99.0                       # (the old follow camera stays off)
+
+
+func _fresh(kinds: Array) -> String:
+	for k in kinds:
+		if _last_kinds.is_empty() or String(_last_kinds[_last_kinds.size() - 1]) != String(k):
+			return String(k)
+	return String(kinds[0])
+
+
+func _can_cut(urgent := false) -> bool:
+	if sim.t < float(sim.get("cine_hold")):
+		return false
+	return sim.t - since >= (0.22 if urgent else MIN_SHOT)
+
+
+## Called by the sim every frame (fight time).
+func update() -> void:
+	if sim.t < float(sim.get("cine_hold")):
+		_ev_i = sim.events.size()
+		_atk_i = sim.attacks.size()
+		return
+	var rng := sim.rng
+	# 1 a blow landed: close on the contact, then the recoil
+	while _atk_i < sim.attacks.size():
+		var a: Dictionary = sim.attacks[_atk_i]
+		_atk_i += 1
+		var oc := String(a.get("outcome", ""))
+		var p: Vector3 = a.get("touch", Vector3.INF)
+		if oc in ["hit", "block", "parry"] and p != Vector3.INF and _can_cut(true):
+			var by := String(a.by)
+			_cut("hit_close", by, {"at": p, "flip": 1.0 if rng.randf() < 0.5 else -1.0}, HIT_HOLD, "%s %s" % [oc, a.move])
+			return
+	# 2 the events: windups, casts, dashes, falls
+	while _ev_i < sim.events.size():
+		var e: Array = sim.events[_ev_i]
+		_ev_i += 1
+		var kind := String(e[1])
+		var who := String(e[2])
+		match kind:
+			"attack":
+				if _can_cut():
+					var k := _fresh(["profile", "ots", "face_ots"] if rng.randf() < 0.6 else ["ots", "profile", "wide_low"])
+					var target_who := who if k != "face_ots" else String(sim.d.F[who].other)
+					_cut(k, target_who, {}, 0.32, "windup " + String(e[3]))
+			"spell", "cast":
+				if _can_cut():
+					_cut("hero_low", who, {}, 0.6, "gather " + String(e[3]))
+					var caster := who
+					sim.at(0.65, func():
+						if sim.t >= float(sim.get("cine_hold")) and cur == "hero_low":
+							_cut("behind", caster, {}, 0.7, "release"))
+			"rush":
+				if _can_cut():
+					_cut("track", who, {}, 0.6, "rush")
+			"knockdown":
+				if _can_cut(true):
+					_cut("crane", who, {}, 1.0, "knockdown")
+			"defend":
+				pass
+	# 3 between exchanges: a wide that does not sit still for long
+	if sim.t >= until and sim.t - since >= NEUTRAL_MAX:
+		var k2 := _fresh(["duo", "wide_low", "orbit"])
+		var o2 := {"k": rng.randf_range(0.9, 1.05), "high": rng.randf_range(0.0, 0.4), "min": 3.2}
+		if k2 == "orbit":
+			o2 = {"from": rng.randf_range(10.0, 40.0), "to": rng.randf_range(60.0, 100.0), "r": 4.6}
+		_cut(k2, String(sim.S.keys()[0]), o2, NEUTRAL_MAX, "neutral")

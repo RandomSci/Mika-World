@@ -47,6 +47,10 @@ var _shot_sm := {}
 var _slow := 1.0
 var _slow_until := -1.0
 var _freeze := 0
+## The fight's tempo (2026-10-20, Selwyn: "the fight is happening too fast", his references move in big readable
+## beats): the whole fight runs at this share of real time (the moves, the clips, the effects, cloth and hair alike),
+## hit stop and slow motion on top of it. --fight-tempo=x overrides.
+var tempo := float(RenderProfile.options.get("fight-tempo", "1.0" if RenderProfile.options.has("fight-legacy-motion") else "0.9"))
 var _lens := {"fov": 42.0, "shake": 0.0, "seed": 0.0, "roll": 0.0}
 var _driver: PCamDriver
 var _pcs: Array = []
@@ -260,11 +264,11 @@ func _process(delta: float) -> void:
 	# time: hit-stop (counted in rendered frames), then slow motion easing back
 	if _freeze > 0:
 		_freeze -= 1
-		Engine.time_scale = 0.0001 if _freeze > 0 else _slow
+		Engine.time_scale = 0.0001 if _freeze > 0 else _slow * tempo
 	else:
 		if _slow < 1.0 and ft >= _slow_until:
 			_slow = minf(_slow + delta / 0.12 + 0.02, 1.0)
-		Engine.time_scale = _slow
+		Engine.time_scale = _slow * tempo
 	if RenderProfile.options.has("fight-camdebug") and frame in [300, 560, 640]:
 		_list_particles()
 	if frame % 10 == 1:
@@ -289,7 +293,25 @@ func _place(delta: float) -> void:
 		if off.length() > ARENA_R:
 			p = center + off.normalized() * ARENA_R
 			f.pos = p
-		c.global_position = Vector3(p.x, ground_y(c, p) + float(f.lift), p.z)
+		# the drawn body follows her logical mark on a critically damped spring (0.05 s): the sim's corrections (a step
+		# up to a strike, a push apart, a give of ground) arrive as single frame jumps of up to 15 cm, and drawn raw they
+		# jerked her planted feet's IK every few frames, the main source of the legs' and body's trembling in fights
+		# (2026-10-20). A jump over 2 m (a placement, a teleport) is taken at once.
+		var shown: Vector3 = f.get("shown", p)
+		var sv: Vector3 = f.get("shown_v", Vector3.ZERO)
+		if shown.distance_to(p) > 2.0 or RenderProfile.options.has("no-root-smooth") or RenderProfile.options.has("fight-legacy-motion"):
+			shown = p
+			sv = Vector3.ZERO
+		else:
+			var wn := 1.0 / 0.05
+			var nsub := maxi(int(ceil(dt * 240.0)), 1)
+			var h := dt / float(nsub)
+			for _i in nsub:
+				sv += ((p - shown) * wn * wn - sv * 2.0 * wn) * h
+				shown += sv * h
+		f.shown = shown
+		f.shown_v = sv
+		c.global_position = Vector3(shown.x, ground_y(c, shown) + float(f.lift), shown.z)
 		var want := yaw_for(c, _flat(F[f.other].pos - p)) + float(f.yaw_extra)
 		c.rotation.y = lerp_angle(c.rotation.y, want, 1.0 - exp(-dt * 14.0 * float(f.yaw_k)))
 
@@ -424,7 +446,7 @@ func impact(power: float, big := false, decisive := false) -> void:
 func slowmo(scale: float, dur: float) -> void:
 	_slow = scale
 	_slow_until = ft + dur
-	Engine.time_scale = scale
+	Engine.time_scale = scale * tempo
 
 
 ## An ultimate's domain: the world dims and takes her colour (the grade darker and colder or more violet, a tinted fog
@@ -706,6 +728,14 @@ func shot_cam(kind: String, who: String, u: float, len_: float, o: Dictionary) -
 			var at_p: Vector3 = o.get("at", pos(a))
 			var p12 := at_p + perp * 4.6 + up * 1.5 - ax * 1.0
 			return {"pos": p12, "look": at_p + up * 0.7, "fov": 48.0, "focus": at_p, "far": 3.0, "amount": 0.03}
+		"hit_close":
+			# a close up on the point a blow lands (the references cut to the fist, the foot, the face at the hit),
+			# 45 degrees off the line between them, a slow push in through the hit stop
+			var at_h: Vector3 = o.get("at", chest(a))
+			var fl := float(o.get("flip", 1.0))
+			var dirh := (perp * fl + ax * 0.7).normalized()
+			var ph := at_h + dirh * lerpf(1.35, 1.1, e) + up * 0.12
+			return {"pos": ph, "look": at_h, "fov": 36.0, "focus": at_h, "far": 0.5, "amount": 0.12}
 		"hand":
 			var hb := String(o.get("bone", "RightHand"))
 			var hnd: Vector3 = _sm("hand", bone(a, hb), 0.4)
