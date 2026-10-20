@@ -25,17 +25,8 @@ import onnxruntime as ort
 import soundfile as sf
 from kokoro_onnx import Kokoro
 
-import sys
-
-# started with python -I (isolated), which no longer puts this folder on the path: tts_text next to it was not found
-# and the speech service never came up, so Luna had no voice on the 2026-10-21 stream
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import tts_text  # noqa: E402  the text cleanup every line goes through (tools/voice/tts_text.py, data/tts_pronunciations.json)
-
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MAX_CHARS = 1200
-# every word Kokoro would still read letter by letter (H M, B R B) during a stream, for the dictionary
-SPELL_LOG = os.environ.get("TTS_SPELL_LOG", os.path.expanduser("~/Downloads/TTS_spelled_words.log"))
 
 
 class Engine:
@@ -52,7 +43,6 @@ class Engine:
             except Exception as exc:  # noqa: BLE001 - falls back to the CPU below
                 print(json.dumps({"cuda_preload": str(exc)[:200]}), flush=True)
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        self._model, self._voices = model, voices
         session = ort.InferenceSession(model, options, providers=providers)
         self.provider = session.get_providers()[0]
         self.kokoro = Kokoro.from_session(session, voices)
@@ -91,47 +81,10 @@ class Engine:
             total = vec if total is None else total + vec
         return total
 
-    def _log_spelled(self, text, lang):
-        """Words in the cleaned line that espeak would still spell out (acronyms on purpose excepted)."""
-        d = tts_text._load()
-        plain = tts_text._INLINE.sub(" ", text)
-        for w in set(tts_text.re.findall(r"[A-Za-z]{2,}", plain)):
-            if w in d["acronyms"] or w.upper() in d["acronyms"]:
-                continue
-            if not (w.isupper() or not (set(w) & tts_text._VOWELS)):
-                continue                                  # (only shouted or vowel-less words can be read as letters)
-            if tts_text.spelled_out(w, self.kokoro.tokenizer, lang):
-                try:
-                    with open(SPELL_LOG, "a", encoding="utf-8") as fh:
-                        fh.write("%s\t%s\t%s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), w, text[:160]))
-                except OSError:
-                    pass
-
     def synthesize(self, text, voice, lang, speed, phonemes=False, gain=1.0):
-        if not phonemes and lang.startswith("en"):
-            raw = text
-            try:
-                text, phonemes = tts_text.prepare(text, self.kokoro.tokenizer, lang)
-                self._log_spelled(tts_text.normalize(raw), lang)
-            except Exception as exc:  # noqa: BLE001 - a cleanup bug never silences a line
-                print(json.dumps({"tts_text_error": str(exc)[:200]}), flush=True)
-                text, phonemes = raw, False
-            if not text.strip():
-                text, phonemes = "...", False             # (a line that was only emoji: a breath, never an error)
         with self.lock:
             started = time.perf_counter()
-            try:
-                audio, rate = self.kokoro.create(text, voice=self.style(voice), speed=speed, lang=lang, is_phonemes=phonemes)
-            except Exception as exc:  # noqa: BLE001 - the GPU failed on this line: the CPU from now on, the line retried
-                if self.provider == "CPUExecutionProvider":
-                    raise
-                print(json.dumps({"gpu_failed": str(exc)[:200], "now": "CPUExecutionProvider"}), flush=True)
-                options = ort.SessionOptions()
-                options.intra_op_num_threads = self.info["threads"]
-                options.inter_op_num_threads = 1
-                self.kokoro = Kokoro.from_session(ort.InferenceSession(self._model, options, providers=["CPUExecutionProvider"]), self._voices)
-                self.provider = self.info["provider"] = "CPUExecutionProvider"
-                audio, rate = self.kokoro.create(text, voice=self.style(voice), speed=speed, lang=lang, is_phonemes=phonemes)
+            audio, rate = self.kokoro.create(text, voice=self.style(voice), speed=speed, lang=lang, is_phonemes=phonemes)
             audio = audio * float(gain)
             # Short fades: Kokoro trims silence, so a clause can start or stop on
             # a non-zero sample, which clicks at chunk boundaries.
