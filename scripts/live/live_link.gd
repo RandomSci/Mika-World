@@ -82,9 +82,12 @@ func _memory_log(delta: float) -> void:
 		return
 	_m_t = 0.0
 	var rss := 0.0
-	for ln in FileAccess.get_file_as_string("/proc/self/status").split("\n"):
+	var pf := FileAccess.open("/proc/self/status", FileAccess.READ)      # (line by line: /proc files report size 0)
+	while pf and not pf.eof_reached():
+		var ln := pf.get_line()
 		if ln.begins_with("VmRSS:"):
 			rss = float(ln.split(":")[1].strip_edges().split(" ")[0]) / 1024.0
+			break
 	var now := {"static": Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
 		"video": Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0, "rss": rss,
 		"nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT), "objects": Performance.get_monitor(Performance.OBJECT_COUNT)}
