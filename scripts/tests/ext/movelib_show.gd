@@ -75,6 +75,23 @@ static func run(t) -> void:
 		var dur: float = d.anim(who, clip, 0.0, -1.0, 1.0, 0.05)
 		await t._wait(dur)
 		print("[movelib] %s show from frame %d to frame %d" % [n, a0, Engine.get_frames_drawn()])
+		var bake_of := String(RenderProfile.options.get("bake-of", ""))
+		if bake_of != "" and bake_of != who:
+			# QA (the shared-bake check): the same clip again, as baked for the OTHER girl's skeleton
+			var oc: WorldCharacter = d.F[bake_of].c
+			var foreign := MocapBake.bake(oc.skeleton, WorldCharacter.MOCAP_DIR + String(n) + ".json")
+			c._retarget_paths(foreign, String(c.avatar.get_path_to(c.skeleton)), true)
+			var mine: Animation = c.body_player.get_animation("mx/" + clip)
+			c.body_player.get_animation_library("mx").remove_animation(clip)
+			c.body_player.get_animation_library("mx").add_animation(clip, foreign)
+			d.anim(who, "combat_idle", 0.0, -1.0, 1.0, 0.1, true)
+			await t._wait(0.35)
+			var a1 := Engine.get_frames_drawn()
+			d.anim(who, clip, 0.0, -1.0, 1.0, 0.05)
+			await t._wait(dur)
+			print("[movelib] %s as baked for %s from frame %d to frame %d" % [n, bake_of, a1, Engine.get_frames_drawn()])
+			c.body_player.get_animation_library("mx").remove_animation(clip)
+			c.body_player.get_animation_library("mx").add_animation(clip, mine)
 		d.anim(who, "combat_idle", 0.0, -1.0, 1.0, 0.1, true)
 		await t._wait(0.35)
 		shown += 1

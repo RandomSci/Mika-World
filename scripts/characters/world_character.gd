@@ -1144,6 +1144,7 @@ func _attach(bone: String) -> BoneAttachment3D:
 ## Retargeted clips depend only on the skeleton's path and bone set, which every VRoid VRM here shares, so
 ## the library is built once and reused (avatar swaps / a second mage cost no re-import of 13 FBX clips).
 static var _lib_cache := {}
+static var _own_libs := {}                # signature + rest key -> her own library (mocap bakes for her proportions)
 ## Reaction clips' own hip travel (x, z per 1/30 s, from their first frame; source units): BodyReaction moves the
 ## body by it (root motion) while the clip itself plays in place, so a fall carries her over the ground for real.
 static var root_curves := {}
@@ -1183,7 +1184,15 @@ func _setup_animation() -> void:
 	if lib == null:
 		lib = _build_library()
 		_lib_cache[sig] = lib
-	body_player.add_animation_library("mx", lib)
+	# her own library (2026-10-20, Selwyn: "key every bake by avatar and form, not bone names"): the base clips are
+	# shared by reference, every mocap bake in it is made for THIS skeleton's proportions (two forms with the same bone
+	# names but other proportions, like Luna's face V2 form and her older oracle forms, never share a bake)
+	var own_key := sig + "|" + MocapBake.rest_key(skeleton)
+	var own: AnimationLibrary = _own_libs.get(own_key)
+	if own == null:
+		own = _own_library(lib)
+		_own_libs[own_key] = own
+	body_player.add_animation_library("mx", own)
 	_build_tree()
 	_preload_movelib()
 
@@ -1257,6 +1266,50 @@ func _build_library() -> AnimationLibrary:
 	if lib.has_animation("catwalk_turn"):
 		turn_yaw_curves["catwalk_turn"] = _strip_hip_yaw(lib.get_animation("catwalk_turn"))
 	return lib
+
+
+## A library for this skeleton built on `base`: every clip shared by reference except the mocap ones (CLIPS "mocap:"),
+## which are taken from the prebaked cache for her skeleton (or baked for it now). The Move Library clips (ml_) are
+## added to it as they load or are asked for, never to the shared base.
+func _own_library(base: AnimationLibrary) -> AnimationLibrary:
+	var own := AnimationLibrary.new()
+	var skel_path := String(avatar.get_path_to(skeleton))
+	for n in base.get_animation_list():
+		var spec: Array = CLIPS.get(String(n), [])
+		var src := String(spec[0]) if not spec.is_empty() else ""
+		if not src.begins_with("mocap:"):
+			own.add_animation(n, base.get_animation(n))
+			continue
+		var freeze_at := -1.0
+		var reverse := false
+		var rng_a := -1.0
+		var rng_b := -1.0
+		if src.ends_with("]") and src.contains("["):
+			var r := src.get_slice("[", 1).trim_suffix("]")
+			rng_a = float(r.get_slice("-", 0))
+			rng_b = float(r.get_slice("-", 1))
+			src = src.get_slice("[", 0)
+		if src.contains("@"):
+			freeze_at = float(src.get_slice("@", 1))
+			src = src.get_slice("@", 0)
+		if src.ends_with("~rev"):
+			reverse = true
+			src = src.trim_suffix("~rev")
+		var json := MOCAP_DIR + src.trim_prefix("mocap:") + ".json"
+		var anim := MocapBake.cached(skeleton, json)
+		anim = anim.duplicate(true) if anim != null else MocapBake.bake(skeleton, json)
+		if anim == null:
+			continue
+		if freeze_at >= 0.0:
+			anim = _bake_variant(anim, "freeze", freeze_at)
+		elif reverse:
+			anim = _bake_variant(anim, "reverse", 0.0)
+		elif rng_a >= 0.0:
+			anim = _bake_variant(anim, "range", rng_a, rng_b)
+		_retarget_paths(anim, skel_path, spec[2])
+		anim.loop_mode = Animation.LOOP_LINEAR if spec[1] else Animation.LOOP_NONE
+		own.add_animation(n, anim)
+	return own
 
 
 static var turn_yaw_curves := {}
