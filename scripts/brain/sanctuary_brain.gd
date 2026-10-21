@@ -484,6 +484,23 @@ func options() -> Array:
 
 const MEET_COOLDOWN_S := 420.0
 const DANCE_GAP_S := 2700.0              # her own dance: at least this long after any dance
+const HOLD_STALE_S := 90.0
+
+
+## Nothing that holds a brain is running: no show command, no dance, no shared activity, no mage talk, no book.
+func _hold_unowned() -> bool:
+	var ll = main.get("live_link")
+	if ll != null and not (ll.get("_command") as Dictionary).is_empty():
+		return false
+	if main.performance and main.performance.busy():
+		return false
+	if main.get("companionship") and main.companionship.busy():
+		return false
+	if main.get("mage_talk") and main.mage_talk.busy():
+		return false
+	return not (main.book_reader and main.book_reader.reading())
+
+
 const JOURNAL_GAP_S := 900.0
 const STARGAZE_GAP_S := 1800.0
 const RECENT_KINDS := 12
@@ -832,11 +849,23 @@ func region_context() -> Dictionary:
 # ------------------------------------------------------------------ main loop
 func _loop() -> void:
 	busy = true
+	var held_since := -1.0
 	while enabled and is_inside_tree():
 		if hold:
 			current = {}
+			# a hold nobody lifts (2026-10-22 live: her own dance and the show's magic lesson overlapped and she stood
+			# still for 6.5 minutes until the show's next goal released her): let go after HOLD_STALE_S when nothing
+			# that holds her is running any more (no show command, no dance, no shared activity, no conversation)
+			var now_h := Time.get_ticks_msec() / 1000.0
+			if held_since < 0.0:
+				held_since = now_h
+			elif now_h - held_since > HOLD_STALE_S and _hold_unowned():
+				print("[brain] %s: a hold left on for %.0f s with nothing running - released" % [agent_id, now_h - held_since])
+				hold = false
+				held_since = -1.0
 			await get_tree().create_timer(0.3).timeout
 			continue
+		held_since = -1.0
 		if main.streaming.state != "idle" or not main.travel.journey.is_empty():
 			await get_tree().create_timer(0.5).timeout
 			continue
