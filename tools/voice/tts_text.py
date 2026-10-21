@@ -203,6 +203,18 @@ def _word_fix(w, d):
     return w
 
 
+def _possessive(v):
+    """A dictionary value with 's added: inside the phonemes of an inline span (z after a voiced sound, s after a
+    voiceless one, ɪz after a hiss), or as plain 's on a respelling."""
+    m = _INLINE.fullmatch(v.strip())
+    if not m:
+        return v + "'s"
+    ph = m.group(2).rstrip()
+    last = re.sub(r"[ˈˌː\s]", "", ph)[-1:]
+    suf = "ɪz" if last in "szʃʒ" or ph.endswith(("tʃ", "dʒ")) else ("s" if last in "ptkfθ" else "z")
+    return "[%s's](/%s%s/)" % (m.group(1), ph, suf)
+
+
 def normalize(text):
     """Speakable text, possibly holding [shown](/phonemes/) spans."""
     d = _load()
@@ -216,7 +228,9 @@ def normalize(text):
         if re.search(r"[^\x00-\x7f]", k):
             t = t.replace(k, " " + v + " ")
         else:
-            t = re.sub(r"(?<![\w\[])" + re.escape(k) + r"(?![\w\]])", lambda m, v=v: v, t, flags=re.I)
+            # a possessive goes INTO the name ("Luna's" was spoken "Luna, S": the name became a phoneme span and the
+            # 's was left on its own, 2026-10-22 stream)
+            t = re.sub(r"(?<![\w\[])" + re.escape(k) + r"(['\u2019]s)?(?![\w\]])", lambda m, v=v: _possessive(v) if m.group(1) else v, t, flags=re.I)
     # keep inline phonemes safe from the rules below
     spans = []
 

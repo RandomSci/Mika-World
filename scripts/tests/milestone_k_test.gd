@@ -178,6 +178,7 @@ func _run() -> void:
 		"benchrest": await _benchrest()
 		"showline": await _showline()
 		"showtakes": await _showtakes()
+		"mikafix": await _mikafix()
 		"luna_r12": await _luna_r12()
 		"dresstest": await _dresstest()
 		"skinprobe": await _skinprobe()
@@ -9250,3 +9251,69 @@ func _showtakes() -> void:
 	_check(cut.n <= 1 and cut.nav <= 6, "no tug of war: %d interrupted walks, %d walks started in 25 s" % [cut.n, cut.nav])
 	_check(bool(job.r.get("ok", false)) or (not mb.current.is_empty() and String(mb.current.get("kind", "")) != "together"), "the show's activity runs", [job.r, mb.current])
 	main.companionship.force_accept = false
+
+
+## Mika's live fixes of 2026-10-22: no random dances (45 min after any dance, the special one only to celebrate), the
+## whole home region at night (she circled Starfall Hill for an hour), and a hold nobody lifts is released.
+func _mikafix() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var m := WorldState.mind("mika")
+	# night, Level 3
+	main.day_night.clear_override()
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 23.0 * 60.0
+	await _wait(1.0)
+	_check(WorldState.daylight() < 0.2, "it is night by the clock (daylight %.2f)" % WorldState.daylight())
+	var keys: Array = mb.options().map(func(o): return String(o.key))
+	var areas: Array = mb.options().filter(func(o): return o.kind == "visit").map(func(o): return String(o.area))
+	print("[mktest] mikafix night visits: %s" % str(areas))
+	_check(areas.has("arcane_library") and areas.has("mentor_tower"), "at night the library and the tower are offered (%s)" % str(areas))
+	# dances: one 10 minutes ago -> none of her own; long ago -> casual only, special only when celebrating
+	var now_u := Time.get_unix_time_from_system()
+	m.music["last_unix"] = int(now_u - 600)
+	keys = mb.options().map(func(o): return String(o.key))
+	_check(not keys.any(func(k): return k.begins_with("perform:")), "10 min after a dance: no dance of her own on offer", keys.filter(func(k): return k.begins_with("perform")))
+	m.music["last_unix"] = int(now_u - 4000)
+	m.music["last_special_unix"] = 0
+	keys = mb.options().map(func(o): return String(o.key))
+	_check(keys.has("perform:casual") and not keys.has("perform:special"), "an hour later: a casual dance may come, the special one only to celebrate", keys.filter(func(k): return k.begins_with("perform")))
+	# wanderlust: 40 min in the sanctuary -> a visit outscores roaming
+	m.knowledge["arrived_unix"] = now_u - 40 * 60
+	var ranked: Array = mb.ranked()
+	var best_visit := ranked.filter(func(o): return o.kind == "visit" and String(o.area) != "sanctuary" and String(o.area) != "lantern_lake")
+	var best_roam := ranked.filter(func(o): return o.kind == "roam")
+	print("[mktest] mikafix top: %s" % str(ranked.slice(0, 5).map(func(o): return [o.label, snappedf(o.utility, 0.01)])))
+	_check(not best_visit.is_empty() and (best_roam.is_empty() or float(best_visit[0].utility) > float(best_roam[0].utility)),
+		"after 40 min in one place, going somewhere else outscores another hill spot", [best_visit.slice(0, 1).map(func(o): return [o.label, o.utility]), best_roam.slice(0, 1).map(func(o): return [o.label, o.utility])])
+	# a hold nobody lifts: released after ~90 s; a hold during a dance is kept
+	mb.hold = true
+	mb.set_enabled(true)                     # (its loop runs, as on stream)
+	await _wait(1.0)
+	var ll = main.get("live_link")
+	print("[mktest] mikafix hold check: busy %s enabled %s unowned %s | command %s perf %s comp %s talk %s book %s" % [mb.busy, mb.enabled, mb._hold_unowned(),
+		str(ll.get("_command")) if ll else "-", main.performance.busy() if main.performance else "-", main.companionship.busy(),
+		main.mage_talk.busy() if main.get("mage_talk") else "-", main.book_reader.reading() if main.book_reader else "-"])
+	var t0 := _game_t
+	while mb.hold and _game_t - t0 < 120.0:
+		await get_tree().process_frame
+	_check(not mb.hold and _game_t - t0 > 80.0, "a hold left on with nothing running is released (after %.0f s)" % (_game_t - t0))
+	# a hold while something real holds her (a shared activity of Luna's) is kept
+	mb.hold = true
+	main.companionship.active = {"kind": "test", "leader": "luna", "follower": "mika", "stage": "walking together"}
+	var t1 := _game_t
+	while mb.hold and _game_t - t1 < 110.0:
+		await get_tree().process_frame
+	_check(mb.hold, "a hold while a shared activity runs is kept (%.0f s)" % (_game_t - t1))
+	main.companionship.active = {}
+	# Luna takes her out in the boat: kept for the whole ride
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	var lb_cur: Dictionary = lb.current
+	lb.set_enabled(false)                    # (held, her own loop would clear this every 0.3 s; a leader is not held)
+	lb.current = {"kind": "lakeboat", "label": "take the boat out", "stage": "rowing"}
+	var t2 := _game_t
+	while mb.hold and _game_t - t2 < 110.0:
+		await get_tree().process_frame
+	_check(mb.hold, "a hold while Luna takes her out in the boat is kept (%.0f s)" % (_game_t - t2))
+	lb.current = lb_cur
+	mb.set_enabled(false)

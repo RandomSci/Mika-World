@@ -485,6 +485,7 @@ func options() -> Array:
 const MEET_COOLDOWN_S := 420.0
 const DANCE_GAP_S := 2700.0              # her own dance: at least this long after any dance
 const HOLD_STALE_S := 90.0
+const HOLDING_KINDS := ["lakewatch", "lakeboat", "together", "meet", "converse", "perform", "join_find"]
 
 
 ## Nothing that holds a brain is running: no show command, no dance, no shared activity, no mage talk, no book.
@@ -496,8 +497,12 @@ func _hold_unowned() -> bool:
 		return false
 	if main.get("companionship") and main.companionship.busy():
 		return false
-	if main.get("mage_talk") and main.mage_talk.busy():
+	if main.get("mage_talk") and (main.mage_talk.busy() or (main.mage_talk.dialogue != null and main.mage_talk.dialogue.active)):
 		return false
+	# the other mage leading something that takes her along: the pier, the boat, a shared walk, a talk
+	for w in main.mage_brains:
+		if w != agent_id and String((main.mage_brains[w].current as Dictionary).get("kind", "")) in HOLDING_KINDS:
+			return false
 	return not (main.book_reader and main.book_reader.reading())
 
 
@@ -849,23 +854,21 @@ func region_context() -> Dictionary:
 # ------------------------------------------------------------------ main loop
 func _loop() -> void:
 	busy = true
-	var held_since := -1.0
+	var held_for := 0.0
 	while enabled and is_inside_tree():
 		if hold:
 			current = {}
 			# a hold nobody lifts (2026-10-22 live: her own dance and the show's magic lesson overlapped and she stood
-			# still for 6.5 minutes until the show's next goal released her): let go after HOLD_STALE_S when nothing
-			# that holds her is running any more (no show command, no dance, no shared activity, no conversation)
-			var now_h := Time.get_ticks_msec() / 1000.0
-			if held_since < 0.0:
-				held_since = now_h
-			elif now_h - held_since > HOLD_STALE_S and _hold_unowned():
-				print("[brain] %s: a hold left on for %.0f s with nothing running - released" % [agent_id, now_h - held_since])
+			# still for 6.5 minutes until the show's next goal released her): let go after HOLD_STALE_S (game time)
+			# with nothing that holds her running any more (no show command, no dance, no shared activity, no talk)
+			held_for = held_for + 0.3 if _hold_unowned() else 0.0
+			if held_for > HOLD_STALE_S:
+				print("[brain] %s: a hold left on for %.0f s with nothing running - released" % [agent_id, held_for])
 				hold = false
-				held_since = -1.0
+				held_for = 0.0
 			await get_tree().create_timer(0.3).timeout
 			continue
-		held_since = -1.0
+		held_for = 0.0
 		if main.streaming.state != "idle" or not main.travel.journey.is_empty():
 			await get_tree().create_timer(0.5).timeout
 			continue
