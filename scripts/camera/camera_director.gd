@@ -440,6 +440,10 @@ func _frame(delta: float) -> void:
 			_apply(sh.pos, sh.look, float(sh.get("fov", 50.0)), delta, float(sh.get("rate", 3.0)))
 			return
 		"stargaze":
+			# (16 script errors on the 2026-10-21 stream: the shot outlived its pair; back to following her)
+			if not _stargaze.has("a") or not is_instance_valid(_stargaze.get("a")) or not is_instance_valid(_stargaze.get("b")):
+				_switch("chase")
+				return
 			var ca: WorldCharacter = _stargaze.a
 			var cb: WorldCharacter = _stargaze.b
 			var ha := ca.skeleton.global_transform * ca.skeleton.get_bone_global_pose(ca.skeleton.find_bone("Head"))

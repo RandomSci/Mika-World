@@ -464,7 +464,11 @@ func options() -> Array:
 				return false
 			if a == "" or a == main.streaming.current_id:
 				return true
-			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake"]))
+			# (the case's next lead goes at night too: on the 2026-10-21 stream the library book the story waited on was
+			# never offered, and the case stood still for 2 h 20 min)
+			var lead: bool = (o.kind == "research" and main.story.next_leads().any(func(l): return String(l.get("book", "")) == String(o.get("book", "")))) \
+				or o.kind == "investigate"
+			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake"] or lead))
 	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
 	# tonight's closed areas (StreamFlags "regions") are never offered: no visit, no journey, nothing that walks there
@@ -478,8 +482,8 @@ const STARGAZE_GAP_S := 1800.0
 const RECENT_KINDS := 12
 ## The same activity (same option key) again within this many seconds costs utility (fading to nothing); saved via
 ## mind.activity_counts, so a restart does not reset it.
-const KIND_COOLDOWN_S := {"wander": 900.0, "revisit": 1800.0, "journal": 900.0, "attune": 1200.0, "explore": 480.0, "roam": 120.0, "alchemy": 600.0, "rest": 480.0,
-	"perform": 900.0, "magic": 300.0, "visit": 600.0, "together": 600.0, "meet": 420.0, "chat": 600.0, "gather": 240.0}
+const KIND_COOLDOWN_S := {"wander": 900.0, "revisit": 1800.0, "journal": 900.0, "attune": 1200.0, "explore": 480.0, "roam": 300.0, "alchemy": 600.0, "rest": 480.0,
+	"perform": 2400.0, "magic": 300.0, "visit": 600.0, "together": 600.0, "meet": 420.0, "chat": 600.0, "gather": 240.0}
 ## Kinds that pull harder the longer she has not done them (up to this bonus after ~40 min).
 const RARE_PULL := {"research": 0.22, "investigate": 0.25, "gather": 0.22, "hunt": 0.18, "chat": 0.22, "lesson": 0.2,
 	"ascend": 0.2, "drill": 0.15, "visit": 0.24, "together": 0.18, "perform": 0.12, "alchemy": 0.1, "converse": 0.12}

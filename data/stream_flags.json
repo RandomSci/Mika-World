@@ -1,12 +1,12 @@
 {
- "_note": "Go live 20 October 2026 (Selwyn). fights false: no monster spawns (hunts, camp encounters, territories, road ambushes), no spars or training duels. transformations false: no transformation plays (level ups still count; the form waits). regions: the areas they may be in tonight; any area not listed true is closed (never offered, never travelled to, not loaded at boot). Tonight only the sanctuary and Lantern Lake (the library, the tower and the woods are not stream ready). Tests may force them on with --fights, --transformations or --all-areas.",
+ "_note": "Go live (Selwyn). fights false: no monster spawns (hunts, camp encounters, territories, road ambushes), no spars or training duels. transformations false: no transformation plays (level ups still count; the form waits). regions: the areas they may be in; any area not listed true is closed (never offered, never travelled to, not loaded at boot). 2026-10-22 Selwyn: every region open again, let them explore and solve the case. Tests may force them on with --fights, --transformations or --all-areas.",
  "fights": false,
  "transformations": false,
  "regions": {
   "sanctuary": true,
   "lantern_lake": true,
-  "arcane_library": false,
-  "mentor_tower": false,
-  "whispering_woods": false
+  "arcane_library": true,
+  "mentor_tower": true,
+  "whispering_woods": true
  }
 }

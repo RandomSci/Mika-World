@@ -57,7 +57,13 @@ func _vault() -> void:
 	Kit.mesh_node(self, Kit.box_mesh(Vector3(0.5, 0.4, L), 0.05), stone, Kit.xf(Vector3(0, H - 0.4, 0)))
 	# moonlight grates in the vault
 	for z in [-8.0, 2.0]:
-		Kit.mesh_node(self, Kit.box_mesh(Vector3(1.4, 0.05, 1.4), 0.01), Kit.emissive(Color(0.55, 0.65, 0.9), 2.0, true), Kit.xf(Vector3(0, H - 0.02, z)), false)
+		# a dim moonlit opening behind an iron grate (a bare glowing quad read as a white square in the ceiling)
+		Kit.mesh_node(self, Kit.box_mesh(Vector3(1.4, 0.05, 1.4), 0.01), Kit.emissive(Color(0.32, 0.4, 0.62), 0.9, true), Kit.xf(Vector3(0, H - 0.015, z)), false)
+		var iron := Kit.metal(Color(0.07, 0.06, 0.06), 0.6)
+		for k in 5:
+			var o := -0.6 + k * 0.3
+			Kit.mesh_node(self, Kit.box_mesh(Vector3(0.06, 0.08, 1.5), 0.005), iron, Kit.xf(Vector3(o, H - 0.04, z)), false)
+			Kit.mesh_node(self, Kit.box_mesh(Vector3(1.5, 0.08, 0.06), 0.005), iron, Kit.xf(Vector3(0, H - 0.05, z + o)), false)
 		var spot := SpotLight3D.new()
 		spot.position = Vector3(0, H - 0.1, z)
 		spot.rotation_degrees = Vector3(-90, 0, 0)
@@ -156,9 +162,14 @@ func _lectern() -> void:
 
 
 func _lights() -> void:
+	# the chain runs from the ridge rib right down to the chandelier's top (a short rod left it floating in mid-air
+	# on the 2026-10-21 check)
+	var ch := Kit.prop("lantern_chandelier_01")
+	var top := H - 2.4 + (ch.get_aabb().end.y * 1.3 if ch else 0.4)
+	var chain := maxf(H - 0.6 - top, 0.1)
 	for z in [-9.0, 0.0, 9.0]:
-		Kit.mesh_node(self, Kit.prop("lantern_chandelier_01"), null, Kit.xf(Vector3(0, H - 2.4, z), 0.0, Vector3.ONE * 1.3))
-		Kit.mesh_node(self, Kit.box_mesh(Vector3(0.04, 1.2, 0.04), 0.005), Kit.metal(Color(0.15, 0.12, 0.1), 0.5), Kit.xf(Vector3(0, H - 0.6, z)), false)
+		Kit.mesh_node(self, ch, null, Kit.xf(Vector3(0, H - 2.4, z), 0.0, Vector3.ONE * 1.3))
+		Kit.mesh_node(self, Kit.box_mesh(Vector3(0.04, chain + 0.1, 0.04), 0.005), Kit.metal(Color(0.15, 0.12, 0.1), 0.5), Kit.xf(Vector3(0, top + chain * 0.5, z)), false)
 		Kit.omni(self, Vector3(0, H - 2.6, z), Color(1.0, 0.7, 0.42), 3.0, 13.0)
 
 
