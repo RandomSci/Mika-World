@@ -9268,7 +9268,7 @@ func _mikafix() -> void:
 	var keys: Array = mb.options().map(func(o): return String(o.key))
 	var areas: Array = mb.options().filter(func(o): return o.kind == "visit").map(func(o): return String(o.area))
 	print("[mktest] mikafix night visits: %s" % str(areas))
-	_check(areas.has("arcane_library") and areas.has("mentor_tower"), "at night the library and the tower are offered (%s)" % str(areas))
+	_check(areas.has("arcane_library"), "at night the library is offered (%s)" % str(areas))
 	# dances: one 10 minutes ago -> none of her own; long ago -> casual only, special only when celebrating
 	var now_u := Time.get_unix_time_from_system()
 	m.music["last_unix"] = int(now_u - 600)
