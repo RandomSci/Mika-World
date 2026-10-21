@@ -561,6 +561,7 @@ func _brain_do(kinds: Array, label: String) -> Dictionary:
 		return {"ok": false, "reason": "nothing_for_%s_here" % label}
 	mb.hold = true
 	mb.interrupt("the show")
+	_leave_shared_walks()
 	var t0 := Time.get_ticks_msec()
 	while not mb.current.is_empty() and Time.get_ticks_msec() - t0 < 45000:
 		await get_tree().process_frame
@@ -579,6 +580,24 @@ func _brain_do(kinds: Array, label: String) -> Dictionary:
 		return {"ok": true, "value": {"what": String(pick.label), "still_doing_it": true}}
 	var r: Dictionary = job.r
 	return {"ok": bool(r.get("ok", false)), "value": {"what": String(pick.label)}, "reason": String(r.get("detail", "")).left(100)}
+
+
+## Mika leaves any walk she is on as Luna's companion before the show's activity starts: the follower kept steering
+## her toward Luna every frame while the show walked her to its spot (2026-10-21 stream: back and forth 24 times).
+func _leave_shared_walks() -> void:
+	var mc: WorldCharacter = main.characters.get("mika")
+	if mc == null or main.get("companionship") == null:
+		return
+	var led := false
+	for n in main.companionship.get_children():
+		if n is FollowCompanion and (n as FollowCompanion).follower == mc and not (n as FollowCompanion).released:
+			(n as FollowCompanion).released = true
+			led = true
+	if led:
+		mc.set_move_input(Vector3.ZERO, false)
+		for w in main.mage_brains:
+			if w != "mika" and String((main.mage_brains[w].current as Dictionary).get("kind", "")) == "together":
+				main.mage_brains[w].interrupt("the show")
 
 
 func _run_pick(mb, pick: Dictionary, job: Dictionary) -> void:

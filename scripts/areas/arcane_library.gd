@@ -170,7 +170,7 @@ func _lights() -> void:
 	for z in [-9.0, 0.0, 9.0]:
 		Kit.mesh_node(self, ch, null, Kit.xf(Vector3(0, H - 2.4, z), 0.0, Vector3.ONE * 1.3))
 		Kit.mesh_node(self, Kit.box_mesh(Vector3(0.04, chain + 0.1, 0.04), 0.005), Kit.metal(Color(0.15, 0.12, 0.1), 0.5), Kit.xf(Vector3(0, top + chain * 0.5, z)), false)
-		Kit.omni(self, Vector3(0, H - 2.6, z), Color(1.0, 0.7, 0.42), 3.0, 13.0)
+		Kit.omni(self, Vector3(0, H - 2.6, z), Color(1.0, 0.72, 0.45), 4.6, 15.0)   # (3.0: too dark on stream, 2026-10-20)
 
 
 func _links() -> void:

@@ -596,7 +596,7 @@ func walk_together(lead: WorldCharacter, f: FollowCompanion, to: Vector3, max_s:
 	var tw := 0.0
 	if f.gap() > 2.6:
 		lead.look_head_at(f.follower.global_position + Vector3(0, 1.45, 0))
-		while f.gap() > 2.6 and tw < 10.0:
+		while f.gap() > 2.6 and tw < 10.0 and not f.released:
 			await get_tree().physics_frame
 			tw += get_physics_process_delta_time()
 		lead.look_head_at(null)
@@ -609,6 +609,9 @@ func walk_together(lead: WorldCharacter, f: FollowCompanion, to: Vector3, max_s:
 	while t < max_s:
 		await get_tree().physics_frame
 		t += get_physics_process_delta_time()
+		if f.released:
+			lead.stop_action()
+			break
 		var gap := f.gap()
 		# she walks at her companion's pace: a hurt or tired friend sets it, and she eases off further when the
 		# gap opens (instead of striding ahead and stopping to wait)

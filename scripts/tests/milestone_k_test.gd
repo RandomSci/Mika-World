@@ -177,6 +177,7 @@ func _run() -> void:
 		"lunarelay": await _lunarelay()
 		"benchrest": await _benchrest()
 		"showline": await _showline()
+		"showtakes": await _showtakes()
 		"luna_r12": await _luna_r12()
 		"dresstest": await _dresstest()
 		"skinprobe": await _skinprobe()
@@ -5588,8 +5589,8 @@ func _livefixes() -> void:
 	while not main.performance.busy() and _gms() - t1 < 15000:
 		await get_tree().process_frame
 	await _wait(2.0)
-	_check(String(main.performance.active.get("who", "")) == "luna" and main.director.mika == luna,
-		"the camera films Luna while she dances (performer %s, subject %s)" % [main.performance.active.get("who", "-"), main.director.mika.character_id])
+	_check(String(main.performance.active.get("who", "")) == "luna" and main.director.mika == mika and main.director._perf.get("pair") == luna,
+		"Luna dances with the camera still on Mika, both in frame (performer %s, subject %s)" % [main.performance.active.get("who", "-"), main.director.mika.character_id])
 	main.performance.interrupt("test over")
 	var t2 := _gms()
 	while main.performance.busy() and _gms() - t2 < 15000:
@@ -9183,3 +9184,69 @@ func _boatstill() -> void:
 					if n is SkirtDrape:
 						print("[boatstill]   %s drape weight %.2f pen %s" % [c.character_id, (n as SkirtDrape).weight, str((n as SkirtDrape).penetration())])
 	pin.active = false
+
+
+## The show calls Mika away while she walks beside Luna on Luna's outing (2026-10-21 stream: the follower kept
+## steering her toward Luna while the show walked her to its spot, back and forth 24 times): she leaves the walk
+## cleanly, with no tug of war.
+func _showtakes() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	var ll = main.get("live_link")
+	_check(ll != null, "live link present (--live-link)")
+	if ll == null:
+		return
+	var lb: SanctuaryBrain = main.mage_brains["luna"]
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var cands: Array = lb.explore_map.candidates(5)
+	_check(not cands.is_empty(), "Luna sees somewhere to go")
+	if cands.is_empty():
+		return
+	var far: Dictionary = cands[0]
+	for cd in cands:
+		if (cd.pos as Vector3).distance_to(luna.global_position) > (far.pos as Vector3).distance_to(luna.global_position):
+			far = cd
+	var map: RID = mika.get_world_3d().navigation_map
+	if main.teleport_guard:
+		main.teleport_guard.allow(mika)
+	mika.global_position = NavigationServer3D.map_get_closest_point(map, luna.global_position + Vector3(1.8, 0, 0.8)) + Vector3(0, 0.05, 0)
+	main.companionship.force_accept = true
+	lb.hold = false
+	mb.hold = false
+	var box := {"done": false, "res": {}}
+	(func():
+		box.res = await main.companionship.invite(lb, "mika", "explore_together", {"pos": far.pos, "fill": {"place": String(far.describe)}})
+		box.done = true).call()
+	var t0 := _game_t
+	while String(main.companionship.active.get("stage", "")) != "walking together" and not box.done and _game_t - t0 < 40.0:
+		await get_tree().process_frame
+	lb.hold = true
+	_check(String(main.companionship.active.get("stage", "")) == "walking together", "Mika walks beside Luna on Luna's outing", main.companionship.active)
+	await _wait(2.0)
+	var cut := {"n": 0, "nav": 0}
+	var on_fin := func(a: String, _ok: bool, d: String):
+		if d == "interrupted by player input":
+			cut.n += 1
+	var on_start := func(a: String, _d: Dictionary):
+		if a == "navigate_to":
+			cut.nav += 1
+	mika.action_finished.connect(on_fin)
+	mika.action_started.connect(on_start)
+	var job := {"done": false, "r": {}}
+	mb.enabled = true                       # (as on stream: her planner runs; the show holds it)
+	(func():
+		job.r = await ll._brain_do(["explore", "investigate", "roam", "visit", "magic"], "explore")
+		job.done = true).call()
+	var t1 := _game_t
+	while _game_t - t1 < 25.0:
+		await get_tree().process_frame
+	mika.action_finished.disconnect(on_fin)
+	mika.action_started.disconnect(on_start)
+	var steering: Array = main.companionship.get_children().filter(func(n): return n is FollowCompanion and n.follower == mika and not n.released)
+	print("[mktest] showtakes: interrupted %d, walks started %d, show answer %s, mika doing %s" % [cut.n, cut.nav, str(job.r).left(160), str(mb.current).left(120)])
+	_check(steering.is_empty(), "nothing steers her toward Luna any more")
+	_check(cut.n <= 1 and cut.nav <= 6, "no tug of war: %d interrupted walks, %d walks started in 25 s" % [cut.n, cut.nav])
+	_check(bool(job.r.get("ok", false)) or (not mb.current.is_empty() and String(mb.current.get("kind", "")) != "together"), "the show's activity runs", [job.r, mb.current])
+	main.companionship.force_accept = false

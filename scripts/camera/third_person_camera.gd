@@ -89,8 +89,31 @@ func clear_shot() -> void:
 	shot_active = false
 	arm.process_mode = Node.PROCESS_MODE_INHERIT
 	camera.top_level = false
-	camera.transform = Transform3D.IDENTITY
+	if target:
+		# the rig did not turn while the shot held it: aim it now, or the reach below is measured the old way
+		_focus = target.global_position + Vector3(0, height, 0)
+		global_position = _focus
+		rotation = Vector3(pitch, yaw, 0)
+		arm.spring_length = distance
+	# straight to where the arm will put it: at the identity the lens sat in her head for one frame, until the arm's
+	# next physics step (a one-frame flash inside her at the library doorway, 2026-10-22 check)
+	camera.transform = Transform3D(Basis(), Vector3(0, 0, _arm_reach()))
 	camera.fov = 58.0
+
+
+## How far the arm reaches now (its own sphere and mask, as the SpringArm3D will find it).
+func _arm_reach() -> float:
+	if not is_inside_tree() or arm.shape == null:
+		return arm.spring_length
+	var sp := PhysicsShapeQueryParameters3D.new()
+	sp.shape = arm.shape
+	sp.transform = Transform3D(Basis(), arm.global_position)
+	sp.motion = arm.global_transform.basis.z.normalized() * arm.spring_length
+	sp.collision_mask = arm.collision_mask
+	if target is CollisionObject3D:
+		sp.exclude = [(target as CollisionObject3D).get_rid()]
+	var r := get_world_3d().direct_space_state.cast_motion(sp)
+	return maxf(arm.spring_length * (float(r[0]) if r.size() > 0 else 1.0) - arm.margin, 0.0)
 
 
 ## Planar forward of the camera, for camera-relative movement.

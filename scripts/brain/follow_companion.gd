@@ -9,6 +9,7 @@ extends Node
 var leader: WorldCharacter
 var follower: WorldCharacter
 var side := 0.0                       # +1 right of the leader, -1 left (chosen once, from where she stands)
+var released := false                 # she was called away (the show): no more steering; the shared walk ends
 var _t := 0.0
 var _path := PackedVector3Array()
 var _pi := 0
@@ -28,7 +29,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if leader == null or follower == null or not is_instance_valid(leader) or not is_instance_valid(follower):
+	if released or leader == null or follower == null or not is_instance_valid(leader) or not is_instance_valid(follower):
 		return
 	var hv := Vector3(leader.velocity.x, 0, leader.velocity.z)
 	var moving := hv.length() > 0.3

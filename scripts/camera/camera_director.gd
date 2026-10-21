@@ -145,8 +145,18 @@ var _subject_before_perf: WorldCharacter = null
 func start_performance(c: WorldCharacter, mode: String) -> void:
 	if _perf.is_empty():
 		_subject_before_perf = mika
+	# the stream's mage keeps the camera (Selwyn: never on Luna, always Mika): another mage's dance is filmed with
+	# Mika in frame beside her, never as a shot of the other mage alone
+	var home := String(main.get("stream_profile")) if main.get("stream_profile") != null else "mika"
+	var star: WorldCharacter = main.characters.get(home) if home != "shared" else null
+	var pair: WorldCharacter = null
+	if star != null and c != star and star.visible:
+		pair = c
+		c = star
 	set_subject(c)
 	_perf = {"mode": mode, "i": -1, "t0": _now(), "yaw0": 0.0, "shot": {}}
+	if pair != null:
+		_perf["pair"] = pair
 	performance_cut()
 
 
@@ -170,7 +180,7 @@ func performance_cut() -> void:
 
 ## A duet: frame both dancers (the midpoint between them, pulled back so both fit; no single-face close-ups).
 func set_performance_pair(other: WorldCharacter) -> void:
-	if not _perf.is_empty():
+	if not _perf.is_empty() and other != mika:
 		_perf["pair"] = other
 
 
@@ -207,6 +217,7 @@ func _perf_look(what: String) -> Vector3:
 ## Follow another mage (the spotlight in main picks whoever is doing the most watchable thing).
 ## The `mika` field is the current subject; the name is kept for older callers.
 var _chase_mate_off := 0.0
+var _chase_last_good := Vector3.INF   # the last chase lens with room that saw her (a fallback in tight places)
 var _chase_mate_tgt := 0.0
 var _chase_mate_clear := 0.0
 
@@ -575,18 +586,28 @@ func _frame(delta: float) -> void:
 						best_yaw = rig.yaw + off
 				rig.yaw = lerp_angle(rig.yaw, best_yaw, 1.0 - exp(-5.0 * delta))
 			var tight := hit_len < 1.0
+			if RenderProfile.options.has("cam-debug") and squeezed:
+				print("[camdbg] t=%.2f hit %.2f tight_t %.2f override %s last_good %s p %s" % [_now(), hit_len, _chase_tight_t, _chase_override, str(_chase_last_good.snapped(Vector3.ONE * 0.1)), str(p.snapped(Vector3.ONE * 0.1))])
 			rig.pitch = lerpf(rig.pitch, -0.85 if tight else (-0.62 if squeezed else -0.2), 1.0 - exp(-(9.0 if tight else 6.0) * delta) if squeezed else k)
 			# last resort: the arm stays crushed against something whichever way it turns - take a validated shot
 			# (lens above her waist, 1.3 m+ away, a clear line to her head) and hold it until there is room again
 			_chase_tight_t = (_chase_tight_t + delta) if tight else 0.0
-			if _chase_tight_t > 0.3 and not _chase_override:
+			if (_chase_tight_t > 0.3 or hit_len < 0.5) and not _chase_override:      # (under half a metre: inside her, at once)
 				var f2 := -mika.global_transform.basis.z
 				var alt := _solve_shot(p, p + Vector3(0, 1.3, 0) + Vector3(f2.x, 0, f2.z).normalized() * 1.5, 55.0, Vector3(f2.x, 0, f2.z).normalized())
+				# nothing valid round her (the narrow stairway down to the library: the lens sat inside her hair for
+				# a second, 2026-10-22 check): hold the last place that saw her whole and watch her walk on from there
+				if alt == Vector3.INF and _chase_last_good != Vector3.INF and _chase_last_good.distance_to(p) < 9.0:
+					alt = _chase_last_good
 				if alt != Vector3.INF:
 					_chase_override = true
 					_override_pos = alt
+			if not squeezed and _chase_hidden_t == 0.0 and not _chase_override:
+				_chase_last_good = rig.camera.global_position
 			if _chase_override:
 				if _arm_room(rig.yaw, rig.pitch) > 2.2 or p.distance_to(_override_pos) > 7.0:
+					if RenderProfile.options.has("cam-debug"):
+						print("[camdbg] release at %.2f room %.2f" % [_now(), _arm_room(rig.yaw, rig.pitch)])
 					_chase_override = false
 					rig.clear_shot()
 				else:
@@ -659,10 +680,23 @@ func _frame(delta: float) -> void:
 			if it.book_id != "" and BookReader.instance and BookReader.instance.reading() and it.book_xf != null:
 				# reading: a medium-wide three-quarter from her side, her and the lectern whole (no close-up)
 				var anchor: Vector3 = BookReader.instance.current.anchor
-				pos = p + right * _side * 2.6 + fwd * 1.2 + Vector3(0, 1.45, 0)
 				look = anchor.lerp(p + Vector3(0, 1.0, 0), 0.5)
 				fov = 48.0
-				pos = _clear_line(look, pos)
+				# her front three-quarter, on whichever side the room leaves open: between the library's desks and
+				# shelves the lens was pulled in onto the desk, her out of frame (2026-10-22 check); a side that works
+				# is kept for the rest of the shot
+				pos = Vector3.INF
+				for sd: float in [_side, -_side]:
+					for k in [[2.6, 1.2], [2.0, 1.7], [1.4, 2.3]]:
+						var cl := _clear_line(look, p + right * sd * float(k[0]) + fwd * float(k[1]) + Vector3(0, 1.45, 0))
+						if cl.distance_to(p + Vector3(0, 1.2, 0)) >= 1.9:
+							pos = cl
+							_side = sd
+							break
+					if pos != Vector3.INF:
+						break
+				if pos == Vector3.INF:
+					pos = _clear_line(look, p + right * _side * 2.6 + fwd * 1.2 + Vector3(0, 1.45, 0))
 				_apply(pos, look, fov, delta)
 				return
 			match it.kind:
@@ -995,13 +1029,20 @@ func _clear_line(subject: Vector3, cam: Vector3) -> Vector3:
 ## A shot a viewer can watch: the lens above her waist (never looking up at her), not inside her, her head in
 ## frame and not hidden behind a wall. (InvariantAuditor checks the same on whatever the camera shows.)
 ## How far the chase arm could reach at this yaw / pitch before something solid (world and vegetation).
+## Measured exactly as the arm itself (its sphere, from its over-the-shoulder offset): a thin ray from her head saw
+## room where the arm's sphere was already against a wall, so the rescue shot was taken and dropped every frame and
+## the lens sat inside her at the stairway down to the library (2026-10-22 check).
 func _arm_room(yaw: float, pitch: float) -> float:
-	var from := mika.global_position + Vector3(0, rig.height, 0)
-	var dir := Basis.from_euler(Vector3(pitch, yaw, 0)) * Vector3(0, 0, 1)
-	var q := PhysicsRayQueryParameters3D.create(from, from + dir * rig.distance, 1 | 4)
-	q.exclude = [mika.get_rid()]
-	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
-	return rig.distance if hit.is_empty() else from.distance_to(hit.position)
+	var b := Basis.from_euler(Vector3(pitch, yaw, 0))
+	var from := mika.global_position + Vector3(0, rig.height, 0) + b * rig.arm.position
+	var sp := PhysicsShapeQueryParameters3D.new()
+	sp.shape = rig.arm.shape if rig.arm.shape else SphereShape3D.new()
+	sp.transform = Transform3D(Basis(), from)
+	sp.motion = b * Vector3(0, 0, 1) * rig.distance
+	sp.collision_mask = rig.arm.collision_mask
+	sp.exclude = [mika.get_rid()]
+	var r := mika.get_world_3d().direct_space_state.cast_motion(sp)
+	return rig.distance * (float(r[0]) if r.size() > 0 else 1.0)
 
 
 func _frame_ok(pos: Vector3, look: Vector3, fov: float, head: Vector3, feet_y: float) -> bool:
