@@ -253,10 +253,13 @@ func options() -> Array:
 		var cd: Dictionary = PerformanceController.load_cfg().cooldown_s
 		var last := float(mind.music.get("last_unix", 0))
 		var now_u := Time.get_unix_time_from_system()
-		if now_u - last > float(cd.casual) and not MusicLibrary.eligible(agent_id, "casual").is_empty():
+		# (2026-10-22 live, Selwyn: "why is she dancing randomly"): her own dance at least DANCE_GAP_S after ANY dance
+		# (the show's too - last_unix is every performance), and the special one only for a reason to celebrate; it
+		# danced every ~20 min before (casual and special cooled down separately, special every night)
+		if now_u - last > maxf(float(cd.casual), DANCE_GAP_S) and not MusicLibrary.eligible(agent_id, "casual").is_empty():
 			out.append({"kind": "perform", "key": "perform:casual", "mode": "casual", "label": "dance to some music for a bit"})
 		var last_sp := float(mind.music.get("last_special_unix", 0))
-		if now_u - last_sp > float(cd.special) and (now_u < _celebrate_until or WorldState.night) and not MusicLibrary.eligible(agent_id, "special").is_empty():
+		if now_u - last_sp > float(cd.special) and now_u < _celebrate_until and not MusicLibrary.eligible(agent_id, "special").is_empty():
 			out.append({"kind": "perform", "key": "perform:special", "mode": "special", "label": "give a little performance in the circle" + (" to celebrate" if now_u < _celebrate_until else "")})
 	# gather: plants she has noticed that are there to pick
 	for g in get_tree().get_nodes_in_group("gatherable"):
@@ -468,7 +471,10 @@ func options() -> Array:
 			# never offered, and the case stood still for 2 h 20 min)
 			var lead: bool = (o.kind == "research" and main.story.next_leads().any(func(l): return String(l.get("book", "")) == String(o.get("book", "")))) \
 				or o.kind == "investigate"
-			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake"] or lead))
+			# (2026-10-22 live, Selwyn: "make her go to those places for explorations"): the whole home region at
+			# night too - the library and the tower are indoors, the woods by lantern; at night she only circled
+			# Starfall Hill's four spots
+			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake", "arcane_library", "mentor_tower", "whispering_woods"] or lead))
 	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
 	# tonight's closed areas (StreamFlags "regions") are never offered: no visit, no journey, nothing that walks there
@@ -477,6 +483,7 @@ func options() -> Array:
 
 
 const MEET_COOLDOWN_S := 420.0
+const DANCE_GAP_S := 2700.0              # her own dance: at least this long after any dance
 const JOURNAL_GAP_S := 900.0
 const STARGAZE_GAP_S := 1800.0
 const RECENT_KINDS := 12
@@ -603,14 +610,23 @@ func score(o: Dictionary) -> Dictionary:
 				# home: after a good stretch away, when tired, and always as the day ends
 				u = 0.1 + clampf(stayed_min / 12.0, 0.0, 0.55) + (1.0 - needs.energy) * 0.35
 				if WorldState.hour_f() >= 17.5 or WorldState.daylight() < 0.35:
-					u += 0.9
-					why.append("the day is ending: home +0.90")
+					# indoors (the library, the tower) the night is no hurry: home after a real stay, not at once
+					var indoors: bool = main.streaming.current_id in ["arcane_library", "mentor_tower"]
+					var pull := (0.25 if stayed_min > 15.0 else 0.0) if indoors else 0.9
+					u += pull
+					why.append("the day is ending: home +%.2f" % pull)
 			else:
 				u = 0.18 + needs.curiosity * 0.4 + 0.3 * age_v - (1.0 - needs.energy) * 0.3
 				u -= clampf(1.0 - stayed_min / 6.0, 0.0, 1.0) * 0.25        # just arrived somewhere: not straight off again
-				if WorldState.hour_f() >= 17.0 or WorldState.daylight() < 0.5:
-					u -= 0.6
-					why.append("too late to set off -0.60")
+				# wanderlust: a long stretch in one place makes the rest of the home region call (50 min in the
+				# sanctuary on the 2026-10-22 stream, never anywhere else)
+				var wander := clampf((stayed_min - 20.0) / 25.0, 0.0, 1.0) * 0.55
+				if wander > 0.0:
+					u += wander
+					why.append("been here a long while +%.2f" % wander)
+				if (WorldState.hour_f() >= 17.0 or WorldState.daylight() < 0.5) and String(o.area) == "whispering_woods":
+					u -= 0.25
+					why.append("the woods after dark -0.25")
 				why.append("not been there for a while" if age_v > 0.7 else "been there lately")
 		"expedition":
 			# a journey of days: wanted when the clue pulls, never when tired or hurt, less at nightfall
