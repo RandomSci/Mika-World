@@ -150,3 +150,6 @@ Only after the regions work is done and with the stream off, on a branch, applie
 3. Spell duel video to Selwyn for approval (only when the frames are clean).
 4. Selwyn's answers. Viewer XP rates, villager XP rates, SHORTS_REPLAY, the save restore command.
 5. Then tell Selwyn everything is ready. Apply to live only with his go, behind Be Right Back.
+
+## Reboot 23 Oct, about 05.55 (Selwyn asked)
+Laptop rebooted to bring the NVIDIA card back and turn on the drop fix. After it: check nvidia-smi, cat /proc/cmdline shows pcie_aspm=off, /proc/driver/nvidia/params shows DynamicPowerManagement 0. The save restore (~/.cache/mika_qa/save_restore_20261023/restore.sh) was still not run, remind Selwyn. Then Selwyn picks A (current Day3 as is) or B (merge Fix, soak, restart behind Be Right Back) for going live.
