@@ -107,6 +107,13 @@ Deploy notes (for the day Selwyn says go, behind Be Right Back)
 Incident
 * 01.45, a headless unit check (godot --script with the project) loaded the autoloads without a test save and wrote the real save once (clock caught up 11 h, play time +90 s, no gameplay change). bak1 is the save from the end of the 22 Oct stream. Restoring it was refused by the permission check, so Selwyn has one command, bash ~/.cache/mika_qa/save_restore_20261023/restore.sh (keeps the accidental write, deletes nothing). Rule saved in memory, never --script with --path.
 
+## Update 03.20, 23 Oct
+
+* Lake dance on the water. Third and fourth runs pass every check (15). By eye the path was burnt white by NaN pixels at the strip edges (undefined pow and smoothstep), fixed and checked with night stills (frost cells and violet moonlight now show), and a 2.6 m rescue lens made close-ups (Luna's body counted as a wall in a two-shot), fixed.
+* Spell duel, fifth render. Checks pass, brighter, the trunk is gone. By eye still tall grass round their feet and a lens inside a clump at 31.5 s, and one moment of Luna cut at the knees in a dash. Fixed (the ground mown for the duel, the lens keeps 3.5 m). Sixth render not yet made.
+* Villager help test. Wenna was indoors at the test's hour; the test now places her at her 11.00 stall. Not yet rerun.
+* 03.19 the NVIDIA card dropped off again (nvidia-smi finds no device, gamescope cannot open it), the same failure as 21 Oct. No GPU work possible until Selwyn reboots. Nothing was live.
+
 ## In the middle of right now (02.05, 23 Oct)
 
 GPU queue, one at a time (proof_queue.log). Trip video at 10 fps 1280x720 (queue 9), then villager help (11), lake dance second run (12), spell duel fifth render (13). Then trip_sheets.py with TRIP_FPS=10, the sheets, videos and dialogue logs into Mika-Project › review › Test_Videos, look at every sheet by eye.
