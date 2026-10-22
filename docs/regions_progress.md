@@ -118,6 +118,22 @@ Incident
 
 GPU queue, one at a time (proof_queue.log). Trip video at 10 fps 1280x720 (queue 9), then villager help (11), lake dance second run (12), spell duel fifth render (13). Then trip_sheets.py with TRIP_FPS=10, the sheets, videos and dialogue logs into Mika-Project › review › Test_Videos, look at every sheet by eye.
 
+## GPU drop, cause and fix (03.40, 23 Oct)
+
+* Kernel log, Xid 79 at 03.21.55 (pid gamescope), GPU has fallen off the bus, the moment a test woke the card after a few idle minutes. The root port had PCIe ASPM L1 on, on a PCIe 5.0 link.
+* Applied with Selwyn's go (admin). /etc/default/grub now has pcie_aspm=off (backup /etc/default/grub.bak-20261023, update-grub done), /etc/modprobe.d/nvidia-keep-powered.conf sets NVreg_DynamicPowerManagement=0x00 (in the initramfs). Both take effect at the reboot. Undo, restore the grub backup and delete that file, then update-grub and update-initramfs -u.
+* If it drops again, next step is another NVIDIA driver branch (615.71.10 is very new).
+
+## Next task, queued (Selwyn, 23 Oct): recording, highlights and Google Drive
+
+Only after the regions work is done and with the stream off, on a branch, applied at a planned restart. Never commit tokens.
+1. OBS records automatically with the stream, 1080p mp4 (or mkv remuxed), a 10 h stream about 15 to 25 GB, ~/Videos/StreamRecordings, Day number and date in the name, 30 minute parts.
+2. The v2 highlight detector ported to v3, run on each finished recording. Score new region arrivals, the phoenix, the lake dance, lanterns, funny or named chat replies, both girls reacting. Top 10 clips of 15 to 60 s with 3 s padding, a JSON note each (time, what happened, chat lines). The world-moment marks built tonight feed it.
+3. rclone with Selwyn's own Google sign-in (he approves in the browser), token only in rclone's local config. Upload clips and notes to Mika Clips › Day N date, plus a 720p preview of the whole stream under 1.5 GB a day.
+4. Drive keeps 10 days of day folders, the laptop 7 days of recordings and never under 40 GB free. Both checks in the health check, deletions logged.
+5. Upload retries every 30 minutes for 24 h, then logged and kept locally. Cutting and uploading only after the recording stops, at low priority.
+6. A 10 minute private test stream, then show Selwyn the Drive folder before trusting it.
+
 ## What is left
 
 1. Review the four runs above by eye, fix what they show.
