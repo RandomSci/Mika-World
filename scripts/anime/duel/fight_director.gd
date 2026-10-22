@@ -214,11 +214,45 @@ func _clear_arena(root: Node) -> void:
 		if d < arena_r + 2.6 and maxf(sz.x, sz.z) < 3.0 and sz.y < 4.5 and maxf(sz.y, maxf(sz.x, sz.z)) > 0.08:
 			mi.visible = false
 			_hidden.append(mi)
+		# further out: what may stand between a lens and them (trunks, ruins; the trees have no colliders, so the lens' ray
+		# never saw the trunk that filled the fourth render for 4 s): hidden only while it is in the way (_occluders)
+		elif d < arena_r + 14.0 and maxf(sz.x, sz.z) < 12.0 and maxf(sz.y, maxf(sz.x, sz.z)) > 0.3:
+			_occ_cands.append(mi)
 	for n in root.find_children("*", "StaticBody3D", true, false):
 		var sb := n as StaticBody3D
 		if _flat(sb.global_position - center).length() < arena_r + 2.6 and not String(sb.name).to_lower().contains("terrain") and not sb.is_in_group("avoid"):
 			sb.add_to_group("avoid")
 			_avoided.append(sb)
+
+
+var _occ_cands: Array = []
+var _occ_hidden := {}                 # mesh -> the frame time it last stood in the way
+
+
+## A lens never looks through a trunk or a wall: anything between it and either of them (her head, chest, feet) is
+## hidden for as long as it is in the way, and back 0.4 s after (no flicker).
+func _occluders(cam: Vector3) -> void:
+	var pts := []
+	for id in F:
+		pts.append_array([bone(id, "Head"), chest(id), pos(id) + Vector3(0, 0.25, 0)])
+	for mi in _occ_cands:
+		if not is_instance_valid(mi):
+			continue
+		var box: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).mesh.get_aabb()
+		var blocks := false
+		for q in pts:
+			if box.intersects_segment(cam, q):
+				blocks = true
+				break
+		if blocks:
+			if not _occ_hidden.has(mi) and (mi as MeshInstance3D).visible:
+				(mi as MeshInstance3D).visible = false
+				_occ_hidden[mi] = ft
+			elif _occ_hidden.has(mi):
+				_occ_hidden[mi] = ft
+		elif _occ_hidden.has(mi) and ft - float(_occ_hidden[mi]) > 0.4:
+			(mi as MeshInstance3D).visible = true
+			_occ_hidden.erase(mi)
 
 
 func _is_char(n: Node) -> bool:
@@ -498,6 +532,7 @@ func _camera(delta: float) -> void:
 	var pc2: PhantomCamera3D = _pcs[_pcs.size() - 1]
 	var look: Vector3 = cp.look
 	var p: Vector3 = _unblock(look, cp.pos)
+	_occluders(p)
 	if (look - p).length() > 0.01:
 		pc2.global_transform = Transform3D(Basis.looking_at(look - p, Vector3.UP), p)
 	pc2.set_priority(100 + _shot_i)
@@ -730,6 +765,10 @@ func teardown() -> void:
 		(g as FramingGuard).process_mode = Node.PROCESS_MODE_INHERIT
 	for cl in get_tree().root.find_children("*", "CanvasLayer", true, false):
 		(cl as CanvasLayer).visible = true
+	for mi in _occ_hidden:
+		if is_instance_valid(mi):
+			(mi as MeshInstance3D).visible = true
+	_occ_hidden.clear()
 	for nd in _hidden:
 		if is_instance_valid(nd):
 			(nd as Node3D).visible = true

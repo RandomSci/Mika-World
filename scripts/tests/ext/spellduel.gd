@@ -43,7 +43,7 @@ static func run(t) -> void:
 	for id in main.characters:
 		if not (id in ["mika", "luna"]):
 			(main.characters[id] as Node3D).visible = false
-	FightDirector.set_hour(main, float(RenderProfile.options.get("fight-hour", "17.6")))
+	FightDirector.set_hour(main, float(RenderProfile.options.get("fight-hour", "16.8")))
 	if main.get("weather") and main.weather:
 		main.weather.set_weather("clear", 48.0)
 		main.weather.cloud = 0.0
