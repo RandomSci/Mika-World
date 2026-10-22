@@ -578,7 +578,9 @@ func stone_bridge(z: float, x0: float, x1: float, mat: Material, seed := 61) -> 
 		var bb := Basis(Vector3.BACK, atan2(yb - ya, xb - xa))
 		for j in 3:
 			sb.block(Transform3D(bb * sb._jit(0.4), mid + Vector3(0, -0.2, -1.2 + j * 1.2)), Vector3(0.93, 0.4, 1.16), sb.rng.randf() * 0.3, 0.04)
-		if xa > x0 - 3.5 and xb < x1 + 3.5:
+		# the parapets run down the ramps almost to their feet: an open ramp side let a path cut diagonally over the
+		# ramp's edge where the step grows taller than a stride (Mika stuck at the River Valley bridge, 22 Oct)
+		if xa > x0 - 5.6 and xb < x1 + 5.6:
 			for side2: float in [-1.0, 1.0]:
 				var edge := mid + Vector3(0, 0, side2 * (depth * 0.5 + 0.05))
 				sb.block(Transform3D(bb * sb._jit(0.5), edge + Vector3(0, 0.11, 0)), Vector3(0.93, 0.22, 0.42), 0.45)

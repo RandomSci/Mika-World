@@ -38,6 +38,7 @@ var mage_brains := {}                        # mage id -> SanctuaryBrain instanc
 var progression: Progression
 var spawner: Spawner
 var mage_talk: MageTalk
+var place_curiosity: PlaceCuriosity     # first visits stop them to wonder; places remembered across restarts
 var transformer: TransformationDirector
 var overlay_ui: MageOverlay
 var discoveries: DiscoveryDirector                 # Day 3: dynamic finds (about one an hour, saved, revisitable)
@@ -301,6 +302,10 @@ func _ready() -> void:
 	mage_talk.name = "MageTalk"
 	add_child(mage_talk)
 	mage_talk.setup(self)
+	place_curiosity = PlaceCuriosity.new()
+	place_curiosity.name = "PlaceCuriosity"
+	add_child(place_curiosity)
+	place_curiosity.setup(self)
 	transformer = TransformationDirector.new()
 	transformer.name = "Transformations"
 	add_child(transformer)
@@ -693,6 +698,50 @@ func bring_along(who: String, leader: String) -> void:
 	var b = mage_brains.get(who)
 	if b:
 		b.interrupt("walking along with %s" % leader)
+		# she really walks with her to the gate (22 Oct: Mika walked every road alone and Luna only appeared beside
+		# her behind the travel card); her own plans wait until the journey is over
+		if not b.hold:
+			b.hold = true
+			_companion_holds[who] = b
+
+
+var _companion_holds := {}
+var _follow_acc := 0.0
+
+
+## A companion keeps a step behind and beside the leader while a journey runs (runs to catch up when far behind).
+func _follow_companions(delta: float) -> void:
+	_follow_acc += delta
+	if _follow_acc < 0.4:
+		return
+	_follow_acc = 0.0
+	if travel == null or not travel.active():
+		if not _companion_holds.is_empty() and (travel == null or not travel.active()) and streaming.state == "idle":
+			for who in _companion_holds:
+				(_companion_holds[who]).hold = false
+			_companion_holds.clear()
+		return
+	if streaming.state != "idle" or world == null:
+		return
+	for who in travel_companions:
+		var lead: WorldCharacter = characters.get(travel_companions[who])
+		var c: WorldCharacter = characters.get(who)
+		if lead == null or c == null or not c.visible or c.casting:
+			continue
+		var d := c.global_position.distance_to(lead.global_position)
+		var way := lead.velocity
+		way.y = 0.0
+		if way.length() < 0.2:
+			if d < 2.6:
+				if c.current_action == "navigate_to":
+					c.stop_action()
+				continue
+			way = -lead.global_transform.basis.z
+		way = way.normalized()
+		var spot := lead.global_position - way * 1.4 + Vector3(-way.z, 0, way.x) * 0.9
+		spot = NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, spot)
+		if d > 2.0 or c.current_action != "navigate_to":
+			c.navigate_to(spot, d > 9.0)
 
 
 ## The mages walking along with the followed one: placed beside her at the entrance, while the card still covers it.
@@ -711,6 +760,8 @@ func _place_companions() -> void:
 		way = way.normalized() if way.length() > 0.1 else Vector3.FORWARD
 		var side := Vector3(-way.z, 0, way.x)
 		var at: Vector3 = await snap_to_nav(lead.global_position - way * 1.2 + side * 1.1)
+		if world.has_method("free_spot"):
+			at = world.free_spot(at, [c.get_rid()] as Array[RID])     # not inside a wall, not inside Mika
 		if at.distance_to(lead.global_position) < 0.9:
 			at = await snap_to_nav(lead.global_position + side * 1.3)
 		if teleport_guard:
@@ -1015,6 +1066,7 @@ func show_subtitle(text: String, seconds: float) -> void:
 var _lb_t := 0.0
 
 func _process(delta: float) -> void:
+	_follow_companions(delta)
 	_lb_t -= delta
 	if _lb_t <= 0.0 and world:
 		_lb_t = 1.0

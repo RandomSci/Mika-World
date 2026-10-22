@@ -318,7 +318,7 @@ func _luna_answers(m: Dictionary) -> void:
 
 
 func _say_as(who: String, text: String) -> void:
-	await main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), text)
+	await main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), text, {"allow_repeat": true})   # (a viewer's message relayed)
 
 
 # ------------------------------------------------------------------ speech

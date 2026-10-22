@@ -26,6 +26,9 @@ const CALM := ["", "roam", "explore", "rest", "journal", "gather", "research", "
 const AMBIENT_GAP_S := 200.0          # at least this long after their last talk before a chat on the way
 const EVENT_GAP_S := 45.0             # a real event can start one sooner (but never over another talk)
 const MAX_LINES := {"meet": 8, "ambient": 4, "event": 4, "combat": 2, "stargaze": 7}
+# no silent walking (Selwyn, 22 Oct): on a journey they talk about the way within this long, then again every so often
+const JOURNEY_FIRST_S := 25.0
+const JOURNEY_AGAIN_S := 75.0
 
 var main: Node
 var active := false
@@ -35,6 +38,7 @@ var pending := {}                     # who -> {kind, text, t} something that ju
 var _acc := 0.0
 var _rng := RandomNumberGenerator.new()
 var _last_end := -1e9                 # unix time the last conversation ended
+var _journey := {"key": "", "talks": 0}   # the journey under way and how many talks it has had
 
 
 func setup(m: Node) -> void:
@@ -110,6 +114,9 @@ func _process(delta: float) -> void:
 	if ca == null or cb == null or not ca.visible or not cb.visible or ca.casting or cb.casting:
 		return
 	var d := ca.global_position.distance_to(cb.global_position)
+	if main.get("travel") and main.travel.active():
+		_journey_talk(a, b, d)
+		return
 	if d > 7.0 or not _calm(a) or not _calm(b):
 		return
 	# never to someone's back: neither is walking away from the other (a line to nobody is worse than none)
@@ -133,6 +140,40 @@ func _process(delta: float) -> void:
 	if since > AMBIENT_GAP_S and _rng.randf() < 0.06:
 		var starter := a if _rng.randf() < _initiative(a, b) else b
 		converse(starter, _other(starter), {"mode": "ambient"})
+
+
+## Walking a long way together they talk about it: where they are going, the way, the place ahead. Walking side by
+## side (one a step behind the other) is no turned back, so the facing rule of a chat at rest does not apply here.
+func _journey_talk(a: String, b: String, d: float) -> void:
+	var j: Dictionary = main.travel.journey
+	var key := "%s@%d" % [String(j.get("destination", "")), int(j.get("started", 0))]
+	if key != String(_journey.key):
+		_journey = {"key": key, "talks": 0}
+	var walked := (Time.get_ticks_msec() - int(j.get("started", 0))) / 1000.0
+	var due := JOURNEY_FIRST_S if int(_journey.talks) == 0 else JOURNEY_AGAIN_S
+	if d > 12.0 or walked < due or _now() - _last_end < due or main.streaming.state != "idle":
+		return
+	_journey.talks = int(_journey.talks) + 1
+	var starter := a if _rng.randf() < _initiative(a, b) else b
+	converse(starter, _other(starter), {"mode": "ambient", "topic": journey_topic(j)})
+
+
+## What there is to say on the way: the road they are on, where it leads, whether she has been there before.
+func journey_topic(j: Dictionary) -> Dictionary:
+	var dest := String(j.get("destination", ""))
+	var loc: Dictionary = WorldState.locations.get(dest, {})
+	var here := String(main.streaming.current_id)
+	var route: Array = j.get("route", [])
+	var i := route.find(here)
+	var next := String(route[i + 1]) if i >= 0 and i + 1 < route.size() else ""
+	var road := String(WorldState.adjacency.get(here, {}).get(next, "")) if next != "" else ""
+	var where := String(WorldState.locations.get(WorldState.current_location, {}).get("name", here.replace("_", " ")))
+	var text := "you are walking together to %s (%s)" % [String(loc.get("name", dest.replace("_", " "))), String(loc.get("description", ""))]
+	text += ", now passing %s" % where + (", on %s" % road if road != "" else "")
+	text += ". Neither of you has ever been there, so do not claim to remember it; wonder what it will be like" if not WorldState.visited_locations.has(dest) else ". You have been there before"
+	if int(_journey.talks) > 1:
+		text += ". Talk about something new you notice on the way, not the destination again"
+	return {"text": text, "key": "trip:" + dest}
 
 
 func _calm(who: String) -> bool:
@@ -385,6 +426,18 @@ func _gen(sp: String, ls: String, transcript: Array, seed: Dictionary, n: int, t
 	var line: Dictionary = r.get("json", mock)
 	if not line.get("text") is String or String(line.text).split(" ").size() > 34:
 		line = mock
+	# never a line she has said before, to anyone (LineMemory): written again, twice at most
+	var vid := String(Progression.mages.get(sp, {}).get("voice", sp))
+	var banned: Array = []
+	for attempt in 2:
+		if String(r.get("provider", "mock")) == "mock" or LineMemory.said_before(vid, String(line.get("text", ""))).is_empty():
+			break
+		banned.append(String(line.text))
+		user["you_already_said_these_before_say_something_new"] = banned
+		r = await main.llm.ask_json(sys, JSON.stringify(user), mock, "dialogue")
+		line = r.get("json", mock)
+		if not line.get("text") is String or String(line.text).split(" ").size() > 34:
+			line = mock
 	job["line"] = line
 	job["ms"] = Time.get_ticks_msec() - t0
 	job["provider"] = String(r.get("provider", "mock"))

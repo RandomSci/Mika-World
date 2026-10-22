@@ -23,15 +23,14 @@ func _init(area: WhisperingWoods) -> void:
 
 # ------------------------------------------------------------------ fields
 ## The build's frame budget (2026-10-22: the Mentor's Tower held single frames 0.4 to 1.7 s while its forest was laid
-## out): a long step hands the frame back every SLICE_US and carries on in the next one (the area builder awaits it).
-const SLICE_US := 8000
+## out): a long step hands the frame back once WorldStreamingManager.slice_us() is spent and carries on in the next one (the area builder awaits it).
 var _slice_t := 0
 
 
 func _slice() -> void:
 	if _slice_t == 0:
 		_slice_t = Time.get_ticks_usec()
-	elif Time.get_ticks_usec() - _slice_t > SLICE_US:
+	elif Time.get_ticks_usec() - _slice_t > WorldStreamingManager.slice_us():
 		await a.get_tree().process_frame
 		_slice_t = Time.get_ticks_usec()
 

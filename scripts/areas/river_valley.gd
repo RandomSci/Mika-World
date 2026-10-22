@@ -141,6 +141,7 @@ func _crossing_stones() -> void:
 		var mi := Kit.mesh_node(self, Kit.rock_mesh(0.5, 800 + i, 0.25, Vector3(1.3, 0.45, 1.05)), _stone(),
 			Kit.xf(Vector3(p.x, pool_y() + 0.12, p.y), i * 0.7))
 		Kit.convex_collide(mi)
+		await _build_slice()          # (a hull per stone: all eight held a 212 ms frame, 22 Oct)
 
 
 func _bridge() -> void:

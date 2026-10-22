@@ -106,6 +106,7 @@ func _houses() -> void:
 				base = minf(base, height(p.x + dx, p.y + dz))
 		houses.house(Vector3(p.x, base, p.y), yaw, float(lot[2]), float(lot[3]), seed, int(lot[4]))
 		seed += 7
+		await _build_slice()          # (one house a slice: all of them held a 1 s frame, 22 Oct)
 	add_location("village_square", Vector3(SQUARE.x, 0, SQUARE.y), 16.0, _v(SQUARE + Vector2(3, 3)), "a cobbled square of stone-and-timber houses round a well")
 
 

@@ -150,6 +150,11 @@ func status() -> Dictionary:
 		"recent": history.slice(maxi(0, history.size() - 8))}
 
 
+func _away_hours() -> float:
+	var left := float(mind.knowledge.get("left_home_unix", 0.0))
+	return (Time.get_unix_time_from_system() - left) / 3600.0 if left > 0.0 else 0.0
+
+
 func _in_region() -> bool:
 	return WorldState.areas.get(main.streaming.current_id, {}).get("region", "") == REGION
 
@@ -180,8 +185,8 @@ func options() -> Array:
 			continue          # one reader at a time (the lectern book is a single physical object)
 		out.append({"kind": "research", "key": "research:" + bid, "book": bid, "interactable": loc.interactable, "area": loc.area,
 			"label": "read %s" % b.title, "unread": unread})
-	# magic: castable spells x fitting reactive targets in this area
-	if here == "sanctuary":
+	# magic: castable spells x fitting reactive targets in this area (every far region has its own targets since 22 Oct)
+	if here == "sanctuary" or RegionMagic.has_magic(here):
 		var reactives: Dictionary = main.magic.reactives()
 		for s in main.magic.known_spells(agent_id):
 			if not s.castable or s.id == "elemental_charge":
@@ -237,8 +242,9 @@ func options() -> Array:
 	# wander off the paths (and now and then get a little lost): where finds are most likely
 	if main.world and me.visible and is_lead() and threat == null:
 		out.append({"kind": "wander", "key": "wander:" + here, "label": "wander off the path"})
-	# explore
-	for sid in WorldState.sanctuary.sub_areas:
+	# explore: the sanctuary's own places, only while in the sanctuary (offered everywhere, it sent her across the
+	# village to "explore the ritual circle" at the sanctuary's coordinates, 22 Oct)
+	for sid in (WorldState.sanctuary.sub_areas if here == "sanctuary" else {}):
 		if sid == "ancient_spell_library":
 			continue
 		out.append({"kind": "explore", "key": "explore:" + sid, "sub_area": sid, "label": "explore the %s" % WorldState.sanctuary.sub_areas[sid].name})
@@ -249,7 +255,9 @@ func options() -> Array:
 	# perform: a leisure option (casual) or, now and then, a special performance (celebration / evening)
 	# (Mika's own choice only: Luna dances when asked - the show, a viewer - or as Mika's partner. Her solo dances out of
 	# nowhere, filmed since every dance in view is, looked random on stream, 2026-10-17)
-	if main.performance and _allowed("perform") and is_lead() and me.visible and threat == null and not main.performance.busy():
+	# (the lake dance at most once a night, 2026-10-22: the night's highlight, never a repeat)
+	var lake_danced: bool = here == "lantern_lake" and int(mind.knowledge.get("lake_dance_night", -1)) == night_id()
+	if main.performance and _allowed("perform") and is_lead() and me.visible and threat == null and not main.performance.busy() and not lake_danced:
 		var cd: Dictionary = PerformanceController.load_cfg().cooldown_s
 		var last := float(mind.music.get("last_unix", 0))
 		var now_u := Time.get_unix_time_from_system()
@@ -341,6 +349,14 @@ func options() -> Array:
 	# a walk to another part of the home region (Day 2): the library, the woods' trails and clearings, the tower -
 	# and home to the sanctuary again (always at dusk). Only the followed mage changes area; the other comes along.
 	if is_foreground() and main.travel and not main.travel.active() and threat == null:
+		# the other five regions, by day, with the strength for a long walk (Luna comes along)
+		if WorldState.daylight() > 0.35 and WorldState.hour_f() < 15.5 and mind.vigor > 0.5:
+			for loc in WORLD_VISITS:
+				var wa: String = WorldState.area_of(loc)
+				if wa == here or WorldState.route(here, wa).size() < 2 or not StreamFlags.route_allowed(WorldState.route(here, wa)):
+					continue
+				out.append({"kind": "visit", "key": "visit:" + wa, "area": wa, "location": loc, "far": true,
+					"label": String(WORLD_VISITS[loc])})
 		for loc in HOME_VISITS:
 			var va: String = WorldState.area_of(loc)
 			if va == here or WorldState.route(here, va).size() < 2:
@@ -455,26 +471,33 @@ func options() -> Array:
 			if (s3.pos as Vector3).distance_to(me.global_position) > 2.0:
 				out.append({"kind": "roam", "key": "starfall:" + sid, "pos": s3.pos, "cand": {"describe": String(s3.label), "pos": s3.pos, "score": 0.5, "novelty": 0.3, "off_path": false, "features": {"props": 2, "relief": 0.2, "water": false}},
 					"label": "wander over to %s" % String(s3.label)})
-	# Levels 1-9 live in their HOME REGION (Day 2, the developer: "living home region, forests, trails, clearings and
-	# the library reachable at levels 1 to 9"): by day the sanctuary, the Ancient Spell Library, the Whispering Woods'
-	# trails and clearings, the Mentor's Tower; at night home to Starfall Hill. No expeditions beyond it.
-	if mind.level() <= 9:
-		var home: Array = home_areas()
-		var night_now := _night_home() or (WorldState.daylight() < 0.2 and mind.level() <= 9)
-		out = out.filter(func(o):
-			var a := String(o.get("area", ""))
-			if o.kind == "expedition":
-				return false
-			if a == "" or a == main.streaming.current_id:
-				return true
-			# (the case's next lead goes at night too: on the 2026-10-21 stream the library book the story waited on was
-			# never offered, and the case stood still for 2 h 20 min)
-			var lead: bool = (o.kind == "research" and main.story.next_leads().any(func(l): return String(l.get("book", "")) == String(o.get("book", "")))) \
-				or o.kind == "investigate"
-			# (2026-10-22 live, Selwyn: "make her go to those places for explorations"): the whole home region at
-			# night too - the library and the tower are indoors, the woods by lantern; at night she only circled
-			# Starfall Hill's four spots
-			return home.has(a) and (not night_now or a in ["sanctuary", "lantern_lake", "arcane_library", "mentor_tower", "whispering_woods"] or lead))
+	# The whole world, all six regions (2026-10-22, Selwyn: "Open all six regions and the paths between them ... Their
+	# days spread across all six regions"; already 2026-10-16: "The level 1 to 9 sanctuary-only rule is wrong, they are
+	# trapped and loop"). By day every area and every expedition; at night the home region only (the lake, Starfall
+	# Hill, the library and the tower by lamplight) - no setting out on a long road in the dark.
+	var night_now := WorldState.daylight() < 0.2
+	var home: Array = home_areas()
+	out = out.filter(func(o):
+		var a := String(o.get("area", ""))
+		if a == "" or a == main.streaming.current_id:
+			return true
+		if night_now and (o.kind == "expedition" or not home.has(a)):
+			# (the case's next lead still goes: on the 2026-10-21 stream the library book it waited on was never offered)
+			return o.kind == "research" or o.kind == "investigate"
+		return true)
+	# repetition rules (2026-10-22): an activity never again within 30 minutes; no place visited twice in a row
+	var now_r := Time.get_unix_time_from_system()
+	var last_targets: Array = mind.knowledge.get("last_visit_targets", [])
+	out = out.filter(func(o):
+		if o.kind in REPEAT_EXEMPT:
+			return true
+		var last_k := float(mind.activity_counts.get(String(o.key), {}).get("last_unix", 0))
+		if last_k > 0.0 and now_r - last_k < REPEAT_GAP_S:
+			return false
+		if o.kind in ["visit", "expedition"] and String(o.get("area", "")) != "sanctuary" and not last_targets.is_empty() \
+				and String(last_targets.back()) == String(o.get("area", "")):
+			return false
+		return true)
 	# ("together" is already gated by _allowed("meet") where it is offered: without it here, no shared activity -
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
 	# tonight's closed areas (StreamFlags "regions") are never offered: no visit, no journey, nothing that walks there
@@ -483,6 +506,9 @@ func options() -> Array:
 
 
 const MEET_COOLDOWN_S := 420.0
+const REPEAT_GAP_S := 1800.0             # the same activity never again within 30 minutes
+## Exempt from the 30-minute rule: needs and the world's own events, and going home.
+const REPEAT_EXEMPT := ["recover", "shelter", "collect", "listen_rain", "rest", "discover", "join_find"]
 const DANCE_GAP_S := 2700.0              # her own dance: at least this long after any dance
 const HOLD_STALE_S := 90.0
 const HOLDING_KINDS := ["lakewatch", "lakeboat", "together", "meet", "converse", "perform", "join_find"]
@@ -639,6 +665,15 @@ func score(o: Dictionary) -> Dictionary:
 					why.append("the day is ending: home +%.2f" % pull)
 			else:
 				u = 0.18 + needs.curiosity * 0.4 + 0.3 * age_v - (1.0 - needs.energy) * 0.3
+				if bool(o.get("far", false)):
+					# their days spread over the six regions: a region not seen for a while calls (up to +0.6 after 3 h,
+					# a region never seen most of all); a longer road costs a little
+					var rg := String(WorldState.areas.get(String(o.area), {}).get("region", ""))
+					var rlast := float(mind.knowledge.get("region_visited_unix:" + rg, 0.0))
+					var rh := (Time.get_unix_time_from_system() - rlast) / 3600.0 if rlast > 0.0 else 99.0
+					var pull := clampf(rh / 3.0, 0.0, 1.0) * 0.6
+					u += pull - 0.08 * maxf(WorldState.route(main.streaming.current_id, String(o.area)).size() - 2, 0)
+					why.append("the %s, not seen for %s +%.2f" % [rg.replace("_", " "), ("ever" if rlast == 0.0 else "%.1f h" % rh), pull])
 				u -= clampf(1.0 - stayed_min / 6.0, 0.0, 1.0) * 0.25        # just arrived somewhere: not straight off again
 				# wanderlust: a long stretch in one place makes the rest of the home region call (50 min in the
 				# sanctuary on the 2026-10-22 stream, never anywhere else)
@@ -884,7 +919,8 @@ func _loop() -> void:
 		if main.sim_mode(agent_id) == "background":
 			await _background_step()       # her area is not loaded: honest abstract simulation (no free rewards)
 			continue
-		if is_foreground() and not _in_region():
+		# away from the home region: home for the night (or after a whole day out); by day she lives where she is
+		if is_foreground() and not _in_region() and (WorldState.daylight() < 0.35 or _away_hours() > 6.0):
 			current = {"kind": "travel", "label": "return home"}
 			await _travel("ritual_sanctuary")
 			continue
@@ -1121,6 +1157,8 @@ func _explore(o: Dictionary) -> Dictionary:
 
 func _perform(o: Dictionary) -> Dictionary:
 	current.stage = "performing"
+	if main.streaming.current_id == "lantern_lake":
+		mind.knowledge["lake_dance_night"] = night_id()
 	var r: Dictionary = await main.performance.perform(agent_id, String(o.mode))
 	mind.music["seq_at_last"] = mind.activity_seq
 	if String(o.mode) == "special" and r.get("ok", false):
@@ -2162,6 +2200,13 @@ func _grass_stargaze_spot() -> Vector3:
 const HOME_VISITS := {"ancient_spell_library": "go down to the Ancient Spell Library", "whispering_woods": "walk the trails of the Whispering Woods",
 	"mentors_tower": "walk over to the Mentor's Tower", "ritual_sanctuary": "head back to the sanctuary",
 	"lantern_lake": "walk down to Lantern Lake to watch the lanterns"}
+## One place in each area of the other five regions (data/world.json): a day out.
+const WORLD_VISITS := {"ancient_grove": "follow the old forest track west to the Ancient Grove",
+	"luminous_river": "walk down to the luminous river and the waterfall bridge", "village_square": "go to the village square and the market",
+	"village_observatory": "climb the hill stairway to the village observatory", "crystal_entrance": "take the quarry road to the Crystal Caverns",
+	"underground_lake": "go down the tunnel to the underground lake", "academy_courtyard": "walk the old academy road to the Grand Academy",
+	"great_library": "read in the Great Library of the Academy", "mountain_path": "hike the frontier road up the mountain path",
+	"celestial_observatory": "climb the summit stairway to the Celestial Summit"}
 const LAKE_LINES := {
 	"mika": ["Look at them all... it's like the sky came down to sit on the water.", "Make a wish, Luna. I'll make one too.",
 		"Every one of those is somebody's wish, I think.", "I could stay here until the last one is gone."],
@@ -2304,7 +2349,18 @@ func _visit(o: Dictionary) -> Dictionary:
 	var j := await _travel(String(o.location))
 	if not j.get("ok", false):
 		return {"ok": false, "detail": "could not reach %s: %s" % [o.area, j.get("detail", j.get("reason", "?"))]}
-	mind.knowledge["visited_unix:" + String(o.area)] = Time.get_unix_time_from_system()
+	var now_v := Time.get_unix_time_from_system()
+	mind.knowledge["visited_unix:" + String(o.area)] = now_v
+	var reg := String(WorldState.areas.get(String(o.area), {}).get("region", ""))
+	if reg != "":
+		mind.knowledge["region_visited_unix:" + reg] = now_v
+	if reg != REGION and not mind.knowledge.has("left_home_unix"):
+		mind.knowledge["left_home_unix"] = now_v
+	elif reg == REGION:
+		mind.knowledge.erase("left_home_unix")
+	var lt: Array = mind.knowledge.get("last_visit_targets", [])
+	lt.append(String(o.area))
+	mind.knowledge["last_visit_targets"] = lt.slice(maxi(0, lt.size() - 6))
 	needs.curiosity = clampf(needs.curiosity - 0.1, 0.0, 1.0)
 	return {"ok": true, "detail": "arrived at %s" % o.area}
 
@@ -2377,7 +2433,9 @@ func _maybe_say(lines: Array, chance: float, key := "") -> void:
 		opts["mood"] = mood
 	if me.combat_stance:
 		opts["max_wait"] = 1.5
-	main.voice.say(_voice(), lines[rng.randi() % lines.size()], opts)
+	var line := LineMemory.fresh(_voice(), lines, rng)     # one she has never said (none left: she says nothing)
+	if line != "":
+		main.voice.say(_voice(), line, opts)
 
 
 ## Compatibility with the bridge's perform_action{action}: runs the matching activity once.

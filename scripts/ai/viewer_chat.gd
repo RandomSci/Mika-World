@@ -195,7 +195,7 @@ func _answer(e: Dictionary) -> void:
 	var c: WorldCharacter = main.characters.get(who)
 	if c and known == 0 and (String(e.text).to_lower().begins_with("hi") or String(e.text).to_lower().begins_with("hello") or String(e.text).to_lower().begins_with("hey")):
 		c.play_gesture("waving", 0.3, 0.5)
-	var spoken: Dictionary = await main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), reply)
+	var spoken: Dictionary = await main.voice.say(String(Progression.mages.get(who, {}).get("voice", who)), reply, {"allow_repeat": true})   # (a viewer always gets the reply)
 	mind.knowledge["viewer:" + String(e.author_id)] = known + 1       # she remembers this viewer (her memory only)
 	var applied := ""
 	if mock.suggestion != "" and brain:

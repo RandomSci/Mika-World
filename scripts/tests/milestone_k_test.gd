@@ -108,6 +108,7 @@ func _run() -> void:
 		"spells": await _spells()
 		"phoenix_voice": await _phoenix_voice()
 		"phoenix": await _phoenix()
+		"phoenixmemory": await _phoenixmemory()
 		"phoenix_reel": await _phoenix_reel()
 		"showcase": await _showcase()
 		"no_teleport": await _no_teleport()
@@ -1735,6 +1736,81 @@ func _phoenix_voice() -> void:
 ## bowls and striking a creature (judged by the creature), gestures and combat clips, the cinematic
 ## transformation to her human form (continuity, collision, no T-pose), her Kore voice, a conversation through
 ## the dialogue system (memory, teaching), sitting, walking, casting as a woman, the way back, the leave.
+## Selwyn, 22 Oct: the phoenix is a rare, calm encounter on the forest path, never a fight; she remembers every
+## encounter with each girl and the conversation grows over time, and nobody repeats a line. Three meetings in a row
+## (the cooldown cleared between them, a real language model with --llm-real): every line printed (the dialogue
+## log), her memories after each, and checks that no line was said twice and that her memory grew.
+func _phoenixmemory() -> void:
+	await _hold_all()
+	main.travel.cancel("phoenix memory test")
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	if main.streaming.current_id != "whispering_woods":
+		var r: Dictionary = await main.streaming.travel("whispering_woods", mika)
+		_check(bool(r.get("ok", false)), "the Whispering Woods load", r)
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	var vp: Vector2 = w.VIEWPOINT
+	var stand := NavigationServer3D.map_get_closest_point(map, Vector3(vp.x - 9.0, w.height(vp.x - 9.0, vp.y), vp.y)) + Vector3(0, 0.05, 0)
+	if main.teleport_guard:
+		main.teleport_guard.allow(mika)
+		main.teleport_guard.allow(luna)
+	mika.global_position = stand
+	luna.world = w
+	luna.global_position = NavigationServer3D.map_get_closest_point(map, stand + Vector3(0, 0, 2.0)) + Vector3(0, 0.05, 0)
+	luna.visible = true
+	luna.set_physics_process(true)
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	var mgr: PhoenixManager = main.phoenix_mgr
+	mgr.auto_leave = false
+	var all_lines := []
+	var mem_sizes := []
+	for meeting in 3:
+		var st: Dictionary = main.dialogue.state_of("phoenix")
+		st["next_visit_unix"] = 0
+		var said0 := ((WorldState.npc_state.get("_lines", {}) as Dictionary).get("phoenix", []) as Array).size()
+		var ph: Phoenix = mgr.summon()
+		if ph == null:
+			_check(false, "meeting %d: she came" % (meeting + 1))
+			return
+		var t0 := _game_t
+		while ph.phase != "human" and _game_t - t0 < 150.0 and is_instance_valid(ph):
+			if ph.phase == "perched" and mika.global_position.distance_to(ph.global_position) > 6.0 and mika.current_action != "navigate_to":
+				mika.navigate_to(NavigationServer3D.map_get_closest_point(map, ph.global_position + (stand - ph.global_position).normalized() * 3.5), false)
+			await get_tree().process_frame
+		while mgr._driving and _game_t - t0 < 180.0:
+			await get_tree().process_frame
+		var near := NavigationServer3D.map_get_closest_point(map, ph.global_position + (mika.global_position - ph.global_position).normalized() * 2.2)
+		mika.navigate_to(near, false)
+		var tw := _game_t
+		while mika.current_action == "navigate_to" and _game_t - tw < 20.0:
+			await get_tree().process_frame
+		var talk: Dictionary = await main.dialogue.converse("phoenix", mika)
+		_shot("phoenixmemory_%d" % (meeting + 1))
+		print("[mktest] phoenixmemory meeting %d (%s, conversations %d, relationship %.2f):" % [meeting + 1, String(talk.get("provider", "?")), int(st.conversations), float(st.relationship)])
+		for l in talk.get("lines", []):
+			print("[mktest] phoenixmemory   %s: %s" % [String(l.speaker), String(l.text)])
+			all_lines.append(LineMemory.norm(String(l.text)))
+		var phl: Array = ((WorldState.npc_state.get("_lines", {}) as Dictionary).get("phoenix", []) as Array)
+		print("[mktest] phoenixmemory   her set lines this meeting: %s" % str(phl.slice(said0).map(func(e): return String(e.n))))
+		mem_sizes.append((st.memories as Array).size())
+		print("[mktest] phoenixmemory   her memories now %d, last %s" % [(st.memories as Array).size(), JSON.stringify((st.memories as Array).back() if not (st.memories as Array).is_empty() else {}).left(400)])
+		ph.leave()
+		var tl := _game_t
+		while is_instance_valid(ph) and ph.phase != "gone" and _game_t - tl < 60.0:
+			await get_tree().process_frame
+		await _wait(3.0)
+	var seen := {}
+	var repeats := []
+	for n in all_lines:
+		if String(n).length() >= LineMemory.MIN_CHARS and seen.has(n):
+			repeats.append(n)
+		seen[n] = true
+	_check(repeats.is_empty(), "no line said twice across the three meetings", repeats)
+	_check(mem_sizes.size() == 3 and mem_sizes[2] > mem_sizes[0], "her memory grew with every meeting", mem_sizes)
+
+
 func _phoenix() -> void:
 	await _hold_all()
 	var mika: WorldCharacter = main.characters["mika"]
@@ -9396,6 +9472,7 @@ func _regiontrip() -> void:
 ## each of the 16 areas of the six regions, along the real roads (journeys, overland wayside stretches), Luna along.
 ## Every frame timed in real time; each arrival logged and photographed. --world-trip=loc,loc,... overrides the order.
 func _worldtrip() -> void:
+	main.travel.cancel("world trip test")      # (a brain may set off on a day trip in the first second)
 	await _hold_all()
 	main.spawner.enabled = false
 	var tw0 := _game_t
@@ -9419,30 +9496,57 @@ func _worldtrip() -> void:
 			if ms > 100.0:
 				(rec.slow as Array).append([snappedf(ms, 1.0), String(main.streaming.current_id), String(main.streaming.state), int(main.streaming.get("build_step"))])).call()
 	var results := []
+	# Selwyn's two rules (22 Oct): a leg over 90 s has them talking on the way (no silent walking), and no area build
+	# over 3 s on the live path. The walk is the real one: Mika's brain travels and brings Luna along.
+	var mbj: SanctuaryBrain = main.mage_brains["mika"]
+	var dlg = main.mage_talk.dialogue
+	# a brain may have set off on a day trip before the hold (the far visits): the trip starts from home, at rest
+	main.travel.cancel("world trip test")
+	var tc := _game_t
+	while (main.streaming.state != "idle" or dlg.active) and _game_t - tc < 60.0:
+		await get_tree().process_frame
+	if main.streaming.current_id != "sanctuary":
+		await main.streaming.travel("sanctuary", mika)
+	# every place is new again (the brain's first second may have passed some): the first visits are part of the proof
+	for k in WorldState.visited_locations.keys():
+		if WorldState.area_of(String(k)) != "sanctuary":
+			WorldState.visited_locations.erase(k)
+	for w in ["mika", "luna"]:
+		var kn := WorldState.mind(w).knowledge
+		for k in kn.keys():
+			if String(k).begins_with("place:") and WorldState.area_of(String(k).trim_prefix("place:")) != "sanctuary":
+				kn.erase(k)
+	var talks := {"n": 0, "lines": []}
+	var on_talk := func(e: Dictionary): talks.n = int(talks.n) + 1
+	var on_done := func(e: Dictionary): (talks.lines as Array).append_array((e.get("lines", []) as Array).map(func(l): return "%s: %s" % [l.who, l.text]))
+	dlg.conversation_started.connect(on_talk)
+	dlg.conversation_finished.connect(on_done)
+	var silent := []
+	var slow_builds := []
 	for loc in order:
 		var area := WorldState.area_of(loc)
 		var tw := _game_t
-		while (not main.travel.journey.is_empty() or main.streaming.state != "idle") and _game_t - tw < 60.0:
+		while (not main.travel.journey.is_empty() or main.streaming.state != "idle" or dlg.active or main.place_curiosity.busy) and _game_t - tw < 120.0:
 			await get_tree().process_frame
 		var n0 := (rec.slow as Array).size()
-		var done := {"ev": null}
-		var cb := func(ev): if String(ev.get("event", "")) == "journey_finished": done.ev = ev
-		main.travel.journey_event.connect(cb)
 		var t0 := _game_t
-		var r: Dictionary = main.travel.travel_to(loc, "walk")
-		if not bool(r.get("ok", false)):
-			main.travel.journey_event.disconnect(cb)
-			results.append([loc, area, false, String(r.get("error", "?"))])
-			print("[mktest] worldtrip -> %s (%s): refused: %s" % [loc, area, String(r.get("error", "?"))])
-			continue
-		while done.ev == null and _game_t - t0 < float(RenderProfile.options.get("leg-max", "420")):
-			await get_tree().process_frame
-		main.travel.journey_event.disconnect(cb)
-		var ok: bool = main.streaming.current_id == area
-		var tr: Dictionary = main.streaming.last_report
-		results.append([loc, area, ok, snappedf(_game_t - t0, 0.1), (rec.slow as Array).size() - n0, int(tr.get("build_ms", -1))])
-		print("[mktest] worldtrip -> %s (%s): arrived %s in %.0f s, frames over 100 ms %d, last build %s ms, route %s" % [loc, area, str(ok), _game_t - t0,
-			(rec.slow as Array).size() - n0, str(tr.get("build_ms", "-")), str(r.get("route", r.get("path", "")))])
+		talks.n = 0
+		talks.lines = []
+		var ev: Dictionary = await mbj._travel(loc)
+		var ok: bool = main.streaming.current_id == area and bool(ev.get("ok", false))
+		var secs := snappedf(_game_t - t0, 0.1)
+		var builds: Array = (ev.get("transitions", []) as Array).map(func(t): return [String(t.get("to", "")), int(t.get("build_ms", -1))])
+		for bt in builds:
+			if int(bt[1]) > 3000:
+				slow_builds.append([loc] + bt)
+		if secs > 90.0 and int(talks.n) == 0:
+			silent.append([loc, secs])
+		results.append([loc, area, ok, secs, (rec.slow as Array).size() - n0, builds, int(talks.n)])
+		var leg_slow := (rec.slow as Array).slice(n0)
+		print("[mktest] worldtrip -> %s (%s): arrived %s in %.0f s, frames over 100 ms %d (in view %d), builds %s, talks %d %s%s" % [loc, area, str(ok), secs,
+			leg_slow.size(), leg_slow.filter(func(x): return String(x[2]) in ["idle", "transition_in"]).size(), str(builds), int(talks.n), "" if ok else String(ev.get("detail", "?")), " SILENT" if secs > 90.0 and int(talks.n) == 0 else ""])
+		for line in talks.lines:
+			print("[mktest] worldtrip   said  " + String(line))
 		await _wait(4.0)
 		rec.paused = true
 		_shot("world_" + area)
@@ -9451,9 +9555,16 @@ func _worldtrip() -> void:
 		rec.last = Time.get_ticks_usec()
 		rec.paused = false
 	rec.on = false
-	print("[mktest] worldtrip worst frame %.0f ms, over 100 ms: %s" % [float(rec.worst), str((rec.slow as Array).slice(0, 60))])
+	dlg.conversation_started.disconnect(on_talk)
+	dlg.conversation_finished.disconnect(on_done)
+	var in_view := (rec.slow as Array).filter(func(x): return String(x[2]) in ["idle", "transition_in"])
+	print("[mktest] worldtrip worst frame %.0f ms, over 100 ms: %d in view, %d behind the travel card: %s" % [float(rec.worst), in_view.size(),
+		(rec.slow as Array).size() - in_view.size(), str((rec.slow as Array).slice(0, 60))])
 	report["worldtrip"] = results
 	_check(results.all(func(x): return bool(x[2])), "every area of the six regions reached", results)
+	_check(silent.is_empty(), "no leg over 90 s walked in silence", silent)
+	_check(slow_builds.is_empty(), "no area build over 3 s", slow_builds)
+	_check(in_view.is_empty(), "no frame over 100 ms in view (behind the card: %d)" % ((rec.slow as Array).size() - in_view.size()), in_view.slice(0, 20))
 
 
 ## One walk inside one area (--probe-area, --probe-from=x,z, --probe-to=x,z or --probe-gate=<area>): where she gets

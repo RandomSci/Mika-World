@@ -16,6 +16,17 @@ signal preload_progress(area_id: String, progress: float)
 
 const CACHE_MAX := 3            # areas whose resources may stay resident (current + predicted + previous)
 const BUILD_BUDGET_MS := 10.0   # per-frame build budget during activation
+## Behind the opaque travel card a build may use far more of each frame: with 8 ms slices a 1 s job spread over 4 s of
+## card (one 33 ms frame per slice, 22 Oct world trip: builds of 3.9, 7.5 and 8.6 s). Nobody sees those frames, and
+## 28 ms keeps every one well under 100 ms. In view (an unmasked build) the small slices stay.
+const MASKED_SLICE_US := 28000
+const OPEN_SLICE_US := 8000
+static var masked_build := false
+
+
+## How long a sliced build step may run before it hands the frame back.
+static func slice_us() -> int:
+	return MASKED_SLICE_US if masked_build else OPEN_SLICE_US
 
 var characters_root: Node3D
 var camera_rig: Node
@@ -310,13 +321,14 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 	current = area
 	current_id = to_area
 	var steps: Array = area.activate_steps()
+	masked_build = masked and overlay != null
 	var worst_step := 0.0
 	var step_ms := []
 	var frames := 0
 	var i := 0
 	while i < steps.size():
 		var f0 := Time.get_ticks_usec()
-		while i < steps.size() and (Time.get_ticks_usec() - f0) < BUILD_BUDGET_MS * 1000.0:
+		while i < steps.size() and (Time.get_ticks_usec() - f0) < (MASKED_SLICE_US if masked_build else BUILD_BUDGET_MS * 1000.0):
 			if steps[i] is String:          # "frame": the area asks for a frame boundary here
 				i += 1
 				break
@@ -340,6 +352,7 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		if RenderProfile.options.has("stream-trace"):
 			print("[streamtrace] %s frame %d: steps to %d, step work %.0f ms, frame wait %.0f ms" % [to_area, frames, i, (fw0 - f0) / 1000.0, (Time.get_ticks_usec() - fw0) / 1000.0])
 	var t_built := Time.get_ticks_msec()
+	masked_build = false
 	NatureKit.save_warm_list()
 	var layout_hash := _layout_hash(area)
 	if RenderProfile.options.has("hashdump"):
@@ -352,6 +365,7 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 	var t_nav := Time.get_ticks_msec()
 	# --- place the character, keep its state, snap the camera
 	var at: Transform3D = area.spawn_point(from_area)
+	at.origin = area.free_spot(at.origin, [character.get_rid()] as Array[RID])      # never inside something solid
 	character.global_transform = at
 	character.velocity = Vector3.ZERO
 	character.world = area

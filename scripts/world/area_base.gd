@@ -50,12 +50,21 @@ func setup(id: String) -> void:
 	rng.seed = hash(id)  # deterministic: revisits rebuild exactly the same world
 
 
+## Behind the travel card, before the reveal: the camera turns once round (16 frames) so every material in the area
+## compiles its pipelines now. Without it the village compiled 54 of them in view a second after the card lifted (131
+## and 136 ms frames, 22 Oct). The lake has its own (its boat and dance shaders too).
+func warm_up(camera: Camera3D) -> void:
+	await ShaderPrewarm.area(camera, self, [])
+
+
 func activate_steps() -> Array:
 	var steps: Array = [_build_environment]
 	steps.append_array(build_steps())
 	if outdoor:
 		steps.append(func(): Vista.build(self))
 	steps.append(func(): set_night(WorldState.night))
+	if RegionMagic.has_magic(area_id):
+		steps.append(func(): RegionMagic.build(self))     # its own magic to practise (22 Oct)
 	steps.append(finalize_collisions)
 	return steps
 
@@ -78,18 +87,18 @@ func finalize_collisions() -> void:
 	var q := PhysicsShapeQueryParameters3D.new()
 	q.shape = probe
 	var added := 0
+	var t_slice := Time.get_ticks_usec()
 	for n in find_children("*", "GeometryInstance3D", true, false):
+		# (a frame back now and then: in one go this pass held a 339 ms frame in the village, 22 Oct)
+		if Time.get_ticks_usec() - t_slice > WorldStreamingManager.slice_us():
+			await get_tree().process_frame
+			t_slice = Time.get_ticks_usec()
 		var gi: GeometryInstance3D = n
 		var mesh: Mesh = null
-		var xforms: Array[Transform3D] = []
 		if gi is MeshInstance3D:
 			mesh = (gi as MeshInstance3D).mesh
-			xforms.append(gi.global_transform)
 		elif gi is MultiMeshInstance3D and (gi as MultiMeshInstance3D).multimesh:
-			var mm := (gi as MultiMeshInstance3D).multimesh
-			mesh = mm.mesh
-			for i in mm.instance_count:
-				xforms.append(gi.global_transform * mm.get_instance_transform(i))
+			mesh = (gi as MultiMeshInstance3D).multimesh.mesh
 		if mesh == null or not mesh is ArrayMesh:
 			continue
 		if _in_reactive(gi):
@@ -111,6 +120,14 @@ func finalize_collisions() -> void:
 			kind = "box"  # free-standing stone posts / plinths / blocks
 		if kind == "":
 			continue
+		# every placement of a solid kind (grass and trees in their thousands are skipped above, before this list)
+		var xforms: Array[Transform3D] = []
+		if gi is MeshInstance3D:
+			xforms.append(gi.global_transform)
+		else:
+			var mm := (gi as MultiMeshInstance3D).multimesh
+			for i in mm.instance_count:
+				xforms.append(gi.global_transform * mm.get_instance_transform(i))
 		var maabb := mesh.get_aabb()
 		for xf in xforms:
 			var aabb: AABB = xf * maabb
@@ -416,6 +433,37 @@ func spawn_point(from_area: String) -> Transform3D:
 	if gates.has(from_area):
 		return gates[from_area].arrive
 	return _default_spawn()
+
+
+## A standing spot for a body near `p`: `p` itself if a 0.35 m capsule from knee to head height touches nothing solid
+## there, else the nearest free walkable point within 4 m (rings of 12, snapped to the navmesh). At the village stair
+## foot the arrival spot was inside something solid and Mika never got off it (22 Oct world trip). `ignore`: bodies
+## not to count (the other mages).
+func free_spot(p: Vector3, ignore: Array[RID] = []) -> Vector3:
+	if not is_inside_tree():
+		return p
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.35
+	cap.height = 1.3
+	q.shape = cap
+	q.collision_mask = 1
+	q.exclude = ignore
+	var map := get_world_3d().navigation_map
+	var blocked := func(at: Vector3) -> bool:
+		q.transform = Transform3D(Basis.IDENTITY, at + Vector3(0, 1.05, 0))
+		return not space.intersect_shape(q, 1).is_empty()
+	if not blocked.call(p):
+		return p
+	for ring in [0.75, 1.5, 2.25, 3.0, 4.0]:
+		for k in 12:
+			var a := TAU * k / 12.0
+			var c := NavigationServer3D.map_get_closest_point(map, p + Vector3(cos(a), 0, sin(a)) * ring)
+			if c != Vector3.ZERO and Vector2(c.x - p.x, c.z - p.z).length() < ring + 0.6 and not blocked.call(c):
+				print("[area] %s: spot %s was inside something solid, moved %.1f m to %s" % [area_id, str(p.snapped(Vector3.ONE * 0.1)), Vector2(c.x - p.x, c.z - p.z).length(), str(c.snapped(Vector3.ONE * 0.1))])
+				return c + Vector3(0, 0.05, 0)
+	return p
 
 
 func _default_spawn() -> Transform3D:

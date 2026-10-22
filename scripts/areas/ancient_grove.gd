@@ -114,15 +114,20 @@ func _giants() -> void:
 
 func _fallen_giant() -> void:
 	var at := _v(Vector2(-30, 34))
+	# (each prop's collision hull is computed on the spot: one slice per prop, all at once held a 732 ms frame, 22 Oct)
 	Kit.place_prop(self, "dead_tree_trunk_02", Kit.xf(at - Vector3(0, 0.25, 0), 0.4, Vector3.ONE * 1.9), "", true)
+	await _build_slice()
 	# a whole fallen tree beside it: the trunk on the ground, its dead crown in the ferns
 	var fall := Transform3D(Basis(Vector3.UP, 1.9) * Basis(Vector3.FORWARD, PI * 0.5 - 0.06).scaled(Vector3.ONE * 2.4), _v(Vector2(-46, 46)) + Vector3(0, 0.5, 0))
 	NatureKit.scatter(self, NatureKit.mesh("DeadTree_2"), [fall], {"shadow": true, "vis_end": 200.0, "name": "FallenGiant"})
+	await _build_slice()
 	Kit.place_prop(self, "tree_stump_02", Kit.xf(_v(Vector2(-41, 25)) - Vector3(0, 0.1, 0), 1.2, Vector3.ONE * 2.6), "", true)
+	await _build_slice()
 	for spec in [[Vector2(-22, 12), "rock_moss_set_01_rock02", 1.8], [Vector2(18, 38), "rock_moss_set_01_rock05", 2.0], [Vector2(-34, 44), "rock_moss_set_01_rock04", 1.9],
 			[Vector2(10, 50), "rock_moss_set_01_rock06", 1.5], [Vector2(28, 14), "rock_moss_set_01_rock01", 2.2], [Vector2(-8, -30), "rock_moss_set_01_rock03", 1.7]]:
 		var p: Vector2 = spec[0]
 		Kit.place_prop(self, "rock_moss_set_01", Kit.xf(_v(p) - Vector3(0, 0.35, 0), rng.randf() * TAU, Vector3.ONE * float(spec[2])), String(spec[1]), true)
+		await _build_slice()
 
 
 func _ford_stones() -> void:
@@ -130,6 +135,7 @@ func _ford_stones() -> void:
 		var p := FORD + Vector2(-3.0 + i * 1.0, rng.randf_range(-0.7, 0.7)).rotated(0.3)
 		var mi := Kit.mesh_node(self, Kit.rock_mesh(0.44, 700 + i, 0.25, Vector3(1.3, 0.42, 1.0)), _stone(), Kit.xf(_v(p) + Vector3(0, 0.95, 0), i))
 		Kit.convex_collide(mi)
+		await _build_slice()
 	add_poi("brook_ford", _v(FORD), "Stepping stones across the brook", "ancient_grove")
 
 

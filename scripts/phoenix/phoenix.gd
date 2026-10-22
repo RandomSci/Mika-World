@@ -339,6 +339,10 @@ func show_form(f: String) -> void:
 
 # ------------------------------------------------------------------ her voice
 func say(text: String, mood := "", priority := 0) -> Dictionary:
+	# her set lines are said in these words once; at later meetings she says the same in new words (LineMemory)
+	text = await main.dialogue.fresh_line("phoenix", "phoenix", text)
+	if text == "":
+		return {"ok": false, "skipped": "repeat"}
 	var opts := {"form": form, "mood": mood, "priority": priority}
 	if form == "phoenix":
 		opts["bus"] = "VoicePhoenix"

@@ -411,7 +411,9 @@ static func scatter(parent: Node3D, m: Mesh, xforms: Array, opts := {}) -> Array
 
 ## The same, handing the frame back between chunks once `slice_us` is spent (the area builder awaits it): a whole
 ## model's batches in one go held frames 0.3 to 0.9 s while the Mentor's Tower woods were laid out (2026-10-22).
-static func scatter_sliced(parent: Node3D, m: Mesh, xforms: Array, opts := {}, slice_us := 8000) -> Array:
+static func scatter_sliced(parent: Node3D, m: Mesh, xforms: Array, opts := {}, slice_us := -1) -> Array:
+	if slice_us < 0:
+		slice_us = WorldStreamingManager.slice_us()
 	var chunk: float = opts.get("chunk", CHUNK)
 	var cols: Array = opts.get("colors", [])
 	var lod: Dictionary = opts.get("lod", {})
@@ -530,7 +532,9 @@ static func nav_obstacle(parent: Node3D, pos: Vector3, radius: float, height := 
 
 ## Trunk colliders (layer 3 cylinders + navmesh carves) so trees block walking and routes go round them.
 ## trunk_colliders, handing the frame back every `slice_us` (1,537 trunks took 0.45 s in one frame at the tower).
-static func trunk_colliders_sliced(parent: Node3D, xforms: Array, radius: float, height := 3.0, slice_us := 8000) -> StaticBody3D:
+static func trunk_colliders_sliced(parent: Node3D, xforms: Array, radius: float, height := 3.0, slice_us := -1) -> StaticBody3D:
+	if slice_us < 0:
+		slice_us = WorldStreamingManager.slice_us()
 	var body := vegetation_body(parent, "TreeTrunks")
 	var holes := Node3D.new()
 	holes.name = "TreeTrunkCarves"

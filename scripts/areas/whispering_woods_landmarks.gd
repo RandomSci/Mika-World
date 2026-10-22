@@ -66,15 +66,10 @@ func build() -> void:
 	var root := Node3D.new()
 	root.name = "Landmarks"
 	a.add_child(root)
-	_entry(root)
-	_crossroads(root)
-	_stairway(root)
-	_ruins(root)
-	_viewpoint(root)
-	_bridge(root)
-	_falls(root)
-	_pond(root)
-	_den(root)
+	# one landmark per slice: all nine in one go held a 263 ms frame (22 Oct world trip)
+	for f in [_entry, _crossroads, _stairway, _ruins, _viewpoint, _bridge, _falls, _pond, _den]:
+		f.call(root)
+		await a._build_slice()
 
 
 # ------------------------------------------------------------------ entry

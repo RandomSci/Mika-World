@@ -905,6 +905,13 @@ func say(speaker: String, text: String, opts := {}) -> Dictionary:
 				await react(speaker, "giggle")
 			r["laughter"] = {"lead": lf.lead, "trail": lf.trail}
 			return r
+	# never the same line twice (LineMemory): the show's audio, viewer replies and book reading are exempt
+	if not _is_external(opts) and not bool(opts.get("allow_repeat", false)) and not bool(opts.get("latin", false)):
+		var prev := LineMemory.said_before(speaker, text)
+		if not prev.is_empty():
+			print("[lines] %s would repeat a line (first said %s): %s" % [speaker, Time.get_datetime_string_from_unix_time(int(prev.get("t", 0))), text.left(90)])
+			return {"ok": false, "skipped": "repeat", "text": text, "audio": false}
+		LineMemory.note(speaker, text, String(opts.get("to", "")))
 	var job := {"speaker": speaker, "text": text, "opts": opts, "done": false, "result": {}}
 	if int(opts.get("priority", 0)) > 0:
 		_queue.push_front(job)

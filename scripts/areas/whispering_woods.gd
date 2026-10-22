@@ -224,13 +224,50 @@ var _slice_t := 0
 
 ## Hands the frame back during a long build step once 8 ms are spent (the area builder awaits the step).
 func _build_slice() -> void:
-	if _slice_t == 0 or Time.get_ticks_usec() - _slice_t > 8000:
+	if _slice_t == 0 or Time.get_ticks_usec() - _slice_t > WorldStreamingManager.slice_us():
 		if _slice_t != 0:
 			await get_tree().process_frame
 		_slice_t = Time.get_ticks_usec()
 
 
+## The ground's height grid and trail masks are pure data from the area's own code (the same every build), so they
+## are kept on disk after the first build: about 0.9 s of a 3.3 s River Valley build behind the travel card
+## (22 Oct world trip). The key is the md5 of every script in the area's class chain, so a code change rebuilds them.
+const TERRAIN_CACHE_VERSION := 1
+
+
+func _terrain_cache_path() -> String:
+	return "user://terrain_cache/%s.bin" % (area_id if area_id != "" else String(name))
+
+
+func _terrain_cache_key() -> String:
+	var src := str(TERRAIN_CACHE_VERSION, SIZE, STEP, area_id)
+	var sc: Script = get_script()
+	while sc:
+		src += FileAccess.get_md5(sc.resource_path)
+		sc = sc.get_base_script()
+	return src.md5_text()
+
+
 func _precompute() -> void:
+	var key := _terrain_cache_key()
+	if FileAccess.file_exists(_terrain_cache_path()) and not RenderProfile.options.has("no-terrain-cache"):
+		var f := FileAccess.open(_terrain_cache_path(), FileAccess.READ)
+		var d = f.get_var() if f else null
+		if d is Dictionary and String(d.get("key", "")) == key:
+			_n = int(d.n)
+			_hgrid = d.h
+			_trail_mask = d.t
+			_hidden_mask = d.hid
+			return
+	await _precompute_build()
+	DirAccess.make_dir_recursive_absolute("user://terrain_cache")
+	var fw := FileAccess.open(_terrain_cache_path(), FileAccess.WRITE)
+	if fw:
+		fw.store_var({"key": key, "n": _n, "h": _hgrid, "t": _trail_mask, "hid": _hidden_mask})
+
+
+func _precompute_build() -> void:
 	_n = int(SIZE / STEP) + 1
 	_hgrid.resize(_n * _n)
 	for iz in _n:

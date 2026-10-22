@@ -1,12 +1,23 @@
 {
- "_note": "Go live (Selwyn). fights false: no monster spawns (hunts, camp encounters, territories, road ambushes), no spars or training duels. transformations false: no transformation plays (level ups still count; the form waits). regions: the areas they may be in; any area not listed true is closed (never offered, never travelled to, not loaded at boot). 2026-10-22 Selwyn: every region open again, let them explore and solve the case. 06:02 live: Mika's walk to the Mentor's Tower stalled the stage (the watchdog restarted it, 3.5 min frozen); the tower and the woods stay closed until each is tested on the stream build. Tests may force them on with --fights, --transformations or --all-areas.",
+ "_note": "Go live (Selwyn). fights false: no monster spawns, hunts, encounters, ambushes (the spell duels between Mika and Luna come later as their own event, only with Selwyn's approval). transformations false. regions: every area listed true is open. 2026-10-22 Selwyn: all six regions and the paths between them open, their days spread across them; every area's trip proven with no frame over 100 ms before it goes live. Tests may force areas on with --all-areas.",
  "fights": false,
  "transformations": false,
  "regions": {
   "sanctuary": true,
   "lantern_lake": true,
   "arcane_library": true,
-  "mentor_tower": false,
-  "whispering_woods": false
+  "mentor_tower": true,
+  "whispering_woods": true,
+  "ancient_grove": true,
+  "river_valley": true,
+  "village": true,
+  "observatory_hill": true,
+  "crystal_caverns": true,
+  "deep_caverns": true,
+  "highland_path": true,
+  "celestial_summit": true,
+  "academy": true,
+  "great_library": true,
+  "wayside": true
  }
 }

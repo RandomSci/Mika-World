@@ -589,7 +589,9 @@ static func terrain(parent: Node3D, size: float, step: float, height_fn: Callabl
 ## The same terrain, built row by row and handing the frame back every `slice_us` (the area builder awaits it): the
 ## Mentor's Tower's 280 m ground held one frame for 0.9 s (2026-10-22). Same vertices, normals, colours and UVs as
 ## terrain(); tangents along the ground's x direction (SurfaceTool.generate_tangents alone cost ~0.2 s).
-static func terrain_sliced(parent: Node3D, size: float, step: float, height_fn: Callable, mask_fn: Callable, mat: Material, slice_us := 8000) -> StaticBody3D:
+static func terrain_sliced(parent: Node3D, size: float, step: float, height_fn: Callable, mask_fn: Callable, mat: Material, slice_us := -1) -> StaticBody3D:
+	if slice_us < 0:
+		slice_us = WorldStreamingManager.slice_us()
 	var n := int(size / step) + 1
 	var half := size * 0.5
 	var t0 := Time.get_ticks_usec()

@@ -115,6 +115,11 @@ func converse(npc_id: String, mika: WorldCharacter) -> Dictionary:
 		var phr := await _phrase(npc_id, npc, b, lines)
 		res.provider = phr.provider
 		lines = phr.lines
+		# never the same words twice (LineMemory): a line said before is rewritten, or left out
+		lines.npc = await fresh_line(npc_id, String(t.voice), String(lines.npc))
+		lines.mika = await fresh_line(npc_id, "mika", String(lines.mika), "Mika")
+		if String(lines.npc) == "":
+			continue
 		# her answer (and Luna's) synthesise while the NPC is speaking
 		main.voice.prefetch("mika", lines.mika)
 		if b.has("luna") and _luna_near(npc):
@@ -122,15 +127,19 @@ func converse(npc_id: String, mika: WorldCharacter) -> Dictionary:
 		var r1: Dictionary = await main.voice.say(String(t.voice), lines.npc, {"mood": String(b.get("mood", "")), "form": "humanoid"})
 		res.lines.append({"speaker": t.name, "text": lines.npc, "audio": r1.get("audio", false), "provider": r1.get("provider", "")})
 		await get_tree().create_timer(0.35).timeout
-		var r2: Dictionary = await main.voice.say("mika", lines.mika)
-		res.lines.append({"speaker": "Mika", "text": lines.mika, "audio": r2.get("audio", false)})
+		if String(lines.mika) != "":
+			var r2: Dictionary = await main.voice.say("mika", lines.mika)
+			res.lines.append({"speaker": "Mika", "text": lines.mika, "audio": r2.get("audio", false)})
 		await get_tree().create_timer(0.5).timeout
+		var luna_line := ""
 		if b.has("luna") and _luna_near(npc):
+			luna_line = await fresh_line(npc_id, "luna", String(b.luna), "Luna")
+		if luna_line != "":
 			var luna = main.characters.get("luna")
 			if luna and luna.has_method("look_head_at"):
 				luna.look_head_at(npc.global_position + Vector3(0, 1.5, 0))
-			var r3: Dictionary = await main.voice.say("luna", String(b.luna))
-			res.lines.append({"speaker": "Luna", "text": String(b.luna), "audio": r3.get("audio", false)})
+			var r3: Dictionary = await main.voice.say("luna", luna_line)
+			res.lines.append({"speaker": "Luna", "text": luna_line, "audio": r3.get("audio", false)})
 			await get_tree().create_timer(0.4).timeout
 		# engine-applied consequences
 		if b.has("teach"):
@@ -159,6 +168,7 @@ func converse(npc_id: String, mika: WorldCharacter) -> Dictionary:
 	st.conversations += 1
 	st.relationship = minf(1.0, st.relationship + 0.1 + 0.05 * res.taught.size())
 	st.memories.append({"unix": int(Time.get_unix_time_from_system()), "summary": "talked about %s" % ", ".join(beats.map(func(x): return x.id)),
+		"with": ["mika", "luna"] if _luna_near(npc) else ["mika"], "said": res.lines.map(func(l): return "%s: %s" % [l.speaker, String(l.text).left(90)]).slice(0, 6),
 		"facts_shared_with_mika": res.taught.map(func(x): return x.fact), "facts_mika_shared": res.npc_learned})
 	res["relationship"] = snappedf(st.relationship, 0.01)
 	npc.state = "idle"
@@ -169,6 +179,32 @@ func converse(npc_id: String, mika: WorldCharacter) -> Dictionary:
 	return res
 
 
+## A line someone means to say, in words never used before (LineMemory, per voice): the given words if they are new,
+## otherwise the same intent rewritten by the model from this NPC's memories of earlier meetings, so the talk grows
+## with every meeting (twice at most). No model, or still a repeat: "" (better said nothing than said again).
+func fresh_line(npc_id: String, voice: String, text: String, speaker_name := "") -> String:
+	if text == "" or LineMemory.said_before(voice, text).is_empty():
+		return text
+	var llm: LLMClient = LLMClient.instance
+	if llm == null or llm.provider == "mock" or not travellers.has(npc_id):
+		return ""
+	var t: Dictionary = travellers[npc_id]
+	var st := state_of(npc_id)
+	var who := speaker_name if speaker_name != "" else String(t.name)
+	var sys := ("You are %s in a fantasy world. Say ONE short spoken line (under 25 words) that means the same as the given line but in completely new words, "
+		+ "fitting this meeting: %s and Mika have talked %d times before, so let it show what has grown between them since. No em dashes, no quotes. JSON {\"text\": string}.") % [who, String(t.name), int(st.conversations)]
+	var banned := [text]
+	for attempt in 2:
+		var user := JSON.stringify({"line_to_say_in_new_words": text, "memories": st.memories.slice(maxi(0, st.memories.size() - 5)), "already_said_never_repeat": banned,
+			"situation": {"location": WorldState.current_location, "night": WorldState.night}})
+		var r: Dictionary = await llm.ask_json(sys, user, {"text": ""})
+		var nt := VoiceService.clean(String(r.get("json", {}).get("text", "")))
+		if nt.length() > 3 and nt.split(" ").size() <= 30 and LineMemory.said_before(voice, nt).is_empty():
+			return nt
+		banned.append(nt)
+	return ""
+
+
 ## Optional LLM phrasing. The model only sees this NPC's identity, its own facts, its memories, the situation
 ## and the beat's intent; it must return {"npc": "...", "mika": "..."}; anything off-limits falls back.
 func _phrase(npc_id: String, npc: Node, beat: Dictionary, lines: Dictionary) -> Dictionary:
@@ -176,7 +212,9 @@ func _phrase(npc_id: String, npc: Node, beat: Dictionary, lines: Dictionary) -> 
 	if llm == null or llm.provider == "mock":
 		return {"lines": lines, "provider": "authored"}
 	var ctx := context_for(npc_id, npc)
-	var sys := "You write two short spoken lines for a fantasy game conversation between %s and Mika, a young mage. Use only the facts given. No em dashes. Reply as JSON {\"npc\": string, \"mika\": string}, each under 30 words." % ctx.identity.name
+	var sys := ("You write two short spoken lines for a fantasy game conversation between %s and Mika, a young mage. Use only the facts given. No em dashes. "
+		+ "This is their conversation number %d: let it build on the memories of earlier ones (what was said, who was there), never repeat anything already said. "
+		+ "Reply as JSON {\"npc\": string, \"mika\": string}, each under 30 words.") % [ctx.identity.name, int(state_of(npc_id).conversations) + 1]
 	var user := JSON.stringify({"npc_context": ctx, "beat_intent": lines, "beat_facts": [travellers[npc_id].knowledge.get(beat.get("teach", ""), "")]})
 	var r: Dictionary = await llm.ask_json(sys, user, lines)
 	var j: Dictionary = r.json
