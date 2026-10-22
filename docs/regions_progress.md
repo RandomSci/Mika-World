@@ -85,28 +85,36 @@ Earlier proof. Mentor's Tower after the freeze fix, worst frame 63 ms (build 59.
 * Frame spikes over 100 ms. 64 in 90 minutes, 50 of them behind the travel card during builds. About 14 on screen in ordinary play (grove, village chats, library, boat), 105 to 138 ms each, GPU 4 to 11 ms and scripts 13 to 37 ms, so the time is lost outside the frame's own work. Next suspect is the voice model on the same GPU (the CPU voice village check tests it).
 * Not in this branch yet. The magic water path and the nightly lake dance Selwyn approved on 21 Oct (cast_water_walk, frost and stars or moonlight path, once a night, chat can ask) are planned for the lake worktree but were never built. In this branch the lake dance is only the ordinary dance, at most once a night. To do after the regions proof.
 
-## In the middle of right now (00.10, 23 Oct)
+## Night of 23 Oct, after the soak (all committed and pushed on mika-fix-20261022)
 
-* GPU queue, one job at a time (log ~ › .cache › mika_qa › fix_tests › proof_queue.log, scripts proof_queue5 to 8 in ~ › .cache › mika_qa › tools)
-  1. worldsoak, 90 minutes of free daily life (started 23.51)
-  2. the full trip as a video (worldtrip --movie), then trip_sheets.py for the per-region 10 fps sheets and the dialogue log
-  3. village check with the voice model on the CPU (is the last slow frame in view the voice model sharing the GPU?)
-  4. phoenixmemory third run
-  5. spell duel fourth render
-* Village re-check (real time, after run 7). All arrivals fine, 1 frame of about 140 ms in view about 1.3 s after each village reveal, in the heaviest view of the game while a voice line is synthesised on the same GPU. Not yet fixed, step 3 tests the cause. Also found and fixed there, a journey cancelled by the talk code nudging the speaker apart (now never on a journey).
-* Phoenix runs. First, meeting 1 good, 2 and 3 never started (test bug). Second, the test held a stale reference and stopped with a script error. Fixed, third run queued. Open question, why she left the woods mid approach in the second run (the next run prints the manager's events if it happens).
-* Spell duel renders. Third render passes every check with all seven kinds of exchange (59.3 s, no blow, magic only, whole body shots, 23 lines, 4.6 m closest). Frames show floating crossbars where the hidden rune posts were and a few shots through tall grass at the clearing's edge. Fixed for the fourth render. Video of the third is at ~ › .cache › mika_qa › fix_tests › spellduel.avi until the fourth replaces it.
+Proof results
+* Village with the voice model on the CPU. Worse, not better (17 frames over 100 ms instead of 1, CPU at 96 C). The voice stays on the GPU as on the stream. Known and accepted for now, about one frame of 140 ms about 1.3 s after each village arrival.
+* Phoenix, three meetings, PASS. No line said twice, her memory grew 1, 2, 3, friendship 0.15, 0.25, 0.40, she shared the keepers' fires and the summit shrine. Sheet looked at by eye, she flies in, lands and takes her human form in a flash.
+* Spell duel, fourth render. All checks pass, 59.3 s, 23 lines, all exchange kinds, 4.6 m closest. By eye NOT approval ready, a tree trunk fills the frame from 32.6 to 37 s and the girls are small and dim in wide shots. Fixed (the lens hides whatever stands between it and them, brighter hour), fifth render queued.
+* Lake dance on the water, first run. The whole sequence ran and every check passed but one. The six lake clips were missing from this worktree (git ignored files), so the dance had no motion, and the map was still empty for a few frames after the path bake, so they never left the shore. Both fixed (probe shows the navmesh reaching the circle 34 ms after the bake), second run queued.
+
+Built tonight
+1. Soak fixes. An invite never stops a journey. The stargazing camera on slopes.
+2. Highlight Shorts. The game names its best moments (first visits, dances, the lake dance, the phoenix landing, stargazing, the boat, viewer lanterns, level ups, a kept promise). Mika-Live (GoLive worktree, local commits a116bc9 and 27538e3, NOT pushed because the VR-Agent GitHub repo is public) marks them, saves OBS's replay buffer 20 s after a good one (stream encoder, off unless SHORTS_REPLAY=1), and after the stream render_day cuts the best two of the day, never the same kind, to 1080x1920 in Mika-Project › review › Shorts › date. Never uploaded. Tests pass.
+3. Lake dance on the water (approved 21 Oct, never built before). On a clear night at the lake, Mika's own idea or a viewer's ask, once a night, saved. Both cast cast_water_walk (mocap, body only, fingers wait for the shared body roll in), Mika's frost and stars path and Luna's moonlight path form out to a ringed circle in the lanterns' clear lane, the navmesh is baked with it, steps glow and ring out, the lake duet (only Selwyn's six clips, the MV routine) to 月の灯り, back to land, the path fades. Whole body shots. No ordinary dance on the bank at night.
+4. Viewer XP (rates proposed, need Selwyn's OK). Chat reply 2 XP to the girl who replied, once per viewer per 10 min, 30 an hour at most. Subscriber 15, member 25, Super Chat 25 + 1 per unit up to 75, viewer lantern 5, to both. Banked by the pacing like all XP. A grouped thank-you line on the overlay at most every 20 s.
+5. Helping villagers (rates proposed, need Selwyn's OK). Ten requests (data › requests.json), herbs from the sanctuary garden or a spell at a named crystal or rune. Open requests are saved and pull the gathering, the spell and the road back. A kept promise pays 30 XP once, the first help for each villager 12 more. Test queued.
+
+Deploy notes (for the day Selwyn says go, behind Be Right Back)
+* Git ignored files the live folder needs. assets › audio › music › library › tsuki_no_akari › original.mp3 (copy of Mika-Project › music › tsuki_no_akari.mp3), the six lake_*.fbx in assets › animations › mixamo (from the Combat worktree), then an import.
+* SHORTS_REPLAY=1 in Mika-Live's .env turns the replay buffer on (needs his OK, it changes the OBS profile's recording encoder to the stream's).
+
+Incident
+* 01.45, a headless unit check (godot --script with the project) loaded the autoloads without a test save and wrote the real save once (clock caught up 11 h, play time +90 s, no gameplay change). bak1 is the save from the end of the 22 Oct stream. Restoring it was refused by the permission check, so Selwyn has one command, bash ~/.cache/mika_qa/save_restore_20261023/restore.sh (keeps the accidental write, deletes nothing). Rule saved in memory, never --script with --path.
+
+## In the middle of right now (02.05, 23 Oct)
+
+GPU queue, one at a time (proof_queue.log). Trip video at 10 fps 1280x720 (queue 9), then villager help (11), lake dance second run (12), spell duel fifth render (13). Then trip_sheets.py with TRIP_FPS=10, the sheets, videos and dialogue logs into Mika-Project › review › Test_Videos, look at every sheet by eye.
 
 ## What is left
 
-1. Finish the world trip, fix every failed leg and every frame over 100 ms.
-2. Add the two new trip checks (talking on legs over 90 s, builds over 3 s) and fix what they find.
-3. Test and commit the brain repetition and region changes.
-4. Curiosity and place memory.
-5. No repeat line memory for every speaker.
-6. Region signature activities and discoveries.
-7. Phoenix encounter memory growth, proof sheet and dialogue log.
-8. 10 fps proof sheets and videos into Test_Videos.
-9. Spell duel video for approval.
-10. Shorts.
-11. Then tell Selwyn everything is ready. Apply to live only with his go, behind Be Right Back.
+1. Review the four runs above by eye, fix what they show.
+2. 10 fps proof sheets and videos into Test_Videos.
+3. Spell duel video to Selwyn for approval (only when the frames are clean).
+4. Selwyn's answers. Viewer XP rates, villager XP rates, SHORTS_REPLAY, the save restore command.
+5. Then tell Selwyn everything is ready. Apply to live only with his go, behind Be Right Back.
