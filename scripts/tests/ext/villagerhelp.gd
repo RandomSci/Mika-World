@@ -29,6 +29,7 @@ static func run(t) -> void:
 	# late morning, Wenna out at her garden or stall; Mika a few steps from her (the first run started at dawn with
 	# Wenna indoors, so the brain had no one to offer)
 	FightDirector.set_hour(main, 11.0)
+	rr.place_now()                         # (at her stall now, as when the village loads at that hour)
 	var tw := Time.get_ticks_msec()
 	while (not rr.visible or rr.state in ["walking", "inside"]) and Time.get_ticks_msec() - tw < 90000:
 		await t._wait(1.0)
