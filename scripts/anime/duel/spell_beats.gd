@@ -79,8 +79,8 @@ func _blink(ex: Dictionary, t0: float) -> void:
 	var a := String(ex.att)
 	var b := String(ex.def)
 	var sgn := 1.0 if d.rng.randf() < 0.5 else -1.0
-	d.cut(t0, "wide", a, {"dist": 7.4})
-	d.cut(t0 + 0.95, "orbit", a, {"from": 30.0 * sgn, "to": 75.0 * sgn, "r": 6.0})
+	d.cut(t0, "wide", a, {"dist": 6.0})
+	d.cut(t0 + 0.95, "orbit", a, {"from": 30.0 * sgn, "to": 75.0 * sgn, "r": 5.2})
 	d.cut(t0 + 2.0, "wide_low", b)
 	d.at(t0 + 0.15, func():
 		var c: WorldCharacter = d.F[a].c
@@ -124,7 +124,7 @@ func _faceoff(ex: Dictionary, t0: float) -> void:
 	var lines: Array = ex.get("lines", [])
 	d.cut(0.0, "establish", "mika")
 	d.cut(t0 + 2.2, "two_mid", "mika")
-	d.cut(t0 + 4.4, "wide", "luna", {"dist": 7.0})
+	d.cut(t0 + 4.4, "wide", "luna", {"dist": 6.0})
 	d.at(t0, func():
 		d.face_fx("mika", "determined", 0.9, 4.0)
 		d.face_fx("luna", "determined", 0.7, 4.0))
@@ -181,9 +181,9 @@ func _volley(ex: Dictionary, t0: float) -> void:
 func _counter(ex: Dictionary, t0: float) -> void:
 	var a := String(ex.att)
 	var b := String(ex.def)
-	d.cut(t0, "wide", a, {"dist": 7.2})
+	d.cut(t0, "wide", a, {"dist": 6.0})
 	d.cut(t0 + 0.75, "wide_low", a)
-	d.cut(t0 + 1.7, "orbit", a, {"from": -20.0, "to": 25.0, "r": 6.2})
+	d.cut(t0 + 1.7, "orbit", a, {"from": -20.0, "to": 25.0, "r": 5.2})
 	var meet := {"p": Vector3.ZERO}
 	d.at(t0 + 0.1, func():
 		meet.p = (d.pos(a) + d.pos(b)) * 0.5 + Vector3(0, 1.2, 0)
@@ -220,8 +220,8 @@ func _aerial(ex: Dictionary, t0: float) -> void:
 	var b := String(ex.def)
 	var oc := String(ex.outcome)
 	d.cut(t0, "wide_low", a)
-	d.cut(t0 + 1.1, "wide", a, {"dist": 7.6, "fov": 48.0})
-	d.cut(t0 + 2.1, "wide", b, {"dist": 7.4})
+	d.cut(t0 + 1.1, "wide", a, {"dist": 6.0, "fov": 48.0})
+	d.cut(t0 + 2.1, "wide", b, {"dist": 6.0})
 	d.at(t0 + 0.1, func():
 		d.anim(a, "lift_off", 0.0, -1.0, 1.3, 0.08)
 		d.fx.ground_ring(d.pos(a), a, 2.4, 2, 0.6)
@@ -270,9 +270,9 @@ func _aerial(ex: Dictionary, t0: float) -> void:
 func _barrage(ex: Dictionary, t0: float) -> void:
 	var a := String(ex.att)
 	var b := String(ex.def)
-	d.cut(t0, "wide", a, {"dist": 7.0})
+	d.cut(t0, "wide", a, {"dist": 6.0})
 	d.cut(t0 + 1.15, "overhead", a)
-	d.cut(t0 + 1.9, "wide", b, {"dist": 7.4})
+	d.cut(t0 + 1.9, "wide", b, {"dist": 6.0})
 	d.at(t0 + 0.05, func():
 		d.anim(a, "wide_arm_spell", 0.0, -1.0, 1.2, 0.1)
 		d.F[a].aura = d.fx.aura(d.F[a].c, a, 1.2)
@@ -303,7 +303,7 @@ func _dash(ex: Dictionary, t0: float) -> void:
 	var b := String(ex.def)
 	var sgn := 1.0 if d.rng.randf() < 0.5 else -1.0
 	d.cut(t0, "track", a)
-	d.cut(t0 + 1.2, "wide", b, {"dist": 7.0})
+	d.cut(t0 + 1.2, "wide", b, {"dist": 6.0})
 	for k in 2:
 		d.at(t0 + 0.1 + k * 0.45, func():
 			var around := d._flat(d.pos(a) - d.pos(b))
@@ -326,8 +326,8 @@ func _clash(ex: Dictionary, t0: float) -> void:
 			d.move(id, d.home(id), 0.3, Tween.TRANS_SINE, Tween.EASE_OUT))
 	d.cut(t0, "wide_low", "mika")
 	d.cut(t0 + 1.0, "profile", "mika")
-	d.cut(t0 + 2.0, "orbit", "mika", {"from": 10.0, "to": 70.0, "r": 6.0})
-	d.cut(t0 + 3.2, "wide", "mika", {"dist": 8.0})
+	d.cut(t0 + 2.0, "orbit", "mika", {"from": 10.0, "to": 70.0, "r": 5.2})
+	d.cut(t0 + 3.2, "wide", "mika", {"dist": 6.0})
 	d.at(t0 + 0.25, func():
 		for id in ["mika", "luna"]:
 			m.seg(id, "magic_attack_2h", 0.55, 0.12)

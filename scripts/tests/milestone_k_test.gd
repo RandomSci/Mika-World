@@ -1874,12 +1874,22 @@ func _phoenixmemory() -> void:
 			_check(false, "meeting %d: she came" % (meeting + 1))
 			return
 		var t0 := _game_t
-		while ph.phase != "human" and _game_t - t0 < 150.0 and is_instance_valid(ph):
-			if ph.phase == "perched" and mika.global_position.distance_to(ph.global_position) > 6.0 and mika.current_action != "navigate_to":
-				mika.navigate_to(NavigationServer3D.map_get_closest_point(map, ph.global_position + (stand - ph.global_position).normalized() * 3.5), false)
+		# (always the manager's current phoenix: a reference kept from summon() went stale mid-meeting, 22 Oct)
+		while _game_t - t0 < 150.0:
+			ph = mgr.present
+			if ph != null and is_instance_valid(ph):
+				if ph.phase == "human":
+					break
+				if ph.phase == "perched" and mika.global_position.distance_to(ph.global_position) > 6.0 and mika.current_action != "navigate_to":
+					mika.navigate_to(NavigationServer3D.map_get_closest_point(map, ph.global_position + (stand - ph.global_position).normalized() * 3.5), false)
 			await get_tree().process_frame
 		while mgr._driving and _game_t - t0 < 180.0:
 			await get_tree().process_frame
+		ph = mgr.present
+		if ph == null or not is_instance_valid(ph):
+			print("[mktest] phoenixmemory meeting %d: she was gone before the talk (%s)" % [meeting + 1, JSON.stringify(mgr.describe()).left(300)])
+			_check(false, "meeting %d: she stayed to talk" % (meeting + 1))
+			continue
 		var near := NavigationServer3D.map_get_closest_point(map, ph.global_position + (mika.global_position - ph.global_position).normalized() * 2.2)
 		mika.navigate_to(near, false)
 		var tw := _game_t
@@ -1895,7 +1905,8 @@ func _phoenixmemory() -> void:
 		print("[mktest] phoenixmemory   her set lines this meeting: %s" % str(phl.slice(said0).map(func(e): return String(e.n))))
 		mem_sizes.append((st.memories as Array).size())
 		print("[mktest] phoenixmemory   her memories now %d, last %s" % [(st.memories as Array).size(), JSON.stringify((st.memories as Array).back() if not (st.memories as Array).is_empty() else {}).left(400)])
-		ph.leave()
+		if is_instance_valid(ph):
+			ph.leave()
 		var tl := _game_t
 		while is_instance_valid(ph) and ph.phase != "gone" and _game_t - tl < 60.0:
 			await get_tree().process_frame

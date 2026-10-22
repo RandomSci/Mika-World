@@ -210,7 +210,8 @@ func _clear_arena(root: Node) -> void:
 			continue
 		var d := _flat(mi.global_position - center).length()
 		var sz := (mi.global_transform * mi.mesh.get_aabb()).size
-		if d < arena_r + 2.6 and maxf(sz.x, sz.z) < 3.0 and sz.y < 3.2 and sz.y > 0.3:
+		# (thin pieces too: hiding only the posts left their crossbars hanging in the air in the third render)
+		if d < arena_r + 2.6 and maxf(sz.x, sz.z) < 3.0 and sz.y < 4.5 and maxf(sz.y, maxf(sz.x, sz.z)) > 0.08:
 			mi.visible = false
 			_hidden.append(mi)
 	for n in root.find_children("*", "StaticBody3D", true, false):
