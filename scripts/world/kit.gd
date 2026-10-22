@@ -166,7 +166,9 @@ static func release_unused() -> int:
 	_mats.clear()
 	_meshes.clear()
 	_props.clear()
-	_convex.clear()
+	for k in _convex.keys():
+		if not k is String:
+			_convex.erase(k)          # (hulls kept by file path stay: small, and computed once ever)
 	return n
 
 
@@ -470,14 +472,36 @@ static func trimesh_collide(mi: MeshInstance3D) -> void:
 
 
 static var _convex := {}
+const HULL_CACHE := "user://hull_cache"
+
+
+## A scanned prop's collision hull, computed once ever: kept by the mesh's file path in memory (the mesh itself is
+## released between visits) and on disk (user://hull_cache). Up to 0.3 s each, and the grove's fallen tree, stump
+## and moss rocks cost 0.87 s of its build on every visit (22 Oct). Meshes made in code (no path) keep the old
+## per-object cache.
+static func _hull(mesh: Mesh) -> Shape3D:
+	var key: Variant = mesh.resource_path if mesh.resource_path != "" else mesh
+	if _convex.has(key):
+		return _convex[key]
+	var shape: Shape3D = null
+	var file := ""
+	if key is String:
+		file = "%s/%s.res" % [HULL_CACHE, String(key).md5_text()]
+		if ResourceLoader.exists(file):
+			shape = load(file) as Shape3D
+	if shape == null:
+		shape = mesh.create_convex_shape(true, true)
+		if file != "" and shape:
+			DirAccess.make_dir_recursive_absolute(HULL_CACHE)
+			ResourceSaver.save(shape, file)
+	_convex[key] = shape
+	return shape
 
 
 static func convex_collide(mi: MeshInstance3D) -> void:
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
-	if not _convex.has(mi.mesh):
-		_convex[mi.mesh] = mi.mesh.create_convex_shape(true, true)  # hull is expensive on scanned meshes; reuse per mesh
-	cs.shape = _convex[mi.mesh]
+	cs.shape = _hull(mi.mesh)
 	body.add_child(cs)
 	mi.add_child(body)
 

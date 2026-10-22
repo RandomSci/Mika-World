@@ -154,9 +154,7 @@ func finalize_collisions() -> void:
 				cs.shape = bs
 				body.transform = xf * Transform3D(Basis.IDENTITY, maabb.get_center())
 			elif kind == "hull":
-				if not _solid_shape_cache.has(mesh):
-					_solid_shape_cache[mesh] = mesh.create_convex_shape(true, true)
-				cs.shape = _solid_shape_cache[mesh]
+				cs.shape = Kit._hull(mesh)       # (kept by file path in memory and on disk)
 				body.transform = xf
 			else:
 				var cyl := CylinderShape3D.new()

@@ -109,6 +109,7 @@ func _run() -> void:
 		"phoenix_voice": await _phoenix_voice()
 		"phoenix": await _phoenix()
 		"phoenixmemory": await _phoenixmemory()
+		"lookshot": await _lookshot()
 		"worldsoak": await _worldsoak()
 		"phoenix_reel": await _phoenix_reel()
 		"showcase": await _showcase()
@@ -1737,6 +1738,31 @@ func _phoenix_voice() -> void:
 ## bowls and striking a creature (judged by the creature), gestures and combat clips, the cinematic
 ## transformation to her human form (continuity, collision, no T-pose), her Kore voice, a conversation through
 ## the dialogue system (memory, teaching), sitting, walking, casting as a woman, the way back, the leave.
+## A photo of any spot (visual checks of a fix): --look-area, --look-from=x,y,z, --look-at=x,y,z (several: separate
+## with ;), each saved as lookshot_<area>_<n>.png. Mika stands at the look-at point for scale.
+func _lookshot() -> void:
+	await _hold_all()
+	main.travel.cancel("look test")
+	var mika: WorldCharacter = main.characters["mika"]
+	var area := String(RenderProfile.options.get("look-area", "village"))
+	if main.streaming.current_id != area:
+		await main.streaming.travel(area, mika)
+	main.director.enabled = false
+	var froms := String(RenderProfile.options.get("look-from", "0,3,8")).split(";")
+	var ats := String(RenderProfile.options.get("look-at", "0,1,0")).split(";")
+	for i in froms.size():
+		var f := froms[i].split(",")
+		var a := ats[mini(i, ats.size() - 1)].split(",")
+		var look := Vector3(float(a[0]), float(a[1]), float(a[2]))
+		if main.teleport_guard:
+			main.teleport_guard.allow(mika)
+		mika.global_position = NavigationServer3D.map_get_closest_point(mika.get_world_3d().navigation_map, look) + Vector3(0, 0.05, 0)
+		main.camera_rig.set_shot(Vector3(float(f[0]), float(f[1]), float(f[2])), look, 55.0)
+		await _wait(1.5)
+		_shot("%s_%d" % [area, i])
+		print("[mktest] lookshot %s %d from %s at %s" % [area, i, froms[i], ats[mini(i, ats.size() - 1)]])
+
+
 ## Daily life on the open world (Selwyn, 22 Oct): free brains for --soak-min minutes (default 90, about two world
 ## days) from --soak-start (default 8.0). Checks his repetition rules on what really happened: no activity again
 ## within 30 minutes (the exempt kinds aside), no place visited twice in a row, at most one lake dance a night, the
@@ -9655,6 +9681,27 @@ func _navprobe() -> void:
 	var fr := String(RenderProfile.options.get("probe-from", "-40,46")).split(",")
 	var from := Vector3(float(fr[0]), 0, float(fr[1]))
 	from = NavigationServer3D.map_get_closest_point(map, Vector3(from.x, w.height(from.x, from.z) if w.has_method("height") else 0.0, from.z))
+	if RenderProfile.options.has("probe-spawn"):
+		# exactly where a journey from that neighbour puts her (the gate's arrival, then the free-spot rule)
+		var sp: Transform3D = w.spawn_point(String(RenderProfile.options["probe-spawn"]))
+		from = w.free_spot(sp.origin, [mika.get_rid()] as Array[RID])
+		print("[mktest] navprobe spawn from %s: gate arrival %s, free spot %s" % [RenderProfile.options["probe-spawn"], str(sp.origin.snapped(Vector3.ONE * 0.01)), str(from.snapped(Vector3.ONE * 0.01))])
+		var q := PhysicsShapeQueryParameters3D.new()
+		var sph := SphereShape3D.new()
+		sph.radius = 2.0
+		q.shape = sph
+		q.transform = Transform3D(Basis.IDENTITY, from + Vector3(0, 1.0, 0))
+		for hit in mika.get_world_3d().direct_space_state.intersect_shape(q, 24):
+			var co: Object = hit.collider
+			var n3 := co as Node3D
+			var shp := ""
+			if co is CollisionObject3D:
+				var owners := (co as CollisionObject3D).get_shape_owners()
+				if not owners.is_empty():
+					var sh := (co as CollisionObject3D).shape_owner_get_shape(owners[0], 0)
+					shp = "%s %s" % [sh.get_class(), str(sh.get("size")) if sh.get("size") != null else ""]
+			print("[mktest] navprobe   near: %s at %s layer %d %s parent %s" % [n3.name if n3 else str(co), str(n3.global_position.snapped(Vector3.ONE * 0.01)) if n3 else "?",
+				int((co as CollisionObject3D).collision_layer) if co is CollisionObject3D else -1, shp, String(n3.get_parent().name) if n3 and n3.get_parent() else ""])
 	if main.teleport_guard:
 		main.teleport_guard.allow(mika)
 	mika.global_position = from + Vector3(0, 0.05, 0)

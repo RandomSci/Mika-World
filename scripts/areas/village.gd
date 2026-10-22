@@ -344,7 +344,9 @@ func links() -> void:
 	edge_gate("academy", GATE_ACADEMY)
 	# the stair up the observatory hill (north-west)
 	var base := _v(STAIR)
-	var top := stairs(base, atan2(1.0, 1.0) + PI, 3.0, 9, 0.2, 0.45, stone)
+	# it climbs north-west, away from the square: built the other way round it rose toward the square, its landing
+	# hung 2 m over the arrival spot and Mika, coming down from the hill, arrived under it and never got out (22 Oct)
+	var top := stairs(base, atan2(1.0, 1.0), 3.0, 9, 0.2, 0.45, stone)
 	add_gate("observatory_hill", top, base + Vector3(2.2, 0.05, 2.2), atan2(-1.0, -1.0) + PI, 1.6)
 	Kit.block(self, Vector3(3.6, 0.3, 3.6), Kit.xf(top + Vector3(0, -0.15, 0)), stone, true, 0.03)
 	add_interactable(Interactable.make("well_draw_water", "Draw water from the well", "collect", "village_square",
