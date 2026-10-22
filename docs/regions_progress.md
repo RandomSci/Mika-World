@@ -76,6 +76,15 @@ Earlier proof. Mentor's Tower after the freeze fix, worst frame 63 ms (build 59.
 * c2a7186 villager voices, edge-tts 7.3.1
 * 6510293 journey wait judged by progress, worldtrip and navprobe tests
 
+## Daily life soak, 90 minutes (23.51 to 01.21, 23 Oct), all checks pass
+
+* No activity again within 30 minutes, no place twice in a row, at most one lake dance a night (none happened, see below), 5 of 6 regions visited (sanctuary 3860 s, highlands 550 s, village 540 s, forest 230 s, academy 230 s). Caverns not reached in 90 minutes.
+* 65 decisions. Morning day trip to the grove, back home for the afternoon, the library, nights at home, a dawn hike up the frontier road to the highland path, the village market (Hilde), the academy's great library, back home by the lake at night.
+* First visits seen. The grove (closer look at the glyph stone among the giant roots), the spell library (the old map of the realm). Revisits quiet as planned.
+* Found and fixed (96800a8). Luna's stargazing invite stopped Mika's walk to the lake 4 s after it set off (an invite now never stops a girl on a journey). The stargazing shot on the slope of Starfall Hill sat inside the hill and flipped with the chase lens every 4 s (now picks a side that sees both, above the ground, strikes off a hidden side, high wide shot as the last resort).
+* Frame spikes over 100 ms. 64 in 90 minutes, 50 of them behind the travel card during builds. About 14 on screen in ordinary play (grove, village chats, library, boat), 105 to 138 ms each, GPU 4 to 11 ms and scripts 13 to 37 ms, so the time is lost outside the frame's own work. Next suspect is the voice model on the same GPU (the CPU voice village check tests it).
+* Not in this branch yet. The magic water path and the nightly lake dance Selwyn approved on 21 Oct (cast_water_walk, frost and stars or moonlight path, once a night, chat can ask) are planned for the lake worktree but were never built. In this branch the lake dance is only the ordinary dance, at most once a night. To do after the regions proof.
+
 ## In the middle of right now (00.10, 23 Oct)
 
 * GPU queue, one job at a time (log ~ › .cache › mika_qa › fix_tests › proof_queue.log, scripts proof_queue5 to 8 in ~ › .cache › mika_qa › tools)
