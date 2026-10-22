@@ -218,6 +218,19 @@ func _clear_arena(root: Node) -> void:
 		# never saw the trunk that filled the fourth render for 4 s): hidden only while it is in the way (_occluders)
 		elif d < arena_r + 14.0 and maxf(sz.x, sz.z) < 12.0 and maxf(sz.y, maxf(sz.x, sz.z)) > 0.3:
 			_occ_cands.append(mi)
+	# the training ground mown for a spell duel: grass hid their feet and a low lens sat in a clump (fifth render);
+	# every blade within MOW_R of the middle is scaled to nothing, put back at the end
+	if mode == "spell":
+		for mmi in get_tree().get_nodes_in_group("cat_grass"):
+			if not (mmi is MultiMeshInstance3D) or (mmi as MultiMeshInstance3D).multimesh == null:
+				continue
+			var mm: MultiMesh = (mmi as MultiMeshInstance3D).multimesh
+			var gx: Transform3D = (mmi as Node3D).global_transform
+			for i in mm.instance_count:
+				var tf := mm.get_instance_transform(i)
+				if _flat(gx * tf.origin - center).length() < arena_r + MOW_R:
+					_mown.append([mm, i, tf])
+					mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ZERO), tf.origin))
 	for n in root.find_children("*", "StaticBody3D", true, false):
 		var sb := n as StaticBody3D
 		if _flat(sb.global_position - center).length() < arena_r + 2.6 and not String(sb.name).to_lower().contains("terrain") and not sb.is_in_group("avoid"):
@@ -225,6 +238,8 @@ func _clear_arena(root: Node) -> void:
 			_avoided.append(sb)
 
 
+const MOW_R := 3.6
+var _mown: Array = []                 # [multimesh, index, transform] of the grass mown for the duel
 var _occ_cands: Array = []
 var _occ_hidden := {}                 # mesh -> the frame time it last stood in the way
 
@@ -532,6 +547,13 @@ func _camera(delta: float) -> void:
 	var pc2: PhantomCamera3D = _pcs[_pcs.size() - 1]
 	var look: Vector3 = cp.look
 	var p: Vector3 = _unblock(look, cp.pos)
+	if mode == "spell":
+		# whole body always: a girl dashing at the lens never comes nearer than 3.5 m (Luna cut at the knees for a
+		# moment in the fifth render)
+		for id in F:
+			var away := _flat(p - chest(id))
+			if away.length() < 3.5:
+				p += (away.normalized() if away.length() > 0.05 else _flat(p - look).normalized()) * (3.5 - away.length())
 	_occluders(p)
 	if (look - p).length() > 0.01:
 		pc2.global_transform = Transform3D(Basis.looking_at(look - p, Vector3.UP), p)
@@ -769,6 +791,10 @@ func teardown() -> void:
 		if is_instance_valid(mi):
 			(mi as MeshInstance3D).visible = true
 	_occ_hidden.clear()
+	for g in _mown:
+		if is_instance_valid(g[0]):
+			(g[0] as MultiMesh).set_instance_transform(int(g[1]), g[2])
+	_mown.clear()
 	for nd in _hidden:
 		if is_instance_valid(nd):
 			(nd as Node3D).visible = true
