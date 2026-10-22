@@ -955,6 +955,15 @@ func _loop() -> void:
 			current = {"kind": "travel", "label": "return home"}
 			await _travel("ritual_sanctuary")
 			continue
+		# Luna stays with Mika (Selwyn 23 Oct live: "I can't see Luna at all even though I can hear her voice, let them be
+		# together"): the camera follows Mika, so Luna catches up first whenever she has drifted off
+		if not is_lead():
+			var lead := main.characters.get("mika") as WorldCharacter
+			if lead and lead.visible and me.visible and me.global_position.distance_to(lead.global_position) > STAY_NEAR_M + 3.0:
+				current = {"kind": "rejoin", "label": "catch up with Mika", "stage": "walking"}
+				await _approach(lead.global_position, 1.8)
+				current = {}
+				continue
 		if main.curiosity and is_lead() and is_foreground():
 			await main.curiosity.consult(self)        # LLM-capable: only for the followed mage
 		if resume_key != "":
@@ -966,6 +975,12 @@ func _loop() -> void:
 		if resume_key != "":
 			print("[resume] %s carries on: %s (%s)" % [agent_id, resume_key, "on offer" if scored.any(func(o): return o.key == resume_key) else "no longer on offer"])
 			resume_key = ""
+		if not is_lead():
+			var lead2 := main.characters.get("mika") as WorldCharacter
+			if lead2 and lead2.visible:
+				var near := scored.filter(func(o): return _near_lead(o, lead2.global_position))
+				if not near.is_empty():
+					scored = near
 		if scored.is_empty():
 			await get_tree().create_timer(2.0).timeout
 			continue
@@ -1020,6 +1035,38 @@ func _loop() -> void:
 			main.curiosity.on_activity_finished(choice, result)
 		await get_tree().create_timer(rng.randf_range(0.8, 2.4)).timeout
 	busy = false
+
+
+## How far Luna's own activities may take her from Mika (the camera is always on Mika).
+const STAY_NEAR_M := 8.0
+
+
+## Where an option would take her (null when it stays where she is or has no place).
+func _option_pos(o: Dictionary) -> Variant:
+	for p in [o.get("pos"), (o.get("target") as Dictionary).get("pos") if o.get("target") is Dictionary else null]:
+		if p is Vector3:
+			return p
+		if p is Array and (p as Array).size() >= 3:
+			return Vector3(float(p[0]), float(p[1]), float(p[2]))
+	if main.world:
+		for key in ["interactable", "target"]:
+			var id = o.get(key)
+			if id is String or id is StringName:
+				var it = main.world.interactables.get(String(id), main.world.interactables.get(StringName(id)))
+				if it is Node3D and is_instance_valid(it):
+					return (it as Node3D).global_position
+	var n = o.get("node")
+	if n is Node3D and is_instance_valid(n):
+		return (n as Node3D).global_position
+	return null
+
+
+## Luna's options: nothing that walks her away from Mika (no wandering off, no far targets).
+func _near_lead(o: Dictionary, lp: Vector3) -> bool:
+	if String(o.get("kind", "")) in ["wander", "explore"]:
+		return false
+	var p = _option_pos(o)
+	return p == null or Vector2((p as Vector3).x - lp.x, (p as Vector3).z - lp.z).length() <= STAY_NEAR_M
 
 
 # ------------------------------------------------------------------ activities

@@ -122,6 +122,7 @@ const UAL_PACKS := {"ual": "res://assets/animations/ual/ual_combat.glb", "ual_re
 @export var run_speed := 4.1
 @export var turn_speed := 10.0
 const STAND_TURN := 3.5         # rad/s at most while she turns on the spot (the feet step round)
+const MOVE_TURN := 5.0          # rad/s at most while she walks (a half turn takes 0.6 s: the hair follows, never flies)
 
 var avatar: Node3D
 var skeleton: Skeleton3D
@@ -1955,6 +1956,11 @@ func _physics_process(delta: float) -> void:
 			# 21 rad/s: the feet were dragged 25-36 cm)
 			var d := angle_difference(rotation.y, to_yaw)
 			to_yaw = rotation.y + clampf(d, -STAND_TURN * delta, STAND_TURN * delta)
+		elif hv.length() > 0.2 and not casting:
+			# walking: a turn is a curve, never a whip round (2026-10-23 live: Luna's hair flew when a re-planned path
+			# turned her about in a few frames)
+			var dm := angle_difference(rotation.y, to_yaw)
+			to_yaw = rotation.y + clampf(dm, -MOVE_TURN * delta, MOVE_TURN * delta)
 		rotation.y = to_yaw
 
 	# a held LOOPING gesture (a talking idle, folded arms ...) never rides on a moving body: it overrides the whole
