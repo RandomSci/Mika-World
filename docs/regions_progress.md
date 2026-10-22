@@ -134,6 +134,15 @@ Only after the regions work is done and with the stream off, on a branch, applie
 5. Upload retries every 30 minutes for 24 h, then logged and kept locally. Cutting and uploading only after the recording stops, at low priority.
 6. A 10 minute private test stream, then show Selwyn the Drive folder before trusting it.
 
+## Save guard, fail closed and loud (23 Oct, Selwyn's yes with conditions)
+
+* Cause of the 01.45 write. The guard failed open, any run without a known test flag counted as the stage.
+* Fix (1569d5a, 51631c1). Only godot-stage.sh's arguments in a window may load or write the real save; the write itself refuses the real path otherwise. A stage-like run that is refused raises GUARD ALARM (error, small overlay mark, user://stage_health.json at once and every minute). The stage also alarms when its save is not written for 15 min or never this session. [health] logs the guard and the save's age.
+* Proof tools/qa/save_guard_proof.sh, 9 of 9 against a throwaway user folder. The old guard fails the incident case.
+* Mika-Live GoLive aeca784 (local, the repo is public). save_watch every minute while streaming and as the pre-live check stage_saves_progress, alerts in the log, logs/alerts.log and a desktop notification. Tests pass.
+* Ported to 7 worktrees, one commit each, world_state.gd only, none skipped. List in Mika-Project › docs › SAVE_GUARD_NOTICE_2026-10-23.md.
+* Day3 at the planned restart, behind Be Right Back. ~/.cache/mika_qa/tools/stage_save_confirm.sh before, then after (same levels, knowledge and memories, the guard recognises the stage, the first autosave's time). The pre-live check needs the new guard in Day3, so both go together.
+
 ## What is left
 
 1. Review the four runs above by eye, fix what they show.
