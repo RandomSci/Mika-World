@@ -751,9 +751,13 @@ func _follow_companions(delta: float) -> void:
 		way = way.normalized()
 		# beside her, only a step behind, so the lens behind Mika has Luna in the picture too; at Mika's pace (Luna's
 		# own walk is slower: on long roads she fell back out of the shot, 2026-10-23 live), a little brisker when behind
-		var spot := lead.global_position - way * 0.8 + Vector3(-way.z, 0, way.x) * 1.0
-		spot = NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, spot)
 		var lead_v := Vector2(lead.velocity.x, lead.velocity.z).length()
+		var spot := lead.global_position - way * 0.8 + Vector3(-way.z, 0, way.x) * 1.0
+		# while Mika walks, aim where her place will be a little ahead: a spot she reached in one step made her stop
+		# and start again twice a second (walk, idle, walk: Luna "glitching", 2026-10-23 live)
+		if lead_v > 0.2:
+			spot += way * lead_v * 1.0
+		spot = NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, spot)
 		c.pace = clampf(lead_v / maxf(c.walk_speed, 0.1) * (1.0 + clampf(d - 1.6, 0.0, 4.0) * 0.06), 0.8, 1.3) if lead_v > 0.2 else 1.0
 		if d > 2.0 or c.current_action != "navigate_to":
 			c.navigate_to(spot, d > 9.0)
