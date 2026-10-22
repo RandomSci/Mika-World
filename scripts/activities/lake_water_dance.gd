@@ -194,8 +194,8 @@ func _sequence(lake: Node3D, area, chars: Dictionary) -> bool:
 	var mark := {"mika": SPOT + side * 0.75, "luna": SPOT - side * 0.75}
 	for id in chars:
 		chars[id].navigate_to(lake.to_global(mark[id] + Vector3(0, WaterPath.TOP, 0)), false)
-	if not await _wait_arrive(chars.values(), 45.0):
-		# (the navmesh did not reach the circle: never walk them over bare water) back to the shore
+	if not await _wait_arrive(chars.values(), 45.0) or chars.values().any(func(c): return lake.to_local((c as WorldCharacter).global_position).distance_to(mark[(c as WorldCharacter).character_id] + Vector3(0, WaterPath.TOP, 0)) > 1.2):
+		# (the navmesh did not reach the circle: never walk them over bare water; never dance on the shore instead)
 		stage = "the path did not reach the circle"
 		return false
 	for id in chars:
@@ -259,6 +259,23 @@ func _rebake(area, with_path: bool) -> void:
 		area.nav_aabb = area.get_meta("nav_aabb_before")
 		area.remove_meta("nav_aabb_before")
 	await area.bake_navigation()
+	# the map takes a few frames to sync the new region (right after the bake it was empty: every point 9 m off, the
+	# distance to the map's origin, and they stopped on the shore in the first run); up to 3 s for it to reach the
+	# circle (or, baked without the path, the shore)
+	var lake := _lake()
+	if lake == null:
+		return
+	var map: RID = lake.get_world_3d().navigation_map
+	var probe := lake.to_global(SPOT + Vector3(0, WaterPath.TOP, 0)) if with_path else lake.to_global(_lane(lake, area).shore)
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 3000:
+		var q := NavigationServer3D.map_get_closest_point(map, probe)
+		if q.distance_to(probe) < (0.8 if with_path else 2.5):
+			break
+		await get_tree().physics_frame
+	var got := NavigationServer3D.map_get_closest_point(map, probe)
+	print("[lakedance] navmesh %s the path: closest to %s is %.2f m off after %d ms" % ["with" if with_path else "without", "the circle" if with_path else "the shore",
+		got.distance_to(probe), Time.get_ticks_msec() - t0])
 
 
 func _remove_path(area) -> void:
