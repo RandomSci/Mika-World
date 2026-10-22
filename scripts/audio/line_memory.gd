@@ -27,24 +27,37 @@ static func norm(t: String) -> String:
 	return out.strip_edges()
 
 
-static func _similar(a: String, b: String) -> bool:
-	if a == b:
-		return true
-	var wa := a.split(" ", false)
-	var wb := b.split(" ", false)
-	if wa.size() < 5 or wb.size() < 5:
+static func _words(t: String) -> Dictionary:
+	var out := {}
+	for w in t.split(" ", false):
+		out[w] = true
+	return out
+
+
+static func _similar_sets(sa: Dictionary, sb: Dictionary) -> bool:
+	if sa.size() < 5 or sb.size() < 5:
 		return false
-	var sa := {}
-	for w in wa:
-		sa[w] = true
 	var common := 0
-	var sb := {}
-	for w in wb:
-		if not sb.has(w):
-			sb[w] = true
-			if sa.has(w):
-				common += 1
+	for w in sb:
+		if sa.has(w):
+			common += 1
 	return float(common) / float(maxi(sa.size(), sb.size())) >= 0.8
+
+
+## Word sets of what each speaker said, kept in memory (built once per line, not on every check: over a long stream
+## a check against 800 lines splitting each one again would cost tens of milliseconds of a frame).
+static var _sets := {}                # speaker -> {"count": entries indexed, "exact": {norm: entry}, "sets": [[wordset, entry]]}
+
+
+static func _index(speaker: String) -> Dictionary:
+	if _sets.has(speaker):
+		return _sets[speaker]
+	var ix := {"exact": {}, "sets": []}
+	for e in _store().get(speaker, []):
+		ix.exact[String(e.n)] = e
+		(ix.sets as Array).append([_words(String(e.n)), e])
+	_sets[speaker] = ix
+	return ix
 
 
 ## The earlier time she said it, or {} if she never has.
@@ -52,9 +65,15 @@ static func said_before(speaker: String, text: String) -> Dictionary:
 	var n := norm(text)
 	if n.length() < MIN_CHARS:
 		return {}
-	for e in _store().get(speaker, []):
-		if _similar(n, String(e.n)):
-			return e
+	var ix := _index(speaker)
+	if ix.exact.has(n):
+		return ix.exact[n]
+	var ws := _words(n)
+	if ws.size() < 5:
+		return {}
+	for pair in ix.sets:
+		if _similar_sets(ws, pair[0]):
+			return pair[1]
 	return {}
 
 
@@ -64,7 +83,13 @@ static func note(speaker: String, text: String, to := "") -> void:
 		return
 	var st := _store()
 	var arr: Array = st.get(speaker, [])
-	arr.append({"n": n, "to": to, "t": int(Time.get_unix_time_from_system())})
+	var e := {"n": n, "to": to, "t": int(Time.get_unix_time_from_system())}
+	arr.append(e)
+	var ix := _index(speaker)
+	ix.exact[n] = e
+	(ix.sets as Array).append([_words(n), e])
+	if (ix.sets as Array).size() > KEEP:
+		ix.sets = (ix.sets as Array).slice((ix.sets as Array).size() - KEEP)
 	if arr.size() > KEEP:
 		arr = arr.slice(arr.size() - KEEP)
 	st[speaker] = arr

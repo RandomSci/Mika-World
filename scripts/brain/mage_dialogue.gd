@@ -171,9 +171,37 @@ func journey_topic(j: Dictionary) -> Dictionary:
 	var text := "you are walking together to %s (%s)" % [String(loc.get("name", dest.replace("_", " "))), String(loc.get("description", ""))]
 	text += ", now passing %s" % where + (", on %s" % road if road != "" else "")
 	text += ". Neither of you has ever been there, so do not claim to remember it; wonder what it will be like" if not WorldState.visited_locations.has(dest) else ". You have been there before"
+	# something she can really see right now (a point of interest close by), never the same one twice on a journey
+	var seen := _near_poi()
+	if seen != "":
+		text += ". Right now you can see: " + seen
 	if int(_journey.talks) > 1:
 		text += ". Talk about something new you notice on the way, not the destination again"
 	return {"text": text, "key": "trip:" + dest}
+
+
+func _near_poi() -> String:
+	var w = main.streaming.current
+	var mika: WorldCharacter = main.characters.get("mika")
+	if w == null or mika == null:
+		return ""
+	var used: Array = _journey.get("used", [])
+	var best := ""
+	var best_d := 40.0
+	for id in w.points_of_interest:
+		var p: Dictionary = w.points_of_interest[id]
+		var desc := String(p.get("description", ""))
+		if desc == "" or String(id).begins_with("gate") or used.has(String(id)):
+			continue
+		var dd := mika.global_position.distance_to(p.position)
+		if dd < best_d:
+			best_d = dd
+			best = String(id)
+	if best == "":
+		return ""
+	used.append(best)
+	_journey["used"] = used
+	return String(w.points_of_interest[best].description)
 
 
 func _calm(who: String) -> bool:
@@ -420,7 +448,8 @@ func _gen(sp: String, ls: String, transcript: Array, seed: Dictionary, n: int, t
 		+ "Reply as JSON {\"text\": string, \"end\": bool, \"emotion\": one of %s, \"gesture\": one of [\"\", \"nod\", \"wave\", \"point\"]}.") % [
 		me, PERSONA.get(sp, "a young mage"), other, situation, me, 12 if mode == "combat" else 22, other, target, n, JSON.stringify(EMOTIONS)]
 	var user := {"your_facts": _facts(sp, ls), "something_you_could_bring_up": String(seed.get("text", "")),
-		"conversation_so_far": transcript, "lines_you_said_recently_do_not_repeat": WorldState.mind(sp).knowledge.get("said:" + ls, []).slice(-12)}
+		"conversation_so_far": transcript, "lines_you_said_recently_do_not_repeat": WorldState.mind(sp).knowledge.get("said:" + ls, []).slice(-12),
+		"ideas_you_both_said_lately_do_not_repeat_them": _recent_lines(18)}
 	var mock := {"text": _authored(sp, ls, seed, n, target, transcript), "end": n >= target, "emotion": "", "gesture": ""}
 	var r: Dictionary = await main.llm.ask_json(sys, JSON.stringify(user), mock, "dialogue")
 	var line: Dictionary = r.get("json", mock)
@@ -446,6 +475,17 @@ func _gen(sp: String, ls: String, transcript: Array, seed: Dictionary, n: int, t
 	if text.length() > 1:
 		main.voice.prefetch(String(Progression.mages.get(sp, {}).get("voice", sp)), text)
 	job["done"] = true
+
+
+## The last lines of their recent talks, both voices (an idea already said should not come back in new words).
+func _recent_lines(n: int) -> Array:
+	var out: Array = []
+	for i in range(log.size() - 1, -1, -1):
+		for l in (log[i].get("lines", []) as Array):
+			out.append("%s: %s" % [String(l.who), String(l.text)])
+		if out.size() >= n:
+			break
+	return out.slice(0, n)
 
 
 ## Without a language model: her own authored lines (data/mages.json, data/companionship.json).

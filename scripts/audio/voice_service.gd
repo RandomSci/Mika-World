@@ -1141,7 +1141,7 @@ static func _envelope(wav: PackedByteArray) -> PackedFloat32Array:
 	while k < n:
 		var s := 0.0
 		var cnt := 0
-		for j in range(k, mini(k + per, n), 4):
+		for j in range(k, mini(k + per, n), 16):       # (every 16th sample: plenty for a mouth's loudness, 4x cheaper on the frame)
 			var v := float(wav.decode_s16(data_off + j * 2)) / 32768.0
 			s += v * v
 			cnt += 1

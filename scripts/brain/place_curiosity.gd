@@ -229,13 +229,20 @@ func _poi_near(loc: String, from: Vector3) -> Dictionary:
 	if area == null:
 		return {}
 	var best := {}
-	var best_d := 35.0
+	var best_d := 60.0
 	for id in area.points_of_interest:
 		var p: Dictionary = area.points_of_interest[id]
 		if id == loc or String(p.get("location", "")) != loc or String(p.get("description", "")) == "":
 			continue
-		var d := from.distance_to(p.position)
-		if d < best_d and d > 2.0:
+		var real := from.distance_to(p.position)
+		if real > 35.0 or real < 2.0:
+			continue
+		var d := real
+		# a description of a thing, not an action's label ("Read Vell's survey ..."): those count as farther
+		var first_word := String(p.description).get_slice(" ", 0).to_lower()
+		if first_word in ["read", "study", "draw", "strike", "light", "open", "look", "take", "collect", "practise", "practice", "cast", "talk", "sit", "rest"]:
+			d += 25.0
+		if d < best_d:
 			best_d = d
 			best = p
 	return best

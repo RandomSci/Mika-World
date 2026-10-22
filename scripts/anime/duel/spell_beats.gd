@@ -8,7 +8,7 @@ extends RefCounted
 ## head to feet (FightDirector.cut maps any closer kind to a whole-body one in this mode).
 ## Beats are staged on the FightDirector `d` with the shared helpers of FightMoves `m` (shield, bolt, say).
 
-const LEN := {"s_faceoff": 5.2, "s_volley": 2.7, "s_blink": 2.9, "s_counter": 2.7, "s_aerial": 3.1, "s_barrage": 3.1,
+const LEN := {"s_faceoff": 6.0, "s_volley": 2.7, "s_blink": 2.9, "s_counter": 2.7, "s_aerial": 3.1, "s_barrage": 3.1,
 	"s_dash": 2.5, "s_clash": 4.4, "s_truce": 6.0}
 
 ## Short lines for the moments of the duel, in each one's own voice (Mika playful and stubborn, Luna dry and proud).
@@ -124,7 +124,7 @@ func _faceoff(ex: Dictionary, t0: float) -> void:
 	var lines: Array = ex.get("lines", [])
 	d.cut(0.0, "establish", "mika")
 	d.cut(t0 + 2.2, "two_mid", "mika")
-	d.cut(t0 + 3.9, "wide", "luna", {"dist": 7.0})
+	d.cut(t0 + 4.4, "wide", "luna", {"dist": 7.0})
 	d.at(t0, func():
 		d.face_fx("mika", "determined", 0.9, 4.0)
 		d.face_fx("luna", "determined", 0.7, 4.0))
@@ -132,15 +132,15 @@ func _faceoff(ex: Dictionary, t0: float) -> void:
 	for l in lines.slice(0, 3):
 		var who := String(l[0])
 		var text := String(l[1])
-		d.at(tt, func(): m.say(who, text, 1.6))
-		tt += 1.55
-	d.at(t0 + 4.3, func():
+		d.at(tt, func(): m.say(who, text, 1.7))
+		tt += 1.9
+	d.at(t0 + 5.0, func():
 		for id in ["mika", "luna"]:
 			d.F[id].aura = d.fx.aura(d.F[id].c, id, 1.0)
 			_circle(id, 0.9)
 		d.sound("spell_arcane_charge", d.center, -4.0)
 		d.shake(0.3))
-	d.at(t0 + 5.1, func():
+	d.at(t0 + 5.8, func():
 		for id in ["mika", "luna"]:
 			d.fx.aura_off(d.F[id].aura)
 			d.stance(id, 0.2))
