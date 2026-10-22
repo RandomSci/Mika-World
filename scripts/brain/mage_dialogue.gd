@@ -294,7 +294,8 @@ func converse(a: String, b: String, opts := {}) -> Dictionary:
 	var target: int = int(pre.target) if use_pre else (max_lines if mode == "combat" else _rng.randi_range(maxi(2, max_lines - 3), max_lines))
 	current = {"between": [a, b], "mode": mode, "topic": String(seed_a.get("text", "")), "lines": [], "started": _now()}
 	conversation_started.emit(current)
-	if mode != "stargaze" and mode != "combat":
+	# (never on a journey: the nudge apart is "player input" to her walk and ended a journey, 22 Oct)
+	if mode != "stargaze" and mode != "combat" and not (main.get("travel") and main.travel.active()):
 		await Companionship.make_room(ca, cb)
 	_watch_bodies(ca, cb)
 	print("[dialogue] start %s -> %s (%s, %s remembers %d earlier talks)%s: %s" % [a, b, mode, a, (WorldState.mind(a).knowledge.get("talks:" + b, []) as Array).size(), " [opening line prepared on the way]" if use_pre else "", String(seed_a.get("text", "")).left(100)])
