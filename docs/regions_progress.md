@@ -65,13 +65,15 @@ Earlier proof. Mentor's Tower after the freeze fix, worst frame 63 ms (build 59.
 
 ## In the middle of right now
 
-* Run 2 of the world trip still going (monitor bjpy15xq5). After it, rerun with all the new code.
-* Written, parse checked, not yet run in a test (all uncommitted)
-  * Brain day trips to every region, 30 minute repeat gap, no place twice in a row, home at dusk, lake dance once a night (sanctuary_brain.gd), all 16 areas on in stream_flags.json.
-  * Curiosity (scripts › brain › place_curiosity.gd). First visit, both stop, look around, wonder out loud, one walks up to a point of interest, they react. Passing a new place on a journey, a remark on the move. Revisit, recall the last time and what changed (not every time). Memory per girl in knowledge place:location, saved.
-  * No repeated lines (scripts › audio › line_memory.gd). Every in-world line remembered per voice, saved. VoiceService refuses repeats, authored pools pick unused lines, generated lines that repeat are rewritten, villagers and the phoenix say set lines once and later in new words built from their memories. Viewer replies and book reading exempt.
-  * Phoenix and villager memories now keep who was there and what was said, and the model is told which meeting number it is.
-* Decision noted for Selwyn. Proof runs use the real language model (--llm-real, the same gpt-4o-mini the stream uses) so the dialogue log is real. A few cents.
+* Run 5 of the world trip started 21.03 (monitor bfa8hso5s), all fixes below in. Runs 3 and 4 logs saved in the session scratchpad (log_worldtrip_run3.txt, run4).
+* Runs 3 and 4 results. Woods 55 s, grove 190 to 202 s, river 255 s, builds 1.6, 3.3 to 3.8 and 2.5 to 3.5 s, no slow frame in view on any leg, talks on every long leg, first visit scenes ran (woods looked closer at Vell's buried box, grove at the moonmoth cocoons).
+* Found and fixed in runs 3 and 4
+  * Curiosity waited at most 60 s for the walk to end, then stopped both girls 11.5 m short of the grove. It now never interrupts a journey.
+  * Luna stopped following after the first area change (the walking along link was dropped on arrival, so on the last stretch and on every second hop she was left behind). Now kept to the journey's end.
+  * Crash. Luna's brain was practising at a new grove magic target when the area changed, the target was freed mid walk. Guarded, and her own errands end when she starts walking along.
+  * Walking along now has its own pause flag. Sharing the general hold flag released a hold someone else had set.
+  * Preloading of recorded textures never worked for areas with a constant resource list (append to a read only list). Fixed, should shorten builds further.
+* Committed 0edb263 earlier, the fixes since are not committed yet (after run 5 passes a few legs).
 
 ## What is left
 

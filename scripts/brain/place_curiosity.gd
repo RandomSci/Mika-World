@@ -104,10 +104,11 @@ func _visit(loc: String) -> void:
 	print("[curiosity] %s at %s (%s)" % ["first visit" if first else "back", loc, "passing on a journey" if travelling else "arrived"])
 	if main.travel.active() and not travelling:
 		# arriving at the journey's own destination: the stop comes once the walk there is done
+		# (never stops a journey: at most 60 s cut the grove's last stretch short 11.5 m from the end, 22 Oct)
 		var tw := Time.get_ticks_msec()
-		while main.travel.active() and Time.get_ticks_msec() - tw < 60000:
+		while main.travel.active() and Time.get_ticks_msec() - tw < 900000:
 			await get_tree().process_frame
-		if _pair().is_empty() or _blocked():
+		if main.travel.active() or _pair().is_empty() or _blocked():
 			for w in pair:
 				_remember(w, loc, "")
 			busy = false

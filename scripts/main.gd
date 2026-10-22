@@ -699,10 +699,10 @@ func bring_along(who: String, leader: String) -> void:
 	if b:
 		b.interrupt("walking along with %s" % leader)
 		# she really walks with her to the gate (22 Oct: Mika walked every road alone and Luna only appeared beside
-		# her behind the travel card); her own plans wait until the journey is over
-		if not b.hold:
-			b.hold = true
-			_companion_holds[who] = b
+		# her behind the travel card); her own plans wait until the journey is over (its own flag: lifting a shared
+		# hold at the journey's end once released a hold a test had set, 22 Oct)
+		b.walking_along = true
+		_companion_holds[who] = b
 
 
 var _companion_holds := {}
@@ -716,10 +716,12 @@ func _follow_companions(delta: float) -> void:
 		return
 	_follow_acc = 0.0
 	if travel == null or not travel.active():
-		if not _companion_holds.is_empty() and (travel == null or not travel.active()) and streaming.state == "idle":
+		if streaming.state == "idle":
+			# the journey is over: her own plans again, and nobody walks along any more
 			for who in _companion_holds:
-				(_companion_holds[who]).hold = false
+				(_companion_holds[who]).walking_along = false
 			_companion_holds.clear()
+			travel_companions.clear()
 		return
 	if streaming.state != "idle" or world == null:
 		return
@@ -773,7 +775,8 @@ func _place_companions() -> void:
 		c.set_physics_process(true)
 		c.look_at_point(lead.global_position + way * 3.0)
 		WorldState.mind(who).set_location(streaming.current_id, c.global_position)
-		travel_companions.erase(who)
+		if travel == null or not travel.active():
+			travel_companions.erase(who)      # (kept to the journey's end: every hop and the last stretch, 22 Oct)
 
 
 func _on_area_for_mages(area_id: String) -> void:
@@ -797,7 +800,8 @@ func _on_area_for_mages(area_id: String) -> void:
 			way = way.normalized() if way.length() > 0.1 else Vector3.FORWARD
 			var side := Vector3(-way.z, 0, way.x)
 			m.set_location(area_id, lead.global_position - way * 1.5 + side * 0.7)
-		travel_companions.erase(who)
+		if travel == null or not travel.active():
+			travel_companions.erase(who)      # (kept to the journey's end: every hop and the last stretch, 22 Oct)
 		var her_area := String(m.location.get("area", _home_area(who)))
 		if her_area != area_id or world == null:
 			c.visible = false

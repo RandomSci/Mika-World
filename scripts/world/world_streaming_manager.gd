@@ -103,7 +103,7 @@ func _poll(id: String) -> void:
 		return
 	if L.phase == 1:
 		var scene: PackedScene = ResourceLoader.load_threaded_get(L.paths[0])
-		var res_paths := _declared_resources(scene)
+		var res_paths: Array = _declared_resources(scene).duplicate()     # (an area's RESOURCES constant is read-only)
 		for rp in _recorded_resources(id):
 			if not res_paths.has(rp):
 				res_paths.append(rp)

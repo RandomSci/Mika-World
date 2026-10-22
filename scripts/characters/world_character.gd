@@ -1600,7 +1600,14 @@ func _steer_around(desired: Vector3) -> Vector3:
 	return (desired + push * 1.4).normalized()
 
 
+var _nav_trace_t := 0
+
+
 func navigate_to(target: Vector3, run := false) -> void:
+	if RenderProfile.options.has("trace-nav") and Time.get_ticks_msec() - _nav_trace_t > 250:
+		_nav_trace_t = Time.get_ticks_msec()      # (who sends her where: at most 4 lines a second)
+		var st := get_stack()
+		print("[navtrace] %s -> %s from %s" % [name, str(target.snapped(Vector3.ONE * 0.1)), " < ".join(st.slice(1, 4).map(func(f): return "%s:%d %s" % [String(f.source).get_file(), int(f.line), String(f.function)]))])
 	if reaction and reaction.blocks_actions():
 		last_rejection = "recovering from a blow (%s)" % reaction.phase
 		action_finished.emit("navigate_to", false, last_rejection)

@@ -35,6 +35,7 @@ var mind: MageMind                # HER knowledge, inventory, skills and trials 
 var profile := {}                 # data/mages.json entry: activities, temperament, voice, signature spell
 var threat: Monster = null        # a creature attacking her right now (set by the spawner)
 var hold := false                 # another mage asked to talk: finish nothing new until released
+var walking_along := false        # brought along on the other's journey: nothing of her own until it ends (main)
 var explore_map: ExplorationMap   # her own spatial curiosity (coverage, candidates)
 var last_roam := {}               # the most recent roam (for tests / the developer overlay)
 var _celebrate_until := 0.0       # a recent level-up makes a special performance tempting
@@ -891,6 +892,10 @@ func _loop() -> void:
 	busy = true
 	var held_for := 0.0
 	while enabled and is_inside_tree():
+		if walking_along and not hold:
+			current = {}
+			await get_tree().create_timer(0.3).timeout
+			continue
 		if hold:
 			current = {}
 			# a hold nobody lifts (2026-10-22 live: her own dance and the show's magic lesson overlapped and she stood
@@ -949,7 +954,7 @@ func _loop() -> void:
 		# the choice can take a moment (the curiosity consult is an LLM call): if the show or the other mage asked for her
 		# meanwhile, she starts nothing (2026-10-18 live: the show asked for a dance during the consult, she said yes, the
 		# music started - and her planner went on to lead Luna off to spar at the training grounds mid-song)
-		if hold or not enabled:
+		if hold or walking_along or not enabled:
 			continue
 		last_decision = {"key": choice.key, "kind": choice.kind, "label": choice.label, "utility": choice.utility, "why": choice.why,
 			"alternatives": scored.slice(1, 4).map(func(x): return [x.label, x.utility])}
@@ -2088,6 +2093,8 @@ func _walk(target: Vector3, ignore_threat := false) -> bool:
 				return true
 			continue
 		while me.current_action == "navigate_to" and not _cancel:
+			if walking_along and not ignore_threat:
+				return false                 # (she walks with the other now: her own errand ends here)
 			if (_interrupt in ["threat", "social", "transform"] or _interrupt.begins_with("the show") or (_interrupt == "discovery" and String(current.get("kind", "")) in ["roam", "wander", "explore", "visit", "gather"])) and not ignore_threat:
 				me.stop_action()
 				return false
@@ -2129,8 +2136,13 @@ func _stand_for_cast(spell_id: String, target_id: String) -> bool:
 				continue
 			if await _walk(p):
 				# check where she actually stopped (navigation can stop up to ~0.7 m short)
+				if not is_instance_valid(target):
+					return false
 				if main.magic.validate(spell_id, me, target).ok and main.world.has_space_for_magic(me.global_position):
 					return true
+			# (the area can change while she walks: its targets are freed with it - a crash on 22 Oct)
+			if not is_instance_valid(target) or not is_instance_valid(main.world):
+				return false
 	return false
 
 

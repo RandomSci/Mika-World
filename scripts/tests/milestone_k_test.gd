@@ -109,6 +109,7 @@ func _run() -> void:
 		"phoenix_voice": await _phoenix_voice()
 		"phoenix": await _phoenix()
 		"phoenixmemory": await _phoenixmemory()
+		"worldsoak": await _worldsoak()
 		"phoenix_reel": await _phoenix_reel()
 		"showcase": await _showcase()
 		"no_teleport": await _no_teleport()
@@ -1736,6 +1737,78 @@ func _phoenix_voice() -> void:
 ## bowls and striking a creature (judged by the creature), gestures and combat clips, the cinematic
 ## transformation to her human form (continuity, collision, no T-pose), her Kore voice, a conversation through
 ## the dialogue system (memory, teaching), sitting, walking, casting as a woman, the way back, the leave.
+## Daily life on the open world (Selwyn, 22 Oct): free brains for --soak-min minutes (default 90, about two world
+## days) from --soak-start (default 8.0). Checks his repetition rules on what really happened: no activity again
+## within 30 minutes (the exempt kinds aside), no place visited twice in a row, at most one lake dance a night, the
+## days spread over the regions; and prints the dialogue log, the curiosity scenes and the region time shares.
+func _worldsoak() -> void:
+	var mins := float(RenderProfile.options.get("soak-min", "90"))
+	main.day_night.clear_override()
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + float(RenderProfile.options.get("soak-start", "8.0")) * 60.0
+	main.director.enabled = true
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var decisions := []
+	var cb := func(d): decisions.append({"t": int(Time.get_unix_time_from_system()), "game": WorldState.clock_text().right(5), "area": String(main.streaming.current_id),
+		"key": String(d.get("key", "")), "kind": String(d.get("kind", "")), "label": String(d.get("label", "")).left(70)})
+	mb.decided.connect(cb)
+	var talks := []
+	var tcb := func(e: Dictionary): talks.append({"game": WorldState.clock_text().right(5), "area": String(main.streaming.current_id), "mode": String(e.get("mode", "")),
+		"topic": String(e.get("topic", "")).left(90), "lines": (e.get("lines", []) as Array).map(func(l): return "%s: %s" % [l.who, l.text])})
+	main.mage_talk.dialogue.conversation_finished.connect(tcb)
+	var dances := []
+	var region_s := {}
+	var t0 := _game_t
+	var next_s := 0.0
+	while _game_t - t0 < mins * 60.0:
+		await get_tree().process_frame
+		if _game_t - t0 >= next_s:
+			next_s += 10.0
+			var reg := String(WorldState.areas.get(main.streaming.current_id, {}).get("region", "?"))
+			region_s[reg] = int(region_s.get(reg, 0)) + 10
+			if main.performance and main.performance.busy() and main.streaming.current_id == "lantern_lake":
+				var nid := SanctuaryBrain.night_id()
+				if dances.is_empty() or int(dances.back()[0]) != nid or _game_t - float(dances.back()[1]) > 400.0:
+					dances.append([nid, _game_t])
+			if int(_game_t - t0) % 300 < 10:
+				print("[mktest] worldsoak %4.0fs %s %s | mika: %s | luna: %s" % [_game_t - t0, WorldState.clock_text().right(5), main.streaming.current_id,
+					String(mb.current.get("label", "-")).left(50), String(main.mage_brains.luna.current.get("label", "-")).left(50)])
+	mb.decided.disconnect(cb)
+	main.mage_talk.dialogue.conversation_finished.disconnect(tcb)
+	# the rules, on what happened
+	var repeats := []
+	var last_at := {}
+	for d in decisions:
+		if String(d.kind) in SanctuaryBrain.REPEAT_EXEMPT:
+			continue
+		if last_at.has(d.key) and int(d.t) - int(last_at[d.key]) < int(SanctuaryBrain.REPEAT_GAP_S):
+			repeats.append([d.key, int(d.t) - int(last_at[d.key])])
+		last_at[d.key] = d.t
+	var visits := decisions.filter(func(d): return String(d.kind) in ["visit", "expedition"])
+	var twice := []
+	for i in range(1, visits.size()):
+		if String(visits[i].key) == String(visits[i - 1].key) and not String(visits[i].key).ends_with("sanctuary"):
+			twice.append(visits[i].key)
+	var per_night := {}
+	for dn in dances:
+		per_night[dn[0]] = int(per_night.get(dn[0], 0)) + 1
+	print("[mktest] worldsoak decisions (%d):" % decisions.size())
+	for d in decisions:
+		print("[mktest] worldsoak   %s %-18s %-10s %s" % [d.game, d.area, d.kind, d.label])
+	print("[mktest] worldsoak regions (seconds) %s" % JSON.stringify(region_s))
+	print("[mktest] worldsoak curiosity %s" % JSON.stringify(main.place_curiosity.log))
+	print("[mktest] worldsoak lake dances by night %s" % JSON.stringify(per_night))
+	print("[mktest] worldsoak dialogue log (%d talks):" % talks.size())
+	for tk in talks:
+		print("[mktest] worldsoak   [%s %s %s] %s" % [tk.game, tk.area, tk.mode, tk.topic])
+		for l in tk.lines:
+			print("[mktest] worldsoak       %s" % String(l))
+	report["worldsoak"] = {"decisions": decisions, "regions": region_s, "curiosity": main.place_curiosity.log, "dances": per_night, "talks": talks.size()}
+	_check(repeats.is_empty(), "no activity again within 30 minutes", repeats)
+	_check(twice.is_empty(), "no place visited twice in a row", twice)
+	_check(per_night.values().all(func(n): return int(n) <= 1), "at most one lake dance a night", per_night)
+	_check(region_s.keys().size() >= 4, "the days spread over the regions (%d of 6)" % region_s.keys().size(), region_s)
+
+
 ## Selwyn, 22 Oct: the phoenix is a rare, calm encounter on the forest path, never a fight; she remembers every
 ## encounter with each girl and the conversation grows over time, and nobody repeats a line. Three meetings in a row
 ## (the cooldown cleared between them, a real language model with --llm-real): every line printed (the dialogue
