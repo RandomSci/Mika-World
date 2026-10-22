@@ -26,6 +26,18 @@ static func run(t) -> void:
 	t._check(rr != null and is_instance_valid(rr), "Wenna lives here")
 	if rr == null:
 		return
+	# late morning, Wenna out at her garden or stall; Mika a few steps from her (the first run started at dawn with
+	# Wenna indoors, so the brain had no one to offer)
+	FightDirector.set_hour(main, 11.0)
+	var tw := Time.get_ticks_msec()
+	while (not rr.visible or rr.state in ["walking", "inside"]) and Time.get_ticks_msec() - tw < 90000:
+		await t._wait(1.0)
+	print("[villagerhelp] Wenna %s, visible %s, at %s" % [String(rr.state), str(rr.visible), str(rr.global_position.snappedf(0.1))])
+	var mc: WorldCharacter = main.characters["mika"]
+	if main.teleport_guard:
+		main.teleport_guard.allow(mc)
+	mc.global_position = main.world.free_spot(rr.global_position + (mc.global_position - rr.global_position).normalized() * 3.0) if main.world.has_method("free_spot") else rr.global_position + Vector3(3, 0, 0)
+	await t._wait(1.0)
 	# 1. she asks (the brain's chat option carries her request first)
 	var opts: Array = b.options()
 	var chat: Array = opts.filter(func(o): return String(o.get("kind", "")) == "chat" and String(o.get("resident", "")) == "wenna")

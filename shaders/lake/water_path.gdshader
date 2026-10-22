@@ -10,7 +10,7 @@ uniform vec3 col_a : source_color = vec3(0.55, 0.85, 1.0);
 uniform vec3 col_b : source_color = vec3(0.92, 0.97, 1.0);
 uniform float grow = 0.0;                 // 0..1: how far out it has formed (along the strip, or out from the circle's middle)
 uniform float fade = 1.0;                 // 1 lit .. 0 gone
-uniform float energy = 1.0;
+uniform float energy = 0.85;             // (chosen from stills at 0.4, 0.7, 1.0 on 23 Oct, once the NaN at the strip edges was gone)
 uniform vec4 steps[8];                    // xz (world), start time, 0/1 used
 uniform float now = 0.0;
 
@@ -47,7 +47,7 @@ float stars(vec2 p, float t) {
 		return 0.0;
 	}
 	float tw = 0.5 + 0.5 * sin(t * (2.0 + h * 5.0) + h * 40.0);
-	return smoothstep(0.09, 0.0, length(f)) * tw;
+	return (1.0 - smoothstep(0.0, 0.09, length(f))) * tw;
 }
 
 void vertex() {
@@ -69,12 +69,12 @@ void fragment() {
 	if (along > grow) { discard; }
 	float t = now;
 	vec2 p = wpos.xz;
-	float edge = smoothstep(1.0, 0.82, across);
-	float core = 0.18 + 0.5 * pow(1.0 - across, 1.6);
+	float edge = (1.0 - smoothstep(0.82, 1.0, across));
+	float core = 0.1 + 0.32 * pow(max(1.0 - across, 0.0), 1.6);
 	float pat = 0.0;
 	if (style == 0) {
 		float e = cells(p * 2.4);
-		pat = smoothstep(0.08, 0.0, e) * 0.9 + smoothstep(0.3, 0.0, e) * 0.25;
+		pat = (1.0 - smoothstep(0.0, 0.08, e)) * 0.9 + (1.0 - smoothstep(0.0, 0.3, e)) * 0.25;
 		pat += stars(p * 7.0, t) * 1.8;
 	} else if (style == 1) {
 		float w = sin(p.x * 3.1 + t * 0.9) * sin(p.y * 2.3 - t * 0.7) + sin((p.x + p.y) * 5.2 + t * 1.3) * 0.5;
@@ -84,16 +84,16 @@ void fragment() {
 		// the circle: rings and a ring of ticks, slowly turning, the two lights mixed
 		float r = along;
 		float ang = atan(UV.y * 2.0 - 1.0, UV.x * 2.0 - 1.0) + t * 0.12;
-		float rings = smoothstep(0.018, 0.0, abs(r - 0.96)) + smoothstep(0.012, 0.0, abs(r - 0.86)) * 0.8
-			+ smoothstep(0.01, 0.0, abs(r - 0.5)) * 0.5 + smoothstep(0.01, 0.0, abs(r - 0.28)) * 0.4;
+		float rings = (1.0 - smoothstep(0.0, 0.018, abs(r - 0.96))) + (1.0 - smoothstep(0.0, 0.012, abs(r - 0.86))) * 0.8
+			+ (1.0 - smoothstep(0.0, 0.01, abs(r - 0.5))) * 0.5 + (1.0 - smoothstep(0.0, 0.01, abs(r - 0.28))) * 0.4;
 		float ticks = step(0.75, fract(ang * 24.0 / 6.2832)) * smoothstep(0.0, 0.01, r - 0.87) * smoothstep(0.0, 0.01, 0.95 - r);
-		pat = rings * 1.4 + ticks * 0.8 + smoothstep(0.08, 0.0, cells(p * 2.2)) * 0.35;
+		pat = rings * 1.4 + ticks * 0.8 + (1.0 - smoothstep(0.0, 0.08, cells(p * 2.2))) * 0.35;
 		pat += stars(p * 6.5, t) * 1.5;
-		core = 0.1 + 0.25 * (1.0 - r);
+		core = 0.06 + 0.16 * (1.0 - r);
 		edge = 1.0;
 	}
 	// the leading edge as it forms: a bright seam
-	float seam = smoothstep(0.05, 0.0, abs(along - grow)) * step(grow, 0.999);
+	float seam = (1.0 - smoothstep(0.0, 0.05, abs(along - grow))) * step(grow, 0.999);
 	// under each step: a glow where the foot came down and a ring running out from it
 	float stepg = 0.0;
 	for (int i = 0; i < 8; i++) {
@@ -102,9 +102,11 @@ void fragment() {
 		if (age < 0.0 || age > 2.2) { continue; }
 		float d = length(p - steps[i].xy);
 		stepg += exp(-d * d * 9.0) * exp(-age * 2.6) * 1.6;
-		stepg += exp(-pow((d - age * 1.3) * 7.0, 2.0)) * exp(-age * 1.4) * 0.9;
+		stepg += exp(-((d - age * 1.3) * 7.0) * ((d - age * 1.3) * 7.0)) * exp(-age * 1.4) * 0.9;
 	}
 	vec3 col = mix(col_a, col_b, clamp(pat * 0.6 + stepg * 0.5, 0.0, 1.0));
 	float a = (core + pat * 0.55 + seam * 1.6 + stepg) * edge * fade * energy;
-	ALBEDO = col * a;
+	// (NaN-safe: an undefined pow or smoothstep at a strip's edge burnt it white under the glow, any energy)
+	a = (isnan(a) || isinf(a)) ? 0.0 : clamp(a, 0.0, 4.0);
+	ALBEDO = max(col * a, vec3(0.0));
 }

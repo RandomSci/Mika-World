@@ -9,8 +9,8 @@ extends Node3D
 const SHADER := preload("res://shaders/lake/water_path.gdshader")
 const TOP := 0.06                         # the walking surface over the water (m)
 const STRIP_W := 1.35
-const FROST := [Color(0.55, 0.85, 1.0), Color(0.93, 0.98, 1.0)]
-const MOON := [Color(0.62, 0.5, 1.0), Color(0.95, 0.92, 1.0)]
+const FROST := [Color(0.3, 0.7, 1.0), Color(0.85, 0.95, 1.0)]       # ice blue, the stars near white
+const MOON := [Color(0.55, 0.38, 1.0), Color(0.9, 0.85, 1.0)]       # violet moonlight, silver
 
 var from := Vector3.ZERO                  # area-local: the shore end (middle of the two strips)
 var to := Vector3.ZERO                    # area-local: the circle's middle

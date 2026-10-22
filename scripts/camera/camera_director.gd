@@ -805,6 +805,9 @@ const WIDE_FOV := 1.12
 const PULL_BACK := 1.18
 
 
+var _moved_said := 0.0
+
+
 func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) -> void:
 	if mika and not (mode in ["combat", "signature"]) and not RenderProfile.options.has("no-wide"):
 		fov = minf(fov * WIDE_FOV, 66.0)
@@ -828,6 +831,9 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		# clean is dropped (the library's lens ended at the stair mouth looking down the unlit stairwell: near-black)
 		if mode == "establishing" and pos.distance_to(as_set) > 1.5:
 			_establish_until = 0.0
+		if mode == "scene" and pos.distance_to(as_set) > 1.0 and _now() - _moved_said > 2.0:
+			_moved_said = _now()
+			print("[camera] scene shot moved %.1f m toward its subject (solid or crowded at %s)" % [pos.distance_to(as_set), str(as_set.snappedf(0.1))])
 	# she is IN the shot: in a director-made frame (a fight, a conversation, an activity) her head must be inside
 	# the view and not behind something solid - otherwise the shot is re-solved round her instead of trusted
 	if mika and mode in ["combat", "conversation", "activity", "spell"]:
@@ -974,6 +980,12 @@ func _view_ok(pos: Vector3, look: Vector3) -> bool:
 		return false
 	var q := PhysicsRayQueryParameters3D.create(pos, look, 1 | 4)
 	q.exclude = [mika.get_rid()]
+	if mode == "scene":
+		# (a staged two-shot looks between them: Luna's own body in that line is no wall, and the 2.6 m rescue lens it
+		# called made close-ups in the lake dance)
+		for c in main.characters.values():
+			if c is CollisionObject3D:
+				q.exclude.append((c as CollisionObject3D).get_rid())
 	var hit := space.intersect_ray(q)
 	return hit.is_empty() or (hit.position as Vector3).distance_to(look) < 0.6
 
