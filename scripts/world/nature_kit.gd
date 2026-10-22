@@ -21,14 +21,35 @@ static var _mushroom_glow_mat: StandardMaterial3D
 ## Drop cached meshes/materials/textures (called with Kit.release_unused when an area unloads).
 static func release() -> int:
 	var n := _meshes.size() + _tex.size()
-	_meshes.clear()
+	# the warmed models stay (WARM_LIST, loaded at the stage's start): clearing them on every trip made the next
+	# area load each again inside its build (0.1 s per tree model at the Mentor's Tower, 2026-10-22)
+	var keep := _warm_set()
+	for d in [_meshes, _aabbs]:
+		for k in (d as Dictionary).keys():
+			if not keep.has("mesh|" + String(k)):
+				(d as Dictionary).erase(k)
+	for k in _lods.keys():
+		if not keep.has("lod|" + String(k).trim_suffix("|lod")):
+			_lods.erase(k)
+	for k in _shadow_meshes.keys():
+		if not keep.has("shadow|" + String(k).trim_suffix("|shadow")):
+			_shadow_meshes.erase(k)
 	_tex.clear()
-	_aabbs.clear()
-	_lods.clear()
-	_shadow_meshes.clear()
 	_mushroom_mat = null
 	_mushroom_glow_mat = null
-	return n
+	return n - _meshes.size()
+
+
+static var _warm_cache := {}
+
+
+static func _warm_set() -> Dictionary:
+	if _warm_cache.is_empty() and FileAccess.file_exists(WARM_LIST):
+		var j = JSON.parse_string(FileAccess.get_file_as_string(WARM_LIST))
+		if j is Array:
+			for k in j:
+				_warm_cache[String(k)] = true
+	return _warm_cache
 
 
 ## Night: only the GROVE's mushrooms (crown "glow") turn bioluminescent — the rest of the forest's fungi stay
@@ -59,8 +80,62 @@ static func tex(file: String) -> Texture2D:
 
 
 ## The model's mesh with our materials. `crown` picks a palette from CROWNS for leaf surfaces.
+## Every model an area build asked for, saved (user://nature_warm.json): the next start loads them all up front
+## (warm_from_list), so no trip pays a first load - one tree model took 0.4 s in the middle of the tower's build.
+const WARM_LIST := "user://nature_warm.json"
+static var _warm_keys := {}
+static var _warm_dirty := false
+
+
+static func _note_warm(kind: String, id: String, crown: String) -> void:
+	var k := kind + "|" + id + "|" + crown
+	if not _warm_keys.has(k):
+		_warm_keys[k] = true
+		_warm_dirty = true
+
+
+## Writes the list (called after an area is built).
+static func save_warm_list() -> void:
+	if not _warm_dirty:
+		return
+	_warm_dirty = false
+	var old := {}
+	if FileAccess.file_exists(WARM_LIST):
+		var j = JSON.parse_string(FileAccess.get_file_as_string(WARM_LIST))
+		if j is Array:
+			for k in j:
+				old[String(k)] = true
+	for k in _warm_keys:
+		old[k] = true
+	var f := FileAccess.open(WARM_LIST, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(old.keys()))
+
+
+## Loads every listed model, one per frame (at the stage's start, before anyone watches a trip).
+static func warm_from_list(tree: SceneTree) -> int:
+	if not FileAccess.file_exists(WARM_LIST):
+		return 0
+	var j = JSON.parse_string(FileAccess.get_file_as_string(WARM_LIST))
+	if not (j is Array):
+		return 0
+	var n := 0
+	for k in j:
+		var parts := String(k).split("|")
+		if parts.size() < 3:
+			continue
+		match parts[0]:
+			"mesh": mesh(parts[1], parts[2])
+			"lod": lod_mesh(parts[1], parts[2])
+			"shadow": shadow_mesh(parts[1], parts[2])
+		n += 1
+		await tree.process_frame
+	return n
+
+
 static func mesh(id: String, crown := "") -> ArrayMesh:
 	var key := id + "|" + crown
+	_note_warm("mesh", id, crown)
 	if _meshes.has(key):
 		return _meshes[key]
 	var ps: PackedScene = load(DIR + id + ".gltf")
@@ -103,6 +178,7 @@ static func white_tex() -> ImageTexture:
 ## shades crowns as volumes, which is why a blob reads right at 60 m+).
 static func lod_mesh(id: String, crown := "") -> ArrayMesh:
 	var key := id + "|" + crown + "|lod"
+	_note_warm("lod", id, crown)
 	if _lods.has(key):
 		return _lods[key]
 	var full := mesh(id, crown)
@@ -170,6 +246,7 @@ static func lod_mesh(id: String, crown := "") -> ArrayMesh:
 ## trunk. Cast from this instead of the leaf cards (see shaders/nature/canopy_shadow.gdshader).
 static func shadow_mesh(id: String, crown := "") -> ArrayMesh:
 	var key := id + "|" + crown + "|shadow"
+	_note_warm("shadow", id, crown)
 	if _shadow_meshes.has(key):
 		return _shadow_meshes[key]
 	var lod := lod_mesh(id, crown)
@@ -328,65 +405,93 @@ static func scatter(parent: Node3D, m: Mesh, xforms: Array, opts := {}) -> Array
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(str(m.get_rid()) + str(xforms.size()))
 	for k in buckets:
-		var idx: Array = buckets[k]
-		var customs := []
-		for j in idx.size():
-			customs.append(Color(rng.randf_range(-1.0, 1.0), rng.randf(), 0, 0))
-		var fill := func(mesh: Mesh) -> MultiMesh:
-			var mm := MultiMesh.new()
-			mm.transform_format = MultiMesh.TRANSFORM_3D
-			mm.use_custom_data = true
-			mm.use_colors = not cols.is_empty()
-			mm.mesh = mesh
-			mm.instance_count = idx.size()
-			for j in idx.size():
-				mm.set_instance_transform(j, xforms[idx[j]])
-				mm.set_instance_custom_data(j, customs[j])
-				if mm.use_colors:
-					mm.set_instance_color(j, cols[idx[j]])
-			return mm
-		var mmi := MultiMeshInstance3D.new()
-		mmi.name = "%s_%d_%d" % [opts.get("name", "scatter"), k.x, k.y]
-		mmi.multimesh = fill.call(m)
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if opts.get("shadow", false) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var ve: float = opts.get("vis_end", 0.0)
-		if opts.get("shadow", false) and opts.has("shadow_mesh"):
-			# the detailed mesh does not cast; a cheap shadow-only stand-in does, over the detailed range
-			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			var caster := MultiMeshInstance3D.new()
-			caster.name = mmi.name + "_shadow"
-			caster.multimesh = fill.call(opts.shadow_mesh)
-			caster.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
-			var ce: float = lod.detail_end if not lod.is_empty() else ve
-			if ce > 0.0:
-				caster.visibility_range_end = ce
-				caster.visibility_range_end_margin = 6.0
-			parent.add_child(caster)
-			out.append(caster)
-		if not lod.is_empty():
-			var de: float = lod.detail_end
-			mmi.visibility_range_end = de
-			mmi.visibility_range_end_margin = 6.0
-			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-			var far := MultiMeshInstance3D.new()
-			far.name = mmi.name + "_far"
-			far.multimesh = fill.call(lod.mesh)
-			far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			far.visibility_range_begin = de
-			far.visibility_range_begin_margin = 6.0
-			if ve > 0.0:
-				far.visibility_range_end = ve
-				far.visibility_range_end_margin = minf(8.0, ve * 0.15)
-			far.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-			parent.add_child(far)
-			out.append(far)
-		elif ve > 0.0:
-			mmi.visibility_range_end = ve
-			mmi.visibility_range_end_margin = minf(8.0, ve * 0.15)
-			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-		parent.add_child(mmi)
-		out.append(mmi)
+		_scatter_chunk(parent, m, xforms, buckets[k], k, rng, cols, lod, opts, out)
 	return out
+
+
+## The same, handing the frame back between chunks once `slice_us` is spent (the area builder awaits it): a whole
+## model's batches in one go held frames 0.3 to 0.9 s while the Mentor's Tower woods were laid out (2026-10-22).
+static func scatter_sliced(parent: Node3D, m: Mesh, xforms: Array, opts := {}, slice_us := 8000) -> Array:
+	var chunk: float = opts.get("chunk", CHUNK)
+	var cols: Array = opts.get("colors", [])
+	var lod: Dictionary = opts.get("lod", {})
+	var buckets := {}
+	for i in xforms.size():
+		var t: Transform3D = xforms[i]
+		var k := Vector2i(floori(t.origin.x / chunk), floori(t.origin.z / chunk))
+		if not buckets.has(k):
+			buckets[k] = []
+		buckets[k].append(i)
+	var out := []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(str(m.get_rid()) + str(xforms.size()))
+	var t0 := Time.get_ticks_usec()
+	for k in buckets:
+		_scatter_chunk(parent, m, xforms, buckets[k], k, rng, cols, lod, opts, out)
+		if Time.get_ticks_usec() - t0 > slice_us and parent.is_inside_tree():
+			await parent.get_tree().process_frame
+			t0 = Time.get_ticks_usec()
+	return out
+
+
+static func _scatter_chunk(parent: Node3D, m: Mesh, xforms: Array, idx: Array, k: Vector2i, rng: RandomNumberGenerator, cols: Array, lod: Dictionary, opts: Dictionary, out: Array) -> void:
+	var customs := []
+	for j in idx.size():
+		customs.append(Color(rng.randf_range(-1.0, 1.0), rng.randf(), 0, 0))
+	var fill := func(mesh: Mesh) -> MultiMesh:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
+		mm.use_colors = not cols.is_empty()
+		mm.mesh = mesh
+		mm.instance_count = idx.size()
+		for j in idx.size():
+			mm.set_instance_transform(j, xforms[idx[j]])
+			mm.set_instance_custom_data(j, customs[j])
+			if mm.use_colors:
+				mm.set_instance_color(j, cols[idx[j]])
+		return mm
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = "%s_%d_%d" % [opts.get("name", "scatter"), k.x, k.y]
+	mmi.multimesh = fill.call(m)
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if opts.get("shadow", false) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var ve: float = opts.get("vis_end", 0.0)
+	if opts.get("shadow", false) and opts.has("shadow_mesh"):
+		# the detailed mesh does not cast; a cheap shadow-only stand-in does, over the detailed range
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var caster := MultiMeshInstance3D.new()
+		caster.name = mmi.name + "_shadow"
+		caster.multimesh = fill.call(opts.shadow_mesh)
+		caster.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		var ce: float = lod.detail_end if not lod.is_empty() else ve
+		if ce > 0.0:
+			caster.visibility_range_end = ce
+			caster.visibility_range_end_margin = 6.0
+		parent.add_child(caster)
+		out.append(caster)
+	if not lod.is_empty():
+		var de: float = lod.detail_end
+		mmi.visibility_range_end = de
+		mmi.visibility_range_end_margin = 6.0
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		var far := MultiMeshInstance3D.new()
+		far.name = mmi.name + "_far"
+		far.multimesh = fill.call(lod.mesh)
+		far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		far.visibility_range_begin = de
+		far.visibility_range_begin_margin = 6.0
+		if ve > 0.0:
+			far.visibility_range_end = ve
+			far.visibility_range_end_margin = minf(8.0, ve * 0.15)
+		far.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		parent.add_child(far)
+		out.append(far)
+	elif ve > 0.0:
+		mmi.visibility_range_end = ve
+		mmi.visibility_range_end_margin = minf(8.0, ve * 0.15)
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	parent.add_child(mmi)
+	out.append(mmi)
 
 
 ## Vegetation and boulders are solid for the characters but are NOT parsed into the navmesh as geometry: a
@@ -424,6 +529,30 @@ static func nav_obstacle(parent: Node3D, pos: Vector3, radius: float, height := 
 
 
 ## Trunk colliders (layer 3 cylinders + navmesh carves) so trees block walking and routes go round them.
+## trunk_colliders, handing the frame back every `slice_us` (1,537 trunks took 0.45 s in one frame at the tower).
+static func trunk_colliders_sliced(parent: Node3D, xforms: Array, radius: float, height := 3.0, slice_us := 8000) -> StaticBody3D:
+	var body := vegetation_body(parent, "TreeTrunks")
+	var holes := Node3D.new()
+	holes.name = "TreeTrunkCarves"
+	parent.add_child(holes)
+	var t0 := Time.get_ticks_usec()
+	for t in xforms:
+		var tr: Transform3D = t
+		var cs := CollisionShape3D.new()
+		var cy := CylinderShape3D.new()
+		var s := tr.basis.get_scale().x
+		cy.radius = radius * s
+		cy.height = height
+		cs.shape = cy
+		cs.position = tr.origin + Vector3(0, height * 0.5 - 0.2, 0)
+		body.add_child(cs)
+		nav_obstacle(holes, tr.origin, radius * s, height)
+		if Time.get_ticks_usec() - t0 > slice_us:
+			await parent.get_tree().process_frame
+			t0 = Time.get_ticks_usec()
+	return body
+
+
 static func trunk_colliders(parent: Node3D, xforms: Array, radius: float, height := 3.0) -> StaticBody3D:
 	var body := vegetation_body(parent, "TreeTrunks")
 	var holes := Node3D.new()

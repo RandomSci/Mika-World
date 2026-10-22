@@ -149,7 +149,7 @@ func setup(m: Node) -> void:
 				_warmed = true
 				_warm_variants()
 			else:
-				_apply_all())
+				_apply_all(false))       # (each vegetation batch got its settings as it was added: no whole-scene walk on arrival)
 	get_tree().node_added.connect(_on_node_added)
 	_protect_characters()
 	_find_cpu_sensor()
@@ -553,7 +553,7 @@ func reset_quality() -> void:
 
 
 # ------------------------------------------------------------------ applying (cheap, runtime-safe changes only)
-func _apply_all() -> void:
+func _apply_all(batches := true) -> void:
 	var vp := get_viewport()
 	if is_adaptive(RenderProfile.profile) and not RenderProfile.options.has("aa"):
 		var keep_msaa: bool = bool(RenderProfile.SETTINGS[RenderProfile.profile].get("keep_msaa", false))
@@ -578,17 +578,9 @@ func _apply_all() -> void:
 	if w == null:
 		return
 	# distant foliage: every scattered vegetation chunk fades out sooner (VISIBILITY_RANGE_FADE_SELF: no popping)
-	for mmi in (w as Node).find_children("*", "MultiMeshInstance3D", true, false):
-		var g := mmi as GeometryInstance3D
-		var key := g.get_instance_id()
-		if not _base.has(key):
-			if g.visibility_range_end <= 0.0:
-				continue
-			_base[key] = [g.visibility_range_end, g.visibility_range_begin]
-		var b: Array = _base[key]
-		g.visibility_range_end = float(b[0]) * float(knobs.distant)
-		if float(b[1]) > 0.0:
-			g.visibility_range_begin = float(b[1]) * float(knobs.distant)      # far-LOD stand-ins take over sooner
+	if batches:
+		for mmi in (w as Node).find_children("*", "MultiMeshInstance3D", true, false):
+			_apply_distant(mmi as MultiMeshInstance3D)
 	# the sun's shadow distance (and its splits follow): distant shadows are the cheapest to lose
 	var sun = w.get("sun")
 	if sun is DirectionalLight3D:
@@ -621,11 +613,9 @@ func _apply_all() -> void:
 				true, 0.5, 2, 50, 300)
 	# undergrowth / understory density: dense scattered chunks draw only a share of their (randomly placed)
 	# instances - the trees (small chunk counts) and the characters never change
-	for mmi2 in (w as Node).find_children("*", "MultiMeshInstance3D", true, false):
-		var mm: MultiMesh = (mmi2 as MultiMeshInstance3D).multimesh
-		if mm == null or mm.instance_count < 6 or String((mmi2 as Node).name).to_lower().contains("tree"):
-			continue
-		mm.visible_instance_count = -1 if float(knobs.foliage) >= 0.999 else maxi(1, int(mm.instance_count * float(knobs.foliage)))
+	if batches:
+		for mmi2 in (w as Node).find_children("*", "MultiMeshInstance3D", true, false):
+			_apply_density(mmi2 as MultiMeshInstance3D)
 	for p in get_tree().get_nodes_in_group("adaptive_particles"):
 		_particles(p as GPUParticles3D)
 
@@ -648,8 +638,38 @@ func _on_node_added(n: Node) -> void:
 		n.add_to_group("adaptive_particles")
 		if float(knobs.particles) < 1.0:
 			_particles.call_deferred(n)
-	elif n is MultiMeshInstance3D and float(knobs.distant) < 1.0:
-		_apply_all.call_deferred()
+	elif n is MultiMeshInstance3D:
+		# just this batch (a full _apply_all per new batch - hundreds in one build step of the Mentor's Tower - made
+		# single frames take 9 to 26 s: the 2026-10-22 stream froze twice on it)
+		_apply_batch.call_deferred(n)
+
+
+func _apply_batch(mmi: MultiMeshInstance3D) -> void:
+	if mmi == null or not is_instance_valid(mmi):
+		return
+	_apply_distant(mmi)
+	_apply_density(mmi)
+
+
+## A vegetation batch fades out at the distant-foliage share of its own range (far-LOD stand-ins take over sooner).
+func _apply_distant(g: MultiMeshInstance3D) -> void:
+	var key := g.get_instance_id()
+	if not _base.has(key):
+		if g.visibility_range_end <= 0.0:
+			return
+		_base[key] = [g.visibility_range_end, g.visibility_range_begin]
+	var b: Array = _base[key]
+	g.visibility_range_end = float(b[0]) * float(knobs.distant)
+	if float(b[1]) > 0.0:
+		g.visibility_range_begin = float(b[1]) * float(knobs.distant)
+
+
+## Dense undergrowth / understory batches draw a share of their instances; trees never change.
+func _apply_density(g: MultiMeshInstance3D) -> void:
+	var mm: MultiMesh = g.multimesh
+	if mm == null or mm.instance_count < 6 or String(g.name).to_lower().contains("tree"):
+		return
+	mm.visible_instance_count = -1 if float(knobs.foliage) >= 0.999 else maxi(1, int(mm.instance_count * float(knobs.foliage)))
 
 
 ## Mika, Luna and everyone with a face: full mesh detail whatever the LOD threshold does to the scenery.

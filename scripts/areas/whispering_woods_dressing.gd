@@ -22,6 +22,20 @@ func _init(area: WhisperingWoods) -> void:
 
 
 # ------------------------------------------------------------------ fields
+## The build's frame budget (2026-10-22: the Mentor's Tower held single frames 0.4 to 1.7 s while its forest was laid
+## out): a long step hands the frame back every SLICE_US and carries on in the next one (the area builder awaits it).
+const SLICE_US := 8000
+var _slice_t := 0
+
+
+func _slice() -> void:
+	if _slice_t == 0:
+		_slice_t = Time.get_ticks_usec()
+	elif Time.get_ticks_usec() - _slice_t > SLICE_US:
+		await a.get_tree().process_frame
+		_slice_t = Time.get_ticks_usec()
+
+
 func compute_trail_distance() -> void:
 	n = a._n
 	tdist.resize(n * n)
@@ -29,6 +43,7 @@ func compute_trail_distance() -> void:
 	var half: float = a.HALF
 	var step: float = a.STEP
 	for t in a.trails:
+		await _slice()
 		var pts: Array = t[0]
 		var w: float = t[1]
 		for i in pts.size() - 1:
@@ -170,8 +185,10 @@ func trees() -> void:
 	var half: float = a.HALF
 	var z := -half + 3.0
 	while z < half - 3.0:
+		await _slice()
 		var x := -half + 3.0
 		while x < half - 3.0:
+			await _slice()
 			var p := Vector2(x + rng.randf_range(-1.7, 1.7), z + rng.randf_range(-1.7, 1.7))
 			x += spacing
 			if not inside(p, 3.0):
@@ -262,8 +279,17 @@ func trees() -> void:
 	a.add_child(root)
 	var total := 0
 	for key in per_model:
+		await _slice()
 		var parts: PackedStringArray = key.split("|")
-		NatureKit.scatter(root, NatureKit.mesh(parts[0], parts[1]), per_model[key], {"vis_end": 120.0 if RealKit.enabled() else 150.0, "shadow": not RenderProfile.options.has("ev_noshadow"), "name": parts[0], "chunk": float(RenderProfile.options.get("ev_chunk", 24.0)),   # 24 m chunks: measured -12 ms GPU vs 64 m (less off-screen instance work)
+		var tm0 := Time.get_ticks_usec()
+		var _tmesh := NatureKit.mesh(parts[0], parts[1])
+		var tm1 := Time.get_ticks_usec()
+		var _tlod := NatureKit.lod_mesh(parts[0], parts[1])
+		var tm2 := Time.get_ticks_usec()
+		var _tsh := NatureKit.shadow_mesh(parts[0], parts[1])
+		if RenderProfile.options.has("stream-trace") and Time.get_ticks_usec() - tm0 > 40000:
+			print("[streamtrace] tree meshes %s took %.0f ms (mesh %.0f, lod %.0f, shadow %.0f)" % [key, (Time.get_ticks_usec() - tm0) / 1000.0, (tm1 - tm0) / 1000.0, (tm2 - tm1) / 1000.0, (Time.get_ticks_usec() - tm2) / 1000.0])
+		await NatureKit.scatter_sliced(root, NatureKit.mesh(parts[0], parts[1]), per_model[key], {"vis_end": 120.0 if RealKit.enabled() else 150.0, "shadow": not RenderProfile.options.has("ev_noshadow"), "name": parts[0], "chunk": float(RenderProfile.options.get("ev_chunk", 24.0)),   # 24 m chunks: measured -12 ms GPU vs 64 m (less off-screen instance work)
 			"lod": {"mesh": NatureKit.lod_mesh(parts[0], parts[1]), "detail_end": float(RenderProfile.options.get("ev_lod", 44.0 if RealKit.enabled() else 62.0))},
 			"shadow_mesh": NatureKit.shadow_mesh(parts[0], parts[1])})
 		total += per_model[key].size()
@@ -276,7 +302,10 @@ func trees() -> void:
 					if i % 2 == 0:
 						half_list.append(tl[i])
 				tl = half_list
-			NatureKit.trunk_colliders(root, tl, r)
+			var tc0 := Time.get_ticks_usec()
+			await NatureKit.trunk_colliders_sliced(root, tl, r)
+			if RenderProfile.options.has("stream-trace"):
+				print("[streamtrace] trunk colliders %d took %.0f ms" % [tl.size(), (Time.get_ticks_usec() - tc0) / 1000.0])
 	stats.trees = total
 
 
@@ -293,8 +322,10 @@ func understory() -> void:
 	var step := 3.4
 	var z := -half + 3.0
 	while z < half - 3.0:
+		await _slice()
 		var x := -half + 3.0
 		while x < half - 3.0:
+			await _slice()
 			var p := Vector2(x + rng.randf_range(-1.5, 1.5), z + rng.randf_range(-1.5, 1.5))
 			x += step
 			if not inside(p, 3.0):
@@ -335,8 +366,9 @@ func understory() -> void:
 		z += step
 	var total := 0
 	for k in sets:
+		await _slice()
 		var parts: PackedStringArray = k.split("|")
-		NatureKit.scatter(root, NatureKit.mesh(parts[0], parts[1]), sets[k], {"vis_end": 95.0, "shadow": false, "chunk": 32.0, "name": "Under" + parts[0],
+		await NatureKit.scatter_sliced(root, NatureKit.mesh(parts[0], parts[1]), sets[k], {"vis_end": 95.0, "shadow": false, "chunk": 32.0, "name": "Under" + parts[0],
 			"lod": {"mesh": NatureKit.lod_mesh(parts[0], parts[1]), "detail_end": float(RenderProfile.options.get("ev_ulod", 36.0))}})
 		total += sets[k].size()
 	stats.understory = total
@@ -359,8 +391,10 @@ func undergrowth() -> void:
 	var step := 2.2
 	var z := -half + 2.0
 	while z < half - 2.0:
+		await _slice()
 		var x := -half + 2.0
 		while x < half - 2.0:
+			await _slice()
 			var p := Vector2(x + rng.randf_range(-1.0, 1.0), z + rng.randf_range(-1.0, 1.0))
 			x += step
 			if not inside(p, 2.0):
@@ -409,13 +443,14 @@ func undergrowth() -> void:
 		z += step
 	var total := 0
 	for k in sets:
+		await _slice()
 		var parts: PackedStringArray = k.split("|")
 		var big := parts[0] in ["Plant_1_Big", "Bush_Common", "Bush_Common_Flowers"]
 		var o := {"vis_end": 90.0 if big else 55.0, "shadow": big, "chunk": 32.0, "name": parts[0]}
 		if parts[0].begins_with("Bush"):
 			o["lod"] = {"mesh": NatureKit.lod_mesh(parts[0], parts[1]), "detail_end": 38.0}
 			o["shadow_mesh"] = NatureKit.shadow_mesh(parts[0], parts[1])
-		NatureKit.scatter(root, NatureKit.mesh(parts[0], parts[1]), sets[k], o)
+		await NatureKit.scatter_sliced(root, NatureKit.mesh(parts[0], parts[1]), sets[k], o)
 		total += sets[k].size()
 	stats.undergrowth = total
 
@@ -433,6 +468,7 @@ func grass() -> void:
 	var sets := {}
 	var cols := {}
 	for id in ids:
+		await _slice()
 		sets[id] = []
 		cols[id] = []
 	var half: float = a.HALF
@@ -440,8 +476,10 @@ func grass() -> void:
 	var step := 0.95
 	var z := -half + 2.0
 	while z < half - 2.0:
+		await _slice()
 		var x := -half + 2.0
 		while x < half - 2.0:
+			await _slice()
 			var p := Vector2(x + rng.randf_range(-0.55, 0.55), z + rng.randf_range(-0.55, 0.55))
 			x += step
 			var td := trail_dist(p.x, p.y)
@@ -468,7 +506,8 @@ func grass() -> void:
 		z += step
 	var total := 0
 	for id in ids:
-		NatureKit.scatter(root, NatureKit.mesh(id), sets[id], {"vis_end": 36.0, "chunk": 16.0, "colors": cols[id], "name": id})
+		await _slice()
+		await NatureKit.scatter_sliced(root, NatureKit.mesh(id), sets[id], {"vis_end": 36.0, "chunk": 16.0, "colors": cols[id], "name": id})
 		total += sets[id].size()
 	stats.grass = total
 
@@ -484,8 +523,10 @@ func rocks() -> void:
 	var step := 5.0
 	var z := -half + 3.0
 	while z < half - 3.0:
+		await _slice()
 		var x := -half + 3.0
 		while x < half - 3.0:
+			await _slice()
 			var p := Vector2(x + rng.randf_range(-2.0, 2.0), z + rng.randf_range(-2.0, 2.0))
 			x += step
 			if not inside(p, 2.0) or in_clearing(p, 1.0):
@@ -530,11 +571,13 @@ func rocks() -> void:
 	var total := 0
 	var big_xf := []
 	for id in big:
-		NatureKit.scatter(root, NatureKit.mesh(id), big[id], {"vis_end": 160.0, "shadow": true, "name": id})
+		await _slice()
+		await NatureKit.scatter_sliced(root, NatureKit.mesh(id), big[id], {"vis_end": 160.0, "shadow": true, "name": id})
 		total += big[id].size()
 		big_xf.append_array(big[id])
 	for id in small:
-		NatureKit.scatter(root, NatureKit.mesh(id), small[id], {"vis_end": 40.0, "chunk": 24.0, "name": id})
+		await _slice()
+		await NatureKit.scatter_sliced(root, NatureKit.mesh(id), small[id], {"vis_end": 40.0, "chunk": 24.0, "name": id})
 		total += small[id].size()
 	# boulders are solid (approximate spheres), large ones only; they carve the navmesh as prisms (no sphere caps)
 	var body := NatureKit.vegetation_body(root, "BoulderColliders")
@@ -567,6 +610,7 @@ func cliffs() -> void:
 	var cols: Array[Transform3D] = []
 	var x := -a.HALF + 6.0
 	while x < 128.0:
+		await _slice()
 		x += rng.randf_range(2.6, 3.8)
 		if absf(x - a.STAIR_BASE.x) < 8.0:
 			continue
@@ -588,7 +632,8 @@ func cliffs() -> void:
 			cols.append(t)
 	var total := 0
 	for id in sets:
-		NatureKit.scatter(root, NatureKit.mesh(id), sets[id], {"vis_end": 220.0, "shadow": true, "name": "Cliff" + id})
+		await _slice()
+		await NatureKit.scatter_sliced(root, NatureKit.mesh(id), sets[id], {"vis_end": 220.0, "shadow": true, "name": "Cliff" + id})
 		total += sets[id].size()
 	stats.cliff_rocks = total
 
@@ -613,6 +658,7 @@ func atmosphere() -> void:
 	var shafts := 0
 	var spots: Array[Vector2] = []
 	for t in a.trails:
+		await _slice()
 		if t[2] == "hidden":
 			continue
 		var pts: Array = t[0]

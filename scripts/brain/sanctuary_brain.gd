@@ -861,7 +861,9 @@ func _loop() -> void:
 			# a hold nobody lifts (2026-10-22 live: her own dance and the show's magic lesson overlapped and she stood
 			# still for 6.5 minutes until the show's next goal released her): let go after HOLD_STALE_S (game time)
 			# with nothing that holds her running any more (no show command, no dance, no shared activity, no talk)
-			held_for = held_for + 0.3 if _hold_unowned() else 0.0
+			# (a test's own hold stays: --mktest runs hold the brains on purpose; --hold-release tests this rule)
+			var releasable: bool = not RenderProfile.options.has("mktest") or RenderProfile.options.has("hold-release")
+			held_for = held_for + 0.3 if releasable and _hold_unowned() else 0.0
 			if held_for > HOLD_STALE_S:
 				print("[brain] %s: a hold left on for %.0f s with nothing running - released" % [agent_id, held_for])
 				hold = false
@@ -890,7 +892,10 @@ func _loop() -> void:
 			await main.curiosity.consult(self)        # LLM-capable: only for the followed mage
 		if resume_key != "":
 			curiosity_bonus[resume_key] = float(curiosity_bonus.get(resume_key, 0.0)) + 1.0
+		var rk0 := Time.get_ticks_usec()
 		var scored := ranked()
+		if RenderProfile.options.has("stream-trace") and Time.get_ticks_usec() - rk0 > 40000:
+			print("[streamtrace] %s decision took %.0f ms in %s (%d options)" % [agent_id, (Time.get_ticks_usec() - rk0) / 1000.0, main.streaming.current_id, scored.size()])
 		if resume_key != "":
 			print("[resume] %s carries on: %s (%s)" % [agent_id, resume_key, "on offer" if scored.any(func(o): return o.key == resume_key) else "no longer on offer"])
 			resume_key = ""

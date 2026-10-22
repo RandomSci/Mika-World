@@ -219,10 +219,22 @@ func trail_at(x: float, z: float) -> float:
 	return _trail_mask[iz * _n + ix] if not _trail_mask.is_empty() else 0.0
 
 
+var _slice_t := 0
+
+
+## Hands the frame back during a long build step once 8 ms are spent (the area builder awaits the step).
+func _build_slice() -> void:
+	if _slice_t == 0 or Time.get_ticks_usec() - _slice_t > 8000:
+		if _slice_t != 0:
+			await get_tree().process_frame
+		_slice_t = Time.get_ticks_usec()
+
+
 func _precompute() -> void:
 	_n = int(SIZE / STEP) + 1
 	_hgrid.resize(_n * _n)
 	for iz in _n:
+		await _build_slice()
 		for ix in _n:
 			_hgrid[iz * _n + ix] = _raw_height(-HALF + ix * STEP, -HALF + iz * STEP)
 	# trails: rasterise each segment into the cells it touches (min distance -> soft strength)
@@ -231,6 +243,7 @@ func _precompute() -> void:
 	_hidden_mask.resize(_n * _n)
 	_hidden_mask.fill(0.0)
 	for t in trails:
+		await _build_slice()
 		var pts: Array = t[0]
 		var w: float = t[1]
 		var hidden: bool = t[2] == "hidden"
@@ -395,6 +408,7 @@ func _terrain() -> void:
 			lo = minf(lo, v)
 			hi = maxf(hi, v)
 	nav_aabb = AABB(Vector3(-HALF + 2, lo - 4.0, -HALF + 2), Vector3(SIZE - 4, hi - lo + 16.0, SIZE - 4))
+	var tl0 := Time.get_ticks_usec()
 	var m := ShaderMaterial.new()
 	m.shader = load("res://shaders/nature/terrain_stylized.gdshader")
 	m.set_shader_parameter("grass_detail", load(Kit.tex_set("leafy_grass", "2k")[0]))
@@ -404,7 +418,9 @@ func _terrain() -> void:
 	if RealKit.enabled():
 		m = RealKit.terrain_mat()
 	mats.terrain = m
-	Kit.terrain(self, SIZE, STEP, height, _terrain_mask, m)
+	if RenderProfile.options.has("stream-trace"):
+		print("[streamtrace] %s terrain material and textures loaded in %.0f ms (realkit %s)" % [area_id, (Time.get_ticks_usec() - tl0) / 1000.0, str(RealKit.enabled())])
+	await Kit.terrain_sliced(self, SIZE, STEP, height, _terrain_mask, m)
 
 
 func _terrain_mask(x: float, z: float) -> Color:

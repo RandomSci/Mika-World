@@ -178,9 +178,22 @@ func _ready() -> void:
 	if not RenderProfile.options.has("no-polish"):
 		env_polish_report = EnvPolish.apply(world, streaming.current_id)
 	streaming.transition_started.connect(func(_f, _t): _park_mages())
-	streaming.area_activated.connect(func(a, _r): _on_area_for_mages(a); GatherNode.populate(world, a); WorldState.save_async("area " + a))
+	streaming.area_activated.connect(func(a, _r):
+		var h0 := Time.get_ticks_usec()
+		_on_area_for_mages(a)
+		var h1 := Time.get_ticks_usec()
+		GatherNode.populate(world, a)
+		var h2 := Time.get_ticks_usec()
+		WorldState.save_async("area " + a)
+		if RenderProfile.options.has("stream-trace"):
+			print("[streamtrace] arrival: mages %.0f ms, gather %.0f ms, save %.0f ms" % [(h1 - h0) / 1000.0, (h2 - h1) / 1000.0, (Time.get_ticks_usec() - h2) / 1000.0]))
 	# Milestone J: targeted visual polish of the stream's home area (leaf material, meadow cover)
-	streaming.area_activated.connect(func(a, _r): if not RenderProfile.options.has("no-polish"): env_polish_report = EnvPolish.apply(world, a))
+	streaming.area_activated.connect(func(a, _r):
+		if not RenderProfile.options.has("no-polish"):
+			var p0 := Time.get_ticks_usec()
+			env_polish_report = EnvPolish.apply(world, a)
+			if RenderProfile.options.has("stream-trace"):
+				print("[streamtrace] arrival: env polish %.0f ms" % ((Time.get_ticks_usec() - p0) / 1000.0)))
 
 	bridge = ActionBridge.new()
 	bridge.name = "ActionBridge"
@@ -507,6 +520,20 @@ func _ready() -> void:
 		tour.main = self
 		add_child(tour)
 	print("[main] ready in %s. WASD move | Shift run | Space cast | E interact | mouse orbit | N night | P profile | H hud | F12 screenshot" % streaming.current_id)
+	_warm_nature()
+
+
+var nature_warm_done := false
+
+
+## Every nature model the areas use, loaded once at the start (one per frame): a first load inside a trip held frames
+## up to 0.4 s (the Mentor's Tower, 2026-10-22). The list grows by itself as areas are built (NatureKit.WARM_LIST).
+func _warm_nature() -> void:
+	var t0 := Time.get_ticks_msec()
+	var n: int = await NatureKit.warm_from_list(get_tree())
+	var sk: int = await ShaderPrewarm.skies(self)
+	nature_warm_done = true
+	print("[main] nature models warmed: %d, sky shaders: %d, in %.1f s" % [n, sk, (Time.get_ticks_msec() - t0) / 1000.0])
 
 
 ## Spawn any VRM humanoid. Future companion: spawn_character("mentor", ..., world.spawn_point("companion"), ...)

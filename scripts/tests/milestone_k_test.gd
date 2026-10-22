@@ -179,6 +179,7 @@ func _run() -> void:
 		"showline": await _showline()
 		"showtakes": await _showtakes()
 		"mikafix": await _mikafix()
+		"regiontrip": await _regiontrip()
 		"luna_r12": await _luna_r12()
 		"dresstest": await _dresstest()
 		"skinprobe": await _skinprobe()
@@ -9317,3 +9318,73 @@ func _mikafix() -> void:
 	_check(mb.hold, "a hold while Luna takes her out in the boat is kept (%.0f s)" % (_game_t - t2))
 	lb.current = lb_cur
 	mb.set_enabled(false)
+
+
+## One walk into each place (--trip=a,b,c, default the five home areas and back): every frame timed in real time, any
+## over 100 ms listed with what was happening (Selwyn 2026-10-22: "prove one walk with no frame over 100 ms").
+func _regiontrip() -> void:
+	await _hold_all()
+	var tw0 := _game_t
+	while not bool(main.get("nature_warm_done")) and _game_t - tw0 < 120.0:
+		await get_tree().process_frame
+	main.spawner.enabled = false
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + float(RenderProfile.options.get("trip-hour", "11")) * 60.0
+	var mika: WorldCharacter = main.characters["mika"]
+	var luna: WorldCharacter = main.characters["luna"]
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	var mb: SanctuaryBrain = main.mage_brains["mika"]
+	var trip := String(RenderProfile.options.get("trip", "arcane_library,sanctuary,mentor_tower,sanctuary,lantern_lake,sanctuary,whispering_woods,sanctuary")).split(",")
+	var slow := []
+	var worst := {"ms": 0.0}
+	var rec := {"on": true, "last": Time.get_ticks_usec(), "pre": 0, "post": 0, "draw_ms": 0.0, "arrived": 0}
+	main.streaming.area_activated.connect(func(_a, _r): rec.arrived = Time.get_ticks_usec())
+	RenderingServer.frame_pre_draw.connect(func(): rec.pre = Time.get_ticks_usec())
+	RenderingServer.frame_post_draw.connect(func(): rec.post = Time.get_ticks_usec(); rec.draw_ms = (int(rec.post) - int(rec.pre)) / 1000.0)
+	var watcher := func():
+		while rec.on:
+			await get_tree().process_frame
+			var now := Time.get_ticks_usec()
+			var ms := (now - int(rec.last)) / 1000.0
+			rec.last = now
+			if bool(rec.get("paused", false)):
+				continue
+			if ms > float(worst.ms):
+				worst.ms = ms
+			if ms > 100.0:
+				slow.append([snappedf(ms, 1.0), String(main.streaming.current_id), String(main.streaming.state), mika.current_action, int(main.streaming.get("build_step")), "draw %.0f" % float(rec.draw_ms), "+%.2f s after arrival" % ((now - int(rec.arrived)) / 1000000.0), "at %.2f" % (now / 1000000.0)])
+	watcher.call()
+	var results := []
+	for to in trip:
+		var tw := _game_t
+		while (not main.travel.journey.is_empty() or main.streaming.state != "idle") and _game_t - tw < 60.0:
+			await get_tree().process_frame
+		var opts: Array = mb.options().filter(func(x): return x.kind == "visit" and String(x.area) == to)
+		if opts.is_empty():
+			results.append([to, "not offered"])
+			print("[mktest] regiontrip %s: no visit option from %s" % [to, main.streaming.current_id])
+			continue
+		var n0 := slow.size()
+		var res := {}
+		var t0 := _game_t
+		var job := func(): res["r"] = await mb.run_activity(opts[0])
+		job.call()
+		while not res.has("r") and _game_t - t0 < 240.0:
+			await get_tree().process_frame
+		var r: Dictionary = res.get("r", {})
+		var arrived: bool = main.streaming.current_id == to
+		var tr: Dictionary = main.streaming.last_report if main.streaming.get("last_report") else {}
+		results.append([to, arrived, snappedf(_game_t - t0, 0.1), slow.size() - n0, int(tr.get("build_ms", -1)), int(tr.get("total_ms", -1))])
+		print("[mktest] regiontrip arrival tick %.2f" % (Time.get_ticks_usec() / 1000000.0))
+		print("[mktest] regiontrip -> %s: arrived %s in %.0f s, frames over 100 ms on the way %d, build %s ms, travel %s ms (%s)" % [to, str(arrived), _game_t - t0, slow.size() - n0, str(tr.get("build_ms", "-")), str(tr.get("total_ms", "-")), str(r.get("detail", "")).left(60)])
+		await _wait(3.0)
+		rec.paused = true                    # (the screenshot's readback and PNG save are the test's own cost, not the game's)
+		_shot("trip_" + to)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		rec.last = Time.get_ticks_usec()
+		rec.paused = false
+	rec.on = false
+	print("[mktest] regiontrip worst frame %.0f ms, frames over 100 ms: %s" % [float(worst.ms), str(slow.slice(0, 40))])
+	_check(results.all(func(x): return x.size() > 2 and bool(x[1])), "every place reached", results)
+	_check(slow.is_empty(), "no frame over 100 ms on the whole trip (worst %.0f ms, %d over)" % [float(worst.ms), slow.size()], slow.slice(0, 20))

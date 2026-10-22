@@ -586,6 +586,105 @@ static func terrain(parent: Node3D, size: float, step: float, height_fn: Callabl
 	return body
 
 
+## The same terrain, built row by row and handing the frame back every `slice_us` (the area builder awaits it): the
+## Mentor's Tower's 280 m ground held one frame for 0.9 s (2026-10-22). Same vertices, normals, colours and UVs as
+## terrain(); tangents along the ground's x direction (SurfaceTool.generate_tangents alone cost ~0.2 s).
+static func terrain_sliced(parent: Node3D, size: float, step: float, height_fn: Callable, mask_fn: Callable, mat: Material, slice_us := 8000) -> StaticBody3D:
+	var n := int(size / step) + 1
+	var half := size * 0.5
+	var t0 := Time.get_ticks_usec()
+	var tree := parent.get_tree()
+	var hs := PackedFloat32Array()
+	hs.resize(n * n)
+	for iz in n:
+		for ix in n:
+			hs[iz * n + ix] = height_fn.call(-half + ix * step, -half + iz * step)
+		if Time.get_ticks_usec() - t0 > slice_us:
+			if RenderProfile.options.has("stream-trace") and Time.get_ticks_usec() - t0 > 60000:
+				print("[streamtrace] terrain slice row %d took %.0f ms" % [iz, (Time.get_ticks_usec() - t0) / 1000.0])
+			var g0 := Time.get_ticks_usec()
+			await tree.process_frame
+			t0 = Time.get_ticks_usec()
+			if RenderProfile.options.has("stream-trace") and t0 - g0 > 150000:
+				print("[streamtrace] terrain frame gap %.0f ms at row %d" % [(t0 - g0) / 1000.0, iz])
+	var verts := PackedVector3Array(); verts.resize(n * n)
+	var norms := PackedVector3Array(); norms.resize(n * n)
+	var cols := PackedColorArray(); cols.resize(n * n)
+	var uvs := PackedVector2Array(); uvs.resize(n * n)
+	var tans := PackedFloat32Array(); tans.resize(n * n * 4)
+	for iz in n:
+		for ix in n:
+			var i := iz * n + ix
+			var x := -half + ix * step
+			var z := -half + iz * step
+			var hl := hs[iz * n + maxi(ix - 1, 0)]
+			var hr := hs[iz * n + mini(ix + 1, n - 1)]
+			var hd := hs[maxi(iz - 1, 0) * n + ix]
+			var hu := hs[mini(iz + 1, n - 1) * n + ix]
+			var nrm := Vector3(hl - hr, 2.0 * step, hd - hu).normalized()
+			var tg := (Vector3(1, 0, 0) - nrm * nrm.x).normalized()
+			verts[i] = Vector3(x, hs[i], z)
+			norms[i] = nrm
+			cols[i] = mask_fn.call(x, z)
+			uvs[i] = Vector2(x, z)
+			tans[i * 4] = tg.x; tans[i * 4 + 1] = tg.y; tans[i * 4 + 2] = tg.z; tans[i * 4 + 3] = 1.0
+		if Time.get_ticks_usec() - t0 > slice_us:
+			if RenderProfile.options.has("stream-trace") and Time.get_ticks_usec() - t0 > 60000:
+				print("[streamtrace] terrain slice row %d took %.0f ms" % [iz, (Time.get_ticks_usec() - t0) / 1000.0])
+			var g0 := Time.get_ticks_usec()
+			await tree.process_frame
+			t0 = Time.get_ticks_usec()
+			if RenderProfile.options.has("stream-trace") and t0 - g0 > 150000:
+				print("[streamtrace] terrain frame gap %.0f ms at row %d" % [(t0 - g0) / 1000.0, iz])
+	var idx := PackedInt32Array()
+	idx.resize((n - 1) * (n - 1) * 6)
+	var w := 0
+	for iz in n - 1:
+		for ix in n - 1:
+			var i := iz * n + ix
+			idx[w] = i; idx[w + 1] = i + 1; idx[w + 2] = i + n
+			idx[w + 3] = i + 1; idx[w + 4] = i + n + 1; idx[w + 5] = i + n
+			w += 6
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_NORMAL] = norms
+	arr[Mesh.ARRAY_TANGENT] = tans
+	arr[Mesh.ARRAY_COLOR] = cols
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = idx
+	var tr := RenderProfile.options.has("stream-trace")
+	var q0 := Time.get_ticks_usec()
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var q1 := Time.get_ticks_usec()
+	var body := StaticBody3D.new()
+	body.name = "Terrain"
+	parent.add_child(body)
+	var mi := MeshInstance3D.new()
+	mi.mesh = am
+	mi.material_override = mat
+	body.add_child(mi)
+	var q2 := Time.get_ticks_usec()
+	await tree.process_frame
+	var q3 := Time.get_ticks_usec()
+	var shape := HeightMapShape3D.new()
+	shape.map_width = n
+	shape.map_depth = n
+	shape.map_data = hs
+	var cs := CollisionShape3D.new()
+	cs.shape = shape
+	cs.scale = Vector3(step, 1, step)
+	body.add_child(cs)
+	if tr:
+		var q4 := Time.get_ticks_usec()
+		await tree.process_frame
+		var q5 := Time.get_ticks_usec()
+		await tree.process_frame
+		print("[streamtrace] terrain n=%d mesh %.0f ms, nodes %.0f ms, first frame with mesh %.0f ms, shape %.0f ms, frame after shape %.0f ms, next %.0f ms" % [n, (q1 - q0) / 1000.0, (q2 - q1) / 1000.0, (q3 - q2) / 1000.0, (q4 - q3) / 1000.0, (q5 - q4) / 1000.0, (Time.get_ticks_usec() - q5) / 1000.0])
+	return body
+
+
 ## Terrain blend material with any three Poly Haven ground layers (+ optional tints).
 static func terrain_mat(grass: String, forest: String, path: String, grass_tint := Color(0.92, 0.98, 0.86), forest_tint := Color(0.5, 0.56, 0.4), res_g := "1k") -> ShaderMaterial:
 	var key := "terrain:%s:%s:%s:%s:%s" % [grass, forest, path, grass_tint, forest_tint]

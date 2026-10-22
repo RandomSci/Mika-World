@@ -138,3 +138,50 @@ static func area(camera: Camera3D, host: Node, dirs: Array) -> void:
 	cam.current = false
 	camera.current = true
 	root.queue_free()
+
+
+## Every sky shader drawn once in a tiny hidden view at the stage's start: a new area's sky compiled on first sight
+## and held one frame for 0.7 s inside the Mentor's Tower's build (2026-10-22). Returns how many were drawn.
+static func skies(host: Node) -> int:
+	var paths := []
+	for dir in ["res://shaders", "res://shaders/nature", "res://shaders/world", "res://shaders/sky", "res://shaders/fx"]:
+		var da := DirAccess.open(dir)
+		if da == null:
+			continue
+		for fname in da.get_files():
+			var path: String = String(dir) + "/" + String(fname).trim_suffix(".remap")
+			if not path.ends_with(".gdshader"):
+				continue
+			var sh := load(path) as Shader
+			if sh != null and sh.get_mode() == Shader.MODE_SKY:
+				paths.append(path)
+	if paths.is_empty():
+		return 0
+	var vp := SubViewport.new()
+	vp.size = Vector2i(64, 64)
+	vp.own_world_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	host.add_child(vp)
+	var cam := Camera3D.new()
+	vp.add_child(cam)
+	var we := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_SKY
+	env.fog_enabled = true
+	env.fog_aerial_perspective = 0.5
+	we.environment = env
+	vp.add_child(we)
+	for p in paths:
+		for night in [0.0, 1.0]:
+			var sm := ShaderMaterial.new()
+			sm.shader = load(p)
+			sm.set_shader_parameter("night", night)
+			var sky := Sky.new()
+			sky.sky_material = sm
+			sky.radiance_size = Sky.RADIANCE_SIZE_128
+			sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
+			env.sky = sky
+			await host.get_tree().process_frame
+			await host.get_tree().process_frame
+	vp.queue_free()
+	return paths.size()

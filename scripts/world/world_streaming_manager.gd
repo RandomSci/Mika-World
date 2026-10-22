@@ -26,6 +26,7 @@ var state := "idle"             # idle | preloading | transition_out | unloading
 var cache := {}                 # area_id -> {"scene": PackedScene, "resources": Array, "used": msec}
 var loading := {}               # area_id -> {"phase": 1|2, "paths": PackedStringArray, "t0": msec, "error": ""}
 var last_report := {}
+var build_step := -1                    # the area step running now (QA traces)
 var prewarm_once: Callable  # run once behind the first travel mask (shader pipeline compilation)
 var before_reveal: Array = []   # Callables awaited on EVERY travel behind the mask, after the area is built (AdaptiveQuality)
 var history: Array[Dictionary] = []
@@ -92,6 +93,9 @@ func _poll(id: String) -> void:
 	if L.phase == 1:
 		var scene: PackedScene = ResourceLoader.load_threaded_get(L.paths[0])
 		var res_paths := _declared_resources(scene)
+		for rp in _recorded_resources(id):
+			if not res_paths.has(rp):
+				res_paths.append(rp)
 		L.scene = scene
 		L.phase = 2
 		L.paths = PackedStringArray()
@@ -119,6 +123,82 @@ func _declared_resources(scene: PackedScene) -> Array:
 					return script.call("resources")
 			return script.get_script_constant_map().get("RESOURCES", [])
 	return []
+
+
+# ------------------------------------------------------------------ recorded resources
+## The textures and shaders an area really used on its last build (user://area_preload.json): preloaded on a thread
+## with its scene during the walk, so the build never loads them itself (the Mentor's Tower's ground material and
+## textures took 0.67 s in one frame of its build, 2026-10-22).
+const AREA_PRELOAD := "user://area_preload.json"
+var _recorded_layout := {}
+
+
+func _recorded_resources(id: String) -> Array:
+	if not FileAccess.file_exists(AREA_PRELOAD):
+		return []
+	var j = JSON.parse_string(FileAccess.get_file_as_string(AREA_PRELOAD))
+	return (j.get(id, []) as Array) if j is Dictionary else []
+
+
+## After a build, in the background (a few nodes per frame): every material's shader and texture file.
+func _record_resources(area: Node, id: String, layout: String) -> void:
+	var paths := {}
+	var seen := {}
+	var t0 := Time.get_ticks_usec()
+	var add_res := func(r):
+		if r is Resource and String((r as Resource).resource_path).begins_with("res://") and not String((r as Resource).resource_path).contains("::"):
+			paths[(r as Resource).resource_path] = true
+	var scan_mat := func(m):
+		if m == null or seen.has(m.get_instance_id()):
+			return
+		seen[m.get_instance_id()] = true
+		if m is ShaderMaterial and (m as ShaderMaterial).shader:
+			add_res.call((m as ShaderMaterial).shader)
+			for u in (m as ShaderMaterial).shader.get_shader_uniform_list():
+				add_res.call((m as ShaderMaterial).get_shader_parameter(u.name))
+		elif m is BaseMaterial3D:
+			for pr in (m as Object).get_property_list():
+				if String(pr.name).ends_with("_texture"):
+					add_res.call((m as Object).get(pr.name))
+	if _recorded_layout.get(id, "") == layout and not _recorded_resources(id).is_empty():
+		return                                     # (this layout's list is already on disk)
+	# walked a little per frame (find_children over the tower's 10,800 nodes held a frame 0.2 s)
+	var stack: Array = [area]
+	while not stack.is_empty():
+		var nd = stack.pop_back()
+		if not is_instance_valid(nd):
+			continue
+		for c in (nd as Node).get_children():
+			stack.append(c)
+		if not (nd is GeometryInstance3D):
+			continue
+		var g = nd
+		scan_mat.call((g as GeometryInstance3D).material_override)
+		var mesh: Mesh = null
+		if g is MeshInstance3D:
+			mesh = (g as MeshInstance3D).mesh
+		elif g is MultiMeshInstance3D and (g as MultiMeshInstance3D).multimesh:
+			mesh = (g as MultiMeshInstance3D).multimesh.mesh
+		if mesh:
+			for si in mesh.get_surface_count():
+				scan_mat.call(mesh.surface_get_material(si))
+		if Time.get_ticks_usec() - t0 > 4000:
+			await get_tree().process_frame
+			t0 = Time.get_ticks_usec()
+			if not is_instance_valid(area):
+				return
+	var all := {}
+	if FileAccess.file_exists(AREA_PRELOAD):
+		var j = JSON.parse_string(FileAccess.get_file_as_string(AREA_PRELOAD))
+		if j is Dictionary:
+			all = j
+	all[id] = paths.keys()
+	_recorded_layout[id] = layout
+	var f := FileAccess.open(AREA_PRELOAD, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(all))
+	if RenderProfile.options.has("stream-trace"):
+		print("[streamtrace] %s: %d resource files recorded for preloading" % [id, paths.size()])
 
 
 func is_ready(id: String) -> bool:
@@ -241,14 +321,26 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 				i += 1
 				break
 			var s0 := Time.get_ticks_usec()
-			steps[i].call()
+			build_step = i
+			if RenderProfile.options.has("stream-trace"):
+				print("[streamtrace] %s step %d starts (frame %d, %.0f ms into the frame budget)" % [to_area, i, Engine.get_process_frames(), (Time.get_ticks_usec() - f0) / 1000.0])
+			var fr0 := Engine.get_process_frames()
+			await steps[i].call()            # (a long step may hand frames back as it goes: it is awaited to the end)
 			var dt := (Time.get_ticks_usec() - s0) / 1000.0
+			if RenderProfile.options.has("stream-trace") and dt > 60.0:
+				print("[streamtrace] %s step %d took %.0f ms over %d frames" % [to_area, i, dt, Engine.get_process_frames() - fr0])
+			if Engine.get_process_frames() != fr0:
+				f0 = Time.get_ticks_usec()       # it ran over several frames: a fresh budget for this one
 			worst_step = maxf(worst_step, dt)
 			step_ms.append(snappedf(dt, 0.1))
 			i += 1
 		frames += 1
+		var fw0 := Time.get_ticks_usec()
 		await get_tree().process_frame
+		if RenderProfile.options.has("stream-trace"):
+			print("[streamtrace] %s frame %d: steps to %d, step work %.0f ms, frame wait %.0f ms" % [to_area, frames, i, (fw0 - f0) / 1000.0, (Time.get_ticks_usec() - fw0) / 1000.0])
 	var t_built := Time.get_ticks_msec()
+	NatureKit.save_warm_list()
 	var layout_hash := _layout_hash(area)
 	if RenderProfile.options.has("hashdump"):
 		var f := FileAccess.open("user://layout_%s_%d.txt" % [to_area, history.size()], FileAccess.WRITE)
@@ -281,6 +373,8 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 	if masked and overlay:
 		await overlay.fade_in()
 	state = "idle"
+	if not RenderProfile.options.has("no-record"):
+		_record_resources(area, to_area, layout_hash)
 	var mem_after := _mem()
 	last_report = {"ok": true, "from": from_area, "to": to_area, "route": route_text,
 		"total_ms": Time.get_ticks_msec() - t_start, "mask_ms": t_masked - t_start,
@@ -295,7 +389,10 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 	history.append(last_report)
 	if history.size() > 200:
 		history.pop_front()
+	var ae0 := Time.get_ticks_usec()
 	area_activated.emit(to_area, last_report)
+	if RenderProfile.options.has("stream-trace"):
+		print("[streamtrace] %s arrival handlers %.0f ms" % [to_area, (Time.get_ticks_usec() - ae0) / 1000.0])
 	print("[stream] ", JSON.stringify(last_report))
 	return last_report
 
