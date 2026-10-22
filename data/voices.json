@@ -239,7 +239,7 @@
   },
   "res_hilde": {
    "provider": "edge",
-   "voice": "en-GB-HollieNeural",
+   "voice": "en-ZA-LeahNeural",
    "pitch": "+0Hz",
    "rate": "+4%",
    "gain": 0.85,
@@ -255,7 +255,7 @@
   },
   "res_odo": {
    "provider": "edge",
-   "voice": "en-GB-OliverNeural",
+   "voice": "en-US-ChristopherNeural",
    "pitch": "-6Hz",
    "rate": "-8%",
    "gain": 0.85,
@@ -263,7 +263,7 @@
   },
   "res_rook": {
    "provider": "edge",
-   "voice": "en-GB-AlfieNeural",
+   "voice": "en-US-SteffanNeural",
    "pitch": "-10Hz",
    "rate": "-4%",
    "gain": 0.85,
@@ -271,7 +271,7 @@
   },
   "res_aldric": {
    "provider": "edge",
-   "voice": "en-GB-ElliotNeural",
+   "voice": "en-US-BrianNeural",
    "pitch": "-6Hz",
    "rate": "-6%",
    "gain": 0.85,
@@ -279,7 +279,7 @@
   },
   "res_maren": {
    "provider": "edge",
-   "voice": "en-GB-BellaNeural",
+   "voice": "en-US-MichelleNeural",
    "pitch": "-2Hz",
    "rate": "-6%",
    "gain": 0.85,
