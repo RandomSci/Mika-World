@@ -126,7 +126,30 @@ const _TEST_FLAGS := ["fresh", "physicstest", "posetest", "magictest", "readtest
 	"persisttest", "mhtest", "mitest", "mjtest", "mktest", "outfittest"]
 
 
+## THE SAVE GUARD (fail closed, 2026-10-23). The real save belongs to the live stage alone: the run godot-stage.sh
+## starts (its arguments --live-link (the real link, no test address), --launch-days and --profile=stream, a real
+## window, never --script). Any other run - a test without --save-path, a bare `godot --path .`, a headless
+## `--script` unit check, a --persist without its own file - neither loads nor writes it. Until today it was the other
+## way round (persistent unless a known test flag was given), and a `godot --headless --path . --script` check with no
+## flags at all loaded the real save and wrote it at 01:45 on 23 Oct. _write_save refuses the real path too, whatever
+## sets `persistent` (a test that switches it on by hand).
+var stage_run := false
+
+
+static func is_stage_run() -> bool:
+	var o: Dictionary = RenderProfile.options
+	if String(o.get("live-link", "")) != "true" or not o.has("launch-days") or String(o.get("profile", "")) != "stream":
+		return false
+	if DisplayServer.get_name() == "headless" or OS.get_cmdline_args().has("--script") or OS.get_cmdline_args().has("-s"):
+		return false
+	for f in _TEST_FLAGS:
+		if o.has(f):
+			return false
+	return true
+
+
 func _ready() -> void:
+	stage_run = is_stage_run()
 	persistent = true
 	for f in _TEST_FLAGS:
 		if RenderProfile.options.has(f):
@@ -136,6 +159,9 @@ func _ready() -> void:
 	var sp := String(RenderProfile.options.get("save-path", ""))
 	if sp.begins_with("user://") and sp.ends_with(".json") and not sp.contains(".."):
 		save_path = sp
+	if persistent and _is_real_save(save_path) and not stage_run:
+		persistent = false
+		print("[save] guard: not the live stage, the real save is neither loaded nor written this run (give a test its own --save-path)")
 	real_clock = bool(registry.get("clock", {}).get("real_time", false)) and (persistent or RenderProfile.options.has("real-clock")) \
 		and not RenderProfile.options.has("game-clock")
 	if RenderProfile.options.has("clock-hour"):
@@ -285,6 +311,10 @@ func _save_text() -> String:
 ## temp file -> read back and checked -> backups rotated -> renamed over the save. Safe on a worker thread (only
 ## files; the state was captured as text on the main thread).
 func _write_save(text: String, kn: int, reason: String) -> bool:
+	if _is_real_save(save_path) and not stage_run:
+		push_warning("[save] guard: refused to write the real save from a run that is not the live stage (%s)" % reason)
+		last_save = {"reason": reason, "ok": false, "refused": "guard", "unix": int(Time.get_unix_time_from_system())}
+		return false
 	var tmp := save_path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
@@ -306,6 +336,9 @@ func _write_save(text: String, kn: int, reason: String) -> bool:
 
 
 func load_game() -> bool:
+	if _is_real_save(save_path) and not stage_run:
+		load_report = {"path": save_path, "found": FileAccess.file_exists(save_path), "result": "guard: not the live stage, not loaded"}
+		return false
 	load_report = {"path": save_path, "found": FileAccess.file_exists(save_path)}
 	if not load_report.found:
 		return false
@@ -702,3 +735,8 @@ func mission_state(who := "mika") -> Dictionary:
 			break
 	return {"mission": sanctuary.get("story", {}).get("mission", ""), "rank": mage_rank(who), "next_rank": next_rank,
 		"trials_done": m.trials_done.size(), "trials_total": sanctuary.get("trials", []).size(), "trials": trials}
+
+
+## The real save (or one of its backups), whatever spelling of the path points at it.
+func _is_real_save(p: String) -> bool:
+	return ProjectSettings.globalize_path(p).simplify_path() == ProjectSettings.globalize_path(SAVE_PATH).simplify_path()
