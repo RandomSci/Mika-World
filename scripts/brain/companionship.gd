@@ -225,7 +225,9 @@ func consider(who: String, inviter: String, kind: String) -> Dictionary:
 	var m := WorldState.mind(who)
 	var spec: Dictionary = cfg.get("join", {}).get("activities", {}).get(kind, {})
 	var doing := String(b.current.get("kind", ""))
-	if c.casting or doing in ["hunt", "perform", "meet", "research", "alchemy", "attune", "together"] or (main.performance and main.performance.busy() and String(main.performance.active.get("who", "")) == who):
+	# (a journey too, 2026-10-23 soak: Luna's stargazing invite stopped Mika's walk to the lake 4 s after it set off)
+	if c.casting or doing in ["hunt", "perform", "meet", "research", "alchemy", "attune", "together", "visit"] or (main.performance and main.performance.busy() and String(main.performance.active.get("who", "")) == who) \
+			or (main.get("travel") and main.travel.active()):
 		return {"accept": false, "reason": "busy"}
 	var energy := float(b.needs.get("energy", 1.0))
 	if bool(spec.get("strenuous", false)) and (m.vigor < 0.5 or energy < 0.35):

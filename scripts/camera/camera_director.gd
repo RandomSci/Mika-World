@@ -85,6 +85,32 @@ func begin_stargaze(a: WorldCharacter, b: WorldCharacter) -> void:
 func end_stargaze() -> void:
 	_stargaze = {}
 
+
+## The side of the pair a stargaze shot sits on: the first that sees both their heads from above the ground.
+func _stargaze_side(phase: int, sides: Array, mid: Vector3, axis: Vector3, sd: Vector3, ca: WorldCharacter, cb: WorldCharacter) -> float:
+	var space := ca.get_world_3d().direct_space_state
+	for sg in sides:
+		var p: Vector3 = mid + axis * 2.2 + sd * float(sg) * 3.3 + Vector3(0, 2.6, 0) if phase == 0 else mid + sd * float(sg) * 2.9 - axis * 0.3 + Vector3(0, 1.05, 0)
+		p.y = maxf(p.y, _ground_y(p) + (2.0 if phase == 0 else 1.0))
+		var clear := true
+		for c in [ca, cb]:
+			var head: Vector3 = (c as WorldCharacter).skeleton.global_transform * (c as WorldCharacter).skeleton.get_bone_global_pose((c as WorldCharacter).skeleton.find_bone("Head")).origin
+			var q := PhysicsRayQueryParameters3D.create(p, head, 1 | 4)
+			q.exclude = [ca.get_rid(), cb.get_rid()]
+			var hit := space.intersect_ray(q)
+			if not hit.is_empty() and (hit.position as Vector3).distance_to(head) > 0.4:
+				clear = false
+		if clear:
+			return float(sg)
+	return float(sides[0])
+
+
+## The ground under a point (the world layer), or far below it when there is none.
+func _ground_y(p: Vector3) -> float:
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 6, 0), p - Vector3(0, 30, 0), 1)
+	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
+	return (hit.position as Vector3).y if not hit.is_empty() else -1e6
+
 ## Performance shot profiles (radius / height in metres, yaw degrees from her facing at the cut; yaw_to
 ## makes a slow orbit across the shot; look = chest | feet). PERMANENT RULE (docs/world_look_rules.md): no face or
 ## hands close-ups - every shot is knees-up or wider, and _apply() enforces it (FramingRule).
@@ -366,6 +392,8 @@ func _guard_mika(delta: float) -> void:
 	if cam == null:
 		return
 	var head := mika.global_position + Vector3(0, 1.35, 0)
+	if mode == "stargaze":       # (lying in the grass: her head is on the ground, not 1.35 m over her feet)
+		head = mika.skeleton.global_transform * mika.skeleton.get_bone_global_pose(mika.skeleton.find_bone("Head")).origin
 	var vs := get_viewport().get_visible_rect().size
 	var seen := not cam.is_position_behind(head) and Rect2(Vector2.ZERO, vs).has_point(cam.unproject_position(head)) \
 		and not _mate_blocks(cam.global_position, head)
@@ -381,6 +409,17 @@ func _guard_mika(delta: float) -> void:
 	if mode == "performance" and not _perf.is_empty():
 		print("[camera] Mika hidden in the dance shot %s: next shot" % String((_perf.shot as Dictionary).get("name", "")))
 		performance_cut()
+	elif mode == "stargaze" and not _stargaze.is_empty():
+		# that side of that shot is struck off (next frame the other side, then the high wide shot); no chase lens,
+		# which flipped back and forth with the stargaze shot every 4 s
+		var bad: Array = _stargaze.get("bad", [])
+		bad.append("%d%d" % [int(_stargaze.get("phase", 0)), int(_stargaze.get("side", 1.0))])
+		_stargaze.bad = bad
+		_stargaze.phase = -1
+		if bad.size() >= 4:
+			_stargaze.failed = true
+		print("[camera] Mika hidden in the stargaze shot: struck off %s" % str(bad))
+		_since_change = 0.0
 	else:
 		print("[camera] Mika hidden in a %s shot: the chase lens%s" % [mode, " until the scene ends" if mode == "scene" else " for 4 s"])
 		_rescue_until = _now() + 4.0
@@ -467,16 +506,31 @@ func _frame(delta: float) -> void:
 			var el := _now() - float(_stargaze.t0)
 			var phase := int(el / 14.0) % 2
 			var drift := sin(el * 0.08) * 0.35
-			if phase == 0:
-				# high three-quarter from the head side, wide: the two of them whole, the grass around them
-				pos = mid + axis * 2.2 + sd * (3.3 + drift) + Vector3(0, 2.6, 0)
-				look = hpa.origin + axis * 0.2 + Vector3(0, 0.15, 0)
-				fov = 46.0
+			# (2026-10-23 soak, lying on Starfall Hill: the low side shot sat in the slope and the guard flipped it with
+			# the chase lens every 4 s.) Each shot picks the side that sees both of them, above the ground under it; a
+			# side the guard caught hiding her is never used again, and with none left a high wide shot over them.
+			var bad: Array = _stargaze.get("bad", [])
+			var sides: Array = [1.0, -1.0].filter(func(sg): return not bad.has("%d%d" % [phase, int(sg)]))
+			if bool(_stargaze.get("failed", false)) or sides.is_empty():
+				pos = mid + axis * 1.6 + sd * 1.2 + Vector3(0, 4.6, 0)
+				look = mid + axis * 0.3
+				fov = 48.0
 			else:
-				# low from the side: the two of them in the foreground, the night sky over the trees
-				pos = mid + sd * (2.9 + drift) - axis * 0.3 + Vector3(0, 0.85, 0)
-				look = mid + Vector3(0, 1.1, 0) + axis * 0.5
-				fov = 50.0
+				if int(_stargaze.get("phase", -1)) != phase:
+					_stargaze.phase = phase
+					_stargaze.side = _stargaze_side(phase, sides, mid, axis, sd, ca, cb)
+				var sg := float(_stargaze.side)
+				if phase == 0:
+					# high three-quarter from the head side, wide: the two of them whole, the grass around them
+					pos = mid + axis * 2.2 + sd * sg * (3.3 + drift) + Vector3(0, 2.6, 0)
+					look = hpa.origin + axis * 0.2 + Vector3(0, 0.15, 0)
+					fov = 46.0
+				else:
+					# low from the side (never under her waist: the auditor's rule), the night sky over the trees
+					pos = mid + sd * sg * (2.9 + drift) - axis * 0.3 + Vector3(0, 1.05, 0)
+					look = mid + Vector3(0, 1.0, 0) + axis * 0.5
+					fov = 50.0
+				pos.y = maxf(pos.y, _ground_y(pos) + (2.0 if phase == 0 else 1.0))
 			_apply(pos, look, fov, delta, 1.6)
 			return
 		"combat":
