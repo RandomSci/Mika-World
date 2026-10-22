@@ -51,6 +51,7 @@ var _last_established := {}
 var _side := 1.0
 var _conversation: Node3D = null
 var _conversation_until := 0.0
+var _companion_since := 0.0             # Mika standing still with Luna close by since (the two-shot after 1.5 s)
 var _perf := {}                  # music performance: {mode, shot, t0, yaw0, last}
 var _combat := {}                # CombatFraming.subjects() for this frame
 var _combat_until := 0.0         # combat framing holds a moment after the last sign of a fight
@@ -452,6 +453,20 @@ func _choose() -> String:
 		return "conversation"
 	if _now() < _establish_until:
 		return "establishing"
+	# Mika standing with Luna close by: both of them in the picture, the two-shot that keeps Mika the main subject
+	# (2026-10-23 live, Selwyn: "I can't see Luna at all even though I can hear her voice": the chase lens straight
+	# behind Mika never showed Luna standing next to or behind her)
+	var luna := main.characters.get("luna") as WorldCharacter
+	if luna and luna.visible and mika.global_position.distance_to(luna.global_position) < 7.0 \
+			and Vector2(mika.velocity.x, mika.velocity.z).length() < 0.3:
+		if _companion_since == 0.0:
+			_companion_since = _now()
+		if _now() - _companion_since > 1.5:
+			_conversation = luna
+			_conversation_until = _now() + 1.5
+			return "conversation"
+	else:
+		_companion_since = 0.0
 	return "chase"
 
 
