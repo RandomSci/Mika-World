@@ -144,6 +144,12 @@ static func xp_for_entry(m: MageMind, entry: Dictionary) -> Array:
 				if not aw.has("tier:%s:%d" % [sid, t]):
 					aw["tier:%s:%d" % [sid, t]] = true
 					out.append([float(data.mastery_tier[mini(t, data.mastery_tier.size() - 1)]), "%s mastery tier %d" % [sid, t]])
+	# what viewers did for the stream (ViewerXP priced it from data.viewer and applied the caps)
+	if act_id.begins_with("viewer:"):
+		var vx := float(entry.get("activity", {}).get("xp", 0.0))
+		if vx > 0.0:
+			out.append([vx, String(entry.get("activity", {}).get("label", act_id))])
+		return out
 	# first time doing an activity of a scoring kind (one book page, one talk...)
 	var fa := _prefix_value(data.first_activity, act_id)
 	if fa > 0.0 and not aw.has("a:" + act_id):

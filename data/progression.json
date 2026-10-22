@@ -110,5 +110,21 @@
    "10": 504
   },
   "release_every_s": 10
+ },
+ "viewer": {
+  "_note": "PROPOSED 2026-10-23, waiting for Selwyn's OK. XP to the mages for what viewers do (ViewerXP): a chat message a girl replies to (to that girl), a new subscriber or member, a Super Chat (base + per currency unit, capped), each viewer lantern (to both). Caps: one paid chat reply per viewer per chat_per_viewer_s, at most chat_per_hour XP from chat replies an hour. Banked by the stream pacing like all XP.",
+  "chat_reply": 2.0,
+  "subscriber": 15.0,
+  "member": 25.0,
+  "superchat": {
+   "base": 25.0,
+   "per_unit": 1.0,
+   "max": 75.0
+  },
+  "lantern": 5.0,
+  "caps": {
+   "chat_per_viewer_s": 600.0,
+   "chat_per_hour": 30.0
+  }
  }
 }

@@ -439,6 +439,10 @@ func _lantern(e: Dictionary, rec: Dictionary) -> void:
 func _on_launched(viewer: String, kind: String, node: Node3D) -> void:
 	if viewer != "":
 		Highlights.moment(main, "lantern", "a lantern for %s rises over Lantern Lake" % viewer, 4.0)
+		if main.get("live_link") and main.live_link:
+			if main.live_link.viewer_xp == null:
+				main.live_link._viewer_xp_for({})        # (makes the node; an empty message pays nothing)
+			main.live_link.viewer_xp.award("lantern", viewer)
 	if not _react.get("wait", false) or viewer != String(_react.get("name", "")):
 		return
 	_react.erase("wait")

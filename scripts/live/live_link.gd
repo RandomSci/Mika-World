@@ -203,6 +203,7 @@ func _on_message(m: Dictionary) -> void:
 		"youtube-live-selected-message":
 			if bool(m.get("active", false)):
 				_viewer_turn_until = Time.get_ticks_msec() + 30000   # the next lines answer a viewer
+				_viewer_xp_for(m)
 			_chat_card(m)
 			if bool(m.get("active", false)) and main.get("chat") and main.chat.addressee(String(m.get("message", ""))) == "luna":
 				_luna_answers(m)
@@ -210,6 +211,7 @@ func _on_message(m: Dictionary) -> void:
 				_lantern_from_chat(m)
 		"youtube-live-subscriber", "youtube-live-member", "youtube-live-superchat", "viewer-lantern":
 			_lantern_event(m)
+			_viewer_xp_for(m)
 		"lifestyle-action":
 			_action(m)
 		"lifestyle-cancel":
@@ -233,6 +235,38 @@ func _lantern_event(m: Dictionary) -> void:
 	var kinds := {"youtube-live-subscriber": "subscriber", "youtube-live-member": "member", "youtube-live-superchat": "superchat"}
 	var kind := String(kinds.get(String(m.get("type", "")), String(m.get("kind", "chat"))))
 	LakeRitual.instance.offer(String(m.get("author", "")), kind, bool(m.get("wish", kind == "chat")))
+
+
+## XP for what a viewer did (ViewerXP: data rates, caps, a grouped thank-you line). A Super Chat that arrives both as an
+## event and as the selected paid message pays once.
+var viewer_xp: ViewerXP
+var _paid_seen := {}
+
+
+func _viewer_xp_for(m: Dictionary) -> void:
+	if viewer_xp == null:
+		viewer_xp = ViewerXP.new()
+		add_child(viewer_xp)
+		viewer_xp.setup(main)
+	var author := String(m.get("author", "")).strip_edges().trim_prefix("@")
+	var t := String(m.get("type", ""))
+	var kind: String = {"youtube-live-subscriber": "subscriber", "youtube-live-member": "member", "youtube-live-superchat": "superchat"}.get(t, "")
+	if t == "youtube-live-selected-message":
+		kind = "superchat" if bool(m.get("paid", false)) else "chat_reply"
+	if kind == "" or author == "":
+		return
+	if kind == "superchat":
+		var now := Time.get_unix_time_from_system()
+		if now - float(_paid_seen.get(author, 0.0)) < 120.0:
+			return
+		_paid_seen[author] = now
+	var amount := String(m.get("amount", "")).to_float() if m.get("amount") is String else float(m.get("amount", 0.0))
+	if amount == 0.0 and m.get("amount") is String:
+		amount = String(m.get("amount", "")).replace("$", "").replace(",", "").strip_edges().to_float()
+	var who := ""
+	if kind == "chat_reply":
+		who = "luna" if main.get("chat") and main.chat.addressee(String(m.get("message", ""))) == "luna" else "mika"
+	viewer_xp.award(kind, author, amount, who)
 
 
 func _lantern_from_chat(m: Dictionary) -> void:
