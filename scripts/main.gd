@@ -255,6 +255,7 @@ func _ready() -> void:
 	# levelling has its own single, low cue (only for the mage the stream is following)
 	progression.leveled.connect(func(who, _lvl): if audio and who == focus: audio.play_progress("level_up", -4.0, "level_up"))
 	progression.leveled.connect(func(_w, _l): WorldState.save_async("level up"))
+	progression.leveled.connect(func(w, l): Highlights.moment(self, "level_up", "%s reaches level %d" % [MagicSystem.display_name(w), l], 4.0))
 	progression.form_unlocked.connect(func(_w, _l, _f): WorldState.save_async("form unlocked"))
 
 	# Target-aware magic (spell catalogue, targeting, reactive world)

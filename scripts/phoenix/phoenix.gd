@@ -352,6 +352,7 @@ func say(text: String, mood := "", priority := 0) -> Dictionary:
 
 # ------------------------------------------------------------------ arrival, circling, landing
 func arrive() -> void:
+	Highlights.moment(get_tree().root.get_node_or_null("Main"), "phoenix", "the phoenix comes down to the forest path", 5.0)
 	phase = "arrive"
 	state = "arriving"
 	form = "phoenix"

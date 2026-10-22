@@ -145,6 +145,7 @@ func _first_line(entry: Dictionary) -> String:
 ## Both stop what they were doing, look around, wonder out loud; then one walks up to something there for a closer
 ## look, the other comes along, and they react to it.
 func _first_visit(pair: Array, loc: String, info: Dictionary) -> void:
+	Highlights.moment(main, "first_visit", "%s and %s see %s for the first time" % [MagicSystem.display_name(pair[0]), MagicSystem.display_name(pair[1]), String(info.get("name", loc.replace("_", " ").capitalize()))])
 	var held := await _stop_both(pair)
 	var ca: WorldCharacter = main.characters[pair[0]]
 	var cb: WorldCharacter = main.characters[pair[1]]

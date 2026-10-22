@@ -437,6 +437,8 @@ func _lantern(e: Dictionary, rec: Dictionary) -> void:
 
 
 func _on_launched(viewer: String, kind: String, node: Node3D) -> void:
+	if viewer != "":
+		Highlights.moment(main, "lantern", "a lantern for %s rises over Lantern Lake" % viewer, 4.0)
 	if not _react.get("wait", false) or viewer != String(_react.get("name", "")):
 		return
 	_react.erase("wait")
@@ -560,6 +562,7 @@ func boat_ritual(b: SanctuaryBrain, _o := {}) -> Dictionary:
 	if not boat.riders.is_empty():
 		return {"ok": false, "detail": "someone is in the boat"}
 	_abort = false
+	Highlights.moment(main, "boat", "Mika and Luna take the moon boat out on Lantern Lake", 3.0)
 	night_ritual = is_night()
 	running = "gathering"
 	var me := b.me

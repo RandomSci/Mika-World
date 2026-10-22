@@ -499,6 +499,7 @@ func _stargaze_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary
 	if pointing:
 		lead.end_gesture()
 		await get_tree().create_timer(0.4).timeout
+	Highlights.moment(main, "stargaze", "%s and %s lie in %s and watch the stars" % [MagicSystem.display_name(a.agent_id), MagicSystem.display_name(b.agent_id), place], 3.0)
 	if main.director:
 		main.director.begin_stargaze(lead, fol)
 	lead.lie_down()

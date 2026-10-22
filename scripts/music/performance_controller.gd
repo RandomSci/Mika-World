@@ -241,6 +241,9 @@ func perform(who: String, mode := "casual", opts := {}) -> Dictionary:
 	active = {"who": who, "mode": mode, "song": song, "title": String(MusicLibrary.song(song).get("title", song)), "planned_total": snappedf(total, 0.1),
 		"preview": preview, "stage": "starting", "clips": [], "singing": false, "started_unix": int(Time.get_unix_time_from_system()),
 		"with": String(opts.get("with", ""))}           # (the partner asked for: held from the start, not only once beside her)
+	if not preview:
+		var at_lake: bool = main.get("streaming") and String(main.streaming.current_id) == "lantern_lake"
+		Highlights.moment(main, "lake_dance" if at_lake else "dance", "%s dances to %s%s" % [MagicSystem.display_name(who), String(active.title), " on the lake shore" if at_lake else ""], 5.0 if at_lake else 4.0)
 	var brain = main.mage_brains.get(who)
 	# a dance she did not choose herself (a request, a celebration): her own planner is held until it ends, or it
 	# walked her off to the ferns while her song played (20 October soak)
