@@ -292,6 +292,13 @@ func _place(delta: float) -> void:
 		if off.length() > arena_r:
 			p = center + off.normalized() * arena_r
 			f.pos = p
+		if mode == "spell":
+			# a spell duel is fought at range: never closer than 2 m (the first render came to 0.44 m)
+			var op: Vector3 = F[f.other].pos
+			var gap := _flat(p - op)
+			if gap.length() < 2.0:
+				p = op + (gap.normalized() if gap.length() > 0.05 else axis) * 2.0
+				f.pos = p
 		c.global_position = Vector3(p.x, ground_y(c, p) + float(f.lift), p.z)
 		var want := yaw_for(c, _flat(F[f.other].pos - p)) + float(f.yaw_extra)
 		c.rotation.y = lerp_angle(c.rotation.y, want, 1.0 - exp(-dt * 14.0 * float(f.yaw_k)))

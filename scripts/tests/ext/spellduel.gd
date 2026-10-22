@@ -22,11 +22,16 @@ const ALLOWED_SHOTS := ["establish", "wide", "wide_low", "profile", "orbit", "ov
 
 static func run(t) -> void:
 	var main = t.main
+	main.travel.cancel("spell duel test")         # (a brain may set off on a day trip in the first second)
 	await t._hold_all()
 	await t._force_luna_l1()
 	for w in main.mage_brains:
 		main.mage_brains[w].set_enabled(false)
 	main.travel.cancel("spell duel test")
+	# in the sanctuary's training clearing (the first render ran in the Whispering Woods, among the trees)
+	if main.streaming.current_id != "sanctuary":
+		await main.streaming.travel("sanctuary", main.characters["mika"])
+	main.mage_talk.dialogue.set_process(false)    # (no chat from before the duel carries into it)
 	main.director.enabled = false
 	main.spawner.enabled = false
 	if main.performance:
@@ -95,7 +100,8 @@ static func run(t) -> void:
 	t._check(int(watch.fx_peak) >= 12, "the magic really spawned (peak %d effect nodes)" % int(watch.fx_peak))
 	t._check(int(watch.tpose) == 0, "no T-pose frames (%d)" % int(watch.tpose))
 	t._check(int(watch.out) == 0, "they stayed inside the clearing")
-	t._check(int(watch.overlap) == 0, "their bodies never overlap (closest %.2f m)" % float(watch.min_gap))
+	t._check(float(watch.min_gap) >= 1.8, "no close combat: always at least 1.8 m apart (closest %.2f m)" % float(watch.min_gap))
+	t._check(main.streaming.current_id == "sanctuary", "in the sanctuary's training clearing")
 
 
 static func _tpose(d: FightDirector, id: String) -> bool:
