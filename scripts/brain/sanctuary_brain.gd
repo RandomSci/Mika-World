@@ -302,10 +302,18 @@ func options() -> Array:
 			if me.global_position.distance_to(rr.global_position) > 35.0:
 				continue
 			var fresh: Array = (rr.data.get("talk", []) as Array).filter(func(tp): return not mind.knowledge.has("talked:%s:%s" % [rid, tp.id]))
+			# a favour they want to ask (VillagerRequests): once they know her, it comes first
+			if agent_id == "mika" and mind.knowledge.has("met_resident:" + String(rid)):
+				var rq := VillagerRequests.ask_topic(mind, String(rid))
+				if not rq.is_empty():
+					fresh.push_front(rq)
 			if fresh.is_empty():
 				continue
 			out.append({"kind": "chat", "key": "chat:" + String(rid), "resident": String(rid), "topic": fresh[0],
 				"first": not mind.knowledge.has("met_resident:" + String(rid)), "label": "talk with %s (%s)" % [String(rr.data.get("name", rid)), String(rr.data.get("role", ""))]})
+	# a promise kept: bring a villager what she asked for, or tell her it is done (VillagerRequests)
+	if agent_id == "mika":
+		out.append_array(VillagerRequests.help_options(self))
 	# rain: get out of it (a doorstep under the eaves, the lee of a big tree), then sit and listen to it a while
 	var wx = main.get("weather")
 	if wx != null and wx.rain > 0.35 and me.visible and threat == null:
@@ -508,7 +516,7 @@ func options() -> Array:
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
 	# tonight's closed areas (StreamFlags "regions") are never offered: no visit, no journey, nothing that walks there
 	out = out.filter(func(o): return _option_open(o))
-	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "lakeboat", "lakedance", "discover", "join_find", "revisit", "wander"])
+	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "lakeboat", "lakedance", "help", "discover", "join_find", "revisit", "wander"])
 
 
 const MEET_COOLDOWN_S := 420.0
@@ -639,6 +647,9 @@ func score(o: Dictionary) -> Dictionary:
 		"lakewatch":
 			u = 1.25
 			why.append("the lanterns are why she came")
+		"help":
+			u = 1.05 + needs.social * 0.2
+			why.append("she promised")
 		"lakedance":
 			# (their own choice, not a schedule: some nights the boat first, some nights the dance)
 			u = 1.12 + rng.randf() * 0.32 + float(needs.energy) * 0.08
@@ -826,6 +837,12 @@ func score(o: Dictionary) -> Dictionary:
 		elif not (o.kind in ["recover", "hunt", "collect", "shelter", "meet", "journal"]):
 			u -= 0.25
 			why.append("night: the ruins can wait -0.25")
+	# a promise to a villager makes the herb, the spell at that crystal or the road to her worth more (VillagerRequests)
+	if o.kind in ["gather", "magic", "visit"] and agent_id == "mika":
+		var pr: Array = VillagerRequests.pull(mind, o)
+		if float(pr[0]) > 0.0:
+			u += float(pr[0])
+			why.append("%s +%.2f" % [String(pr[1]), float(pr[0])])
 	var temper := float(profile.get("temperament", {}).get(o.kind, 1.0))
 	if temper != 1.0 and u > 0.0:
 		u *= temper
@@ -1020,6 +1037,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"expedition": return await _expedition(o)
 		"visit": return await _visit(o)
 		"lakewatch": return await _lakewatch(o)
+		"help": return await VillagerRequests.help(self, o)
 		"lakedance":
 			if LakeWaterDance.instance == null:
 				return {"ok": false, "detail": "no lake dance"}

@@ -21,7 +21,10 @@
   "from:": 0,
   "spell:": 15,
   "place:": 8,
-  "noticed:": 0
+  "noticed:": 0,
+  "helped_resident:": 12,
+  "request:": 0,
+  "request_asked_unix:": 0
  },
  "first_activity": {
   "read:": 6,
@@ -30,7 +33,8 @@
   "trade:": 10,
   "fight_won:": 40,
   "fight_lost:": 25,
-  "fight_training:": 15
+  "fight_training:": 15,
+  "help:": 30
  },
  "trial": 100,
  "rank": 150,
@@ -126,5 +130,6 @@
    "chat_per_viewer_s": 600.0,
    "chat_per_hour": 30.0
   }
- }
+ },
+ "villager_help_note": "PROPOSED 2026-10-23, waiting for Selwyn's OK: a kept promise (activity help:<request>) pays 30 XP once per request, the first help for each villager (knowledge helped_resident:<id>) 12 more. Ten requests in data/requests.json, each asked once."
 }
