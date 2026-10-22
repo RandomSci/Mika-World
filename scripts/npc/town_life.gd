@@ -31,8 +31,38 @@ func for_area(id: String) -> Dictionary:
 	return data.get(id, {}) if data.get(id, {}) is Dictionary else {}
 
 
+## Behind the travel card (WorldStreamingManager.before_reveal): the new area's people are made one a frame and
+## placed before the card lifts. Made after the reveal, all at once, the village's five cost two 130 ms frames in
+## view (22 Oct world trip).
+var _prepared := ""
+
+
+func prepare(id: String) -> void:
+	# their models load on the loader's thread first (loaded in the frame they appear, the village's five held a
+	# 0.9 s frame in view, 22 Oct)
+	var key := id
+	if main.world and "town_key" in main.world and String(main.world.town_key) != "":
+		key = String(main.world.town_key)
+	var paths := []
+	for rid in for_area(key):
+		var mp := String((for_area(key)[rid] as Dictionary).get("model", ""))
+		if mp != "" and not paths.has(mp) and ResourceLoader.load_threaded_request(mp) == OK:
+			paths.append(mp)
+	var t0 := Time.get_ticks_msec()
+	while paths.any(func(p): return ResourceLoader.load_threaded_get_status(p) == ResourceLoader.THREAD_LOAD_IN_PROGRESS) and Time.get_ticks_msec() - t0 < 8000:
+		await get_tree().process_frame
+	var held := paths.map(func(p): return ResourceLoader.load_threaded_get(p))     # (cached now: load() finds them)
+	await area_activated(id, true)
+	held.clear()
+	_prepared = id
+
+
 ## The area changed: the old town's people stay behind (freed with it), the new one's step into their day.
-func area_activated(id: String) -> void:
+func area_activated(id: String, staggered := false) -> void:
+	if _prepared == id and not staggered:
+		_prepared = ""
+		return                        # (already there: prepared behind the travel card)
+	_prepared = ""
 	clear()
 	area_id = id
 	if not enabled:
@@ -49,6 +79,8 @@ func area_activated(id: String) -> void:
 		main.world.add_child(r)
 		r.setup(String(rid), people[rid], self, main.world)
 		residents[rid] = r
+		if staggered:
+			await get_tree().process_frame
 	# place them once the navmesh is there (their walks need it)
 	await get_tree().physics_frame
 	await get_tree().physics_frame

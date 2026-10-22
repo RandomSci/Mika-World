@@ -347,6 +347,7 @@ func _ready() -> void:
 	add_child(perf_overlay)
 	perf_overlay.setup(self)
 	streaming.area_activated.connect(func(a, _r): town.area_activated(a))
+	streaming.before_reveal.append(func(): await town.prepare(streaming.current_id))
 	town.area_activated(streaming.current_id)
 	teleport_guard = TeleportGuard.new()
 	teleport_guard.name = "TeleportGuard"

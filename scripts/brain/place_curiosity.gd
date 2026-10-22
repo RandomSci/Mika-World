@@ -101,7 +101,7 @@ func _visit(loc: String) -> void:
 	var first: bool = memory(pair[0], loc).is_empty() and memory(pair[1], loc).is_empty() and int(WorldState.visited_locations.get(loc, 1)) <= 1
 	var travelling: bool = main.travel.active() and String(main.travel.journey.get("destination", "")) != loc
 	busy = true
-	print("[curiosity] %s at %s (%s)" % ["first visit" if first else "back", loc, "passing on a journey" if travelling else "arrived"])
+	print("[curiosity] %s at %s (%s) frame %d" % ["first visit" if first else "back", loc, "passing on a journey" if travelling else "arrived", Engine.get_frames_drawn()])
 	if main.travel.active() and not travelling:
 		# arriving at the journey's own destination: the stop comes once the walk there is done
 		# (never stops a journey: at most 60 s cut the grove's last stretch short 11.5 m from the end, 22 Oct)
@@ -185,7 +185,7 @@ func _first_visit(pair: Array, loc: String, info: Dictionary) -> void:
 		_remember(w, loc, _first_line(e1))
 	_release(held)
 	log.append({"loc": loc, "kind": "first", "look_closer": closer, "unix": int(Time.get_unix_time_from_system())})
-	print("[curiosity] first visit to %s done, looked closer at: %s" % [loc, closer if closer != "" else "-"])
+	print("[curiosity] first visit to %s done, looked closer at: %s, frame %d" % [loc, closer if closer != "" else "-", Engine.get_frames_drawn()])
 
 
 ## On the move through a new place: a wondering remark while they walk (the journey goes on).

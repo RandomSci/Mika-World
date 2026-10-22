@@ -130,6 +130,11 @@ func _advance() -> void:
 	var approach := NavigationServer3D.map_get_closest_point(map, gate.position)
 	if approach.distance_to(gate.position) > 6.0:
 		approach = NavigationServer3D.map_get_closest_point(map, (gate.arrive as Transform3D).origin)
+	# the gate point can snap onto a scrap of walkable ground at the map's rim that her path cannot reach (highland path
+	# to the woods, 22 Oct: the path ended on a ledge 8 m short and the journey failed): walk to where the path really ends
+	var reach := NavigationServer3D.map_get_path(map, character.global_position, approach, true)
+	if not reach.is_empty() and reach[reach.size() - 1].distance_to(approach) > 1.5:
+		approach = reach[reach.size() - 1]
 	character.navigate_to(approach, false)
 	journey.phase = "to_gate:" + next_area
 	if character.current_action != "navigate_to":
@@ -161,7 +166,8 @@ func on_character_action(action: String, ok: bool, detail: String) -> void:
 		_finish(ok or miss <= 2.5, detail if ok else "%s; within %.1f m of the location marker" % [detail, miss])
 	elif phase.begins_with("to_gate:"):
 		var gate: Dictionary = streaming.current.gates.get(journey.next_area, {})
-		var near := not gate.is_empty() and character.global_position.distance_to(gate.position) < 8.0
+		var gp: Vector3 = gate.position if not gate.is_empty() else Vector3.INF
+		var near := not gate.is_empty() and Vector2(character.global_position.x - gp.x, character.global_position.z - gp.z).length() < 12.0
 		if ok or near:
 			_cross(journey.next_area)
 		else:

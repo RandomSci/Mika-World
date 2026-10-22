@@ -17,6 +17,19 @@ Written 22 October 2026. Worktree ~ › Downloads › Mika-Godot-Dev-Fix, branch
 9. Spell duel video for approval. 45 to 60 s, Mika against Luna, only with a story reason, at most once per 2 hours, talking during, grand fast effects, dashes and blinks, shields and counters, no damage, no close combat, no swords. Never live until Selwyn sees the full video and says yes.
 10. Highlight Shorts, at most 2 a day.
 
+## The six regions and their paths (part a of the brief)
+
+| Region | Areas (locations) | Finds and clue trips | Its own magic (new) | What it still needs for stream |
+|---|---|---|---|---|
+| Arcane Sanctuary (home) | sanctuary (ritual circle, training grounds), arcane library, Mentor's Tower, Whispering Woods, Lantern Lake | woods 1 find, 1 clue trip, home has the story, books, training targets | the training grounds (rune targets, crystal, dummy) | library and tower proven in run 5, woods phoenix encounter proof |
+| Enchanted Forest | Ancient Grove (grove, forgotten shrine), River Valley (luminous river, waterfall crossing), the wayside road | 3 finds, 4 clue trips | grove glyph stone, shrine seed crystal, river dew crystal, falls spray rune | grove build under 3 s (hull cache added), visual check of the new targets |
+| Fantasy Village | village (square, lantern market, workshop), observatory hill | 3 finds, 2 clue trips, 5 villagers | square lantern crystal, workshop mending rune, observatory star rune | stair foot arrival (fixed, needs proof), village build 3.2 s |
+| Crystal Caverns | crystal caverns (entrance, crystal hall), deep caverns (underground lake, ancient vault) | 2 finds, 2 clue trips | singing crystal, resonance crystal, vault seal rune | not yet reached in a real time trip |
+| Celestial Highlands | highland path (mountain path, cliff overlook), celestial summit (observatory, cloud temple) | 3 finds, 5 clue trips | cairn rune, wind crystal, summit star rune, sky crystal | not yet reached in a real time trip |
+| Grand Academy | academy (courtyard, arena, gardens), great library | 3 finds, 3 clue trips | arena crystal, courtyard exam rune, garden bloom rune | not yet reached in a real time trip |
+
+Paths (16 connections, 15 walkable). Sanctuary to woods (forest path through the north arch, where the phoenix comes), to the library (stairway under the west ruins), to the tower (east trail), to the lake (past Starfall Hill). Woods to grove (old forest track), woods to highland path (frontier road over the ridge). Grove to river (forest track). River to village (waterfall bridge road). Village to observatory hill (stairway), to caverns (quarry road), to highland path (mountain road), to academy (old academy road). Caverns to deep caverns (tunnel). Highland path to summit (summit stairway). Academy to great library (doors). Sanctuary to academy is the sealed ley line (story, not walkable). Eight of the long roads have wayside stretches (overland.json).
+
 ## World trip test
 
 Run 1 (old test, 22 Oct afternoon) stopped at the River Valley bridge. Run 2 (new test, brain walks with Luna, talk and build checks) started 20.20, code before the fixes listed below. Log at ~ › .cache › mika_qa › fix_tests › log_worldtrip.txt.
@@ -65,15 +78,20 @@ Earlier proof. Mentor's Tower after the freeze fix, worst frame 63 ms (build 59.
 
 ## In the middle of right now
 
-* Run 5 of the world trip started 21.03 (monitor bfa8hso5s), all fixes below in. Runs 3 and 4 logs saved in the session scratchpad (log_worldtrip_run3.txt, run4).
-* Runs 3 and 4 results. Woods 55 s, grove 190 to 202 s, river 255 s, builds 1.6, 3.3 to 3.8 and 2.5 to 3.5 s, no slow frame in view on any leg, talks on every long leg, first visit scenes ran (woods looked closer at Vell's buried box, grove at the moonmoth cocoons).
-* Found and fixed in runs 3 and 4
-  * Curiosity waited at most 60 s for the walk to end, then stopped both girls 11.5 m short of the grove. It now never interrupts a journey.
-  * Luna stopped following after the first area change (the walking along link was dropped on arrival, so on the last stretch and on every second hop she was left behind). Now kept to the journey's end.
-  * Crash. Luna's brain was practising at a new grove magic target when the area changed, the target was freed mid walk. Guarded, and her own errands end when she starts walking along.
-  * Walking along now has its own pause flag. Sharing the general hold flag released a hold someone else had set.
-  * Preloading of recorded textures never worked for areas with a constant resource list (append to a read only list). Fixed, should shorten builds further.
-* Committed 0edb263 earlier, the fixes since are not committed yet (after run 5 passes a few legs).
+* Run 6 of the world trip (started 21.28, monitor bn8g6m56y). Results so far
+  | Leg | Arrived | Time | Talks | Slow frames in view | Builds |
+  |---|---|---|---|---|---|
+  | whispering woods | yes | 54 s | 1 | 0 | 1.5 s |
+  | ancient grove | yes | 184 s | 2 | 0 | 3.6 s (hull cache now on disk, next runs faster) |
+  | luminous river | yes | 234 s | 3 | 0 | 3.2 s |
+  | village square | yes | 222 s | 3 | 2 | 2.1 s |
+  | village observatory | yes | 83 s | 1 | 0 | 1.5 s |
+  | crystal entrance | yes | 198 s | 3 | 2 (village transit) | village 2.0 s, caverns 0.5 s |
+  | underground lake | yes | 136 s | 2 | 0 | 0.5 s |
+* Fixed since run 5. The village stair to the observatory climbed the wrong way (its landing hung 2 m over the arrival spot, Mika arrived under it and was stuck, which ended runs 2 and 5). Flipped and photographed, the probe walks from the exact arrival to the caverns gate. Collision hulls of scanned rocks cached by file path (memory and disk).
+* Fixed since run 6 started (in the next run). The village's 5 residents were created after the reveal, all in one frame, two 130 ms frames in view. Now created behind the travel card one per frame.
+* Spell duel written (scripts › anime › duel › spell_beats.gd, test scripts › tests › ext › spellduel.gd), not rendered yet. Reason lines (two reasons, the Heartstone's third beat, or a moon cake), 45 to 60 s, beats volley, blink, counter spells meeting mid air, leap on rising air, barrage on a ward, dash round her, beam clash ending in a draw, truce. No blow ever lands, no sword or kick clips, every shot whole body, short quips after blocks and dodges.
+* GPU queue after run 6. phoenixmemory (three meetings), worldsoak (90 min of daily life), the trip as a video for the 10 fps sheets (tool ~ › .cache › mika_qa › tools › trip_sheets.py), the spell duel video.
 
 ## What is left
 

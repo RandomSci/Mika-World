@@ -9631,7 +9631,9 @@ func _worldtrip() -> void:
 		var t0 := _game_t
 		talks.n = 0
 		talks.lines = []
+		print("[mktest] worldtrip mark start %s frame %d" % [loc, Engine.get_frames_drawn()])
 		var ev: Dictionary = await mbj._travel(loc)
+		print("[mktest] worldtrip mark arrive %s frame %d" % [loc, Engine.get_frames_drawn()])
 		var ok: bool = main.streaming.current_id == area and bool(ev.get("ok", false))
 		var secs := snappedf(_game_t - t0, 0.1)
 		var builds: Array = (ev.get("transitions", []) as Array).map(func(t): return [String(t.get("to", "")), int(t.get("build_ms", -1))])

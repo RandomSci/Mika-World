@@ -18,7 +18,46 @@ const DUEL_BUDGET := 13.6                 # seconds of exchanges between the ope
 const TRAINING_BUDGET := 15.5
 
 
-static func make(mode: String, rng: RandomNumberGenerator, levels: Dictionary) -> Array:
+## The spell duel (22 Oct): 45 to 60 s in all, nobody hurt. Every exchange ends on a ward or a dodge (or two spells
+## meeting mid-air); one beam clash past the middle ends in a draw; the opening carries the reason they duel and the
+## truce its end (opts open_lines / close_lines: [[who, text], ...]).
+static func make_spell(rng: RandomNumberGenerator, opts: Dictionary) -> Array:
+	var L: Dictionary = SpellBeats.LEN
+	var total := rng.randf_range(45.0, 60.0)
+	var out: Array = [{"move": "s_faceoff", "att": "mika", "def": "luna", "lines": opts.get("open_lines", [])}]
+	var used := float(L.s_faceoff) + float(L.s_truce) + float(L.s_clash)
+	var lib := ["s_volley", "s_blink", "s_counter", "s_aerial", "s_barrage", "s_dash"]
+	var att := "mika" if rng.randf() < 0.5 else "luna"
+	var last := ""
+	var clash_done := false
+	var start_used := used
+	while true:
+		var mv := ""
+		if not clash_done and used - start_used > (total - start_used) * 0.6:
+			mv = "s_clash"
+			clash_done = true
+		else:
+			var pool := lib.filter(func(x): return x != last)
+			mv = pool[rng.randi() % pool.size()]
+			if used + float(L[mv]) > total:
+				break
+			used += float(L[mv])
+		var d: String = "luna" if att == "mika" else "mika"
+		var oc := "block"
+		if mv in ["s_volley", "s_aerial"]:
+			oc = "block" if rng.randf() < 0.55 else "dodge"
+		out.append({"move": mv, "att": att, "def": d, "outcome": oc})
+		last = mv
+		att = d if rng.randf() < 0.65 else att
+	if not clash_done:
+		out.append({"move": "s_clash", "att": "mika", "def": "luna", "outcome": "draw"})
+	out.append({"move": "s_truce", "att": "mika", "def": "luna", "lines": opts.get("close_lines", [])})
+	return out
+
+
+static func make(mode: String, rng: RandomNumberGenerator, levels: Dictionary, opts := {}) -> Array:
+	if mode == "spell":
+		return make_spell(rng, opts)
 	var out: Array = []
 	var dl := float(levels.get("mika", 1)) - float(levels.get("luna", 1))
 	var edge := {"mika": clampf(dl * 0.03, -0.15, 0.15), "luna": clampf(-dl * 0.03, -0.15, 0.15)}
@@ -118,7 +157,10 @@ static func outcome(mode: String, plan: Array) -> Dictionary:
 			touches = ex.touches
 	var r := {"mode": mode, "hits": hits, "blocks": blocks, "dodges": dodges, "hp": last_hp, "touches": touches,
 		"exchanges": plan.filter(func(e): return e.has("outcome")).size()}
-	if mode == "duel":
+	if mode == "spell":
+		r["winner"] = ""
+		r["draw"] = true
+	elif mode == "duel":
 		var fin: Array = plan.filter(func(e): return String(e.move) == "finisher")
 		r["winner"] = String(fin[0].att) if not fin.is_empty() else ""
 		r["loser"] = String(fin[0].def) if not fin.is_empty() else ""

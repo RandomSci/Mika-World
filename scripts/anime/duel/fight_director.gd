@@ -18,6 +18,10 @@ const ARENA_R := 3.4                      # they never leave this radius round t
 
 var main: Node
 var mode := "duel"
+var lane := LANE                          # (the spell duel: wider, its spells cross a bigger space)
+var arena_r := ARENA_R
+var opts := {}
+var _spell: SpellBeats
 var F := {}                               # id -> fighter {id, c, deck, reach, other, hp, touches, pos, yaw_k, look}
 var fx: FightFX
 var sfx: ScreenFX
@@ -96,10 +100,13 @@ static func yaw_for(c: WorldCharacter, dir: Vector3) -> float:
 # ------------------------------------------------------------------------------------------------ setup
 ## Builds the fight at the training clearing: both mages on their marks, the stacks on their skeletons, the effects,
 ## the screen effects, the cinematic camera. opts: {seed, cinematic (hide overlays), center, axis_deg}.
-func setup(m: Node, fight_mode: String, opts := {}) -> void:
+func setup(m: Node, fight_mode: String, p_opts := {}) -> void:
 	main = m
 	mode = fight_mode
-	intensity = 1.0 if mode == "duel" else 0.65
+	opts = p_opts
+	intensity = 1.0 if mode in ["duel", "spell"] else 0.65
+	lane = float(opts.get("lane", 7.0 if mode == "spell" else LANE))
+	arena_r = float(opts.get("arena_r", 5.6 if mode == "spell" else ARENA_R))
 	rng.seed = int(opts.get("seed", 1907))
 	center = opts.get("center", SanctuaryTerrain.TRAINING_CENTER_3D)
 	var ang := deg_to_rad(float(opts.get("axis_deg", -15.0)))
@@ -114,7 +121,7 @@ func setup(m: Node, fight_mode: String, opts := {}) -> void:
 		c.set_physics_process(false)
 		c.visible = true
 		c.set_hair_frame("")
-		var home := center + axis * (LANE * 0.5) * (-1.0 if id == "mika" else 1.0)
+		var home := center + axis * (lane * 0.5) * (-1.0 if id == "mika" else 1.0)
 		var f := {"id": id, "c": c, "other": "luna" if id == "mika" else "mika", "hp": 100.0, "touches": 0, "pos": home, "home": home,
 			"yaw_k": 1.0, "yaw_extra": 0.0, "aura": {}, "shield": {}, "lift": 0.0}
 		F[id] = f
@@ -145,6 +152,9 @@ func setup(m: Node, fight_mode: String, opts := {}) -> void:
 	sfx = ScreenFX.get_for(main)
 	_moves = FightMoves.new()
 	_moves.d = self
+	_spell = SpellBeats.new()
+	_spell.d = self
+	_spell.m = _moves
 	if bool(opts.get("cinematic", true)):
 		for cl in get_tree().root.find_children("*", "CanvasLayer", true, false):
 			if not (cl is ScreenFX) and not (cl is MVPost):
@@ -221,11 +231,11 @@ func _camera_setup() -> void:
 # ------------------------------------------------------------------------------------------------ the fight
 ## Plans the fight (the referee) and stages it; returns the result when it is over.
 func run() -> Dictionary:
-	plan = FightPlan.make(mode, rng, {"mika": WorldState.mind("mika").level(), "luna": WorldState.mind("luna").level()})
+	plan = FightPlan.make(mode, rng, {"mika": WorldState.mind("mika").level(), "luna": WorldState.mind("luna").level()}, opts)
 	var t0 := 0.6
 	for ex in plan:
 		ex["t"] = t0
-		t0 += _moves.stage(ex, t0)
+		t0 += _spell.stage(ex, t0) if String(ex.move).begins_with("s_") else _moves.stage(ex, t0)
 	result = FightPlan.outcome(mode, plan)
 	result["fight_s"] = t0
 	print("[fight] %s plan: %s" % [mode, JSON.stringify(plan.map(func(e): return "%s %s>%s %s @%.1f" % [e.move, e.get("att", ""), e.get("def", ""), e.get("outcome", ""), e.t]))])
@@ -279,8 +289,8 @@ func _place(delta: float) -> void:
 		var p: Vector3 = f.pos
 		# never out of the clearing
 		var off := _flat(p - center)
-		if off.length() > ARENA_R:
-			p = center + off.normalized() * ARENA_R
+		if off.length() > arena_r:
+			p = center + off.normalized() * arena_r
 			f.pos = p
 		c.global_position = Vector3(p.x, ground_y(c, p) + float(f.lift), p.z)
 		var want := yaw_for(c, _flat(F[f.other].pos - p)) + float(f.yaw_extra)
@@ -298,8 +308,15 @@ func at(t: float, fn: Callable) -> void:
 
 
 ## A cut at fight time t to shot `kind` on `who` (opts: tween (s, a whip pan), roll (deg), at (world point), ...).
-func cut(t: float, kind: String, who := "", opts := {}) -> void:
-	var s := [t, kind, who, opts]
+## Whole body only in the spell duel (Selwyn, 20 Oct: every shot head to feet, no face, hand or upper body close-ups):
+## a closer kind asked for is taken as the nearest whole-body one.
+const WHOLE_BODY := {"face": "wide_low", "face_ots": "wide", "ots": "wide", "hero_low": "wide_low", "crash": "wide", "hand": "wide", "crane": "wide_low", "behind": "wide"}
+
+
+func cut(t: float, kind: String, who := "", shot_opts := {}) -> void:
+	if mode == "spell" and WHOLE_BODY.has(kind):
+		kind = String(WHOLE_BODY[kind])
+	var s := [t, kind, who, shot_opts]
 	var i := _shots.size()
 	while i > 0 and float(_shots[i - 1][0]) > t:
 		i -= 1
@@ -325,8 +342,8 @@ func move(id: String, to: Vector3, dur: float, trans := Tween.TRANS_QUAD, ease_ 
 ## A point pulled back inside the clearing (they never leave ARENA_R round the centre).
 func clamp_arena(p: Vector3) -> Vector3:
 	var off := _flat(p - center)
-	if off.length() > ARENA_R:
-		return center + off.normalized() * ARENA_R + Vector3(0, p.y - center.y, 0)
+	if off.length() > arena_r:
+		return center + off.normalized() * arena_r + Vector3(0, p.y - center.y, 0)
 	return p
 
 
@@ -423,11 +440,11 @@ func _camera(delta: float) -> void:
 		_shot = _shots[ni]
 		_shot_t0 = ft
 		_shot_sm.clear()
-		var opts: Dictionary = _shot[3]
+		var so: Dictionary = _shot[3]
 		var pc := PhantomCamera3D.new()
 		pc.name = "FIGHT_%02d_%s" % [ni, _shot[1]]
 		main.add_child(pc)
-		pc.set_tween_duration(float(opts.get("tween", 0.0)))
+		pc.set_tween_duration(float(so.get("tween", 0.0)))
 		pc.set_tween_transition(Tween.TRANS_EXPO)
 		_pcs.append(pc)
 		if _pcs.size() > 3:
