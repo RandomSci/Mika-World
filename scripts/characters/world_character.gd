@@ -23,6 +23,7 @@ const CLIPS := {
 	"ml_release_lantern": ["mocap:release_lantern", false, true],
 	"ml_stargaze_point": ["mocap:stargaze_point", false, true],
 	"ml_sit_gaze": ["mocap:sit_lean_back_gaze", false, true],
+	"ml_cast_water_walk": ["mocap:cast_water_walk", false, true],     # the magic path over the lake (LakeWaterDance)
 	# held poses for cinematics (probe candidates for the Starlit Harp)
 	"hold_wide_a": ["wide_arm_spell_casting.fbx@0.9", true, true],
 	"hold_wide_b": ["wide_arm_spell_casting.fbx@1.7", true, true],

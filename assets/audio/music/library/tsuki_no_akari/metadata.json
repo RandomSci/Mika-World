@@ -1,0 +1,42 @@
+{
+ "_note": "Facts from the file's own tags or measured by tools/audio/analyze_song.py. The title is the one Selwyn uses (the file's tag says 月夜灯火). Only the lake dance on the water plays it (LakeWaterDance), never an ordinary dance.",
+ "id": "tsuki_no_akari",
+ "title": "月の灯り",
+ "title_en": "Moonlight Lanterns",
+ "title_tag": "月夜灯火",
+ "artist_tag": "jaymeselwyn",
+ "file": "original.mp3",
+ "duration": 288.84,
+ "language": "ja",
+ "has_vocals": true,
+ "vocal_stem": null,
+ "vocal_timing": "estimated_mixed_track",
+ "mood_tags_from_file": [
+  "gentle",
+  "night",
+  "music box",
+  "koto",
+  "strings"
+ ],
+ "genre": "J-pop ballad (per lyrics style notes)",
+ "performers": [
+  "mika",
+  "luna"
+ ],
+ "dance_styles": [
+  "lake_duet"
+ ],
+ "casual_eligible": false,
+ "special_eligible": false,
+ "preferred_sections": [
+  [
+   38.33,
+   90.5
+  ]
+ ],
+ "licensing": {
+  "source": "Generated with Suno (embedded comment: 'made with suno', created 2026-10-18, id 3cce53b7-1895-4e15-a679-c3793ca76431)",
+  "commercial_use": "UNCONFIRMED - depends on the Suno plan active when it was generated; confirm before any public broadcast",
+  "upload_policy": "local only; not uploaded anywhere"
+ }
+}

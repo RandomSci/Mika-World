@@ -397,6 +397,10 @@ func _ready() -> void:
 	var lake_ritual := LakeRitual.new()
 	add_child(lake_ritual)
 	lake_ritual.setup(self)
+	# the lake dance on the water, once a clear night, on a path of frost and moonlight (LakeWaterDance.instance)
+	var lake_dance := LakeWaterDance.new()
+	add_child(lake_dance)
+	lake_dance.setup(self)
 	# region-specific portal effects: departing as the travel mask closes, arriving as the next area appears
 	streaming.transition_started.connect(func(_from, to):
 		if characters.has("mika"):

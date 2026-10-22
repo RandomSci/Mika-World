@@ -258,6 +258,8 @@ func options() -> Array:
 	# nowhere, filmed since every dance in view is, looked random on stream, 2026-10-17)
 	# (the lake dance at most once a night, 2026-10-22: the night's highlight, never a repeat)
 	var lake_danced: bool = here == "lantern_lake" and int(mind.knowledge.get("lake_dance_night", -1)) == night_id()
+	# (at the lake at night the dance is the one on the water, LakeWaterDance: no ordinary dance on the bank)
+	lake_danced = lake_danced or (here == "lantern_lake" and LakeRitual.instance != null and LakeRitual.instance.is_night())
 	if main.performance and _allowed("perform") and is_lead() and me.visible and threat == null and not main.performance.busy() and not lake_danced:
 		var cd: Dictionary = PerformanceController.load_cfg().cooldown_s
 		var last := float(mind.music.get("last_unix", 0))
@@ -344,6 +346,9 @@ func options() -> Array:
 		var bl := LakeRitual.instance.boat_offer(self)
 		if bl != "":
 			out.append({"kind": "lakeboat", "key": "lakeboat", "area": "lantern_lake", "label": bl})
+	# the lake dance on the water (LakeWaterDance): Mika's idea, a clear night, once a night
+	if here == "lantern_lake" and is_lead() and LakeWaterDance.instance and LakeWaterDance.instance.available(agent_id) == "":
+		out.append({"kind": "lakedance", "key": "lakedance", "area": "lantern_lake", "label": "walk out onto the lake on a path of frost and moonlight and dance with Luna"})
 	# at the lake at night: sit at the end of the pier and watch the lanterns (once a night)
 	if here == "lantern_lake" and main.world and main.world.has_method("sit_spots") and int(mind.knowledge.get("lake_night", -1)) != night_id():
 		out.append({"kind": "lakewatch", "key": "lakewatch", "area": "lantern_lake", "label": "sit at the end of the pier and watch the lanterns"})
@@ -503,7 +508,7 @@ func options() -> Array:
 	# stargazing, exploring, sparring, resting together - had been chosen since this filter came in)
 	# tonight's closed areas (StreamFlags "regions") are never offered: no visit, no journey, nothing that walks there
 	out = out.filter(func(o): return _option_open(o))
-	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "lakeboat", "discover", "join_find", "revisit", "wander"])
+	return out.filter(func(o): return _allowed(o.kind) or o.kind in ["recover", "collect", "shelter", "listen_rain", "ascend", "together", "visit", "lakewatch", "lakeboat", "lakedance", "discover", "join_find", "revisit", "wander"])
 
 
 const MEET_COOLDOWN_S := 420.0
@@ -512,7 +517,7 @@ const REPEAT_GAP_S := 1800.0             # the same activity never again within 
 const REPEAT_EXEMPT := ["recover", "shelter", "collect", "listen_rain", "rest", "discover", "join_find"]
 const DANCE_GAP_S := 2700.0              # her own dance: at least this long after any dance
 const HOLD_STALE_S := 90.0
-const HOLDING_KINDS := ["lakewatch", "lakeboat", "together", "meet", "converse", "perform", "join_find"]
+const HOLDING_KINDS := ["lakewatch", "lakeboat", "lakedance", "together", "meet", "converse", "perform", "join_find"]
 
 
 ## Nothing that holds a brain is running: no show command, no dance, no shared activity, no mage talk, no book.
@@ -634,6 +639,10 @@ func score(o: Dictionary) -> Dictionary:
 		"lakewatch":
 			u = 1.25
 			why.append("the lanterns are why she came")
+		"lakedance":
+			# (their own choice, not a schedule: some nights the boat first, some nights the dance)
+			u = 1.12 + rng.randf() * 0.32 + float(needs.energy) * 0.08
+			why.append("a clear night, the lake still, the lanterns out")
 		"lakeboat":
 			var lb: Dictionary = LakeRitual.instance.boat_score(self) if LakeRitual.instance else {"u": -1.0, "why": []}
 			u = float(lb.u)
@@ -1011,6 +1020,10 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"expedition": return await _expedition(o)
 		"visit": return await _visit(o)
 		"lakewatch": return await _lakewatch(o)
+		"lakedance":
+			if LakeWaterDance.instance == null:
+				return {"ok": false, "detail": "no lake dance"}
+			return await LakeWaterDance.instance.run("their own idea")
 		"lakeboat":
 			if LakeRitual.instance == null:
 				return {"ok": false, "detail": "no boat"}

@@ -466,6 +466,12 @@ func _do(action: String, args: Dictionary) -> Dictionary:
 		"dance", "dance_routine", "repeat_dance", "dance_session":
 			if main.performance == null:
 				return {"ok": false, "reason": "no_dance_system"}
+			# at Lantern Lake on a clear night a dance asked for is the dance on the water (once a night)
+			if LakeWaterDance.instance and LakeWaterDance.instance.available() == "":
+				activity = "dance"
+				var lr: Dictionary = await LakeWaterDance.instance.run("a viewer asked")
+				activity = "stand_relaxed"
+				return {"ok": bool(lr.ok), "value": {"routine": "lake_water_dance", "completed": bool(lr.ok)}, "reason": String(lr.detail)}
 			var routine := String(args.get("routine", ""))
 			var clip := String(ROUTINES.get(routine, ""))
 			# she finishes (or drops) what she is doing first: her own planner is held while the show's dance runs
