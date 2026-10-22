@@ -76,13 +76,17 @@ Earlier proof. Mentor's Tower after the freeze fix, worst frame 63 ms (build 59.
 * c2a7186 villager voices, edge-tts 7.3.1
 * 6510293 journey wait judged by progress, worldtrip and navprobe tests
 
-## In the middle of right now
+## In the middle of right now (00.10, 23 Oct)
 
-* Run 7 (22.24 to 23.20), all fixes from runs 1 to 6. Every area of the six regions reached (all 16 legs), no leg over 90 s without talk, no build over 3 s (grove 2.1, river 2.3, village 2.1, academy 1.6, summit 1.1, the rest under 1.7). Only failure, 4 frames of 140 to 148 ms in view right after arriving in the village (script time while they talk). Two speed ups made after run 7 started (voice lip envelope 4x cheaper, line memory index), checked by the village re-run in the queue. Log ~ › .cache › mika_qa › fix_tests › log_worldtrip_run7.txt.
-* Overnight proof queue (~ › .cache › mika_qa › tools › proof_queue5.sh, log ~ › .cache › mika_qa › fix_tests › proof_queue.log), one job at a time on the GPU lock, refuses if the stream launcher runs. Order village re-check (running), phoenixmemory, spellduel, worldsoak 90 min, the full trip as a video, then trip_sheets.py.
-* Phoenix first run. Meeting 1 good (real talk, memory saved with who was there and what was said), meetings 2 and 3 never happened because the test summoned her again while the manager still held the one who had just left. Test fixed.
-* Spell duel second render (in the sanctuary clearing) looked much better (circles, wards, beam clash and burst) but rune posts and stones blocked the foreground of several shots, a few shots showed an empty clearing (the impact shot aimed where she stood when the plan was made), one ward filled the frame, and blinks and dashes dominated. Fixed for the third render. The arena is cleared of small props for the duel and restored after, no impact shot, a smaller arena inside the ring of targets, a shuffled bag of beats, curiosity muted.
-* Then copy the videos and sheets into Mika-Project › review › Test_Videos and tell Selwyn.
+* GPU queue, one job at a time (log ~ › .cache › mika_qa › fix_tests › proof_queue.log, scripts proof_queue5 to 8 in ~ › .cache › mika_qa › tools)
+  1. worldsoak, 90 minutes of free daily life (started 23.51)
+  2. the full trip as a video (worldtrip --movie), then trip_sheets.py for the per-region 10 fps sheets and the dialogue log
+  3. village check with the voice model on the CPU (is the last slow frame in view the voice model sharing the GPU?)
+  4. phoenixmemory third run
+  5. spell duel fourth render
+* Village re-check (real time, after run 7). All arrivals fine, 1 frame of about 140 ms in view about 1.3 s after each village reveal, in the heaviest view of the game while a voice line is synthesised on the same GPU. Not yet fixed, step 3 tests the cause. Also found and fixed there, a journey cancelled by the talk code nudging the speaker apart (now never on a journey).
+* Phoenix runs. First, meeting 1 good, 2 and 3 never started (test bug). Second, the test held a stale reference and stopped with a script error. Fixed, third run queued. Open question, why she left the woods mid approach in the second run (the next run prints the manager's events if it happens).
+* Spell duel renders. Third render passes every check with all seven kinds of exchange (59.3 s, no blow, magic only, whole body shots, 23 lines, 4.6 m closest). Frames show floating crossbars where the hidden rune posts were and a few shots through tall grass at the clearing's edge. Fixed for the fourth render. Video of the third is at ~ › .cache › mika_qa › fix_tests › spellduel.avi until the fourth replaces it.
 
 ## What is left
 
