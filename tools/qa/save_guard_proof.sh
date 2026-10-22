@@ -39,6 +39,25 @@ check "D  the stage's arguments, headless" "$T/d.log"
 timeout 50 "$G" --headless --path . -- --persist --save-path=user://test_guard_control.json > "$T/e.log" 2>&1
 if [ -s "$U/test_guard_control.json" ]; then echo "PASS  E  control: --persist with its own --save-path writes its own file"; pass=$((pass+1))
 else echo "FAIL  E  control: the test's own save was not written"; fail=$((fail+1)); fi
+# F. looks like the stage (Mika-Live's audio sink, a window, its arguments) but is not quite it: the guard must refuse
+#    AND say so loudly (an error, the stage health file with the alarm)
+rm -f "$U/stage_health.json"
+PULSE_SINK=MikaWorld timeout 150 xvfb-run -a -s "-screen 0 1280x720x24" "$G" --rendering-driver opengl3 --path . -- --profile=stream --viewer --brain \
+  --live-link=ws://127.0.0.1:9/test-none --no-bridge --launch-days=/dev/null > "$T/f.log" 2>&1
+check "F  a stage-like run the guard refuses" "$T/f.log"
+if grep -q "GUARD ALARM" "$T/f.log" && [ -s "$U/stage_health.json" ] && grep -q '"alarm":"the save guard' "$U/stage_health.json"; then
+  echo "PASS  F  ...and it is loud: the error in the log and the alarm in stage_health.json"; pass=$((pass+1))
+else echo "FAIL  F  the refusal was silent (no GUARD ALARM or no alarm in stage_health.json)"; fail=$((fail+1)); fi
+grep -o '"alarm":"[^"]*"' "$U/stage_health.json" 2>/dev/null | sed 's/^/      /'
+# G. the live stage itself (godot-stage.sh's exact arguments, a window): it must still load and save the (copied) save
+rm -f "$U/stage_health.json"
+PULSE_SINK=MikaWorld timeout 150 xvfb-run -a -s "-screen 0 1280x720x24" "$G" --rendering-driver opengl3 --path . -- --profile=stream --viewer --brain \
+  --live-link --no-bridge --launch-days=/dev/null > "$T/g.log" 2>&1
+HG=$(sha256sum "$U/mika_world_save.json" | cut -d' ' -f1)
+if grep -q "loaded progress from user://mika_world_save.json" "$T/g.log" && [ "$HG" != "$H0" ] && grep -q '"stage_run":true' "$U/stage_health.json" 2>/dev/null && ! grep -q "GUARD ALARM" "$T/g.log"; then
+  echo "PASS  G  the live stage's own arguments still load and save the real save (the copy), no alarm"; pass=$((pass+1))
+else echo "FAIL  G  the stage was blocked or did not save"; fail=$((fail+1)); fi
+grep -E "loaded progress|\[save\] guard" "$T/g.log" | head -2 | cut -c1-160 | sed 's/^/      /'
 REALH1=$(sha256sum "$REAL" | cut -d' ' -f1)
 [ "$REALH0" = "$REALH1" ] && echo "PASS  the real save on disk is byte for byte unchanged" && pass=$((pass+1)) || { echo "FAIL  the real save changed during the proof"; fail=$((fail+1)); }
 echo "$pass passed, $fail failed (logs in $T)"

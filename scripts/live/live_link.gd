@@ -124,6 +124,9 @@ func _health(delta: float) -> void:
 	_h_cam = cp
 	if _h_t < 60.0:
 		return
+	var ls: Dictionary = WorldState.last_save
+	print("[health] save guard %s, stage %s, last save %s" % ["ALARM: " + WorldState.guard_alarm if WorldState.guard_alarm != "" else "ok", str(WorldState.stage_run),
+		("%d s ago" % int(Time.get_unix_time_from_system() - float(ls.get("unix", 0)))) if bool(ls.get("ok", false)) else "none yet"])
 	print("[health] fps=%.1f worst_ms=%.1f hitches=%d mika_level=%d luna_level=%d mika_visible=%s luna_visible=%s connected=%s" % [
 		_h_frames / _h_t, _h_worst * 1000.0, _h_hitches, WorldState.mind("mika").level(),
 		WorldState.mind("luna").level() if WorldState.minds.has("luna") else 0,

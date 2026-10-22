@@ -136,8 +136,34 @@ func _process(delta: float) -> void:
 	var recent := events.filter(func(e): return Time.get_ticks_msec() / 1000.0 - float(e.t) < 90.0)
 	v_event.text = ("Latest: " + String(recent[-1].text)) if not recent.is_empty() else ""
 	viewer.visible = not RenderProfile.tour
+	_save_mark()
 	if dev_on:
 		dev.text = _dev_text()
+
+
+## The save guard's alarm (WorldState.guard_alarm): a small dim mark in the bottom right corner that a viewer reads as
+## nothing and Selwyn knows. Hidden while all is well.
+var _mark: Label
+
+
+func _save_mark() -> void:
+	if WorldState.guard_alarm == "":
+		if _mark:
+			_mark.visible = false
+		return
+	if _mark == null:
+		_mark = Label.new()
+		_mark.text = "◆ s"
+		_mark.add_theme_font_size_override("font_size", 15)
+		_mark.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3, 0.55))
+		_mark.anchor_left = 1.0
+		_mark.anchor_top = 1.0
+		_mark.anchor_right = 1.0
+		_mark.anchor_bottom = 1.0
+		_mark.offset_left = -46
+		_mark.offset_top = -30
+		add_child(_mark)
+	_mark.visible = true
 
 
 ## Their goal (the story's: novice to Level 100 Archmage) and the step in front of her now - one short line.

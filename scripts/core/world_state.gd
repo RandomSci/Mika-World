@@ -134,6 +134,39 @@ const _TEST_FLAGS := ["fresh", "physicstest", "posetest", "magictest", "readtest
 ## flags at all loaded the real save and wrote it at 01:45 on 23 Oct. _write_save refuses the real path too, whatever
 ## sets `persistent` (a test that switches it on by hand).
 var stage_run := false
+## Never silent (Selwyn, 23 Oct): a run that LOOKS like the stage (a real window, started by Mika-Live: its audio sink
+## or its arguments) but that the guard refuses would lose the girls' progress without a word. That, and a stage whose
+## real save has not been written for SAVE_STALE_S, is an alarm: an error in the log, a small mark on the overlay
+## (MageOverlay), and user://stage_health.json, which Mika-Live's health check reads every minute while live.
+var guard_alarm := ""
+const SAVE_STALE_S := 900.0
+const STAGE_HEALTH := "user://stage_health.json"
+var _health_t := 0.0
+
+
+static func looks_like_stage() -> bool:
+	if DisplayServer.get_name() == "headless" or OS.get_cmdline_args().has("--script") or OS.get_cmdline_args().has("-s"):
+		return false
+	var o: Dictionary = RenderProfile.options
+	var sink := OS.get_environment("PULSE_SINK")
+	return sink == "MikaWorld" or sink == OS.get_environment("VR_GODOT_AUDIO_SINK") and sink != "" \
+		or o.has("launch-days") or String(o.get("live-link", "")) == "true"
+
+
+## Why the guard did not take this run for the stage (for the alarm's message).
+static func stage_why_not() -> String:
+	var o: Dictionary = RenderProfile.options
+	var why := []
+	if String(o.get("live-link", "")) != "true":
+		why.append("live-link is %s" % ("missing" if not o.has("live-link") else "'%s'" % String(o["live-link"])))
+	if not o.has("launch-days"):
+		why.append("no --launch-days")
+	if String(o.get("profile", "")) != "stream":
+		why.append("profile is '%s'" % String(o.get("profile", "")))
+	for f in _TEST_FLAGS:
+		if o.has(f):
+			why.append("test flag --%s" % f)
+	return ", ".join(why) if not why.is_empty() else "unknown"
 
 
 static func is_stage_run() -> bool:
@@ -162,6 +195,11 @@ func _ready() -> void:
 	if persistent and _is_real_save(save_path) and not stage_run:
 		persistent = false
 		print("[save] guard: not the live stage, the real save is neither loaded nor written this run (give a test its own --save-path)")
+	if not stage_run and looks_like_stage() and _is_real_save(save_path):
+		guard_alarm = "the save guard blocked a run that looks like the live stage (%s): NOTHING WILL BE SAVED" % stage_why_not()
+		push_error("[save] GUARD ALARM " + guard_alarm)
+	if stage_run or guard_alarm != "":
+		_stage_health.call_deferred()                # (at once: the health check hears of a refusal before the first minute)
 	real_clock = bool(registry.get("clock", {}).get("real_time", false)) and (persistent or RenderProfile.options.has("real-clock")) \
 		and not RenderProfile.options.has("game-clock")
 	if RenderProfile.options.has("clock-hour"):
@@ -180,6 +218,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	play_s += delta
+	_health_t += delta
+	if _health_t >= 60.0 and (stage_run or guard_alarm != ""):
+		_health_t = 0.0
+		_stage_health()
 	if real_clock:
 		world_min = _real_local_min() - real_day0 * 1440.0
 	else:
@@ -740,3 +782,26 @@ func mission_state(who := "mika") -> Dictionary:
 ## The real save (or one of its backups), whatever spelling of the path points at it.
 func _is_real_save(p: String) -> bool:
 	return ProjectSettings.globalize_path(p).simplify_path() == ProjectSettings.globalize_path(SAVE_PATH).simplify_path()
+
+
+## Every minute on the stage (or a stage-like run the guard refused): the guard's state and the last real save's time,
+## for Mika-Live's health check. A stage that has not written its save for SAVE_STALE_S raises the alarm too.
+func _stage_health() -> void:
+	var now := Time.get_unix_time_from_system()
+	var saved := float(last_save.get("unix", 0)) if bool(last_save.get("ok", false)) else 0.0
+	var session_s := Time.get_ticks_msec() / 1000.0          # (not play_s: that is the whole save's play time)
+	if stage_run and saved == 0.0 and session_s > SAVE_STALE_S and guard_alarm == "":
+		guard_alarm = "the real save has not been written once this session (%d min)" % int(session_s / 60.0)
+		push_error("[save] GUARD ALARM " + guard_alarm)
+	elif stage_run and saved > 0.0 and now - saved > SAVE_STALE_S and not guard_alarm.begins_with("the save guard"):
+		guard_alarm = "the real save has not been written for %d min" % int((now - saved) / 60.0)
+		push_error("[save] GUARD ALARM " + guard_alarm)
+	elif stage_run and saved > 0.0 and now - saved <= SAVE_STALE_S and guard_alarm.begins_with("the real save has not"):
+		guard_alarm = ""
+		print("[save] the real save is being written again")
+	var f := FileAccess.open(STAGE_HEALTH, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify({"unix": int(now), "stage_run": stage_run, "looks_like_stage": looks_like_stage(), "alarm": guard_alarm,
+			"save_path": save_path, "persistent": persistent, "last_save_unix": int(saved), "level_mika": mind("mika").level() if minds.has("mika") else 0}))
+		f.close()
+
