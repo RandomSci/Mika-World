@@ -2339,8 +2339,19 @@ func _travel(location: String) -> Dictionary:
 	var cb := func(ev): if ev.event == "journey_finished": res[0] = ev
 	main.travel.journey_event.connect(cb)
 	var t0 := Time.get_ticks_msec()
-	while res[0] == null and Time.get_ticks_msec() - t0 < 180000 and not _cancel:
+	# judged by progress, not a fixed 3 minutes: a 270 m walk across the River Valley took longer and the journey was
+	# cancelled 6 m from the village road (2026-10-22 world trip). Given up only after 30 s without moving (game time:
+	# the same on stream, slower under movie recording) or 15 minutes in all.
+	var moved_at := 0.0
+	var waited := 0.0
+	var last_pos := me.global_position
+	while res[0] == null and not _cancel and waited < 900.0 and waited - moved_at < 30.0:
 		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		waited += dt
+		if me.global_position.distance_to(last_pos) > 1.0 or main.streaming.state != "idle":
+			last_pos = me.global_position
+			moved_at = waited
 	main.travel.journey_event.disconnect(cb)
 	if res[0] == null:
 		main.travel.cancel("brain timeout")

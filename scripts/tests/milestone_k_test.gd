@@ -180,6 +180,8 @@ func _run() -> void:
 		"showtakes": await _showtakes()
 		"mikafix": await _mikafix()
 		"regiontrip": await _regiontrip()
+		"worldtrip": await _worldtrip()
+		"navprobe": await _navprobe()
 		"luna_r12": await _luna_r12()
 		"dresstest": await _dresstest()
 		"skinprobe": await _skinprobe()
@@ -9388,3 +9390,122 @@ func _regiontrip() -> void:
 	print("[mktest] regiontrip worst frame %.0f ms, frames over 100 ms: %s" % [float(worst.ms), str(slow.slice(0, 40))])
 	_check(results.all(func(x): return x.size() > 2 and bool(x[1])), "every place reached", results)
 	_check(slow.is_empty(), "no frame over 100 ms on the whole trip (worst %.0f ms, %d over)" % [float(worst.ms), slow.size()], slow.slice(0, 20))
+
+
+## The whole world (2026-10-22, Selwyn: "the regions you listed isn't even all of it"): one journey to a location in
+## each of the 16 areas of the six regions, along the real roads (journeys, overland wayside stretches), Luna along.
+## Every frame timed in real time; each arrival logged and photographed. --world-trip=loc,loc,... overrides the order.
+func _worldtrip() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var tw0 := _game_t
+	while not bool(main.get("nature_warm_done")) and _game_t - tw0 < 120.0:
+		await get_tree().process_frame
+	WorldState.world_min = (WorldState.day() - 1) * 1440.0 + 10.0 * 60.0
+	var mika: WorldCharacter = main.characters["mika"]
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	var order := String(RenderProfile.options.get("world-trip", "whispering_woods,ancient_grove,luminous_river,village_square,village_observatory,crystal_entrance,underground_lake,academy_courtyard,great_library,mountain_path,celestial_observatory,ritual_sanctuary,lantern_lake,ancient_spell_library,mentors_tower,ritual_sanctuary")).split(",")
+	var rec := {"on": true, "last": Time.get_ticks_usec(), "worst": 0.0, "slow": []}
+	(func():
+		while rec.on:
+			await get_tree().process_frame
+			var now := Time.get_ticks_usec()
+			var ms := (now - int(rec.last)) / 1000.0
+			rec.last = now
+			if bool(rec.get("paused", false)):
+				continue
+			rec.worst = maxf(float(rec.worst), ms)
+			if ms > 100.0:
+				(rec.slow as Array).append([snappedf(ms, 1.0), String(main.streaming.current_id), String(main.streaming.state), int(main.streaming.get("build_step"))])).call()
+	var results := []
+	for loc in order:
+		var area := WorldState.area_of(loc)
+		var tw := _game_t
+		while (not main.travel.journey.is_empty() or main.streaming.state != "idle") and _game_t - tw < 60.0:
+			await get_tree().process_frame
+		var n0 := (rec.slow as Array).size()
+		var done := {"ev": null}
+		var cb := func(ev): if String(ev.get("event", "")) == "journey_finished": done.ev = ev
+		main.travel.journey_event.connect(cb)
+		var t0 := _game_t
+		var r: Dictionary = main.travel.travel_to(loc, "walk")
+		if not bool(r.get("ok", false)):
+			main.travel.journey_event.disconnect(cb)
+			results.append([loc, area, false, String(r.get("error", "?"))])
+			print("[mktest] worldtrip -> %s (%s): refused: %s" % [loc, area, String(r.get("error", "?"))])
+			continue
+		while done.ev == null and _game_t - t0 < float(RenderProfile.options.get("leg-max", "420")):
+			await get_tree().process_frame
+		main.travel.journey_event.disconnect(cb)
+		var ok: bool = main.streaming.current_id == area
+		var tr: Dictionary = main.streaming.last_report
+		results.append([loc, area, ok, snappedf(_game_t - t0, 0.1), (rec.slow as Array).size() - n0, int(tr.get("build_ms", -1))])
+		print("[mktest] worldtrip -> %s (%s): arrived %s in %.0f s, frames over 100 ms %d, last build %s ms, route %s" % [loc, area, str(ok), _game_t - t0,
+			(rec.slow as Array).size() - n0, str(tr.get("build_ms", "-")), str(r.get("route", r.get("path", "")))])
+		await _wait(4.0)
+		rec.paused = true
+		_shot("world_" + area)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		rec.last = Time.get_ticks_usec()
+		rec.paused = false
+	rec.on = false
+	print("[mktest] worldtrip worst frame %.0f ms, over 100 ms: %s" % [float(rec.worst), str((rec.slow as Array).slice(0, 60))])
+	report["worldtrip"] = results
+	_check(results.all(func(x): return bool(x[2])), "every area of the six regions reached", results)
+
+
+## One walk inside one area (--probe-area, --probe-from=x,z, --probe-to=x,z or --probe-gate=<area>): where she gets
+## stuck, the navmesh path she was given, and a photo near the stuck spot.
+func _navprobe() -> void:
+	await _hold_all()
+	main.spawner.enabled = false
+	var mika: WorldCharacter = main.characters["mika"]
+	var area := String(RenderProfile.options.get("probe-area", "river_valley"))
+	var r: Dictionary = await main.streaming.travel(area, mika)
+	_check(bool(r.get("ok", false)), "%s loaded" % area, r)
+	await _wait(2.0)
+	var w = main.world
+	var map: RID = mika.get_world_3d().navigation_map
+	var fr := String(RenderProfile.options.get("probe-from", "-40,46")).split(",")
+	var from := Vector3(float(fr[0]), 0, float(fr[1]))
+	from = NavigationServer3D.map_get_closest_point(map, Vector3(from.x, w.height(from.x, from.z) if w.has_method("height") else 0.0, from.z))
+	if main.teleport_guard:
+		main.teleport_guard.allow(mika)
+	mika.global_position = from + Vector3(0, 0.05, 0)
+	await _wait(1.0)
+	var to: Vector3
+	if RenderProfile.options.has("probe-gate"):
+		to = w.gate_position(String(RenderProfile.options["probe-gate"])) if w.has_method("gate_position") else Vector3.ZERO
+	else:
+		var tt := String(RenderProfile.options.get("probe-to", "134,20")).split(",")
+		to = Vector3(float(tt[0]), 0, float(tt[1]))
+	to = NavigationServer3D.map_get_closest_point(map, to)
+	var path := NavigationServer3D.map_get_path(map, mika.global_position, to, true)
+	print("[mktest] navprobe %s from %s to %s path %s" % [area, str(mika.global_position.snapped(Vector3.ONE * 0.1)), str(to.snapped(Vector3.ONE * 0.1)), str(Array(path).map(func(v): return v.snapped(Vector3.ONE * 0.1)))])
+	main.director.enabled = true
+	main.director.set_subject(mika)
+	if RenderProfile.options.has("probe-journey"):
+		# the real thing: Mika's brain walks to a location in the next area, Luna brought along (as on a visit)
+		var luna: WorldCharacter = main.characters["luna"]
+		if main.teleport_guard:
+			main.teleport_guard.allow(luna)
+		luna.world = w
+		luna.global_position = NavigationServer3D.map_get_closest_point(map, from + Vector3(1.5, 0, 1.0)) + Vector3(0, 0.05, 0)
+		luna.visible = true
+		luna.set_physics_process(true)
+		var mbj: SanctuaryBrain = main.mage_brains["mika"]
+		var jr: Dictionary = await mbj._travel(String(RenderProfile.options["probe-journey"]))
+		print("[mktest] navprobe journey %s: %s; Mika at %s, Luna at %s" % [String(RenderProfile.options["probe-journey"]), str(jr).left(300), str(mika.global_position.snapped(Vector3.ONE * 0.1)), str(luna.global_position.snapped(Vector3.ONE * 0.1))])
+		_shot("navprobe_journey")
+		_check(bool(jr.get("ok", false)), "the journey arrived", jr)
+		return
+	mika.navigate_to(to, false)
+	var t0 := _game_t
+	var last := mika.global_position
+	while mika.current_action == "navigate_to" and _game_t - t0 < 120.0:
+		await get_tree().process_frame
+	print("[mktest] navprobe ended at %s (%.1f m from the goal) after %.0f s, action %s" % [str(mika.global_position.snapped(Vector3.ONE * 0.1)), mika.global_position.distance_to(to), _game_t - t0, mika.current_action])
+	_shot("navprobe_" + area)
+	_check(mika.global_position.distance_to(to) < 2.5, "she walked all the way (%.1f m left)" % mika.global_position.distance_to(to))
