@@ -105,8 +105,8 @@ func setup(m: Node, fight_mode: String, p_opts := {}) -> void:
 	mode = fight_mode
 	opts = p_opts
 	intensity = 1.0 if mode in ["duel", "spell"] else 0.65
-	lane = float(opts.get("lane", 7.0 if mode == "spell" else LANE))
-	arena_r = float(opts.get("arena_r", 5.6 if mode == "spell" else ARENA_R))
+	lane = float(opts.get("lane", 6.4 if mode == "spell" else LANE))
+	arena_r = float(opts.get("arena_r", 4.6 if mode == "spell" else ARENA_R))
 	rng.seed = int(opts.get("seed", 1907))
 	center = opts.get("center", SanctuaryTerrain.TRAINING_CENTER_3D)
 	var ang := deg_to_rad(float(opts.get("axis_deg", -15.0)))
@@ -182,6 +182,8 @@ func _hide_props() -> void:
 		if nm.contains("dummy") or nm.contains("practice_crystal") or nm.contains("crystal_stand"):
 			nd.visible = false
 			_hidden.append(nd)
+	if mode == "spell":
+		_clear_arena(root)
 	# the stone stand under the practice crystal (an unnamed mesh at the crystal's foot)
 	for h in _hidden.duplicate():
 		if not String((h as Node).name).to_lower().contains("crystal"):
@@ -193,6 +195,36 @@ func _hide_props() -> void:
 					print("[fightprop] hide near crystal: %s %s" % [mi.name, mi.get_class()])
 				mi.visible = false
 				_hidden.append(mi)
+
+
+## The spell duel moves over the whole clearing and its shots are wide: the rune-target posts, standing stones and
+## small props round it stood in the foreground of half the shots of the first render (22 Oct). For the duel they are
+## hidden, and their colliders no longer pull the camera in (the "avoid" group); both are restored in teardown().
+var _avoided: Array = []
+
+
+func _clear_arena(root: Node) -> void:
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if not mi.visible or mi.mesh == null or _is_char(mi):
+			continue
+		var d := _flat(mi.global_position - center).length()
+		var sz := (mi.global_transform * mi.mesh.get_aabb()).size
+		if d < arena_r + 2.6 and maxf(sz.x, sz.z) < 3.0 and sz.y < 3.2 and sz.y > 0.3:
+			mi.visible = false
+			_hidden.append(mi)
+	for n in root.find_children("*", "StaticBody3D", true, false):
+		var sb := n as StaticBody3D
+		if _flat(sb.global_position - center).length() < arena_r + 2.6 and not String(sb.name).to_lower().contains("terrain") and not sb.is_in_group("avoid"):
+			sb.add_to_group("avoid")
+			_avoided.append(sb)
+
+
+func _is_char(n: Node) -> bool:
+	for id in F:
+		if (F[id].c as Node).is_ancestor_of(n):
+			return true
+	return false
 
 
 func _camera_setup() -> void:
@@ -700,3 +732,6 @@ func teardown() -> void:
 	for nd in _hidden:
 		if is_instance_valid(nd):
 			(nd as Node3D).visible = true
+	for sb in _avoided:
+		if is_instance_valid(sb):
+			(sb as Node).remove_from_group("avoid")

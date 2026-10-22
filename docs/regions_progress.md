@@ -79,12 +79,9 @@ Earlier proof. Mentor's Tower after the freeze fix, worst frame 63 ms (build 59.
 ## In the middle of right now
 
 * Run 7 (22.24 to 23.20), all fixes from runs 1 to 6. Every area of the six regions reached (all 16 legs), no leg over 90 s without talk, no build over 3 s (grove 2.1, river 2.3, village 2.1, academy 1.6, summit 1.1, the rest under 1.7). Only failure, 4 frames of 140 to 148 ms in view right after arriving in the village (script time while they talk). Two speed ups made after run 7 started (voice lip envelope 4x cheaper, line memory index), checked by the village re-run in the queue. Log ~ › .cache › mika_qa › fix_tests › log_worldtrip_run7.txt.
-* Overnight proof queue (log ~ › .cache › mika_qa › fix_tests › proof_queue.log), one job at a time on the GPU lock, refuses if the stream launcher runs
-  1. phoenixmemory as a video (three meetings, dialogue printed), running since 23.25
-  2. spellduel video again. The first render passed every check (58.7 s, no blow, magic clips only, whole body shots, 23 lines) but it ran in the Whispering Woods among the trees, a leftover chat line played at the start and once they came within 0.44 m. Fixed (sanctuary clearing, chat muted, never closer than 2 m) and re-rendered.
-  3. village re-check in real time (frames in view)
-  4. worldsoak, 90 minutes of free daily life with the repetition rules checked
-  5. the full trip as a video, then ~ › .cache › mika_qa › tools › trip_sheets.py makes the per-region 10 fps sheets and the dialogue log
+* Overnight proof queue (~ › .cache › mika_qa › tools › proof_queue5.sh, log ~ › .cache › mika_qa › fix_tests › proof_queue.log), one job at a time on the GPU lock, refuses if the stream launcher runs. Order village re-check (running), phoenixmemory, spellduel, worldsoak 90 min, the full trip as a video, then trip_sheets.py.
+* Phoenix first run. Meeting 1 good (real talk, memory saved with who was there and what was said), meetings 2 and 3 never happened because the test summoned her again while the manager still held the one who had just left. Test fixed.
+* Spell duel second render (in the sanctuary clearing) looked much better (circles, wards, beam clash and burst) but rune posts and stones blocked the foreground of several shots, a few shots showed an empty clearing (the impact shot aimed where she stood when the plan was made), one ward filled the frame, and blinks and dashes dominated. Fixed for the third render. The arena is cleared of small props for the duel and restored after, no impact shot, a smaller arena inside the ring of targets, a shuffled bag of beats, curiosity muted.
 * Then copy the videos and sheets into Mika-Project › review › Test_Videos and tell Selwyn.
 
 ## What is left

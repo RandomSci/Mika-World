@@ -32,6 +32,7 @@ static func run(t) -> void:
 	if main.streaming.current_id != "sanctuary":
 		await main.streaming.travel("sanctuary", main.characters["mika"])
 	main.mage_talk.dialogue.set_process(false)    # (no chat from before the duel carries into it)
+	main.place_curiosity.set_process(false)       # (nor a remark about the place: one slipped into the second render)
 	main.director.enabled = false
 	main.spawner.enabled = false
 	if main.performance:

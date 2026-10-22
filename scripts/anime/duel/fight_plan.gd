@@ -30,6 +30,7 @@ static func make_spell(rng: RandomNumberGenerator, opts: Dictionary) -> Array:
 	var att := "mika" if rng.randf() < 0.5 else "luna"
 	var last := ""
 	var clash_done := false
+	var bag: Array = []
 	var start_used := used
 	while true:
 		var mv := ""
@@ -37,8 +38,17 @@ static func make_spell(rng: RandomNumberGenerator, opts: Dictionary) -> Array:
 			mv = "s_clash"
 			clash_done = true
 		else:
-			var pool := lib.filter(func(x): return x != last)
-			mv = pool[rng.randi() % pool.size()]
+			# a shuffled bag: every kind of exchange once before any comes back (the first render was mostly blinks)
+			if bag.is_empty():
+				bag = lib.duplicate()
+				for i in range(bag.size() - 1, 0, -1):
+					var j := rng.randi() % (i + 1)
+					var tmp = bag[i]
+					bag[i] = bag[j]
+					bag[j] = tmp
+				if bag[0] == last and bag.size() > 1:
+					bag.push_back(bag.pop_front())
+			mv = String(bag.pop_front())
 			if used + float(L[mv]) > total:
 				break
 			used += float(L[mv])

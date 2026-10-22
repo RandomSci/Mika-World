@@ -182,7 +182,7 @@ func _counter(ex: Dictionary, t0: float) -> void:
 	var a := String(ex.att)
 	var b := String(ex.def)
 	d.cut(t0, "wide", a, {"dist": 7.2})
-	d.cut(t0 + 0.75, "impact", a, {"at": d.center})
+	d.cut(t0 + 0.75, "wide_low", a)
 	d.cut(t0 + 1.7, "orbit", a, {"from": -20.0, "to": 25.0, "r": 6.2})
 	var meet := {"p": Vector3.ZERO}
 	d.at(t0 + 0.1, func():
@@ -221,7 +221,7 @@ func _aerial(ex: Dictionary, t0: float) -> void:
 	var oc := String(ex.outcome)
 	d.cut(t0, "wide_low", a)
 	d.cut(t0 + 1.1, "wide", a, {"dist": 7.6, "fov": 48.0})
-	d.cut(t0 + 2.1, "impact", b, {"at": d.pos(b)})
+	d.cut(t0 + 2.1, "wide", b, {"dist": 7.4})
 	d.at(t0 + 0.1, func():
 		d.anim(a, "lift_off", 0.0, -1.0, 1.3, 0.08)
 		d.fx.ground_ring(d.pos(a), a, 2.4, 2, 0.6)

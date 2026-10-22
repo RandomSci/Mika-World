@@ -1870,7 +1870,7 @@ func _phoenixmemory() -> void:
 		st["next_visit_unix"] = 0
 		var said0 := ((WorldState.npc_state.get("_lines", {}) as Dictionary).get("phoenix", []) as Array).size()
 		var ph: Phoenix = mgr.summon()
-		if ph == null:
+		if ph == null or not is_instance_valid(ph):
 			_check(false, "meeting %d: she came" % (meeting + 1))
 			return
 		var t0 := _game_t
@@ -1899,7 +1899,11 @@ func _phoenixmemory() -> void:
 		var tl := _game_t
 		while is_instance_valid(ph) and ph.phase != "gone" and _game_t - tl < 60.0:
 			await get_tree().process_frame
+		# the manager lets go of her a frame later: until then a summon hands back the one who just left
+		while mgr.present != null and is_instance_valid(mgr.present) and _game_t - tl < 90.0:
+			await get_tree().process_frame
 		await _wait(3.0)
+		mgr.present = null
 	var seen := {}
 	var repeats := []
 	for n in all_lines:
