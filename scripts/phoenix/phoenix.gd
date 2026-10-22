@@ -352,7 +352,6 @@ func say(text: String, mood := "", priority := 0) -> Dictionary:
 
 # ------------------------------------------------------------------ arrival, circling, landing
 func arrive() -> void:
-	Highlights.moment(get_tree().root.get_node_or_null("Main"), "phoenix", "the phoenix comes down to the forest path", 5.0)
 	phase = "arrive"
 	state = "arriving"
 	form = "phoenix"
@@ -842,6 +841,9 @@ func transform_to_human(variation := "short") -> Dictionary:
 	if form != "phoenix" or busy:
 		return {"ok": false, "detail": "not in her true form or busy"}
 	busy = true
+	# (the Shorts mark: here, as she lands and takes her human form in the flash; her approach is a minute earlier and
+	# a clip saved 20 s after it showed only the forest)
+	Highlights.moment(main, "phoenix", "the phoenix lands on the forest path and takes her human form", 5.0)
 	phase = "to_human"
 	state = "arriving"
 	var spec: Dictionary = data.transformation
