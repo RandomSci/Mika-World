@@ -488,12 +488,12 @@ static func _walkable_to(area: AreaBase, me: WorldCharacter, it: Interactable) -
 		return false
 	var goal := it.approach_point()
 	var path := NavigationServer3D.map_get_path(map, me.global_position, goal, true)
-	var ok := not path.is_empty() and (path[path.size() - 1] as Vector3).distance_to(goal) < 2.0
+	var ok := not path.is_empty() and _ends_by(path[path.size() - 1], goal, it)
 	if not ok and area.points_of_interest.has(it.location_id):
 		# from the place's own centre too: she may stand somewhere odd just now, but the place itself reaches it
 		var from: Vector3 = NavigationServer3D.map_get_closest_point(map, area.points_of_interest[it.location_id].position)
 		var p2 := NavigationServer3D.map_get_path(map, from, goal, true)
-		ok = not p2.is_empty() and (p2[p2.size() - 1] as Vector3).distance_to(goal) < 2.0 \
+		ok = not p2.is_empty() and _ends_by(p2[p2.size() - 1], goal, it) \
 			and not NavigationServer3D.map_get_path(map, me.global_position, from, true).is_empty()
 	memo[it.id] = ok
 	var tm: Dictionary = area.get_meta("spot_reach_t", {})
@@ -504,6 +504,14 @@ static func _walkable_to(area: AreaBase, me: WorldCharacter, it: Interactable) -
 		print("[spots] %s: %s cannot be walked to from where she is (path ends %.1f m short), not offered" % [area.area_id, it.id,
 			(path[path.size() - 1] as Vector3).distance_to(goal) if not path.is_empty() else -1.0])
 	return ok
+
+
+## A path ends by the place when it reaches its approach, or stops beside the prop itself: a well's, a standing
+## stone's or the wish stone's approach can land on the prop's own top (a navmesh island), the path then ends on the
+## ground next to it 1.8 to 2.7 m away (24 Oct). A cut-off patch still fails (the mushroom ring's path ended 8.6 m short).
+static func _ends_by(end: Vector3, goal: Vector3, it: Node3D) -> bool:
+	var flat := Vector2(end.x - it.global_position.x, end.z - it.global_position.z).length()
+	return end.distance_to(goal) < 2.0 or flat < 3.0
 
 
 static func score(o: Dictionary, needs: Dictionary) -> Dictionary:

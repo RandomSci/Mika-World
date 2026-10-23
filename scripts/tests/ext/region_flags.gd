@@ -11,6 +11,11 @@ static func run(t) -> void:
 	var main = t.main
 	main.director.enabled = true
 	print("[regions] open: %s" % str(WorldState.areas.keys().filter(func(a): return StreamFlags.area_allowed(a))))
+	# since 22 Oct every region is open (Selwyn: let them explore); the refusals are tested only while one is closed
+	if CLOSED.keys().all(func(a): return StreamFlags.area_allowed(a)):
+		print("[regions] every region in this test is open in stream_flags.json, nothing to refuse")
+		t._check(true, "no closed region to test")
+		return
 	# 1. their minds: nothing in a closed area is on offer
 	for w in main.mage_brains:
 		var opts: Array = main.mage_brains[w].options()
