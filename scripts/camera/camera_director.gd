@@ -255,7 +255,7 @@ func _perf_look(what: String) -> Vector3:
 ## What blocks the lens's view: the world, the vegetation layer, and what only the lens collides with (the bright
 ## crystals, ThirdPersonCamera.LENS_ONLY)
 const LOS := 1 | 4 | ThirdPersonCamera.LENS_ONLY
-const LEAD_ANGLE := 0.7                 # radians off her face (about 40 degrees): the three-quarter front
+const LEAD_ANGLE := 0.7                 # radians off her face (about 40 degrees): the three-quarter front (one of the follow angles)
 const LEAD_DISTANCE := 4.1              # whole body at the rig's lens, head to feet, never a close-up (4.9 m left her a third of the picture, 23 Oct check)
 const LEAD_PITCH := -0.13               # a little above her eyes, looking slightly down
 const REVEAL_S := 5.0
@@ -292,23 +292,59 @@ func reveal(seconds := REVEAL_S) -> void:
 	_behind_until = _now() + seconds
 
 
-## Where the follow lens sits round her (added to her own facing): in front, on the side with room, or behind.
+## The follow angles while she walks, off straight behind her, and how often each is chosen (Selwyn, 24 Oct live: "the
+## camera looking at them from in front of them always makes it feel so bad"): over the shoulder three-quarter from
+## behind (her cheek and where she is going), alongside her in profile (a tracking shot), and the three-quarter front
+## now only now and then. Each held 6 to 10 s (Selwyn: "don't make it stuck on one angle for too long"), the lens
+## swinging round her between them.
+const FOLLOW_ANGLES := [0.62, 1.45, PI - LEAD_ANGLE]
+const FOLLOW_WEIGHTS := [0.45, 0.35, 0.2]
+var _follow := 0
+var _follow_until := 0.0
+
+
+## Where the follow lens sits round her (added to her own facing): one of the follow angles on the side with room, or
+## straight behind.
 func _lead_offset(delta: float) -> float:
 	if _now() < _behind_until or _now() < _lead_blocked_until:
 		return 0.0
+	if _now() >= _follow_until:
+		var r := randf()
+		var pick := 0
+		for i in FOLLOW_WEIGHTS.size():
+			r -= float(FOLLOW_WEIGHTS[i])
+			if r <= 0.0:
+				pick = i
+				break
+		if pick == _follow:
+			pick = (pick + 1 + randi() % (FOLLOW_ANGLES.size() - 1)) % FOLLOW_ANGLES.size()   # a new angle each time
+		_follow = pick
+		_follow_until = _now() + randf_range(6.0, 10.0)
+		_lead_check = 0.0
+	var ang: float = FOLLOW_ANGLES[_follow]
 	_lead_check -= delta
 	if _lead_check <= 0.0:
 		_lead_check = 0.3
 		var need := LEAD_DISTANCE * 0.72
-		var here := _lead_room(mika.rotation.y + PI + _lead_side * LEAD_ANGLE)
+		var here := _lead_room(mika.rotation.y + _lead_side * ang)
 		if here < need:
-			var there := _lead_room(mika.rotation.y + PI - _lead_side * LEAD_ANGLE)
+			var there := _lead_room(mika.rotation.y - _lead_side * ang)
 			if there >= need:
 				_lead_side = -_lead_side
 			else:
-				_lead_blocked_until = _now() + 2.0      # no room in front either way (a narrow lane): behind a moment
+				# no room for this angle either side (trees close on the forest path put the side lens 1.4 m from her,
+				# 24 Oct test): another follow angle with room, else straight behind a moment
+				for i in FOLLOW_ANGLES.size():
+					if i == _follow:
+						continue
+					for sd: float in [_lead_side, -_lead_side]:
+						if _lead_room(mika.rotation.y + sd * float(FOLLOW_ANGLES[i])) >= need:
+							_follow = i
+							_lead_side = sd
+							return sd * float(FOLLOW_ANGLES[i])
+				_lead_blocked_until = _now() + 2.0
 				return 0.0
-	return PI + _lead_side * LEAD_ANGLE
+	return _lead_side * ang
 
 
 ## Room for the lead lens at this yaw: the arm's own room, and nothing solid (a trunk, a crate, a wall) on the line from
@@ -709,7 +745,13 @@ func _frame(delta: float) -> void:
 			# round her is slow and smooth (a path's bends do not whip the lens about)
 			var lead := _lead_offset(delta)
 			var kl := 1.0 - exp(-(1.3 if moving else 0.8) * delta)
-			rig.yaw = lerp_angle(rig.yaw, mika.rotation.y + lead + _chase_mate_off, maxf(kl, 1.0 - exp(-3.0 * delta)) if _chase_mate_tgt != 0.0 else kl)
+			var want_yaw := mika.rotation.y + lead + _chase_mate_off
+			# the swing round her between follow angles would pass through trees (the arm shortens, the lens comes
+			# within 2 m of her on the forest path, 24 Oct test): cut straight to the new angle when it has room
+			if rig.arm.get_hit_length() < 2.6 and absf(angle_difference(rig.yaw, want_yaw)) > 0.35 \
+					and _arm_room(want_yaw, rig.pitch) >= LEAD_DISTANCE * 0.72:
+				rig.yaw = want_yaw
+			rig.yaw = lerp_angle(rig.yaw, want_yaw, maxf(kl, 1.0 - exp(-3.0 * delta)) if _chase_mate_tgt != 0.0 else kl)
 			# spring arm squeezed by a wall, or a wall / house between the lens and her: rise quickly, and swing
 			# round to the most open side (a doorway, a narrow lane) instead of ending up inside her hair or
 			# staring at a wall with her behind it
