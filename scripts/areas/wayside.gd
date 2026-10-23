@@ -133,7 +133,7 @@ func _forest_density(p: Vector2) -> float:
 ## The road is smoothed where it runs (worn footing) - but at the ford it must go down INTO the stream: there the
 ## raw ground (the shallow stony bed) is put back, so the crossing is wet, ankle-deep water over the stones.
 func _precompute() -> void:
-	super._precompute()
+	await super._precompute()       # a coroutine on a cache miss: without the await the ground was built before its masks
 	for iz in _n:
 		var z := -HALF + iz * STEP
 		if absf(z - FORD.y) > 7.0:
