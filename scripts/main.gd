@@ -124,6 +124,12 @@ func _ready() -> void:
 	guard.name = "FramingGuard"
 	guard.source = self
 	add_child(guard)
+	# the in-game half of the video quality check (tools/qa/video_qa.py reads its CSV beside the recording)
+	if RenderProfile.options.has("shot-audit"):
+		var audit := ShotAudit.new()
+		audit.name = "ShotAudit"
+		add_child(audit)
+		audit.setup(self, String(RenderProfile.options.get("shot-audit")))
 
 	camera_rig = ThirdPersonCamera.new()
 	camera_rig.name = "CameraRig"
