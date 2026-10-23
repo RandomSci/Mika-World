@@ -363,7 +363,8 @@ static func _prop(area: AreaBase, kind: String, at: Vector3, yaw: float, sid: St
 			root.set_meta("night_glow", cap)
 			area.night_only(Kit.omni(root, at + Vector3(0, 0.3, 0), Color(0.45, 0.75, 1.0), 0.45, 2.5))
 		"log":
-			var bark: Material = RealKit.bark_mat() if RealKit.enabled() else _wood()
+			# triplanar bark (the lathe's own UVs stretched the bark into streaks along the log, 23 Oct stills)
+			var bark: Material = Kit.tri("bark_brown_02", "1k", 0.8, 0.35, Color(0.85, 0.8, 0.75))
 			Kit.mesh_node(root, Kit.lathe([Vector2(0.0, 0.0), Vector2(0.38, 0.0), Vector2(0.42, 0.4), Vector2(0.4, 2.6), Vector2(0.34, 3.0), Vector2(0.0, 3.0)], 12, true, true), bark,
 				Transform3D(b * Basis(Vector3.RIGHT, PI * 0.5), at + Vector3(0, 0.36, 0) + b * Vector3(0, 0, -1.5)))
 			Kit.static_box(root, Vector3(0.8, 0.75, 3.0), Transform3D(b, at + Vector3(0, 0.37, 0)))
