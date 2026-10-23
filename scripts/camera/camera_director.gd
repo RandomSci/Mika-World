@@ -163,6 +163,8 @@ func setup(m: Node) -> void:
 	rig.process_priority = maxi(rig.process_priority, process_priority + 10)
 	mika = main.characters["mika"]
 	WorldState.interaction_started.connect(func(it, c): if c == mika: _interaction = it)
+	# a new place opening up in front of them: the lens behind her for a moment, the place seen as she sees it
+	WorldState.location_entered.connect(func(loc): if PlaceCuriosity.memory("mika", String(loc)).is_empty(): reveal())
 	WorldState.interaction_finished.connect(func(it, c, _r): if c == mika and _interaction == it: _interaction = null)
 
 
@@ -243,6 +245,20 @@ func _perf_look(what: String) -> Vector3:
 
 ## Follow another mage (the spotlight in main picks whoever is doing the most watchable thing).
 ## The `mika` field is the current subject; the name is kept for older callers.
+## Leading three-quarter front (Selwyn, 23 Oct live Day 7: "the camera stays behind Mika most of the time, so viewers
+## only see the back of her head ... prefer a three quarter front angle with her face visible while walking and
+## talking, whole body framing, no close ups. Behind her only for short moments like a reveal of a new place"). The
+## follow lens sits ahead of her and to one side, looking back at her face; the side with room wins and is kept (no
+## flip-flopping); straight behind only while neither front side has room, or for a few seconds when a new place opens
+## up in front of them.
+const LEAD_ANGLE := 0.7                 # radians off her face (about 40 degrees): the three-quarter front
+const LEAD_DISTANCE := 4.1              # whole body at the rig's lens, head to feet, never a close-up (4.9 m left her a third of the picture, 23 Oct check)
+const LEAD_PITCH := -0.13               # a little above her eyes, looking slightly down
+const REVEAL_S := 5.0
+var _lead_side := 1.0
+var _lead_check := 0.0
+var _lead_blocked_until := 0.0
+var _behind_until := 0.0
 var _chase_mate_off := 0.0
 var _chase_last_good := Vector3.INF   # the last chase lens with room that saw her (a fallback in tight places)
 var _chase_mate_tgt := 0.0
@@ -265,6 +281,30 @@ func _mate_blocks(from: Vector3, to: Vector3) -> bool:
 			if t > 0.05 and t < 0.97 and (from + seg * t).distance_to(q) < 0.5:
 				return true
 	return false
+
+
+## The lens behind her for a few seconds (a new place revealed over her shoulder), then back in front of her.
+func reveal(seconds := REVEAL_S) -> void:
+	_behind_until = _now() + seconds
+
+
+## Where the follow lens sits round her (added to her own facing): in front, on the side with room, or behind.
+func _lead_offset(delta: float) -> float:
+	if _now() < _behind_until or _now() < _lead_blocked_until:
+		return 0.0
+	_lead_check -= delta
+	if _lead_check <= 0.0:
+		_lead_check = 0.5
+		var need := LEAD_DISTANCE * 0.72
+		var here := _arm_room(mika.rotation.y + PI + _lead_side * LEAD_ANGLE, LEAD_PITCH)
+		if here < need:
+			var there := _arm_room(mika.rotation.y + PI - _lead_side * LEAD_ANGLE, LEAD_PITCH)
+			if there >= need:
+				_lead_side = -_lead_side
+			else:
+				_lead_blocked_until = _now() + 2.0      # no room in front either way (a narrow lane): behind a moment
+				return 0.0
+	return PI + _lead_side * LEAD_ANGLE
 
 
 func set_subject(c: WorldCharacter) -> void:
@@ -482,7 +522,8 @@ func _switch(m: String) -> void:
 		_side = 1.0 if (rig.camera.global_position - mika.global_position).dot(right) >= 0.0 else -1.0
 	if m == "chase":
 		rig.clear_shot()
-		rig.yaw = mika.rotation.y
+		_lead_check = 0.0
+		rig.yaw = mika.rotation.y + _lead_offset(0.0)       # straight into the three-quarter front, no swing round her
 	shot_changed.emit(m)
 
 
@@ -634,7 +675,11 @@ func _frame(delta: float) -> void:
 				if _chase_mate_clear > 4.0:
 					_chase_mate_tgt = 0.0
 			_chase_mate_off = lerpf(_chase_mate_off, _chase_mate_tgt, 1.0 - exp(-3.0 * delta))
-			rig.yaw = lerp_angle(rig.yaw, mika.rotation.y + _chase_mate_off, maxf(k, 1.0 - exp(-3.0 * delta)) if _chase_mate_tgt != 0.0 else k)
+			# in front of her (three-quarter, face visible) unless a reveal or no room puts the lens behind; the swing
+			# round her is slow and smooth (a path's bends do not whip the lens about)
+			var lead := _lead_offset(delta)
+			var kl := 1.0 - exp(-(1.3 if moving else 0.8) * delta)
+			rig.yaw = lerp_angle(rig.yaw, mika.rotation.y + lead + _chase_mate_off, maxf(kl, 1.0 - exp(-3.0 * delta)) if _chase_mate_tgt != 0.0 else kl)
 			# spring arm squeezed by a wall, or a wall / house between the lens and her: rise quickly, and swing
 			# round to the most open side (a doorway, a narrow lane) instead of ending up inside her hair or
 			# staring at a wall with her behind it
@@ -657,7 +702,7 @@ func _frame(delta: float) -> void:
 			var tight := hit_len < 1.0
 			if RenderProfile.options.has("cam-debug") and squeezed:
 				print("[camdbg] t=%.2f hit %.2f tight_t %.2f override %s last_good %s p %s" % [_now(), hit_len, _chase_tight_t, _chase_override, str(_chase_last_good.snapped(Vector3.ONE * 0.1)), str(p.snapped(Vector3.ONE * 0.1))])
-			rig.pitch = lerpf(rig.pitch, -0.85 if tight else (-0.62 if squeezed else -0.2), 1.0 - exp(-(9.0 if tight else 6.0) * delta) if squeezed else k)
+			rig.pitch = lerpf(rig.pitch, -0.85 if tight else (-0.62 if squeezed else (LEAD_PITCH if lead != 0.0 else -0.2)), 1.0 - exp(-(9.0 if tight else 6.0) * delta) if squeezed else k)
 			# last resort: the arm stays crushed against something whichever way it turns - take a validated shot
 			# (lens above her waist, 1.3 m+ away, a clear line to her head) and hold it until there is room again
 			_chase_tight_t = (_chase_tight_t + delta) if tight else 0.0
@@ -683,7 +728,7 @@ func _frame(delta: float) -> void:
 					rig.set_shot(_override_pos, p + Vector3(0, 1.3, 0), 55.0)
 					_pos = _override_pos
 					return
-			rig.distance = lerpf(rig.distance, 3.6, k)
+			rig.distance = lerpf(rig.distance, LEAD_DISTANCE if lead != 0.0 else 3.6, k)
 			_pos = rig.camera.global_position
 			return
 		"establishing":
