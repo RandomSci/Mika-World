@@ -114,6 +114,8 @@ static func help(brain, o: Dictionary) -> Dictionary:
 	rr.state = "talking"
 	rr._face_yaw = atan2(me.global_position.x - rr.global_position.x, me.global_position.z - rr.global_position.z)
 	me.look_head_at(rr.global_position + Vector3(0, 1.6, 0))
+	if brain.is_foreground() and brain.main.get("director"):
+		brain.main.director.focus_conversation(rr, 12.0)          # both faces, the hand-over in the picture
 	var need: Dictionary = r.get("need", {})
 	if need.has("item") and me.has_clip("interact"):
 		me.play_gesture("interact", 0.25, 0.4)             # (handing it over)

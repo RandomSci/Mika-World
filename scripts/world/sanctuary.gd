@@ -641,6 +641,7 @@ func _build_props() -> void:
 	cl.omni_range = 4.5
 	cl.light_volumetric_fog_energy = 0.4
 	altar_crystal.add_child(cl)
+	ThirdPersonCamera.keep_lens_out(altar_crystal, 0.9)
 	# Statue watching over the gateway
 	var statue := place_mesh(_part_mesh("gothic_statue"), Vector3(-5.2, 0.0, -15.6), 0.25, Vector3.ONE * 1.25, true)
 	statue.position.y = terrain.height(-5.2, -15.6) - 0.05

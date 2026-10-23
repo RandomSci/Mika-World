@@ -3,6 +3,8 @@ shader_type spatial;
 // UV.y = 0 at root, 1 at tip. Instance colour (multimesh) carries per-clump tint.
 render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specular_schlick_ggx;
 
+#include "res://shaders/nature/see_through.gdshaderinc"
+
 uniform vec3 root_color : source_color = vec3(0.05, 0.08, 0.03);
 uniform vec3 tip_color : source_color = vec3(0.26, 0.38, 0.12);
 uniform vec3 dry_color : source_color = vec3(0.42, 0.42, 0.2);
@@ -39,6 +41,7 @@ void vertex() {
 }
 
 void fragment() {
+	see_through((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, CAMERA_POSITION_WORLD, FRAGCOORD.xy);
 	float n = texture(breakup_noise, wpos.xz * 0.03).r;
 	vec3 tip = mix(tip_color, dry_color, smoothstep(0.55, 0.85, n) * 0.6) * COLOR.rgb;
 	ALBEDO = mix(root_color, tip, smoothstep(0.0, 0.85, tipness));

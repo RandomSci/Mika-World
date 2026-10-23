@@ -96,7 +96,7 @@ func _stargaze_side(phase: int, sides: Array, mid: Vector3, axis: Vector3, sd: V
 		var clear := true
 		for c in [ca, cb]:
 			var head: Vector3 = (c as WorldCharacter).skeleton.global_transform * (c as WorldCharacter).skeleton.get_bone_global_pose((c as WorldCharacter).skeleton.find_bone("Head")).origin
-			var q := PhysicsRayQueryParameters3D.create(p, head, 1 | 4)
+			var q := PhysicsRayQueryParameters3D.create(p, head, LOS)
 			q.exclude = [ca.get_rid(), cb.get_rid()]
 			var hit := space.intersect_ray(q)
 			if not hit.is_empty() and (hit.position as Vector3).distance_to(head) > 0.4:
@@ -114,23 +114,24 @@ func _ground_y(p: Vector3) -> float:
 
 ## Performance shot profiles (radius / height in metres, yaw degrees from her facing at the cut; yaw_to
 ## makes a slow orbit across the shot; look = chest | feet). PERMANENT RULE (docs/world_look_rules.md): no face or
-## hands close-ups - every shot is knees-up or wider, and _apply() enforces it (FramingRule).
+## hands close-ups - and since 20 Oct every shot head to feet: 4.8 m or more (the 3.0 to 3.8 m shots showed the girls
+## from the chest up during the lake dance, 24 Oct recording).
 const PERF_SHOTS := {
 	"casual": [
-		{"name": "medium_front", "radius": 3.0, "height": 1.35, "yaw": 15.0, "look": "chest", "fov": 44.0},
-		{"name": "full_body", "radius": 4.3, "height": 1.05, "yaw": -32.0, "look": "chest", "fov": 50.0},
-		{"name": "full_body_side", "radius": 4.0, "height": 1.2, "yaw": 55.0, "look": "chest", "fov": 48.0},
-		{"name": "slow_orbit", "radius": 3.6, "height": 1.25, "yaw": -70.0, "yaw_to": 10.0, "look": "chest", "fov": 47.0},
+		{"name": "full_front", "radius": 4.8, "height": 1.3, "yaw": 15.0, "look": "chest", "fov": 50.0},
+		{"name": "full_body", "radius": 4.8, "height": 1.05, "yaw": -32.0, "look": "chest", "fov": 50.0},
+		{"name": "full_body_side", "radius": 4.8, "height": 1.2, "yaw": 55.0, "look": "chest", "fov": 48.0},
+		{"name": "slow_orbit", "radius": 4.8, "height": 1.25, "yaw": -70.0, "yaw_to": 10.0, "look": "chest", "fov": 47.0},
 		{"name": "wide_env", "radius": 7.5, "height": 2.3, "yaw": 38.0, "look": "chest", "fov": 54.0},
-		{"name": "low_hero", "radius": 3.6, "height": 0.9, "yaw": -18.0, "look": "chest", "fov": 50.0},
+		{"name": "low_hero", "radius": 4.8, "height": 0.9, "yaw": -18.0, "look": "chest", "fov": 50.0},
 	],
 	"special": [
 		{"name": "establishing", "radius": 9.0, "height": 3.0, "yaw": 25.0, "look": "chest", "fov": 55.0},
-		{"name": "slow_orbit", "radius": 3.8, "height": 1.3, "yaw": -90.0, "yaw_to": 20.0, "look": "chest", "fov": 46.0},
-		{"name": "medium_wide", "radius": 3.3, "height": 1.3, "yaw": 30.0, "look": "chest", "fov": 48.0},
+		{"name": "slow_orbit", "radius": 4.9, "height": 1.3, "yaw": -90.0, "yaw_to": 20.0, "look": "chest", "fov": 46.0},
+		{"name": "full_wide", "radius": 5.0, "height": 1.3, "yaw": 30.0, "look": "chest", "fov": 50.0},
 		{"name": "silhouette_low", "radius": 5.0, "height": 0.55, "yaw": -150.0, "look": "chest", "fov": 50.0},
-		{"name": "full_body_low", "radius": 4.0, "height": 1.1, "yaw": 20.0, "look": "chest", "fov": 50.0},
-		{"name": "finale_pullback", "radius": 4.5, "height": 1.6, "yaw": 0.0, "look": "chest", "fov": 50.0, "pull": 2.5},
+		{"name": "full_body_low", "radius": 4.8, "height": 1.1, "yaw": 20.0, "look": "chest", "fov": 50.0},
+		{"name": "finale_pullback", "radius": 5.0, "height": 1.6, "yaw": 0.0, "look": "chest", "fov": 50.0, "pull": 2.5},
 	],
 }
 
@@ -251,6 +252,9 @@ func _perf_look(what: String) -> Vector3:
 ## follow lens sits ahead of her and to one side, looking back at her face; the side with room wins and is kept (no
 ## flip-flopping); straight behind only while neither front side has room, or for a few seconds when a new place opens
 ## up in front of them.
+## What blocks the lens's view: the world, the vegetation layer, and what only the lens collides with (the bright
+## crystals, ThirdPersonCamera.LENS_ONLY)
+const LOS := 1 | 4 | ThirdPersonCamera.LENS_ONLY
 const LEAD_ANGLE := 0.7                 # radians off her face (about 40 degrees): the three-quarter front
 const LEAD_DISTANCE := 4.1              # whole body at the rig's lens, head to feet, never a close-up (4.9 m left her a third of the picture, 23 Oct check)
 const LEAD_PITCH := -0.13               # a little above her eyes, looking slightly down
@@ -374,6 +378,9 @@ var _shake_t := 0.0
 
 func _process(delta: float) -> void:
 	_since_change += delta
+	# leaves, plants and grass between the lens and her go see-through (shaders/nature/see_through.gdshaderinc)
+	if mika and mika.visible:
+		RenderingServer.global_shader_parameter_set("lens_subject", mika.global_position + Vector3(0, 1.0, 0))
 	var real_dt := delta / maxf(Engine.time_scale, 0.05)
 	TrailerCam.tick_global(real_dt)
 	_shake_t += real_dt
@@ -439,7 +446,7 @@ func _guard_mika(delta: float) -> void:
 	var seen := not cam.is_position_behind(head) and Rect2(Vector2.ZERO, vs).has_point(cam.unproject_position(head)) \
 		and not _mate_blocks(cam.global_position, head)
 	if seen:
-		var q := PhysicsRayQueryParameters3D.create(cam.global_position, head, 1 | 4)     # (walls, rocks and the trunks)
+		var q := PhysicsRayQueryParameters3D.create(cam.global_position, head, LOS)     # (walls, rocks and the trunks)
 		q.exclude = [mika.get_rid()]
 		var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
 		seen = hit.is_empty() or (hit.position as Vector3).distance_to(head) < 0.4
@@ -686,7 +693,7 @@ func _frame(delta: float) -> void:
 			var hit_len := rig.arm.get_hit_length()
 			var squeezed := hit_len < 1.6
 			var head := mika.global_position + Vector3(0, 1.45, 0)
-			var oq := PhysicsRayQueryParameters3D.create(rig.camera.global_position, head, 1 | 4)
+			var oq := PhysicsRayQueryParameters3D.create(rig.camera.global_position, head, LOS)
 			oq.exclude = [mika.get_rid()]
 			var ohit := mika.get_world_3d().direct_space_state.intersect_ray(oq)
 			_chase_hidden_t = (_chase_hidden_t + delta) if (not ohit.is_empty() and (ohit.position as Vector3).distance_to(head) > 0.5) else 0.0
@@ -900,7 +907,7 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		var head := mika.global_position + Vector3(0, 1.45, 0)
 		var seen := rad_to_deg((look - pos).angle_to(head - pos)) < fov * 0.5 * 0.85
 		if seen:
-			var vq := PhysicsRayQueryParameters3D.create(pos, head, 1 | 4)
+			var vq := PhysicsRayQueryParameters3D.create(pos, head, LOS)
 			vq.exclude = [mika.get_rid()]
 			var vh := mika.get_world_3d().direct_space_state.intersect_ray(vq)
 			seen = vh.is_empty() or (vh.position as Vector3).distance_to(head) < 0.5
@@ -922,6 +929,9 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		pos = fr.pos
 		look = fr.look
 		fov = fr.fov
+	# last of all: never inside a crystal's keep-out (the steps above move the lens; this one has the final word)
+	if mika:
+		pos = ThirdPersonCamera.out_of_keepouts(mika.get_world_3d().direct_space_state, pos)
 	# a fight's shot change is a CUT (eased, the lens swept between two angles - through a fighter, 2026-10-17)
 	var cut := _since_change < 0.05 and (_pos.distance_to(pos) > 4.0 or not rig.shot_active or mode == "combat")
 	if cut or not rig.shot_active:
@@ -1023,7 +1033,7 @@ func _combat_guard(delta: float) -> void:
 	for c in fighters:
 		for hgt in [1.15, 0.8]:
 			var aim := (c as Node3D).global_position + Vector3(0, hgt, 0)
-			var q := PhysicsRayQueryParameters3D.create(_pos, aim, 1 | 4)
+			var q := PhysicsRayQueryParameters3D.create(_pos, aim, LOS)
 			q.exclude = ex
 			var hit := space.intersect_ray(q)
 			if not hit.is_empty() and (hit.position as Vector3).distance_to(aim) > 0.5:
@@ -1038,7 +1048,7 @@ func _view_ok(pos: Vector3, look: Vector3) -> bool:
 	var space := mika.get_world_3d().direct_space_state
 	if CombatFraming.inside_solid(space, pos, 0.35):
 		return false
-	var q := PhysicsRayQueryParameters3D.create(pos, look, 1 | 4)
+	var q := PhysicsRayQueryParameters3D.create(pos, look, LOS)
 	q.exclude = [mika.get_rid()]
 	if mode == "scene":
 		# (a staged two-shot looks between them: Luna's own body in that line is no wall, and the 2.6 m rescue lens it
@@ -1079,7 +1089,7 @@ var _conv_lines := 0
 func _background_clutter(cam: Vector3, at: Vector3) -> float:
 	var dir := (at - cam).normalized()
 	var q := PhysicsRayQueryParameters3D.create(at + dir * 0.6, at + dir * 3.6)
-	q.collision_mask = 1 | 4
+	q.collision_mask = LOS
 	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
 	return 0.0 if hit.is_empty() else 1.0 - clampf((at.distance_to(hit.position) - 0.6) / 3.0, 0.0, 1.0)
 
@@ -1088,7 +1098,7 @@ func _two_clear(cam: Vector3, a: Vector3, b: Vector3) -> bool:
 	var space := mika.get_world_3d().direct_space_state
 	for t in [a, b]:
 		var q := PhysicsRayQueryParameters3D.create(cam, t + Vector3(0, 1.4, 0))
-		q.collision_mask = 1 | 4
+		q.collision_mask = LOS
 		q.exclude = [mika.get_rid()] + ([_conversation.get_rid()] if _conversation is CollisionObject3D else [])
 		if not space.intersect_ray(q).is_empty():
 			return false
@@ -1104,7 +1114,7 @@ func _crowded(space: PhysicsDirectSpaceState3D, pos: Vector3, look: Vector3) -> 
 			ex.append((c as CollisionObject3D).get_rid())
 	for j in 8:                                       # level probes: the ground under a low lens never counts
 		var a := TAU * j / 8.0
-		var q := PhysicsRayQueryParameters3D.create(pos, pos + Vector3(cos(a), 0, sin(a)) * 0.6, 1 | 4)
+		var q := PhysicsRayQueryParameters3D.create(pos, pos + Vector3(cos(a), 0, sin(a)) * 0.6, LOS)
 		q.exclude = ex
 		if not space.intersect_ray(q).is_empty():
 			return true
@@ -1143,7 +1153,7 @@ func _clear_line(subject: Vector3, cam: Vector3) -> Vector3:
 	if dir.length() < 0.7:
 		return cam
 	var start := subject + dir.normalized() * 0.6
-	var q := PhysicsRayQueryParameters3D.create(start, cam, 1 | 4)
+	var q := PhysicsRayQueryParameters3D.create(start, cam, LOS)
 	q.exclude = [mika.get_rid()]
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
@@ -1179,7 +1189,7 @@ func _frame_ok(pos: Vector3, look: Vector3, fov: float, head: Vector3, feet_y: f
 	var ang := rad_to_deg((look - pos).angle_to(head - pos))
 	if ang > fov * 0.5 * 0.8:
 		return false
-	var q := PhysicsRayQueryParameters3D.create(pos, head, 1 | 4)
+	var q := PhysicsRayQueryParameters3D.create(pos, head, LOS)
 	q.exclude = [mika.get_rid()]
 	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
 	return hit.is_empty() or (hit.position as Vector3).distance_to(head) < 0.4
@@ -1197,7 +1207,7 @@ func _solve_shot(p: Vector3, look: Vector3, fov: float, fwd: Vector3) -> Vector3
 			if not _frame_ok(c, look, fov, head, p.y):
 				continue
 			# what she works on should be visible from there too
-			var q := PhysicsRayQueryParameters3D.create(c, look, 1 | 4)
+			var q := PhysicsRayQueryParameters3D.create(c, look, LOS)
 			q.exclude = [mika.get_rid()]
 			var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
 			var sees := hit.is_empty() or (hit.position as Vector3).distance_to(look) < 0.6

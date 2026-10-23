@@ -39,3 +39,7 @@ func _process(_delta: float) -> void:
 		hits += 1
 		cam.global_position = r.pos
 		cam.fov = r.fov
+	# (its pull back along the view line can end inside a crystal's keep-out: out again, 24 Oct)
+	var kp := ThirdPersonCamera.out_of_keepouts(cam.get_world_3d().direct_space_state, cam.global_position)
+	if kp != cam.global_position:
+		cam.global_position = kp

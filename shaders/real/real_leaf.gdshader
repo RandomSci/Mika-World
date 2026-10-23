@@ -5,6 +5,8 @@
 shader_type spatial;
 render_mode cull_disabled, depth_draw_opaque, diffuse_burley, specular_schlick_ggx;
 
+#include "res://shaders/nature/see_through.gdshaderinc"
+
 #include "res://shaders/nature/gust.gdshaderinc"
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
@@ -54,6 +56,7 @@ void vertex() {
 }
 
 void fragment() {
+	see_through((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, CAMERA_POSITION_WORLD, FRAGCOORD.xy);
 	vec4 t = texture(albedo_tex, UV);
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_cut;

@@ -1745,6 +1745,10 @@ func _chat(o: Dictionary) -> Dictionary:
 	rr._face_yaw = atan2(me.global_position.x - rr.global_position.x, me.global_position.z - rr.global_position.z)
 	rr.play("talk", 0.3)
 	me.look_head_at(rr.global_position + Vector3(0, 1.6, 0))
+	# the two-shot across their eye line, both faces (23 Oct recording: the lens sat behind Mika the whole talk with
+	# Wenna, her stall in front of them left the follow lens no room)
+	if is_foreground() and main.get("director"):
+		main.director.focus_conversation(rr, 14.0)
 	var tp: Dictionary = o.topic
 	await main.voice.say(String(rr.data.get("voice", rr.id)), String(tp.line), {"max_wait": 2.5})
 	await get_tree().create_timer(0.3).timeout
@@ -2225,6 +2229,7 @@ func _use(id: String) -> Dictionary:
 	var label := it.label
 	var area := String(main.streaming.current_id)
 	if not await _walk(_stand_at(it)):
+		print("[brain] %s could not reach %s: %s, interrupt %s, walking_along %s, cancel %s, %.1f m to %s" % [agent_id, id, me.last_rejection, _interrupt, walking_along, _cancel, me.global_position.distance_to(_stand_at(it)), str(_stand_at(it))])
 		return {"ok": false, "detail": "could not reach %s" % label}
 	# the walk can outlive the place: a journey unloads the area and frees its interactables while she walks (after a
 	# permanent transformation she resumes her interrupted activity; touching the freed one crashed Godot at the

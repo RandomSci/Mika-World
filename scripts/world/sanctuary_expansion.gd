@@ -381,6 +381,7 @@ func build_chamber() -> void:
 	heartstone_light.omni_range = 3.6
 	heartstone_light.light_volumetric_fog_energy = 0.5
 	heartstone.add_child(heartstone_light)
+	ThirdPersonCamera.keep_lens_out(heartstone, 1.0)
 	var hr := HeartstoneReactive.new()
 	hr.name = "Reactive_heartstone"
 	s.add_child(hr)

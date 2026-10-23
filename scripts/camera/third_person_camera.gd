@@ -22,11 +22,31 @@ var _rmb := false
 var _focus := Vector3.ZERO
 
 
+## A layer only the lens collides with (23 Oct: the floating altar crystal and the Heartstone had no body, the arm slid
+## up to them and a glowing crystal filled the stream's picture). Characters and the navmesh never see it.
+const LENS_ONLY := 512
+
+## A sphere the lens keeps out of, round a small bright thing that must never fill the picture.
+static func keep_lens_out(parent: Node3D, radius: float, at := Vector3.ZERO) -> StaticBody3D:
+	var b := StaticBody3D.new()
+	b.name = "LensKeepOut"
+	b.collision_layer = LENS_ONLY
+	b.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var sp := SphereShape3D.new()
+	sp.radius = radius
+	cs.shape = sp
+	b.add_child(cs)
+	parent.add_child(b)
+	b.position = at
+	return b
+
+
 func _ready() -> void:
 	arm = SpringArm3D.new()
 	arm.spring_length = distance
 	arm.margin = 0.15
-	arm.collision_mask = 1 | 4                   # (the vegetation layer too: tree trunks and crowns made for the lens)
+	arm.collision_mask = 1 | 4 | LENS_ONLY       # (the vegetation layer too: tree trunks and crowns made for the lens)
 	var probe := SphereShape3D.new()
 	probe.radius = 0.18
 	arm.shape = probe
@@ -124,7 +144,7 @@ func planar_basis() -> Basis:
 func _process(delta: float) -> void:
 	if shot_active:
 		camera.top_level = true
-		var at := _clear_of_bodies(_shot_pos, _shot_look)
+		var at := out_of_keepouts(get_world_3d().direct_space_state, _clear_of_bodies(_shot_pos, _shot_look))
 		var dir := _shot_look - at
 		if dir.length_squared() > 1e-6:
 			# straight up/down shots need another up vector (avoids a degenerate basis)
@@ -140,6 +160,22 @@ func _process(delta: float) -> void:
 	global_position = _focus
 	rotation = Vector3(pitch, yaw, 0)
 	arm.spring_length = lerpf(arm.spring_length, distance, 1.0 - exp(-10.0 * delta))
+
+
+## Out of every lens keep-out (keep_lens_out: the altar crystal, the Heartstone), straight out to its edge. Here, where
+## the lens is really placed: the director's own push came before other steps that moved it again (24 Oct check, the
+## director's lens 3 m from the altar crystal and the real one 0.4 m).
+static func out_of_keepouts(space: PhysicsDirectSpaceState3D, p: Vector3) -> Vector3:
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = p
+	q.collision_mask = LENS_ONLY
+	for hit in space.intersect_point(q, 4):
+		var b := hit.collider as Node3D
+		var cs := b.get_child(0) as CollisionShape3D if b and b.get_child_count() > 0 else null
+		var r: float = (cs.shape as SphereShape3D).radius if cs and cs.shape is SphereShape3D else 1.0
+		var away := p - b.global_position
+		p = b.global_position + (away.normalized() if away.length() > 0.05 else Vector3.UP) * (r + 0.15)
+	return p
 
 
 ## The very last word on where a directed lens stands: never inside or brushing a mage's body (1.15 m round her,

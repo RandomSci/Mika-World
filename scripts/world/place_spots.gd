@@ -463,6 +463,8 @@ static func options(brain) -> Array:
 		var key := "spot:" + String(s.id)
 		if not area.interactables.has(key):
 			continue
+		if not _walkable_to(area, brain.me, area.interactables[key]):
+			continue
 		var seen := float(brain.mind.knowledge.get("spot_seen:" + String(s.id), 0.0))
 		var lead := String(lead_spots.get(String(s.id), ""))
 		if seen > 0.0 and now - seen < REVISIT_GAP_S and lead == "":
@@ -470,6 +472,27 @@ static func options(brain) -> Array:
 		out.append({"kind": "spot", "key": key, "interactable": key, "spot": String(s.id), "first": seen == 0.0,
 			"clue": String(s.get("clue", "")), "lead": lead, "label": lead if lead != "" else ("look at %s" if seen == 0.0 else "go back to %s") % String(s.name)})
 	return out
+
+
+## Can she really walk there from where she is (not only stand on walkable ground there: the sanctuary's mushroom ring
+## sat on a patch of navmesh cut off from the rest, her path ended 8.6 m short, 23 Oct). Asked once per spot and area
+## visit, the answer kept on the area.
+static func _walkable_to(area: AreaBase, me: WorldCharacter, it: Interactable) -> bool:
+	var memo: Dictionary = area.get_meta("spot_reach", {})
+	if memo.has(it.id):
+		return bool(memo[it.id])
+	var map := me.get_world_3d().navigation_map
+	if NavigationServer3D.map_get_iteration_id(map) == 0:
+		return false
+	var goal := it.approach_point()
+	var path := NavigationServer3D.map_get_path(map, me.global_position, goal, true)
+	var ok := not path.is_empty() and (path[path.size() - 1] as Vector3).distance_to(goal) < 2.0
+	memo[it.id] = ok
+	area.set_meta("spot_reach", memo)
+	if not ok:
+		print("[spots] %s: %s cannot be walked to from where she is (path ends %.1f m short), not offered" % [area.area_id, it.id,
+			(path[path.size() - 1] as Vector3).distance_to(goal) if not path.is_empty() else -1.0])
+	return ok
 
 
 static func score(o: Dictionary, needs: Dictionary) -> Dictionary:
@@ -543,7 +566,26 @@ static func visit(brain, o: Dictionary) -> Dictionary:
 		text += (" Now it is night, and %s." % String(s.night)) if night else " Notice something you missed before, or say what you think about it now that you know more."
 	var talk := {}
 	if other != "" and brain.main.mage_talk and brain.main.mage_talk.dialogue:
+		# (24 Oct recording: the clue talk was refused, "already talking", or ended at once, "they moved apart") the
+		# chat they are in finishes first, and the other comes over to see what she found
+		var dlg = brain.main.mage_talk.dialogue
+		var tw := Time.get_ticks_msec()
+		while dlg.active and Time.get_ticks_msec() - tw < 20000:
+			await brain.get_tree().process_frame
+		var oc: WorldCharacter = brain.main.characters[other]
+		var me_c: WorldCharacter = brain.me
+		if oc.global_position.distance_to(me_c.global_position) > 2.6:
+			var map := me_c.get_world_3d().navigation_map
+			var side := (oc.global_position - me_c.global_position)
+			side.y = 0
+			side = side.normalized() if side.length() > 0.1 else me_c.global_transform.basis.x
+			oc.navigate_to(NavigationServer3D.map_get_closest_point(map, me_c.global_position + side * 1.5), false)
+			var tc := Time.get_ticks_msec()
+			while oc.current_action == "navigate_to" and Time.get_ticks_msec() - tc < 12000:
+				await brain.get_tree().process_frame
+			oc.look_at_point(brain.main.world.interactables["spot:" + String(s.id)].global_position)
 		talk = await brain.main.mage_talk.dialogue.converse(who, other, {"mode": "event", "topic": {"text": text, "key": "spot:" + String(s.id)}})
+	print("[spots] %s at %s: talk with '%s' -> %s" % [who, s.id, other, str(talk.get("detail", "%d lines" % (talk.get("lines", []) as Array).size()))])
 	# each girl keeps her own guesses about the case (said in this talk), to bring up and test later
 	if first and String(s.get("clue", "")) != "" and talk.has("lines"):
 		for g in [who, other]:
