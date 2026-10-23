@@ -162,11 +162,19 @@ func setup(m: Node) -> void:
 
 
 # ------------------------------------------------------------------ heat and video memory
+## One line of a sysfs file. sysfs reports every file as 4096 bytes, so get_file_as_string decoded the unread rest of
+## that buffer (garbage) as UTF-8: a burst of "Unicode parsing error" lines every 4 s all stream long, and the CPU
+## temperature stopped updating whenever the garbage made the number invalid (found 23 Oct).
+static func _read_sys(path: String) -> String:
+	var f := FileAccess.open(path, FileAccess.READ)
+	return f.get_line().strip_edges() if f else ""
+
+
 ## The CPU package temperature file (coretemp / k10temp), read directly: no process to start.
 func _find_cpu_sensor() -> void:
 	for d in DirAccess.get_directories_at("/sys/class/hwmon"):
 		var base := "/sys/class/hwmon/" + d
-		var nm := FileAccess.get_file_as_string(base + "/name").strip_edges()
+		var nm := _read_sys(base + "/name")
 		if nm in ["coretemp", "k10temp", "zenpower"]:
 			_cpu_temp_path = base + "/temp1_input"
 			return
@@ -180,7 +188,7 @@ func _sense(delta: float) -> void:
 		return
 	_sense_t = 0.0
 	if _cpu_temp_path != "":
-		var raw := FileAccess.get_file_as_string(_cpu_temp_path).strip_edges()
+		var raw := _read_sys(_cpu_temp_path)
 		if raw.is_valid_int():
 			sensors.cpu_c = float(raw) / 1000.0
 	if not _sensing:
