@@ -1072,20 +1072,15 @@ func _race_goal() -> Vector3:
 	return Vector3.INF
 
 
-## What to call a race's finish: the nearest thing there with a name, else "that spot over there".
+## What to call a race's finish: the named place it is in when that is not where they stand, else "that spot over
+## there" (interactable labels are actions, "read the tablet of the heartstone", never names).
 func _race_place(g: Vector3) -> String:
-	var best := "that spot over there"
-	var best_d := 7.0
-	if main.world:
-		for it in main.world.interactables.values():
-			if it is Interactable and is_instance_valid(it):
-				var d := (it as Node3D).global_position.distance_to(g)
-				var lab := String((it as Interactable).label).to_lower()
-				# a plain name only (a practice target's "strike rune target 3" sounded like a menu on stream)
-				if d < best_d and lab != "" and not lab.contains("target") and RegEx.create_from_string("[0-9]").search(lab) == null:
-					best_d = d
-					best = lab if lab.begins_with("the ") else "the " + lab
-	return best
+	if main.world and main.streaming.current_id == "sanctuary":
+		var there := SanctuaryBrain.sub_area(main.world, g)
+		var here := SanctuaryBrain.sub_area(main.world, me.global_position)
+		if there != "" and there != here and WorldState.sanctuary.sub_areas.has(there):
+			return "the " + String(WorldState.sanctuary.sub_areas[there].name)
+	return "that spot over there"
 
 
 ## How far Luna's own activities may take her from Mika (the camera is always on Mika).
