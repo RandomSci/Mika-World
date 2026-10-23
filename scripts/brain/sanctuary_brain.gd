@@ -515,6 +515,11 @@ func options() -> Array:
 		var last_k := float(mind.activity_counts.get(String(o.key), {}).get("last_unix", 0))
 		if last_k > 0.0 and now_r - last_k < REPEAT_GAP_S:
 			return false
+		# the same thing in other words counts too (2026-10-23 live: "look at a cluster of rocks and old stones" three
+		# times running, a new spot each time, and a viewer wrote "so many rocks")
+		var last_l := float(mind.activity_counts.get("label:" + String(o.get("label", "")), {}).get("last_unix", 0))
+		if last_l > 0.0 and now_r - last_l < REPEAT_GAP_S:
+			return false
 		if o.kind in ["visit", "expedition"] and String(o.get("area", "")) != "sanctuary" and not last_targets.is_empty() \
 				and String(last_targets.back()) == String(o.get("area", "")):
 			return false
@@ -1018,6 +1023,7 @@ func _loop() -> void:
 		var secs := (Time.get_ticks_msec() - t0) / 1000.0
 		WorldState.note_activity(choice.key, agent_id)
 		WorldState.note_activity("kind:" + choice.kind, agent_id)
+		WorldState.note_activity("label:" + String(choice.label), agent_id)
 		_recent_kinds.append(choice.kind)
 		_recent_targets.append(choice.key)
 		if _recent_kinds.size() > RECENT_KINDS:
