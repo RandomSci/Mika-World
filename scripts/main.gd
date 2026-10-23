@@ -166,7 +166,14 @@ func _ready() -> void:
 	if not resume.is_empty():
 		var at: Vector3 = resume.pos
 		var snapped := NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, at)
-		at = snapped if snapped != Vector3.ZERO and snapped.distance_to(at) < 3.0 else at
+		if snapped != Vector3.ZERO and snapped.distance_to(at) < 3.0:
+			at = snapped
+		else:
+			# a saved spot nowhere near the ground (2026-10-23: saved while falling, y -8 million): the nearest
+			# walkable point under or over it, never the spot itself
+			at = await snap_to_nav(Vector3(at.x, clampf(at.y, -50.0, 200.0), at.z))
+			if at.y < -40.0:
+				at = NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, Vector3(at.x, 0.0, at.z))
 		mika.global_position = at + Vector3(0, 0.1, 0)
 		mika.velocity = Vector3.ZERO
 		camera_rig.snap_behind()

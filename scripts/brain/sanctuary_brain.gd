@@ -1054,9 +1054,11 @@ func _loop() -> void:
 
 ## Somewhere 12 to 36 m away along the paths, ahead or to the side, on about the same level: a race's finish.
 func _race_goal() -> Vector3:
-	if main.world == null or not me.visible:
+	# (not at the lake: its walkable paths run over water; on 2026-10-23 a race there ran Mika off the ground)
+	if main.world == null or not me.visible or main.streaming.current_id == "lantern_lake":
 		return Vector3.INF
 	var map := me.get_world_3d().navigation_map
+	var space := me.get_world_3d().direct_space_state
 	var fwd := -me.global_transform.basis.z
 	fwd.y = 0.0
 	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
@@ -1065,6 +1067,10 @@ func _race_goal() -> Vector3:
 		var want := me.global_position + fwd.rotated(Vector3.UP, ang) * rng.randf_range(16.0, 26.0)
 		var g := NavigationServer3D.map_get_closest_point(map, want)
 		if Vector2(g.x - want.x, g.z - want.z).length() > 3.0 or absf(g.y - me.global_position.y) > 3.0:
+			continue
+		# solid ground under the finish (a navmesh point is not always a floor)
+		var ray := PhysicsRayQueryParameters3D.create(g + Vector3(0, 1.5, 0), g + Vector3(0, -2.0, 0), me.collision_mask, [me.get_rid()])
+		if space.intersect_ray(ray).is_empty():
 			continue
 		var path := NavigationServer3D.map_get_path(map, me.global_position, g, true)
 		if path.size() < 2:

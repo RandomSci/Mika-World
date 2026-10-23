@@ -56,3 +56,34 @@ func _physics_process(_delta: float) -> void:
 					"reaction": c.reaction.phase if c.reaction else ""})
 				push_warning("[teleport_guard] %s moved %.2f m in one frame" % [who, d])
 		_last[who] = p
+		_fall_check(who, c, loading)
+
+
+## Falling out of the world (2026-10-23 live: Mika ran a race off the ground at Lantern Lake and fell for 21 minutes,
+## the camera following her down into an empty purple screen). Where she last stood on the floor is remembered; well
+## below it with no floor under her, she is put back there and whatever she was doing is stopped. Logged, not hidden.
+const FALL_BELOW_M := 6.0
+var _floor := {}
+var falls: Array = []
+
+
+func _fall_check(who: String, c: WorldCharacter, loading: bool) -> void:
+	if loading:
+		_floor.erase(who)
+		return
+	if c.is_on_floor():
+		_floor[who] = c.global_position
+		return
+	if not _floor.has(who):
+		return
+	var back: Vector3 = _floor[who]
+	if c.global_position.y > back.y - FALL_BELOW_M:
+		return
+	falls.append({"who": who, "from": [snappedf(back.x, 0.1), snappedf(back.y, 0.1), snappedf(back.z, 0.1)],
+		"area": main.streaming.current_id if main.get("streaming") else "", "action": c.current_action, "clock": WorldState.clock_text()})
+	push_warning("[fall_guard] %s fell out of the world during '%s': put back where she last stood %s" % [who, c.current_action, back.snapped(Vector3.ONE * 0.1)])
+	c.stop_action()
+	allow(c)
+	c.global_position = back + Vector3(0, 0.05, 0)
+	c.velocity = Vector3.ZERO
+	_last[who] = c.global_position
