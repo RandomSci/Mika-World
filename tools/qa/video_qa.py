@@ -16,7 +16,7 @@ import csv, os, subprocess, sys
 
 W, H, RATE = 96, 54, 10
 # thresholds (the whole-body rule: at the follow lens's 4 m the face fraction is about 0.05; chest-up is 0.09 and up)
-CLOSE_FACE = 0.075
+CLOSE_FACE = 0.10                      # FramingRule's own limit; head and feet both in the picture is the "cut off" check
 RULES = {  # kind: (minimum run in s to count, major?)
     "cut off": (1.0, True), "too close": (0.6, True), "hidden": (1.0, True), "lens in a keep-out": (0.1, True),
     "black": (0.5, True), "white-out": (0.5, False), "frozen": (4.0, True), "silent": (25.0, False),

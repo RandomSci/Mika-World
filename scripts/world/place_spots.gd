@@ -479,7 +479,9 @@ static func options(brain) -> Array:
 ## visit, the answer kept on the area.
 static func _walkable_to(area: AreaBase, me: WorldCharacter, it: Interactable) -> bool:
 	var memo: Dictionary = area.get_meta("spot_reach", {})
-	if memo.has(it.id):
+	# a yes is kept for the visit; a no only for 20 s (asked from a cut-off arrival point, the grove guardian - the
+	# chapter's next clue - stayed "unreachable" for the whole visit and the story could not go on, 24 Oct)
+	if memo.has(it.id) and (bool(memo[it.id]) or Time.get_ticks_msec() - int(area.get_meta("spot_reach_t", {}).get(it.id, 0)) < 20000):
 		return bool(memo[it.id])
 	var map := me.get_world_3d().navigation_map
 	if NavigationServer3D.map_get_iteration_id(map) == 0:
@@ -487,7 +489,16 @@ static func _walkable_to(area: AreaBase, me: WorldCharacter, it: Interactable) -
 	var goal := it.approach_point()
 	var path := NavigationServer3D.map_get_path(map, me.global_position, goal, true)
 	var ok := not path.is_empty() and (path[path.size() - 1] as Vector3).distance_to(goal) < 2.0
+	if not ok and area.points_of_interest.has(it.location_id):
+		# from the place's own centre too: she may stand somewhere odd just now, but the place itself reaches it
+		var from: Vector3 = NavigationServer3D.map_get_closest_point(map, area.points_of_interest[it.location_id].position)
+		var p2 := NavigationServer3D.map_get_path(map, from, goal, true)
+		ok = not p2.is_empty() and (p2[p2.size() - 1] as Vector3).distance_to(goal) < 2.0 \
+			and not NavigationServer3D.map_get_path(map, me.global_position, from, true).is_empty()
 	memo[it.id] = ok
+	var tm: Dictionary = area.get_meta("spot_reach_t", {})
+	tm[it.id] = Time.get_ticks_msec()
+	area.set_meta("spot_reach_t", tm)
 	area.set_meta("spot_reach", memo)
 	if not ok:
 		print("[spots] %s: %s cannot be walked to from where she is (path ends %.1f m short), not offered" % [area.area_id, it.id,

@@ -51,9 +51,19 @@ func _process(delta: float) -> void:
 		for c in main.characters.values():
 			if c is CollisionObject3D:
 				ex.append((c as CollisionObject3D).get_rid())
-		q.exclude = ex
-		var hit := space.intersect_ray(q)
-		hidden = not hit.is_empty() and (hit.position as Vector3).distance_to(head) > 0.4
+		# spell walls, wards and shields are see-through: not "hidden" behind them (the duel's flags, 24 Oct)
+		for _try in 6:
+			q.exclude = ex
+			var hit := space.intersect_ray(q)
+			if hit.is_empty() or (hit.position as Vector3).distance_to(head) <= 0.4:
+				hidden = false
+				break
+			var col := hit.collider as Node
+			if col and _see_through(col):
+				ex.append((col as CollisionObject3D).get_rid())
+				continue
+			hidden = true
+			break
 	var pq := PhysicsPointQueryParameters3D.new()
 	pq.position = cam.global_position
 	pq.collision_mask = ThirdPersonCamera.LENS_ONLY
@@ -65,6 +75,16 @@ func _process(delta: float) -> void:
 	_f.store_line("%d,%.2f,%s,%d,%d,%d,%.3f,%d,%.2f,%d,%d,%s" % [Engine.get_frames_drawn(), Time.get_ticks_msec() / 1000.0, mode,
 		int(mika.visible), int(head_in), int(feet_in), FramingRule.face_frac(cam.global_position, head, cam.fov), int(hidden),
 		cam.global_position.distance_to(head), int(in_ko), int(luna_in), st])
+
+
+static func _see_through(n: Node) -> bool:
+	var p := String(n.get_path()).to_lower()
+	var sc: Script = n.get_script()
+	var sp := String(sc.resource_path).to_lower() if sc else ""
+	for w in ["ward", "shield", "spell", "wall_fx", "barrier", "orb", "bolt", "fx", "magic"]:
+		if p.contains(w) or sp.contains("/magic/") or sp.contains("/duel/"):
+			return true
+	return false
 
 
 func _exit_tree() -> void:
