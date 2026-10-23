@@ -1,0 +1,45 @@
+{
+ "_note": "Chapter 2 (Selwyn 23 Oct: 'More stories/plots'). Begins once the Heartstone chapter is done. Someone is quietly taking light from the old shrines of every region, ahead of the girls; they follow her trail across all six regions (the ash marks are PlaceSpots with this chapter), learn who she is and why, and end it with a gift, not a fight. Clues are knowledge the girls really gain at a spot; leads are only what they have a reason to know (after: any of these clues or knowledge first).",
+ "id": "lamplighter",
+ "title": "The Lamplighter's Trail",
+ "goal": "Become a Level 100 Archmage",
+ "start_notice": "New chapter: The Lamplighter's Trail",
+ "start_knowledge": {"news:snuffed_wayshrine": 1},
+ "start_text": "The night after the Heartstone woke, the little wayshrine in the Whispering Woods went dark. Its candle was not blown out. Its light was taken.",
+ "premise": "Since the Heartstone woke, someone has been following its echo through the old places of the realm, taking a little light from each old flame and leaving a grey mark shaped like a snuffed flame. Who is it, and why?",
+ "clues": {
+  "ash_woods": {"title": "A snuffed flame in the woods", "any_knowledge": ["clue:ash_mark_woods"], "hint": "The woods' wayshrine has a grey mark shaped like a snuffed flame. Its light was taken, not blown out."},
+  "ash_grove": {"title": "The guardian's missing eye", "any_knowledge": ["clue:ash_mark_grove"], "hint": "The grove guardian's lantern eye was lifted out, the same grey ash around it."},
+  "lightless": {"title": "A lantern that gives no light", "any_knowledge": ["clue:lightless_lantern"], "hint": "A hooded traveller bought all the village's blue lamp oil. Her lantern gave no light."},
+  "ash_river": {"title": "The dark reeds", "any_knowledge": ["clue:ash_mark_river"], "hint": "A circle of the river's glowing reeds was drained dark, as if a lantern drank it."},
+  "cut_crystal": {"title": "A crystal cut by a spell", "any_knowledge": ["clue:cut_crystal"], "hint": "A great crystal spire in the caverns was sliced off by a spell."},
+  "ledger": {"title": "Borrowed by S.", "any_knowledge": ["clue:library_ledger_s"], "hint": "Books on drawing light from old flames, borrowed by S. and never returned."},
+  "expelled": {"title": "Sable Wren", "any_knowledge": ["clue:sable_expelled"], "hint": "The academy once expelled a student, Sable Wren, for taking light from the practice crystals."},
+  "ash_high": {"title": "Boot prints going up", "any_knowledge": ["clue:ash_mark_highlands"], "hint": "The same mark on a mountain cairn, and fresh boot prints heading up to the summit."},
+  "letter": {"title": "Sable's letter", "any_knowledge": ["clue:sable_letter"], "hint": "Sable's village, Duskmere, lost every light when its keeper died. She takes a little from each old flame to light it again."},
+  "gift": {"title": "A light sent north", "any_knowledge": ["story:light_given"], "hint": "From the wish stone at Lantern Lake they sent a light of their own north to Duskmere."}
+ },
+ "stages": [
+  {"id": "grey_marks", "title": "Grey Marks", "requires_any": [], "objective": "Find out what happened to the wayshrine in the Whispering Woods."},
+  {"id": "lantern_without_light", "title": "A Lantern Without Light", "requires_any": ["ash_grove", "lightless"], "objective": "Follow the grey marks and find out who carries the lightless lantern."},
+  {"id": "the_trail_north", "title": "The Trail North", "requires_any": ["ash_river", "cut_crystal"], "objective": "The marks lead on. Find out who the traveller is."},
+  {"id": "sable", "title": "Sable", "requires_all": ["ash_high"], "objective": "Follow the boot prints to the summit."},
+  {"id": "the_letter", "title": "The Letter", "requires_all": ["letter"], "objective": "Decide what to do about Sable and Duskmere."},
+  {"id": "light_given", "title": "Light Given", "requires_all": ["gift"], "objective": "Duskmere has a light of its own again. Sable may write one day."}
+ ],
+ "leads": [
+  {"after": ["news:snuffed_wayshrine"], "unless": "clue:ash_mark_woods", "lead": "look at the dark wayshrine in the Whispering Woods", "area": "whispering_woods", "spot": "woods_shrine"},
+  {"after": ["clue:ash_mark_woods"], "unless": "clue:ash_mark_grove", "lead": "check the old guardian at the grove shrine for the same mark", "area": "ancient_grove", "spot": "grove_guardian_statue"},
+  {"after": ["clue:ash_mark_woods"], "unless": "clue:lightless_lantern", "lead": "ask around the village whether anyone saw a stranger with a lantern", "area": "village", "spot": "village_notice_board"},
+  {"after": ["clue:ash_mark_grove", "clue:lightless_lantern"], "unless": "clue:ash_mark_river", "lead": "see if the river's glowing reeds were touched too", "area": "river_valley", "spot": "river_reed_patch"},
+  {"after": ["clue:ash_mark_grove", "clue:lightless_lantern"], "unless": "clue:cut_crystal", "lead": "look for missing light in the crystal caverns", "area": "crystal_caverns", "spot": "cave_cut_crystal"},
+  {"after": ["clue:ash_mark_river", "clue:cut_crystal"], "unless": "clue:sable_expelled", "lead": "ask at the academy whether a mage was ever caught taking light", "area": "academy", "spot": "acad_notice_board"},
+  {"after": ["clue:ash_mark_river", "clue:cut_crystal"], "unless": "clue:library_ledger_s", "lead": "find out who borrowed the books on drawing light", "area": "great_library", "spot": "glib_book_stack"},
+  {"after": ["clue:sable_expelled", "clue:library_ledger_s"], "unless": "clue:ash_mark_highlands", "lead": "follow the trail north up the mountain path", "area": "highland_path", "spot": "high_scratched_cairn"},
+  {"after": ["clue:ash_mark_highlands"], "unless": "clue:sable_letter", "lead": "follow the boot prints to the summit", "area": "celestial_summit", "spot": "summit_camp"},
+  {"after": ["clue:sable_letter"], "unless": "story:light_given", "lead": "send a light of our own north to Duskmere from the wish stone at Lantern Lake, at night", "area": "lantern_lake", "spot": "lake_wish_stone", "night": true}
+ ],
+ "finale": {"spot": "lake_wish_stone", "requires": "clue:sable_letter", "night": true, "knowledge": {"story:light_given": 1},
+  "text": "you came to the wish stone at night to send a light of your own north to Duskmere, for Sable's village. Each of you puts a little of your own magic into a lantern and lets it go across the lake. Say what you wish for Sable and Duskmere, and how it feels to end it this way instead of chasing her."},
+ "unlock": {"knowledge": {"story:sable_friend": 1}, "summary": "A light went north to Duskmere. Somewhere in the dark valley, a window is lit again."}
+}

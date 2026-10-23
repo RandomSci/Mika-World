@@ -445,6 +445,8 @@ func _gen(sp: String, ls: String, transcript: Array, seed: Dictionary, n: int, t
 		+ "Use only YOUR facts below and what was said in this conversation; never invent events, places, creatures or spells. "
 		+ "Natural spoken English: no narration, no stage directions, no emojis, no em dashes, no quotes, do not start with her name every time. "
 		+ "You may ask a question, joke, disagree, share news, suggest doing something together or offer help. Never repeat lines you said recently. "
+		# (Selwyn 23 Oct: "characters that think outside the box") their own minds, not the obvious first reaction
+		+ "Think for yourself, not the obvious first reaction: notice an odd detail, connect it to something you learned somewhere else, make a bold guess or a theory, or suggest an unusual idea you could really try with your magic. Disagree when you see it differently. "
 		+ "This talk should last about %d lines; this is line %d. When it has run its course, close it naturally (a short goodbye or back to what you were doing) and set end to true. "
 		+ "Reply as JSON {\"text\": string, \"end\": bool, \"emotion\": one of %s, \"gesture\": one of [\"\", \"nod\", \"wave\", \"point\"]}.") % [
 		me, PERSONA.get(sp, "a young mage"), other, situation, me, 12 if mode == "combat" else 22, other, target, n, JSON.stringify(EMOTIONS)]
@@ -555,6 +557,10 @@ func _facts(who: String, other: String) -> Dictionary:
 		"you_and_her": {"talks_so_far": int(rel.get("meetings", 0)), "camaraderie": snappedf(float(rel.get("camaraderie", 0.0)), 0.1), "rivalry": snappedf(float(rel.get("rivalry", 0.0)), 0.1)}}
 	if who == "mika" and main.get("story"):
 		fx["your_goal"] = String(main.story.objective())
+	# her own guesses about the running mystery (PlaceSpots saves them as the clues come in): she brings them up, tests them
+	var th: Array = m.knowledge.get("theories", [])
+	if not th.is_empty():
+		fx["your_own_theories_so_far"] = th.slice(-3).map(func(x): return String(x.get("said", "")))
 	if StreamDay.day() > 0:
 		fx["stream_day"] = "Day %d of your stream (Day 1 was the first public stream); mention it only if it fits" % StreamDay.day()
 	return fx

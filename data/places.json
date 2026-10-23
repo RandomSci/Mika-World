@@ -1,0 +1,153 @@
+{
+ "_note": "Small named places in every area (PlaceSpots, Selwyn 23 Oct: 'Detailed 6 regions, more places to explore each region'). Each spot is a real thing built where it stands (prop), a few metres to a few dozen from one of the area's locations (loc, ring = how far out it may be placed). look is what anyone sees, secret is what a closer look finds (said once, then remembered; it may teach knowledge, a clue of the running story chapter or a lore line), night is what is different after dark. chapter: the spot exists only while that story chapter is running or done (the ash marks of 'The Lamplighter's Trail'). The brain offers a spot she has not seen as something to go and look at, and a known one rarely, differently. Props: cairn, standing_stone, stone_bench, ruin_arch, well, spring, statue, tablet, crystal_cluster, mushroom_ring, log, lantern_post, shrine, lookout, chimes, book_stack, ash_mark.",
+ "spots": {
+  "sanctuary": [
+   {"id": "sanct_moss_bench", "name": "the mossy bench behind the colonnade", "loc": "ritual_sanctuary", "ring": [14, 22], "prop": "stone_bench", "gesture": "look_around",
+    "look": "a stone bench half swallowed by moss, worn smooth in two places where people sat for years", "secret": "two names are scratched under the seat, 'Aurel' and 'Isen', with a little circle between them", "knowledge": {"lore:aurel_and_isen": 1}},
+   {"id": "sanct_fallen_capital", "name": "a fallen column top", "loc": "ritual_sanctuary", "ring": [10, 18], "prop": "ruin_arch", "gesture": "crouch_inspect",
+    "look": "a carved column top lying in the grass, far from any column that is still standing", "secret": "the carving is a ring of seven flames, the same count as the pond pattern"},
+   {"id": "sanct_old_cairn", "name": "the old wayfinding cairn", "loc": "mage_training_grounds", "ring": [12, 20], "prop": "cairn", "gesture": "touch",
+    "look": "a waist-high cairn of flat stones, the top one turned so its point aims north", "secret": "every stone has a tiny notch on the same side, someone built it as a compass", "night": "the notched sides face the brightest star"},
+   {"id": "sanct_spring", "name": "a little spring in the ruins", "loc": "ritual_sanctuary", "ring": [16, 26], "prop": "spring", "gesture": "crouch_inspect",
+    "look": "clear water bubbling up between three old paving stones", "secret": "the water is warm, as if something under the sanctuary is still awake", "night": "the water gives off a very faint glow"},
+   {"id": "sanct_wind_chimes", "name": "the chime post", "loc": "mage_training_grounds", "ring": [8, 14], "prop": "chimes", "gesture": "look_up",
+    "look": "a wooden post hung with small stone chimes that knock together in the wind", "secret": "one chime is newer than the rest, someone replaced a broken one not long ago"},
+   {"id": "sanct_mushroom_ring", "name": "a ring of pale mushrooms", "loc": "mage_training_grounds", "ring": [18, 28], "prop": "mushroom_ring", "gesture": "crouch_inspect",
+    "look": "a perfect circle of pale mushrooms in the grass, about two steps across", "secret": "spells cast near it come back a little stronger, the ring drinks stray magic", "night": "the caps glow a soft blue"}
+  ],
+  "arcane_library": [
+   {"id": "lib_book_stack", "name": "a toppled stack of books", "loc": "ancient_spell_library", "ring": [5, 10], "prop": "book_stack", "gesture": "crouch_inspect",
+    "look": "a knee-high pile of books that slid off a shelf and was never put back", "secret": "the top book is a borrowing ledger, the last entry is in a neat hand and only says 'S., three volumes on light, returned never'", "chapter": "lamplighter", "clue": "clue:library_ledger_s"},
+   {"id": "lib_reading_nook", "name": "the reading nook under the stairs", "loc": "ancient_spell_library", "ring": [6, 12], "prop": "stone_bench", "gesture": "look_around",
+    "look": "a stone seat tucked under the stair, with a candle stub on the step beside it", "secret": "the candle stub is fresh, someone reads here at night"},
+   {"id": "lib_carved_tablet", "name": "a tablet in the wall", "loc": "ancient_spell_library", "ring": [4, 9], "prop": "tablet", "gesture": "read_scroll",
+    "look": "a stone tablet set into the shelf wall, covered in tiny writing", "secret": "it lists the keepers of the sanctuary, Aurel's name is the last one, there is room for more", "knowledge": {"lore:keepers_list": 1}}
+  ],
+  "mentor_tower": [
+   {"id": "tower_lookout", "name": "the rock below the tower", "loc": "mentors_tower", "ring": [12, 22], "prop": "lookout", "gesture": "look_far",
+    "look": "a flat rock jutting out of the slope with a long view over the forest", "secret": "you can see the sanctuary, the lake and a thin line of smoke far to the north", "night": "the lake's lanterns are a small gold patch in the dark"},
+   {"id": "tower_old_well", "name": "a dry well at the tower's foot", "loc": "mentors_tower", "ring": [10, 16], "prop": "well", "gesture": "look_down",
+    "look": "an old stone well with no rope and no bucket", "secret": "a dropped pebble takes a long time to land, and it lands in water after all"},
+   {"id": "tower_standing_stone", "name": "the leaning stone", "loc": "mentors_tower", "ring": [14, 24], "prop": "standing_stone", "gesture": "touch",
+    "look": "a tall stone leaning at an angle, as if it was pushed", "secret": "the lean points straight at the summit far away, someone aimed it"}
+  ],
+  "whispering_woods": [
+   {"id": "woods_hollow_log", "name": "a hollow log", "loc": "whispering_woods", "ring": [10, 30], "prop": "log", "gesture": "crouch_inspect",
+    "look": "a fallen trunk hollowed out by years of rain, big enough to crawl through", "secret": "inside, someone has stacked dry kindling and left a flint, a traveller's emergency camp"},
+   {"id": "woods_mushroom_ring", "name": "the fairy ring by the trail", "loc": "whispering_woods", "ring": [12, 34], "prop": "mushroom_ring", "gesture": "crouch_inspect",
+    "look": "a circle of mushrooms just off the trail, the grass inside greener than outside", "secret": "no footprints cross it, the deer walk around it", "night": "the ring glows and the air inside hums"},
+   {"id": "woods_shrine", "name": "a little wayshrine", "loc": "whispering_woods", "ring": [14, 32], "prop": "shrine", "gesture": "pray",
+    "look": "a small stone shrine no taller than a knee, with a niche for a candle", "secret": "the niche holds a grey smudge in the shape of a snuffed flame, the candle's light was taken, not blown out", "chapter": "lamplighter", "clue": "clue:ash_mark_woods"},
+   {"id": "woods_cairn", "name": "the trail cairn", "loc": "whispering_woods", "ring": [8, 26], "prop": "cairn", "gesture": "touch",
+    "look": "a small cairn of river stones beside the trail", "secret": "the stones are from the river, someone carried them up the hill one by one"},
+   {"id": "woods_chimes", "name": "the bone-white chimes", "loc": "whispering_woods", "ring": [16, 36], "prop": "chimes", "gesture": "look_up",
+    "look": "pale wooden chimes hanging from a low branch, clicking softly", "secret": "they only sound when the wind comes from the north, they are a warning bell for storms"}
+  ],
+  "lantern_lake": [
+   {"id": "lake_wish_stone", "name": "the wish stone by the shore", "loc": "lantern_lake", "ring": [8, 18], "prop": "standing_stone", "gesture": "touch",
+    "look": "a smooth standing stone near the water, covered in small scratched marks", "secret": "each mark is a tiny lantern, one for every wish someone sent across the lake", "night": "the scratched lanterns catch the light of the real ones", "knowledge": {"lore:wish_stone": 1}},
+   {"id": "lake_reed_bench", "name": "the bench in the reeds", "loc": "lantern_lake", "ring": [10, 20], "prop": "stone_bench", "gesture": "look_far",
+    "look": "an old bench almost hidden by tall reeds, facing the water", "secret": "it faces exactly where the first lanterns are let go every night"}
+  ],
+  "ancient_grove": [
+   {"id": "grove_root_arch", "name": "the root arch", "loc": "ancient_grove", "ring": [10, 24], "prop": "ruin_arch", "gesture": "look_up",
+    "look": "an old stone arch so wrapped in roots that the tree seems to be holding it up", "secret": "the keystone has a carved eye, and the eye has been scratched out with a blade"},
+   {"id": "grove_spring", "name": "the green spring", "loc": "ancient_grove", "ring": [12, 26], "prop": "spring", "gesture": "crouch_inspect",
+    "look": "a small pool of very green water fed from under a root", "secret": "tiny glowing seeds drift in it and never sink", "night": "the seeds light the pool from below"},
+   {"id": "grove_guardian_statue", "name": "a mossy guardian statue", "loc": "forgotten_forest_shrine", "ring": [8, 16], "prop": "statue", "gesture": "look_up",
+    "look": "a weathered guardian figure, its face almost worn away", "secret": "the hollow where its lantern eye sat is empty and ringed with grey ash, the light was lifted out", "chapter": "lamplighter", "clue": "clue:ash_mark_grove"},
+   {"id": "grove_mushroom_ring", "name": "the giant mushroom ring", "loc": "ancient_grove", "ring": [14, 30], "prop": "mushroom_ring", "gesture": "crouch_inspect",
+    "look": "a ring of mushrooms as big as dinner plates around a mossy stone", "secret": "the stone in the middle is warm, the mushrooms grow toward it"},
+   {"id": "grove_log", "name": "the fallen giant's branch", "loc": "ancient_grove", "ring": [10, 22], "prop": "log", "gesture": "touch",
+    "look": "a branch as thick as a house wall, broken off the fallen giant", "secret": "the rings inside are too many to count, this tree was old before the sanctuary was built"},
+   {"id": "grove_tablet", "name": "a tablet at the shrine stair", "loc": "forgotten_forest_shrine", "ring": [6, 12], "prop": "tablet", "gesture": "read_scroll",
+    "look": "a cracked tablet leaning against the shrine stair", "secret": "it says the grove was kept by 'lightkeepers' who carried one flame between all the old shrines", "knowledge": {"lore:lightkeepers": 1}}
+  ],
+  "river_valley": [
+   {"id": "river_fishing_rock", "name": "the flat fishing rock", "loc": "luminous_river", "ring": [8, 18], "prop": "lookout", "gesture": "look_down",
+    "look": "a flat rock at the river's edge, polished by people sitting on it", "secret": "glowing fish gather in its shadow, they like the shade"},
+   {"id": "river_reed_patch", "name": "a patch of dark reeds", "loc": "luminous_river", "ring": [10, 22], "prop": "ash_mark", "gesture": "crouch_inspect",
+    "look": "a stretch of the glowing reeds that has gone dark and grey", "secret": "the dark patch is a perfect circle, as if a lantern was lowered into it and drank the glow", "chapter": "lamplighter", "clue": "clue:ash_mark_river"},
+   {"id": "river_cairn", "name": "the ford cairn", "loc": "luminous_river", "ring": [6, 16], "prop": "cairn", "gesture": "touch",
+    "look": "a tall cairn on the bank marking the shallow crossing", "secret": "notches on the top stone mark how high the river rose in past floods, the highest is above your head"},
+   {"id": "river_spray_bench", "name": "the bench in the spray", "loc": "waterfall_crossing", "ring": [10, 20], "prop": "stone_bench", "gesture": "look_far",
+    "look": "a stone bench where the waterfall's spray drifts over", "secret": "when the sun is right, a small rainbow sits over the bench"},
+   {"id": "river_crystal", "name": "crystals behind the falls", "loc": "waterfall_crossing", "ring": [12, 22], "prop": "crystal_cluster", "gesture": "crouch_inspect",
+    "look": "a cluster of pale blue crystals growing where the spray never stops", "secret": "they hum in tune with the falling water", "night": "they glow in time with the water"}
+  ],
+  "village": [
+   {"id": "village_notice_board", "name": "the village notice board", "loc": "village_square", "ring": [6, 12], "prop": "tablet", "gesture": "read_scroll",
+    "look": "a board covered in pinned notes, lost goats, a baker wanting help, a lantern festival poster", "secret": "a new note says 'Blue lamp oil sold out. A hooded traveller bought it all and paid in old silver. Her lantern gave no light.'", "chapter": "lamplighter", "clue": "clue:lightless_lantern"},
+   {"id": "village_old_well", "name": "the wishing well", "loc": "village_square", "ring": [8, 16], "prop": "well", "gesture": "look_down",
+    "look": "a second, older well behind the houses, its roof long gone", "secret": "the bottom is full of coins, and one of them is a mage's token from the academy"},
+   {"id": "village_lantern_post", "name": "the oldest lantern post", "loc": "lantern_market", "ring": [6, 14], "prop": "lantern_post", "gesture": "look_up",
+    "look": "an iron lantern post much older than the market around it", "secret": "its lantern never needs oil, it is lit by a tiny trapped spell", "night": "it burns a different colour than the market lanterns"},
+   {"id": "village_cat_bench", "name": "the bench by the workshop", "loc": "craft_workshop", "ring": [6, 12], "prop": "stone_bench", "gesture": "look_around",
+    "look": "a bench in the sun by the workshop where the villagers take their breaks", "secret": "someone has carved a small cat into the armrest, and a real one sleeps there most days"},
+   {"id": "village_shrine", "name": "the corner shrine", "loc": "lantern_market", "ring": [8, 16], "prop": "shrine", "gesture": "pray",
+    "look": "a tiny shrine at the end of the market with flowers left in it", "secret": "the flowers are fresh every morning, nobody admits to bringing them"}
+  ],
+  "observatory_hill": [
+   {"id": "obs_star_bench", "name": "the stargazers' bench", "loc": "village_observatory", "ring": [8, 16], "prop": "stone_bench", "gesture": "look_up",
+    "look": "a long bench facing the sky, with star names carved along the back", "secret": "two of the carved stars are not in any book, the keeper named them himself", "night": "you can find both of his stars from here"},
+   {"id": "obs_cairn", "name": "the summit marker", "loc": "village_observatory", "ring": [10, 18], "prop": "cairn", "gesture": "touch",
+    "look": "a cairn marking the top of the hill", "secret": "a brass plate on it shows the way to the summit temple, three days on foot"},
+   {"id": "obs_lookout", "name": "the hill's edge", "loc": "village_observatory", "ring": [12, 22], "prop": "lookout", "gesture": "look_far",
+    "look": "a rocky edge with the whole village below", "secret": "from here the village streets make the shape of a lantern"}
+  ],
+  "crystal_caverns": [
+   {"id": "cave_cut_crystal", "name": "a cleanly cut crystal", "loc": "luminous_crystal_hall", "ring": [8, 16], "prop": "crystal_cluster", "gesture": "crouch_inspect",
+    "look": "a crystal cluster with one great spire missing", "secret": "the cut is glass smooth, no miner's tool did this, a spell sliced the light out of it", "chapter": "lamplighter", "clue": "clue:cut_crystal"},
+   {"id": "cave_miners_bench", "name": "the miners' bench", "loc": "crystal_entrance", "ring": [6, 14], "prop": "stone_bench", "gesture": "look_around",
+    "look": "a bench at the cave mouth with tally marks scratched along it", "secret": "the tallies stop on the same day, as if the miners all left at once"},
+   {"id": "cave_echo_stone", "name": "the echo stone", "loc": "luminous_crystal_hall", "ring": [10, 18], "prop": "standing_stone", "gesture": "touch",
+    "look": "a smooth black stone standing alone among the crystals", "secret": "say a word to it and the crystals around repeat it, softer and softer"},
+   {"id": "cave_crystal_pool", "name": "a crystal pool", "loc": "crystal_entrance", "ring": [8, 16], "prop": "spring", "gesture": "crouch_inspect",
+    "look": "a shallow pool with crystals growing up out of the water", "secret": "the water is so clear it looks empty until you touch it"}
+  ],
+  "deep_caverns": [
+   {"id": "deep_shore_cairn", "name": "the shore cairn", "loc": "underground_lake", "ring": [6, 14], "prop": "cairn", "gesture": "touch",
+    "look": "a cairn at the edge of the underground lake", "secret": "it hides a sealed jar with a map of the caves inside, drawn by a careful hand"},
+   {"id": "deep_vault_tablet", "name": "a tablet beside the vault path", "loc": "ancient_vault", "ring": [6, 12], "prop": "tablet", "gesture": "read_scroll",
+    "look": "a tablet half buried in rubble near the vault", "secret": "it warns that the vault holds 'the first flame of the lightkeepers', and that it must never be carried out", "knowledge": {"lore:first_flame": 1}},
+   {"id": "deep_crystal_cluster", "name": "the shoreline crystals", "loc": "underground_lake", "ring": [4, 9], "prop": "crystal_cluster", "gesture": "crouch_inspect",
+    "look": "crystals lining the shore, their light reflected in the still water", "secret": "their reflections in the lake are a different colour from the crystals themselves"}
+  ],
+  "highland_path": [
+   {"id": "high_scratched_cairn", "name": "a scratched cairn", "loc": "mountain_path", "ring": [8, 16], "prop": "ash_mark", "gesture": "crouch_inspect",
+    "look": "a waymarker cairn with a grey smear across its top stone", "secret": "the same snuffed flame sign again, and fresh boot prints heading up toward the summit", "chapter": "lamplighter", "clue": "clue:ash_mark_highlands"},
+   {"id": "high_lookout", "name": "the wind ledge", "loc": "cliff_overlook", "ring": [8, 16], "prop": "lookout", "gesture": "look_far",
+    "look": "a ledge where the wind pushes so hard you have to lean into it", "secret": "below, the clouds part now and then and show a valley with no lights in it at all"},
+   {"id": "high_chimes", "name": "the prayer chimes", "loc": "mountain_path", "ring": [10, 20], "prop": "chimes", "gesture": "look_up",
+    "look": "chimes and faded cloth strips tied to a post at a bend in the path", "secret": "each strip has a name on it, travellers who made it to the summit"},
+   {"id": "high_shelter_bench", "name": "the shelter stone", "loc": "mountain_path", "ring": [10, 22], "prop": "stone_bench", "gesture": "look_around",
+    "look": "a low wall of stacked stone with a bench in its lee", "secret": "someone slept here last night, the stones are still warm"}
+  ],
+  "celestial_summit": [
+   {"id": "summit_camp", "name": "a cold campsite", "loc": "cloud_temple", "ring": [10, 20], "prop": "lantern_post", "gesture": "crouch_inspect",
+    "look": "a small campsite tucked behind the temple wall, a bedroll and an iron lantern hanging dark", "secret": "a letter under the lantern: 'To whoever follows me. My village of Duskmere lost every light the night its keeper died. I take only a little from each old flame. When the lantern is full I will go home and light it again. I am sorry. S.'", "chapter": "lamplighter", "clue": "clue:sable_letter"},
+   {"id": "summit_prayer_stones", "name": "the prayer stones", "loc": "cloud_temple", "ring": [8, 16], "prop": "cairn", "gesture": "touch",
+    "look": "a field of tiny stacked stones on the temple steps", "secret": "the newest stack has a small grey feather on top, a phoenix feather"},
+   {"id": "summit_star_tablet", "name": "the star tablet", "loc": "celestial_observatory", "ring": [6, 12], "prop": "tablet", "gesture": "read_scroll",
+    "look": "a stone tablet marked with constellations and lines between them", "secret": "the lines connect the old shrines of every region, it is a map of the lightkeepers' road", "knowledge": {"lore:lightkeepers_road": 1}},
+   {"id": "summit_lookout", "name": "the cloud edge", "loc": "cloud_temple", "ring": [12, 22], "prop": "lookout", "gesture": "look_far",
+    "look": "the very edge of the summit with nothing but cloud below", "secret": "far to the north, past the clouds, one dark valley, Duskmere if the letter is true"}
+  ],
+  "academy": [
+   {"id": "acad_notice_board", "name": "the academy notice board", "loc": "academy_courtyard", "ring": [6, 12], "prop": "tablet", "gesture": "read_scroll",
+    "look": "a stone board with exam lists, lost spellbooks and a club for night-sky studies", "secret": "an old notice, 'Former student Sable Wren expelled for removing light from the practice crystals'", "chapter": "lamplighter", "clue": "clue:sable_expelled"},
+   {"id": "acad_garden_statue", "name": "the founder's statue", "loc": "academy_gardens", "ring": [8, 16], "prop": "statue", "gesture": "look_up",
+    "look": "a tall statue of a mage holding a lamp high, in the middle of the gardens", "secret": "the plaque says the founder was a lightkeeper before the academy existed"},
+   {"id": "acad_fountain_bench", "name": "the bench by the fountain", "loc": "academy_gardens", "ring": [6, 14], "prop": "stone_bench", "gesture": "look_around",
+    "look": "a stone bench where students leave folded paper notes for each other", "secret": "one note is addressed to 'whoever finds this, good luck on your exam', a whole stack of kindness"},
+   {"id": "acad_arena_stone", "name": "the arena's scorched stone", "loc": "advanced_magic_arena", "ring": [10, 18], "prop": "standing_stone", "gesture": "touch",
+    "look": "a standing stone at the arena's edge, black with old scorch marks", "secret": "every scorch mark has a name and a year chalked beside it, the best spells ever cast here"}
+  ],
+  "great_library": [
+   {"id": "glib_book_stack", "name": "the returns cart", "loc": "great_library", "ring": [5, 10], "prop": "book_stack", "gesture": "crouch_inspect",
+    "look": "a pile of books waiting to be shelved", "secret": "three of them are on 'drawing light from old flames', each stamped overdue for a year, borrowed by S. Wren", "chapter": "lamplighter", "clue": "clue:library_ledger_s"},
+   {"id": "glib_reading_bench", "name": "the window seat", "loc": "great_library", "ring": [6, 12], "prop": "stone_bench", "gesture": "look_around",
+    "look": "a deep window seat with cushions worn flat", "secret": "someone has written tiny notes in the margin of the window's stone frame, a whole conversation between two readers"}
+  ]
+ }
+}

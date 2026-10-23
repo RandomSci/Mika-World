@@ -223,7 +223,7 @@ func options() -> Array:
 					"mastery": s.mastery, "trial": _advances_trial(best_t), "label": "%s %s at %s" % ["experiment with" if best_novel else "practise", s.name, reactives[best_t].label]})
 	# story leads (reading leads are covered by research options, with a story bonus) - the story is Mika's
 	for l in (main.story.next_leads() if _allowed("investigate") else []):
-		if l.activity == "research":
+		if l.activity == "research" or l.activity == "spot":
 			continue
 		if not main.magic.can_cast(String(l.get("spell", "")), agent_id).ok:
 			continue
@@ -249,6 +249,10 @@ func options() -> Array:
 		if sid == "ancient_spell_library":
 			continue
 		out.append({"kind": "explore", "key": "explore:" + sid, "sub_area": sid, "label": "explore the %s" % WorldState.sanctuary.sub_areas[sid].name})
+	# the area's small named places (PlaceSpots, 23 Oct: "more places to explore each region"): one never seen, a
+	# story mark, or a known one after a long while
+	if main.world and me.visible and is_lead() and threat == null:
+		out.append_array(PlaceSpots.options(self))
 	# roam: somewhere she has NOT been that she can see from here (spatial curiosity, real navmesh)
 	if main.world and me.visible:
 		for c in explore_map.candidates(2):
@@ -376,6 +380,21 @@ func options() -> Array:
 				continue
 			out.append({"kind": "visit", "key": "visit:" + va, "area": va, "location": loc,
 				"label": String(HOME_VISITS[loc])})
+	# a chapter's trail (data-driven story leads, 23 Oct): set out for the area where the next mark may be. The spot
+	# itself is offered there (PlaceSpots, with the lead's pull); the lake's finale only on a night
+	if is_foreground() and main.travel and not main.travel.active() and threat == null and _allowed("investigate"):
+		for l in main.story.next_leads():
+			if String(l.get("activity", "")) != "spot" or String(l.area) == here or (bool(l.get("night", false)) and not WorldState.night):
+				continue
+			if WorldState.route(here, String(l.area)).size() < 2 or not StreamFlags.route_allowed(WorldState.route(here, String(l.area))):
+				continue
+			var lloc := ""
+			for lid in WorldState.locations:
+				if WorldState.area_of(lid) == String(l.area):
+					lloc = String(lid)
+					break
+			out.append({"kind": "visit", "key": "visit:" + String(l.area), "area": String(l.area), "location": lloc,
+				"far": not HOME_VISITS.values().has(lloc) and not HOME_VISITS.has(lloc), "story": true, "label": String(l.lead)})
 	# getting ready for an unfinished fight: drill her family's ward (a real cast each time; mastery grows)
 	if not unfinished().is_empty() and mind.vigor > 0.5:
 		for wid in MagicSystem.load_catalog().spells:
@@ -564,7 +583,7 @@ const RECENT_KINDS := 12
 ## The same activity (same option key) again within this many seconds costs utility (fading to nothing); saved via
 ## mind.activity_counts, so a restart does not reset it.
 const KIND_COOLDOWN_S := {"wander": 900.0, "revisit": 1800.0, "journal": 900.0, "attune": 1200.0, "explore": 480.0, "roam": 300.0, "alchemy": 600.0, "rest": 480.0,
-	"perform": 2400.0, "magic": 300.0, "visit": 600.0, "together": 600.0, "meet": 420.0, "chat": 600.0, "gather": 240.0}
+	"perform": 2400.0, "magic": 300.0, "visit": 600.0, "together": 600.0, "meet": 420.0, "chat": 600.0, "gather": 240.0, "spot": 150.0}
 ## Kinds that pull harder the longer she has not done them (up to this bonus after ~40 min).
 const RARE_PULL := {"research": 0.22, "investigate": 0.25, "gather": 0.22, "hunt": 0.18, "chat": 0.22, "lesson": 0.2,
 	"ascend": 0.2, "drill": 0.15, "visit": 0.24, "together": 0.18, "perform": 0.12, "alchemy": 0.1, "converse": 0.12}
@@ -670,6 +689,10 @@ func score(o: Dictionary) -> Dictionary:
 			var lb: Dictionary = LakeRitual.instance.boat_score(self) if LakeRitual.instance else {"u": -1.0, "why": []}
 			u = float(lb.u)
 			why.append_array(lb.why)
+		"visit" when bool(o.get("story", false)):
+			# the trail of the running chapter: a strong pull, still not when tired out
+			u = 0.75 + needs.curiosity * 0.3 - (1.0 - needs.energy) * 0.35
+			why.append("the trail leads there")
 		"visit":
 			var last_v := float(mind.knowledge.get("visited_unix:" + String(o.area), 0.0))
 			var age_v := clampf((Time.get_unix_time_from_system() - last_v) / 1800.0, 0.0, 1.0) if last_v > 0.0 else 1.0
@@ -769,6 +792,10 @@ func score(o: Dictionary) -> Dictionary:
 		"join_find":
 			u = 1.3
 			why.append("the other found something")
+		"spot":
+			var sp: Dictionary = PlaceSpots.score(o, needs)
+			u = float(sp.u)
+			why.append_array(sp.why)
 		"revisit":
 			u = 0.08 + needs.curiosity * 0.18
 		"wander":
@@ -1176,6 +1203,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 			return res
 		"join_find": return await _join_find(o)
 		"revisit": return await _use(String(o.interactable))
+		"spot": return await PlaceSpots.visit(self, o)
 		"wander": return await _wander(o)
 	return {"ok": false, "detail": "unknown activity"}
 

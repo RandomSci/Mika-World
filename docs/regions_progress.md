@@ -153,3 +153,14 @@ Only after the regions work is done and with the stream off, on a branch, applie
 
 ## Reboot 23 Oct, about 05.55 (Selwyn asked)
 Laptop rebooted to bring the NVIDIA card back and turn on the drop fix. After it: check nvidia-smi, cat /proc/cmdline shows pcie_aspm=off, /proc/driver/nvidia/params shows DynamicPowerManagement 0. The save restore (~/.cache/mika_qa/save_restore_20261023/restore.sh) was still not run, remind Selwyn. Then Selwyn picks A (current Day3 as is) or B (merge Fix, soak, restart behind Be Right Back) for going live.
+
+## Selwyn's checklist, 23 Oct night (read this first after a compaction)
+
+Open items he listed, in the order I work them. Each one proven with 10 fps frames or a test before it goes live; nothing live without his go.
+
+1. Ensuring the system works 24/7 without any issue. Mika-Live GoLive (local, never pushed, public repo) b715fa3 viewer tips welcomed, d9c9533 launcher cleanup at the limit, f112fbf YouTube auto recovery after a drop (unit tested with fakes only), f0af6f5 viewers.csv follows the bound broadcast, 9c0c158 sound alarm (two silent checks, alerts.log and a notification). Godot, the Unicode log spam was AdaptiveQuality reading sysfs with get_file_as_string (4096 byte buffer of garbage), fixed with _read_sys in this branch.
+2. Detailed 6 regions (more places to explore each region). PlaceSpots (scripts/world/place_spots.gd, data/places.json), 59 small named places in 15 areas, each a real prop with a look, a secret and a night look, a brain option "spot", talk and memory. Test mktest=spots.
+3. More stories and plots. Chapter 2 "The Lamplighter's Trail" (data/story_lamplighter.json), begins 10 min after the Heartstone chapter is done (the real save is done, stage echo). StoryManager now runs chapters in order, data-driven leads to a spot in an area, a finale at the lake's wish stone at night. Trail across all six regions, no fight, it ends with a gift of light.
+4. Characters that think outside the box. Dialogue rule to make bold guesses and unusual ideas and to disagree; each girl's theories about the case saved (knowledge theories) and brought up when the next clue comes.
+5. Persistence library for the body going through objects including hair, smooth animations for everything, the cloth problem. A helper works on branch body-live-20261023 in the Day2 worktree (Mika-Body into the daily life build, spring colliders for hair and skirt, guard always on, bake), proof sheets in Mika-Project › review › Test_Videos › body_live_20261023.
+6. Magical and cinematic effects for almost everything (walking, casting). After 2 to 4 are proven. Subtle, checked by eye first (his rule, never too much on the surroundings).

@@ -65,6 +65,8 @@ func activate_steps() -> Array:
 	steps.append(func(): set_night(WorldState.night))
 	if RegionMagic.has_magic(area_id):
 		steps.append(func(): RegionMagic.build(self))     # its own magic to practise (22 Oct)
+	if PlaceSpots.has_spots(area_id):
+		steps.append(func(): await PlaceSpots.build(self))  # its small named places to explore (23 Oct)
 	steps.append(finalize_collisions)
 	return steps
 
@@ -305,6 +307,7 @@ func _sky(path: String) -> Sky:
 
 func set_night(v: bool) -> void:
 	night = v
+	PlaceSpots.set_night(self, v)
 	var key := "night" if v else "day"
 	var p: Dictionary = _preset.get(key, {})
 	if outdoor:
