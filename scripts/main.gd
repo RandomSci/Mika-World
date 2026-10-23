@@ -6,6 +6,7 @@ extends Node3D
 var streaming: WorldStreamingManager
 var travel: TravelController
 var characters := {}
+var _arrival_moment_ms := -60000   # the last arrival moment (one a minute)
 var camera_rig: ThirdPersonCamera
 var player: PlayerController
 var bridge: ActionBridge
@@ -269,6 +270,14 @@ func _ready() -> void:
 	progression.leveled.connect(func(who, _lvl): if audio and who == focus: audio.play_progress("level_up", -4.0, "level_up"))
 	progression.leveled.connect(func(_w, _l): WorldState.save_async("level up"))
 	progression.leveled.connect(func(w, l): Highlights.moment(self, "level_up", "%s reaches level %d" % [MagicSystem.display_name(w), l], 4.0))
+	# every arrival is a recorded moment too (Selwyn 24 Oct: "record when something interesting happens, like going
+	# on the lake, the bridge"); a first visit already has its own (PlaceCuriosity), at most one arrival a minute
+	WorldState.location_entered.connect(func(loc: String):
+		if int(WorldState.visited_locations.get(loc, 0)) <= 1 or Time.get_ticks_msec() - _arrival_moment_ms < 60000:
+			return
+		_arrival_moment_ms = Time.get_ticks_msec()
+		var nm: String = String(WorldState.locations[loc].name) if WorldState.locations.has(loc) else loc.replace("_", " ")
+		Highlights.moment(self, "arrive", "Mika and Luna arrive at %s" % nm, 3.0))
 	progression.form_unlocked.connect(func(_w, _l, _f): WorldState.save_async("form unlocked"))
 
 	# Target-aware magic (spell catalogue, targeting, reactive world)
