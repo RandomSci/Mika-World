@@ -1080,9 +1080,11 @@ func _race_place(g: Vector3) -> String:
 		for it in main.world.interactables.values():
 			if it is Interactable and is_instance_valid(it):
 				var d := (it as Node3D).global_position.distance_to(g)
-				if d < best_d and String((it as Interactable).label) != "":
+				var lab := String((it as Interactable).label).to_lower()
+				# a plain name only (a practice target's "strike rune target 3" sounded like a menu on stream)
+				if d < best_d and lab != "" and not lab.contains("target") and RegEx.create_from_string("[0-9]").search(lab) == null:
 					best_d = d
-					best = "the " + String((it as Interactable).label).to_lower()
+					best = lab if lab.begins_with("the ") else "the " + lab
 	return best
 
 
