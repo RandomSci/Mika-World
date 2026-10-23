@@ -262,13 +262,12 @@ func options() -> Array:
 	lake_danced = lake_danced or (here == "lantern_lake" and LakeRitual.instance != null and LakeRitual.instance.is_night())
 	if main.performance and _allowed("perform") and is_lead() and me.visible and threat == null and not main.performance.busy() and not lake_danced:
 		var cd: Dictionary = PerformanceController.load_cfg().cooldown_s
-		var last := float(mind.music.get("last_unix", 0))
 		var now_u := Time.get_unix_time_from_system()
 		# (2026-10-22 live, Selwyn: "why is she dancing randomly"): her own dance at least DANCE_GAP_S after ANY dance
 		# (the show's too - last_unix is every performance), and the special one only for a reason to celebrate; it
 		# danced every ~20 min before (casual and special cooled down separately, special every night)
-		if now_u - last > maxf(float(cd.casual), DANCE_GAP_S) and not MusicLibrary.eligible(agent_id, "casual").is_empty():
-			out.append({"kind": "perform", "key": "perform:casual", "mode": "casual", "label": "dance to some music for a bit"})
+		# (2026-10-23 live, a viewer: "why does she randomly start dancing"): no dance of her own from nowhere any more.
+		# She dances when chat asks, to celebrate (below) and on the lake at night; never as an idle pastime.
 		var last_sp := float(mind.music.get("last_special_unix", 0))
 		if now_u - last_sp > float(cd.special) and now_u < _celebrate_until and not MusicLibrary.eligible(agent_id, "special").is_empty():
 			out.append({"kind": "perform", "key": "perform:special", "mode": "special", "label": "give a little performance in the circle" + (" to celebrate" if now_u < _celebrate_until else "")})
