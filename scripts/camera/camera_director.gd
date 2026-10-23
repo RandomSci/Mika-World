@@ -756,7 +756,9 @@ func _frame(delta: float) -> void:
 			var axis := Vector3(o.x - p.x, 0, o.z - p.z)
 			var sep := axis.length()
 			axis = axis.normalized() if sep > 0.05 else fwd
-			var dist := clampf(sep * 1.0 + 1.5, 2.4, 4.2)
+			# head to feet for both (the permanent whole-body rule; 2.4 m showed them from the chest up talking on the
+			# lake, 24 Oct recording)
+			var dist := clampf(sep * 1.0 + 3.4, 4.3, 5.6)
 			# candidates: both sides of the eye line, swung a little either way; prefer the current side, both faces
 			# clear, and an OPEN background behind them (no column / wall right between their heads)
 			if _since_change < 0.05 or _conv_pick.is_empty():
