@@ -717,6 +717,8 @@ var _follow_acc := 0.0
 
 ## A companion keeps a step behind and beside the leader while a journey runs (runs to catch up when far behind).
 func _follow_companions(delta: float) -> void:
+	if characters.has(focus):
+		_note_trail(characters[focus], delta)
 	_follow_acc += delta
 	if _follow_acc < 0.4:
 		return
@@ -752,15 +754,63 @@ func _follow_companions(delta: float) -> void:
 		# beside her, only a step behind, so the lens behind Mika has Luna in the picture too; at Mika's pace (Luna's
 		# own walk is slower: on long roads she fell back out of the shot, 2026-10-23 live), a little brisker when behind
 		var lead_v := Vector2(lead.velocity.x, lead.velocity.z).length()
-		var spot := lead.global_position - way * 0.8 + Vector3(-way.z, 0, way.x) * 1.0
+		var map := world.get_world_3d().navigation_map
+		var want := lead.global_position - way * 0.8 + Vector3(-way.z, 0, way.x) * 1.0
 		# while Mika walks, aim where her place will be a little ahead: a spot she reached in one step made her stop
 		# and start again twice a second (walk, idle, walk: Luna "glitching", 2026-10-23 live)
 		if lead_v > 0.2:
-			spot += way * lead_v * 1.0
-		spot = NavigationServer3D.map_get_closest_point(world.get_world_3d().navigation_map, spot)
+			want += way * lead_v * 1.0
+		var spot := NavigationServer3D.map_get_closest_point(map, want)
+		# no room beside her (a gate, pillars, a narrow lane: Luna walked through the ruins' stonework, 2026-10-23 live):
+		# she falls in behind and walks in Mika's own footsteps, where Mika has just been
+		var side_ok := Vector2(spot.x - want.x, spot.z - want.z).length() < 0.25
+		if side_ok:
+			var sp := NavigationServer3D.map_get_path(map, lead.global_position, spot, true)
+			var plen := 0.0
+			for k in range(1, sp.size()):
+				plen += sp[k - 1].distance_to(sp[k])
+			side_ok = sp.size() >= 2 and plen < lead.global_position.distance_to(spot) * 1.25 + 0.3
+		if side_ok:
+			var rq := PhysicsRayQueryParameters3D.create(lead.global_position + Vector3(0, 1.0, 0), spot + Vector3(0, 1.0, 0), c.collision_mask)
+			rq.exclude = [lead.get_rid(), c.get_rid()]
+			side_ok = world.get_world_3d().direct_space_state.intersect_ray(rq).is_empty()
+		if not side_ok:
+			spot = _trail_point(lead, 1.3 if lead_v > 0.2 else 1.6)
 		c.pace = clampf(lead_v / maxf(c.walk_speed, 0.1) * (1.0 + clampf(d - 1.6, 0.0, 4.0) * 0.06), 0.8, 1.3) if lead_v > 0.2 else 1.0
 		if d > 2.0 or c.current_action != "navigate_to":
 			c.navigate_to(spot, d > 9.0)
+
+
+## Where the leader walked: her positions every 0.1 s (the last 6 s), for walking in her footsteps.
+var _trail := {}
+var _trail_t := 0.0
+
+
+func _note_trail(lead: WorldCharacter, delta: float) -> void:
+	_trail_t += delta
+	if _trail_t < 0.1:
+		return
+	_trail_t = 0.0
+	var arr: Array = _trail.get_or_add(lead.get_instance_id(), [])
+	if arr.is_empty() or (arr[-1] as Vector3).distance_to(lead.global_position) > 0.05:
+		arr.append(lead.global_position)
+	if arr.size() > 60:
+		arr.pop_front()
+
+
+## The point on her trail `back` metres behind her (along where she actually walked).
+func _trail_point(lead: WorldCharacter, back: float) -> Vector3:
+	var arr: Array = _trail.get(lead.get_instance_id(), [])
+	var left := back
+	var prev := lead.global_position
+	for i in range(arr.size() - 1, -1, -1):
+		var p: Vector3 = arr[i]
+		var d := prev.distance_to(p)
+		if d >= left:
+			return prev.lerp(p, left / maxf(d, 0.001))
+		left -= d
+		prev = p
+	return prev
 
 
 ## The mages walking along with the followed one: placed beside her at the entrance, while the card still covers it.
