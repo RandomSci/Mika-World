@@ -298,17 +298,32 @@ func _lead_offset(delta: float) -> float:
 		return 0.0
 	_lead_check -= delta
 	if _lead_check <= 0.0:
-		_lead_check = 0.5
+		_lead_check = 0.3
 		var need := LEAD_DISTANCE * 0.72
-		var here := _arm_room(mika.rotation.y + PI + _lead_side * LEAD_ANGLE, LEAD_PITCH)
+		var here := _lead_room(mika.rotation.y + PI + _lead_side * LEAD_ANGLE)
 		if here < need:
-			var there := _arm_room(mika.rotation.y + PI - _lead_side * LEAD_ANGLE, LEAD_PITCH)
+			var there := _lead_room(mika.rotation.y + PI - _lead_side * LEAD_ANGLE)
 			if there >= need:
 				_lead_side = -_lead_side
 			else:
 				_lead_blocked_until = _now() + 2.0      # no room in front either way (a narrow lane): behind a moment
 				return 0.0
 	return PI + _lead_side * LEAD_ANGLE
+
+
+## Room for the lead lens at this yaw: the arm's own room, and nothing solid (a trunk, a crate, a wall) on the line from
+## where the lens would stand to her head (24 Oct recording: on the bridge a trunk filled the picture for a moment).
+func _lead_room(yaw: float) -> float:
+	var room := _arm_room(yaw, LEAD_PITCH)
+	var b := Basis.from_euler(Vector3(LEAD_PITCH, yaw, 0))
+	var head := mika.global_position + Vector3(0, 1.45, 0)
+	var lens := mika.global_position + Vector3(0, rig.height, 0) + b * (rig.arm.position + Vector3(0, 0, 1) * minf(room, LEAD_DISTANCE))
+	var q := PhysicsRayQueryParameters3D.create(lens, head, LOS)
+	q.exclude = [mika.get_rid()]
+	var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and (hit.position as Vector3).distance_to(head) > 0.5:
+		return 0.0
+	return room
 
 
 func set_subject(c: WorldCharacter) -> void:
@@ -697,7 +712,7 @@ func _frame(delta: float) -> void:
 			oq.exclude = [mika.get_rid()]
 			var ohit := mika.get_world_3d().direct_space_state.intersect_ray(oq)
 			_chase_hidden_t = (_chase_hidden_t + delta) if (not ohit.is_empty() and (ohit.position as Vector3).distance_to(head) > 0.5) else 0.0
-			if squeezed or _chase_hidden_t > 0.5:
+			if squeezed or _chase_hidden_t > 0.25:
 				var best_yaw := rig.yaw
 				var best_len := hit_len if not squeezed else _arm_room(rig.yaw, rig.pitch)
 				for off: float in [0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.4, -2.4]:
