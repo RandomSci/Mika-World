@@ -458,13 +458,19 @@ func _guard_mika(delta: float) -> void:
 	if mode == "stargaze":       # (lying in the grass: her head is on the ground, not 1.35 m over her feet)
 		head = mika.skeleton.global_transform * mika.skeleton.get_bone_global_pose(mika.skeleton.find_bone("Head")).origin
 	var vs := get_viewport().get_visible_rect().size
+	# (in an authored scene - a dance, a duel - the partner passing in front of her is part of it: on the lake the
+	# whole dance scene was given up for that and the follow lens took over, close, 24 Oct recording)
 	var seen := not cam.is_position_behind(head) and Rect2(Vector2.ZERO, vs).has_point(cam.unproject_position(head)) \
-		and not _mate_blocks(cam.global_position, head)
+		and (mode == "scene" or not _mate_blocks(cam.global_position, head))
 	if seen:
 		var q := PhysicsRayQueryParameters3D.create(cam.global_position, head, LOS)     # (walls, rocks and the trunks)
 		q.exclude = [mika.get_rid()]
 		var hit := mika.get_world_3d().direct_space_state.intersect_ray(q)
 		seen = hit.is_empty() or (hit.position as Vector3).distance_to(head) < 0.4
+		if not seen and RenderProfile.options.has("cam-debug") and _hidden_t == 0.0:
+			print("[camdbg] %s: the line to her head hits %s (%s) at %s, lens %s" % [mode, str(hit.collider), String((hit.collider as Node).get_path()) if hit.collider is Node else "", str((hit.position as Vector3).snappedf(0.1)), str(cam.global_position.snappedf(0.1))])
+	elif RenderProfile.options.has("cam-debug") and _hidden_t == 0.0:
+		print("[camdbg] %s: her head off screen or behind the lens (lens %s)" % [mode, str(cam.global_position.snappedf(0.1))])
 	_hidden_t = 0.0 if seen else _hidden_t + delta
 	if _hidden_t < 0.6:
 		return
@@ -484,10 +490,10 @@ func _guard_mika(delta: float) -> void:
 		print("[camera] Mika hidden in the stargaze shot: struck off %s" % str(bad))
 		_since_change = 0.0
 	else:
-		print("[camera] Mika hidden in a %s shot: the chase lens%s" % [mode, " until the scene ends" if mode == "scene" else " for 4 s"])
+		# (a scene too: 4 s of the follow lens, then its own shots again - given up for good, the lake dance was all
+		# follow lens over the water, 24 Oct recording)
+		print("[camera] Mika hidden in a %s shot: the chase lens for 4 s" % mode)
 		_rescue_until = _now() + 4.0
-		if mode == "scene":
-			_scene_failed = true
 		_switch("chase")
 
 
@@ -533,6 +539,8 @@ func _choose() -> String:
 
 
 func _switch(m: String) -> void:
+	if RenderProfile.options.has("cam-debug"):
+		print("[camdbg] %s -> %s at frame %d (scene failed %s)" % [mode, m, Engine.get_frames_drawn(), _scene_failed])
 	mode = m
 	_since_change = 0.0
 	_chase_override = false
@@ -903,12 +911,15 @@ func _apply(pos: Vector3, look: Vector3, fov: float, delta: float, rate := 3.0) 
 		var space := mika.get_world_3d().direct_space_state
 		var tries := 0
 		while CombatFraming.inside_solid(space, pos) and tries < 14:
-			pos = pos.lerp(look, 0.12) + Vector3(0, 0.22, 0)
+			# (an authored scene keeps its distance and only rises: dragged toward them, the lake dance's low shot over
+			# the water ended 1.6 m from Mika with her head out of the frame, 24 Oct)
+			pos = (pos + Vector3(0, 0.3, 0)) if mode == "scene" else (pos.lerp(look, 0.12) + Vector3(0, 0.22, 0))
 			tries += 1
 		# nor rubbing against one (a post filling a quarter of the frame) or tucked under a roof she is not under
 		# (its dark underside across the top of the picture): stepped toward her until it is in the open
 		tries = 0
-		while tries < 8 and pos.distance_to(look) > 1.6 and _crowded(space, pos, look):
+		# (never in closer than 3.8 m for it: head to feet stays; the lake's chest-up shots came from this pull)
+		while tries < 8 and pos.distance_to(look) > 3.8 and _crowded(space, pos, look):
 			pos = pos.lerp(look, 0.14)
 			tries += 1
 		# an authored wide shot only plays from where it was set: one that has to be walked toward its subject to be
