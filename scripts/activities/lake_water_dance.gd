@@ -397,4 +397,6 @@ func _cam(_delta: float) -> Dictionary:
 			pos = c + front * 6.8 + Vector3(0, lerpf(2.6, 5.4, u), 0)
 			look = c - Vector3(0, 0.3, 0)
 			fov = 52.0
+	if RenderProfile.options.has("cam-debug") and u < 0.02:
+		print("[camdbg] lake dance shot %d: lens %s look %s (lake scale %s)" % [i % 4, str(lake.to_global(pos).snappedf(0.1)), str(lake.to_global(look).snappedf(0.1)), str(lake.global_transform.basis.get_scale().snappedf(0.01))])
 	return {"pos": lake.to_global(pos), "look": lake.to_global(look), "fov": fov, "rate": 2.0, "cut": u < 0.02}

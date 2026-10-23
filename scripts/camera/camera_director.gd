@@ -1172,6 +1172,14 @@ func _sees_dancers(cam: Vector3, pair) -> bool:
 	return true
 
 
+func _mage_rids() -> Array[RID]:
+	var out: Array[RID] = []
+	for c in (main.characters.values() if main and main.get("characters") else [mika]):
+		if c is CollisionObject3D and is_instance_valid(c):
+			out.append((c as CollisionObject3D).get_rid())
+	return out
+
+
 func _clear_line(subject: Vector3, cam: Vector3) -> Vector3:
 	var space := mika.get_world_3d().direct_space_state
 	# start a little out from the subject: a look point ON an object (a plaque, a notice board) sits inside that
@@ -1182,11 +1190,15 @@ func _clear_line(subject: Vector3, cam: Vector3) -> Vector3:
 		return cam
 	var start := subject + dir.normalized() * 0.6
 	var q := PhysicsRayQueryParameters3D.create(start, cam, LOS)
-	q.exclude = [mika.get_rid()]
+	# (the girls are never "the wall": Luna between the lens and Mika pulled the lake dance's 6 m shots in to 1.6 m,
+	# chest-up, 24 Oct; the partner in front is handled by the shot choice, not by moving the lens into them)
+	q.exclude = _mage_rids()
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
 		return cam
 	var hp: Vector3 = hit.position
+	if RenderProfile.options.has("cam-debug") and hp.distance_to(cam) > 1.0:
+		print("[camdbg] clear line cut %.1f m short by %s (%s)" % [hp.distance_to(cam), str(hit.collider), String((hit.collider as Node).get_path()) if hit.collider is Node else ""])
 	return hp + (subject - hp).normalized() * 0.35
 
 
