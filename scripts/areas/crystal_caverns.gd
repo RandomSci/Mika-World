@@ -102,7 +102,8 @@ func env_preset() -> Dictionary:
 		"day": {"sun_rot": Vector3(-40, 150, 0), "sun_energy": 2.6, "sun_color": Color(1.0, 0.93, 0.82), "ambient": 0.5, "fog": 0.004, "fog_color": Color(0.55, 0.62, 0.7),
 			"vol_fog": 0.022, "vol_albedo": Color(0.75, 0.88, 1.0), "exposure": 0.95, "bg_energy": 0.9, "contrast": 1.12},
 		"night": {"ambient": 0.6, "fog": 0.006, "fog_color": Color(0.03, 0.05, 0.08), "vol_fog": 0.024, "exposure": 1.3},
-		"vista": {"mountains": false, "ridge": false, "no_impostors": true}}
+		"vista": {"mountains": false, "ridge": false, "no_impostors": true},
+		"shadow_distance": 110.0, "shadow_fade_start": 0.55}
 
 
 func features() -> Array:

@@ -283,7 +283,10 @@ func _build_environment() -> void:
 	sun.name = "Sun"
 	sun.shadow_enabled = _preset.get("sun_shadows", true)
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.directional_shadow_max_distance = RenderProfile.get_setting("shadow_distance")
+	# an area can reach further: in a canyon the walls shade the whole floor, and a short reach shows its edge as a dark band
+	# that walks along in front of the girls
+	sun.directional_shadow_max_distance = maxf(RenderProfile.get_setting("shadow_distance"), float(_preset.get("shadow_distance", 0.0)))
+	sun.directional_shadow_fade_start = float(_preset.get("shadow_fade_start", 0.8))
 	sun.shadow_blur = 1.2
 	sun.light_angular_distance = 0.6
 	sun.shadow_bias = 0.04
