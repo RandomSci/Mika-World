@@ -33,6 +33,11 @@
     "label": "go out to {place} together",
     "base": 0.5
    },
+   "race_together": {
+    "strenuous": false,
+    "label": "race to {place}",
+    "base": 0.7
+   },
    "stargaze_together": {
     "strenuous": false,
     "label": "lie in the grass at {place} and watch the stars",

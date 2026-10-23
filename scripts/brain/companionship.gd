@@ -311,6 +311,8 @@ func invite(a: SanctuaryBrain, other: String, kind: String, target: Dictionary) 
 				res = {"ok": false, "detail": "no training ground"}
 		"stargaze_together":
 			res = await _stargaze_together(a, b, target)
+		"race_together":
+			res = await _race_together(a, b, target)
 		_:
 			res = await _explore_together(a, b, target)
 	# each of them keeps her OWN memory of it
@@ -463,6 +465,76 @@ func _explore_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary)
 ## V3 quiet scene: walk to open grass together, lie down side by side, look up, say a little, say nothing for a
 ## while, get up. Real clips (the UAL get-up played backwards, the held lying pose with breathing), real looks
 ## (heads turn to whoever speaks, then back to the sky), the camera on a stargazing mode for the whole scene.
+## A little fun (Selwyn, 23 Oct live: "they're just wandering, create a function for a little fun"): a race to a spot
+## 15 to 25 m away. Banter first, both run (each at her own slightly random pace, so either can win), the winner
+## gloats and the other wants a rematch. Every line comes from the dialogue (never a repeated line); both remember it.
+func _race_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary) -> Dictionary:
+	var ac: WorldCharacter = a.me
+	var bc: WorldCharacter = b.me
+	var an := MagicSystem.display_name(a.agent_id)
+	var bn := MagicSystem.display_name(b.agent_id)
+	var map := ac.get_world_3d().navigation_map
+	var goal: Vector3 = target.get("pos", Vector3.INF)
+	if goal == Vector3.INF:
+		return {"ok": false, "detail": "nowhere to race to"}
+	goal = NavigationServer3D.map_get_closest_point(map, goal)
+	var place := String(target.get("fill", {}).get("place", "that spot"))
+	var n := int(a.mind.knowledge.get("races", 0)) + 1
+	var wins := int(a.mind.knowledge.get("race_wins", 0))
+	var rec := "" if n == 1 else " So far %s has won %d of %d races against %s." % [an, wins, n - 1, bn]
+	await main.mage_talk.dialogue.converse(a.agent_id, b.agent_id, {"mode": "event", "topic": {"key": "race_start:%d" % n,
+		"text": "%s just challenged %s to a running race to %s, first one there wins, starting right now. Playful teasing and a quick countdown, keep it short.%s" % [an, bn, place, rec]}})
+	# side by side at the start, then go
+	var way := Vector3(goal.x - ac.global_position.x, 0, goal.z - ac.global_position.z).normalized()
+	var side := Vector3(-way.z, 0, way.x)
+	var goal_a := NavigationServer3D.map_get_closest_point(map, goal + side * 0.8)
+	var goal_b := NavigationServer3D.map_get_closest_point(map, goal - side * 0.8)
+	ac.pace = _rng.randf_range(0.88, 1.06)
+	bc.pace = _rng.randf_range(0.9, 1.12)
+	ac.navigate_to(goal_a, true)
+	bc.navigate_to(goal_b, true)
+	var t0 := Time.get_ticks_msec()
+	var first := ""
+	var second_s := -1.0
+	var first_s := 0.0
+	while Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().physics_frame
+		var t := (Time.get_ticks_msec() - t0) / 1000.0
+		for pair in [[a.agent_id, ac, goal_a], [b.agent_id, bc, goal_b]]:
+			var c: WorldCharacter = pair[1]
+			var g: Vector3 = pair[2]
+			if Vector2(c.global_position.x - g.x, c.global_position.z - g.z).length() < 1.3:
+				if first == "":
+					first = pair[0]
+					first_s = t
+				elif first != pair[0] and second_s < 0.0:
+					second_s = t
+		if first != "" and (second_s >= 0.0 or t - first_s > 8.0):
+			break
+	ac.pace = 1.0
+	bc.pace = 1.0
+	if ac.current_action == "navigate_to":
+		ac.stop_action()
+	if bc.current_action == "navigate_to":
+		bc.stop_action()
+	if first == "":
+		return {"ok": false, "detail": "the race to %s never finished" % place}
+	var margin := (second_s - first_s) if second_s >= 0.0 else 8.0
+	var wn := MagicSystem.display_name(first)
+	var ln := bn if first == a.agent_id else an
+	ac.look_at_point(bc.global_position)
+	bc.look_at_point(ac.global_position)
+	if first == a.agent_id:
+		a.mind.knowledge["race_wins"] = wins + 1
+	a.mind.knowledge["races"] = n
+	var close := "a photo finish, %.1f s apart" % margin if margin < 0.8 else "by %.1f s" % margin
+	await main.mage_talk.dialogue.converse(first, a.agent_id if first != a.agent_id else b.agent_id, {"mode": "event", "topic": {"key": "race_end:%d" % n,
+		"text": "%s just beat %s in their race to %s, %s, both out of breath. %s gloats playfully, %s is a good sport and wants a rematch some day." % [wn, ln, place, close, wn, ln]}})
+	Highlights.moment(main, "race", "%s and %s race to %s, %s wins %s" % [an, bn, place, wn, close], 3.0)
+	return {"ok": true, "detail": "%s won the race to %s %s" % [wn, place, close],
+		"memory": "a race to %s, %s won %s" % [place, wn, close]}
+
+
 func _stargaze_together(a: SanctuaryBrain, b: SanctuaryBrain, target: Dictionary) -> Dictionary:
 	var lead := a.me
 	var fol := b.me

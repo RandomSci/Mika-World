@@ -445,6 +445,14 @@ func options() -> Array:
 			if not cands.is_empty():
 				out.append({"kind": "together", "key": "together:explore:" + other_id, "other": other_id, "sub": "explore_together",
 					"target": {"pos": cands[0].pos, "fill": {"place": String(cands[0].describe)}}, "label": "ask %s to explore %s together" % [MagicSystem.display_name(other_id), cands[0].describe]})
+			# a little fun: a race to somewhere close by (the lead proposes; 23 Oct live)
+			var race_last := float(mind.activity_counts.get("together:race:" + other_id, {}).get("last_unix", 0))
+			if is_lead() and float(needs.energy) > 0.35 and me.global_position.distance_to(oc2.global_position) < 12.0 \
+					and Time.get_unix_time_from_system() - race_last >= 1800.0:      # (at most every 30 minutes)
+				var rg := _race_goal()
+				if rg != Vector3.INF:
+					out.append({"kind": "together", "key": "together:race:" + other_id, "other": other_id, "sub": "race_together",
+						"target": {"pos": rg, "fill": {"place": _race_place(rg)}}, "label": "race %s to %s" % [MagicSystem.display_name(other_id), _race_place(rg)]})
 			if StreamFlags.fights() and mind.vigor > 0.75 and float(needs.energy) > 0.6 and main.get("duel") and main.streaming.current_id == "sanctuary":
 				out.append({"kind": "together", "key": "together:spar:" + other_id, "other": other_id, "sub": "train_together",
 					"target": {"pos": SanctuaryTerrain.TRAINING_CENTER_3D, "fill": {}}, "label": "ask %s to spar at the training grounds" % MagicSystem.display_name(other_id)})
@@ -799,6 +807,8 @@ func score(o: Dictionary) -> Dictionary:
 				u += (1.0 - needs.energy) * 0.4
 			if String(o.sub) == "train_together":
 				u += needs.mastery * 0.3 - 0.1
+			if String(o.sub) == "race_together":
+				u += 0.3 + 0.15 * needs.curiosity + 0.1 * float(needs.energy)
 			if String(o.sub) == "stargaze_together":
 				u += 0.2 + 0.25 * (1.0 - needs.energy) + 0.1 * needs.social
 				if _night_home():
@@ -1035,6 +1045,45 @@ func _loop() -> void:
 			main.curiosity.on_activity_finished(choice, result)
 		await get_tree().create_timer(rng.randf_range(0.8, 2.4)).timeout
 	busy = false
+
+
+## Somewhere 12 to 36 m away along the paths, ahead or to the side, on about the same level: a race's finish.
+func _race_goal() -> Vector3:
+	if main.world == null or not me.visible:
+		return Vector3.INF
+	var map := me.get_world_3d().navigation_map
+	var fwd := -me.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	for i in 8:
+		var ang := rng.randf_range(-1.2, 1.2) if i < 5 else rng.randf_range(-PI, PI)
+		var want := me.global_position + fwd.rotated(Vector3.UP, ang) * rng.randf_range(16.0, 26.0)
+		var g := NavigationServer3D.map_get_closest_point(map, want)
+		if Vector2(g.x - want.x, g.z - want.z).length() > 3.0 or absf(g.y - me.global_position.y) > 3.0:
+			continue
+		var path := NavigationServer3D.map_get_path(map, me.global_position, g, true)
+		if path.size() < 2:
+			continue
+		var length := 0.0
+		for k in range(1, path.size()):
+			length += path[k - 1].distance_to(path[k])
+		if length > 12.0 and length < 36.0:
+			return g
+	return Vector3.INF
+
+
+## What to call a race's finish: the nearest thing there with a name, else "that spot over there".
+func _race_place(g: Vector3) -> String:
+	var best := "that spot over there"
+	var best_d := 7.0
+	if main.world:
+		for it in main.world.interactables.values():
+			if it is Interactable and is_instance_valid(it):
+				var d := (it as Node3D).global_position.distance_to(g)
+				if d < best_d and String((it as Interactable).label) != "":
+					best_d = d
+					best = "the " + String((it as Interactable).label).to_lower()
+	return best
 
 
 ## How far Luna's own activities may take her from Mika (the camera is always on Mika).
