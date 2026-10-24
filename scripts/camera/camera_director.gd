@@ -768,7 +768,16 @@ func _frame(delta: float) -> void:
 			var oq := PhysicsRayQueryParameters3D.create(rig.camera.global_position, head, LOS)
 			oq.exclude = [mika.get_rid()]
 			var ohit := mika.get_world_3d().direct_space_state.intersect_ray(oq)
-			_chase_hidden_t = (_chase_hidden_t + delta) if (not ohit.is_empty() and (ohit.position as Vector3).distance_to(head) > 0.5) else 0.0
+			var blocked := not ohit.is_empty() and (ohit.position as Vector3).distance_to(head) > 0.5
+			if not blocked:
+				# her head clear but her body behind a boulder (24 Oct live, Luminous River: only the top of her head
+				# showed over a rock): her waist counts too
+				var waist := mika.global_position + Vector3(0, 0.9, 0)
+				var wq := PhysicsRayQueryParameters3D.create(rig.camera.global_position, waist, 1)   # solid only: plants go see-through
+				wq.exclude = [mika.get_rid()]
+				var whit := mika.get_world_3d().direct_space_state.intersect_ray(wq)
+				blocked = not whit.is_empty() and (whit.position as Vector3).distance_to(waist) > 0.5
+			_chase_hidden_t = (_chase_hidden_t + delta) if blocked else 0.0
 			if squeezed or _chase_hidden_t > 0.25:
 				var best_yaw := rig.yaw
 				var best_len := hit_len if not squeezed else _arm_room(rig.yaw, rig.pitch)
@@ -777,7 +786,12 @@ func _frame(delta: float) -> void:
 					if room > best_len + 0.35:
 						best_len = room
 						best_yaw = rig.yaw + off
-				rig.yaw = lerp_angle(rig.yaw, best_yaw, 1.0 - exp(-5.0 * delta))
+				# under 2 m with a side that has full room: cut there (the swing took 1 to 2 s at 1.4 m from her by the
+				# altar crystal's keep-out, 24 Oct test)
+				if hit_len < 2.0 and best_len >= LEAD_DISTANCE * 0.72:
+					rig.yaw = best_yaw
+				else:
+					rig.yaw = lerp_angle(rig.yaw, best_yaw, 1.0 - exp(-5.0 * delta))
 			var tight := hit_len < 1.0
 			if RenderProfile.options.has("cam-debug") and squeezed:
 				print("[camdbg] t=%.2f hit %.2f tight_t %.2f override %s last_good %s p %s" % [_now(), hit_len, _chase_tight_t, _chase_override, str(_chase_last_good.snapped(Vector3.ONE * 0.1)), str(p.snapped(Vector3.ONE * 0.1))])
