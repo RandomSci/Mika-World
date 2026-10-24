@@ -279,6 +279,11 @@ func _mate_blocks(from: Vector3, to: Vector3) -> bool:
 		var oc := c as WorldCharacter
 		if oc == null or oc == mika or not oc.visible:
 			continue
+		# right beside the lens: her head fills a corner of the picture (24 Oct live, Whispering Woods: half of Luna's
+		# head in the bottom corner)
+		if oc.global_position.distance_to(Vector3(from.x, oc.global_position.y, from.z)) < 1.1 \
+				and absf(from.y - (oc.global_position.y + 1.3)) < 1.2:
+			return true
 		for hgt: float in [0.9, 1.4]:
 			var q := oc.global_position + Vector3(0, hgt, 0)
 			var t := (q - from).dot(seg) / l2
