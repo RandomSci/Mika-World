@@ -528,6 +528,18 @@ func _pines() -> void:
 			body.add_child(cs)
 			body.position = xf.origin + Vector3(0, 3.0 * sc, 0)
 			trunks.add_child(body)
+			# the girls collide with layer 3 too, so the navmesh goes round the trunk (25 Oct live: Mika twice "could
+			# not reach the gate", pressed against a trunk the path ran straight through)
+			var ob := NavigationObstacle3D.new()
+			var vs := PackedVector3Array()
+			for k in 8:
+				var a := TAU * k / 8.0
+				vs.append(Vector3(cos(a), 0, sin(a)) * 0.4 * sc)
+			ob.vertices = vs
+			ob.height = 2.0
+			ob.position = xf.origin
+			ob.affect_navigation_mesh = true
+			trunks.add_child(ob)
 			nt += 1
 	counts["trunk_colliders"] = nt
 
