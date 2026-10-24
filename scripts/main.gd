@@ -185,6 +185,7 @@ func _ready() -> void:
 		mika.velocity = Vector3.ZERO
 		camera_rig.snap_behind()
 		print("[resume] mika back in %s at %s (was: %s)" % [first_area, at.snapped(Vector3.ONE * 0.1), resume.doing])
+		await _ensure_paths(mika)
 	elif start != WorldState.registry.start_location and world.points_of_interest.has(start):
 		mika.global_position = world.points_of_interest[start].position + Vector3(0, 0.1, 1.5)
 		camera_rig.snap_behind()
@@ -686,6 +687,33 @@ func sim_mode(who: String) -> String:
 
 
 var _resume_doing := {}        # who -> the activity she was in when the game stopped (read before anything moves)
+
+
+## A save resumed inside an area whose first bake answers no paths (24 Oct live: started in the Ancient Spell
+## Library, every walk "stuck" and every spot unreachable) gets the re-bake a journey's arrival already does.
+func _ensure_paths(c: WorldCharacter) -> void:
+	var area = streaming.current
+	if area == null or not area.has_method("bake_navigation"):
+		return
+	var map := c.get_world_3d().navigation_map
+	var targets: Array = area.points_of_interest.values().map(func(p): return p.position)
+	var has_path := func() -> bool:
+		for t in targets:
+			var to := NavigationServer3D.map_get_closest_point(map, t)
+			if to.distance_to(c.global_position) > 2.0 and not NavigationServer3D.map_get_path(map, c.global_position, to, true).is_empty():
+				return true
+		return false
+	for i in 90:
+		if has_path.call():
+			return
+		await get_tree().physics_frame
+	print("[main] %s: no path from the resumed spot - re-baking its navigation" % streaming.current_id)
+	await area.bake_navigation()
+	for i in 90:
+		if has_path.call():
+			break
+		await get_tree().physics_frame
+	print("[main] %s: after the re-bake a path %s" % [streaming.current_id, "exists" if has_path.call() else "STILL missing"])
 
 
 ## Where a loaded save left her: {area, pos, doing} or {} (no save, a new save, --start=, or an area that no
