@@ -277,7 +277,10 @@ func _ready() -> void:
 			return
 		_arrival_moment_ms = Time.get_ticks_msec()
 		var nm: String = String(WorldState.locations[loc].name) if WorldState.locations.has(loc) else loc.replace("_", " ")
-		Highlights.moment(self, "arrive", "Mika and Luna arrive at %s" % nm, 3.0))
+		# marked 15 s after they arrive: the saved minute then shows the new place, not the travel card (24 Oct live)
+		await get_tree().create_timer(15.0).timeout
+		if WorldState.current_location == loc:
+			Highlights.moment(self, "arrive", "Mika and Luna arrive at %s" % nm, 3.0))
 	progression.form_unlocked.connect(func(_w, _l, _f): WorldState.save_async("form unlocked"))
 
 	# Target-aware magic (spell catalogue, targeting, reactive world)
