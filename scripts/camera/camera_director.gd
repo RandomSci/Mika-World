@@ -432,6 +432,9 @@ func _process(delta: float) -> void:
 	# leaves, plants and grass between the lens and her go see-through (shaders/nature/see_through.gdshaderinc)
 	if mika and mika.visible:
 		RenderingServer.global_shader_parameter_set("lens_subject", mika.global_position + Vector3(0, 1.0, 0))
+		var lu: WorldCharacter = main.characters.get("luna")
+		RenderingServer.global_shader_parameter_set("lens_subject_b", lu.global_position + Vector3(0, 1.0, 0) \
+			if lu != null and lu.visible and lu.global_position.distance_to(mika.global_position) < 10.0 else Vector3(0, -1000, 0))
 	var real_dt := delta / maxf(Engine.time_scale, 0.05)
 	TrailerCam.tick_global(real_dt)
 	_shake_t += real_dt
@@ -589,7 +592,11 @@ func _switch(m: String) -> void:
 	if m == "chase":
 		rig.clear_shot()
 		_lead_check = 0.0
-		rig.yaw = mika.rotation.y + _lead_offset(0.0)       # straight into the three-quarter front, no swing round her
+		var lo := _lead_offset(0.0)
+		rig.yaw = mika.rotation.y + lo       # straight into the follow angle, no swing round her
+		# and at the follow distance at once (out of a talk the arm grew from 2 m over two seconds: 1.4 m from her as
+		# the walk began, 24 Oct test)
+		rig.distance = LEAD_DISTANCE if lo != 0.0 else 3.6
 	shot_changed.emit(m)
 
 
