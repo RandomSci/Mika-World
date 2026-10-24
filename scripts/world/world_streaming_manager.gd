@@ -360,6 +360,7 @@ func travel(to_area: String, character: WorldCharacter, masked := true) -> Dicti
 		for n in area.find_children("*", "GeometryInstance3D", true, false):
 			f.store_line("%s\t%s" % [area.get_path_to(n), str((n as Node3D).global_transform.origin.snapped(Vector3.ONE * 0.001))])
 		f.close()
+	FruitTree.plant(area, to_area)          # (before the bake: their trunks are carved out of the navmesh)
 	state = "baking"
 	await area.bake_navigation()
 	var t_nav := Time.get_ticks_msec()

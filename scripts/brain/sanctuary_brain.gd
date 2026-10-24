@@ -279,7 +279,7 @@ func options() -> Array:
 	for g in get_tree().get_nodes_in_group("gatherable"):
 		if (g as GatherNode).available() and mind.knowledge.has("noticed:gather:" + String(g.gid)):
 			out.append({"kind": "gather", "key": "gather:" + String(g.gid), "node": g, "item": String(g.def.get("item", g.kind)),
-				"label": "pick the %s" % String(g.label()).to_lower()})
+				"label": ("call a %s down from its tree" if g is FruitTree else "pick the %s") % String(g.label()).to_lower()})
 	# rest
 	var rest_labels := {"garden_meditate": "meditate on the Still Stone", "watchpoint_rest": "rest on the watchpoint bench", "pond_reflect": "watch the pond"}
 	for seat in rest_labels:
@@ -2002,11 +2002,13 @@ func _gather(o: Dictionary) -> Dictionary:
 	if not is_instance_valid(g) or not g.available():
 		return {"ok": false, "detail": "it was already picked"}
 	current.stage = "walking to the %s" % g.label().to_lower()
-	await _approach(g.global_position, 0.5)
+	await _approach(g.reach_point(me.global_position), 0.5 if not g is FruitTree else 0.0)
 	if not g.available():
 		return {"ok": false, "detail": "it was already picked"}
-	current.stage = "picking the %s" % g.label().to_lower()
-	var tok := g.token()
+	current.stage = ("calling a %s down from the tree" if g is FruitTree else "picking the %s") % g.label().to_lower()
+	var tok: Node3D = await g.bring_down(me)
+	if tok == null:
+		return {"ok": false, "detail": "no ripe fruit left"}
 	var pk: Dictionary = await PickupAction.pick(me, tok)
 	if is_instance_valid(tok):
 		tok.queue_free()

@@ -113,6 +113,16 @@ func harvest(c: WorldCharacter) -> Dictionary:
 	return {"ok": true, "detail": "gathered a %s" % label(), "changes": ch}
 
 
+## Where she stands to pick it (a fruit tree: under its nearest ripe fruit).
+func reach_point(_from: Vector3) -> Vector3:
+	return global_position
+
+
+## The thing her hands then catch (a plant: a copy of the bloom where it grows; a fruit tree calls one down by magic).
+func bring_down(_c: WorldCharacter) -> Node3D:
+	return token()
+
+
 ## A detached copy of the bloom for the hands to carry (the plant itself stays rooted until harvested).
 func token() -> Node3D:
 	var t := _plant.duplicate() as Node3D

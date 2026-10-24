@@ -1,13 +1,481 @@
 {
- "_note": "Gatherable plants (original procedural meshes). A mage must notice one (perception) before she can plan to gather it; picking is physical (PickupAction) and only a successful pick adds the item. Plants regrow after regrow_s. Spots are fixed per area (validated against the navmesh at load).",
+ "_note": "Gatherable plants (original procedural meshes). A mage must notice one (perception) before she can plan to gather it; picking is physical (PickupAction) and only a successful pick adds the item. Plants regrow after regrow_s. Spots are fixed per area (validated against the navmesh at load). Trees (25 Oct, Selwyn: magical fruits on trees): each outdoor area grows its own magic fruit on a few trees (FruitTree; spots from tests/ext/fruitspots.gd, world positions); the fruit is called down with a little spell and caught, and ripens again after regrow_s.",
  "kinds": {
-  "moonpetal": {"name": "Moonpetal", "item": "moonpetal", "color": [0.78, 0.86, 1.0], "glow": 1.6, "regrow_s": 600.0},
-  "embercap": {"name": "Embercap", "item": "embercap", "color": [1.0, 0.55, 0.22], "glow": 1.2, "regrow_s": 600.0}
+  "moonpetal": {
+   "name": "Moonpetal",
+   "item": "moonpetal",
+   "color": [
+    0.78,
+    0.86,
+    1.0
+   ],
+   "glow": 1.6,
+   "regrow_s": 600.0
+  },
+  "embercap": {
+   "name": "Embercap",
+   "item": "embercap",
+   "color": [
+    1.0,
+    0.55,
+    0.22
+   ],
+   "glow": 1.2,
+   "regrow_s": 600.0
+  },
+  "dawnapple": {
+   "name": "Dawnapple",
+   "item": "dawnapple",
+   "color": [
+    1.0,
+    0.62,
+    0.45
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "starplum": {
+   "name": "Starplum",
+   "item": "starplum",
+   "color": [
+    0.38,
+    0.5,
+    1.0
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "runepear": {
+   "name": "Runepear",
+   "item": "runepear",
+   "color": [
+    0.3,
+    0.95,
+    0.85
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "moonpear": {
+   "name": "Moonpear",
+   "item": "moonpear",
+   "color": [
+    0.82,
+    0.78,
+    1.0
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "amberheart": {
+   "name": "Amberheart",
+   "item": "amberheart",
+   "color": [
+    1.0,
+    0.7,
+    0.2
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "glasscherry": {
+   "name": "Glasscherry",
+   "item": "glasscherry",
+   "color": [
+    1.0,
+    0.25,
+    0.35
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "honeyfig": {
+   "name": "Honeyfig",
+   "item": "honeyfig",
+   "color": [
+    1.0,
+    0.82,
+    0.35
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "cometberry": {
+   "name": "Cometberry",
+   "item": "cometberry",
+   "color": [
+    0.75,
+    0.95,
+    1.0
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "frostapple": {
+   "name": "Frostapple",
+   "item": "frostapple",
+   "color": [
+    0.6,
+    0.85,
+    1.0
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "sunpeach": {
+   "name": "Sunpeach",
+   "item": "sunpeach",
+   "color": [
+    1.0,
+    0.55,
+    0.3
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "inkplum": {
+   "name": "Inkplum",
+   "item": "inkplum",
+   "color": [
+    0.45,
+    0.35,
+    0.95
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  },
+  "wanderberry": {
+   "name": "Wanderberry",
+   "item": "wanderberry",
+   "color": [
+    1.0,
+    0.5,
+    0.75
+   ],
+   "glow": 1.8,
+   "regrow_s": 1800.0,
+   "tree": true
+  }
  },
  "spots": {
   "sanctuary": [
-   {"kind": "moonpetal", "pos": [11.5, 22.0]}, {"kind": "moonpetal", "pos": [20.5, 12.5]}, {"kind": "moonpetal", "pos": [-5.5, 30.0]},
-   {"kind": "embercap", "pos": [31.0, -3.0]}, {"kind": "embercap", "pos": [-26.0, -6.0]}, {"kind": "embercap", "pos": [6.0, -25.0]}
+   {
+    "kind": "moonpetal",
+    "pos": [
+     11.5,
+     22.0
+    ]
+   },
+   {
+    "kind": "moonpetal",
+    "pos": [
+     20.5,
+     12.5
+    ]
+   },
+   {
+    "kind": "moonpetal",
+    "pos": [
+     -5.5,
+     30.0
+    ]
+   },
+   {
+    "kind": "embercap",
+    "pos": [
+     31.0,
+     -3.0
+    ]
+   },
+   {
+    "kind": "embercap",
+    "pos": [
+     -26.0,
+     -6.0
+    ]
+   },
+   {
+    "kind": "embercap",
+    "pos": [
+     6.0,
+     -25.0
+    ]
+   }
+  ]
+ },
+ "trees": {
+  "sanctuary": [
+   {
+    "kind": "dawnapple",
+    "pos": [
+     -2.6,
+     5.6
+    ]
+   },
+   {
+    "kind": "dawnapple",
+    "pos": [
+     -23.5,
+     -14.1
+    ]
+   },
+   {
+    "kind": "dawnapple",
+    "pos": [
+     -12.4,
+     28.4
+    ]
+   }
+  ],
+  "lantern_lake": [
+   {
+    "kind": "starplum",
+    "pos": [
+     5.6,
+     19.4
+    ]
+   },
+   {
+    "kind": "starplum",
+    "pos": [
+     18.7,
+     11.3
+    ]
+   }
+  ],
+  "mentor_tower": [
+   {
+    "kind": "runepear",
+    "pos": [
+     -5.7,
+     14.4
+    ]
+   },
+   {
+    "kind": "runepear",
+    "pos": [
+     9.1,
+     3.8
+    ]
+   },
+   {
+    "kind": "runepear",
+    "pos": [
+     -129.3,
+     34.7
+    ]
+   }
+  ],
+  "whispering_woods": [
+   {
+    "kind": "moonpear",
+    "pos": [
+     2.6,
+     82.4
+    ]
+   },
+   {
+    "kind": "moonpear",
+    "pos": [
+     -15.5,
+     72.4
+    ]
+   },
+   {
+    "kind": "moonpear",
+    "pos": [
+     0.3,
+     57.1
+    ]
+   }
+  ],
+  "ancient_grove": [
+   {
+    "kind": "amberheart",
+    "pos": [
+     -4.3,
+     38.0
+    ]
+   },
+   {
+    "kind": "amberheart",
+    "pos": [
+     -9.2,
+     20.0
+    ]
+   },
+   {
+    "kind": "amberheart",
+    "pos": [
+     11.9,
+     -68.3
+    ]
+   }
+  ],
+  "river_valley": [
+   {
+    "kind": "glasscherry",
+    "pos": [
+     -1.7,
+     80.9
+    ]
+   },
+   {
+    "kind": "glasscherry",
+    "pos": [
+     -16.1,
+     -13.1
+    ]
+   },
+   {
+    "kind": "glasscherry",
+    "pos": [
+     130.1,
+     15.1
+    ]
+   }
+  ],
+  "village": [
+   {
+    "kind": "honeyfig",
+    "pos": [
+     9.8,
+     -135.0
+    ]
+   },
+   {
+    "kind": "honeyfig",
+    "pos": [
+     9.3,
+     17.5
+    ]
+   },
+   {
+    "kind": "honeyfig",
+    "pos": [
+     12.9,
+     129.4
+    ]
+   }
+  ],
+  "observatory_hill": [
+   {
+    "kind": "cometberry",
+    "pos": [
+     11.5,
+     -9.9
+    ]
+   },
+   {
+    "kind": "cometberry",
+    "pos": [
+     49.8,
+     57.9
+    ]
+   },
+   {
+    "kind": "cometberry",
+    "pos": [
+     -8.4,
+     -7.3
+    ]
+   }
+  ],
+  "highland_path": [
+   {
+    "kind": "frostapple",
+    "pos": [
+     2.7,
+     -134.7
+    ]
+   },
+   {
+    "kind": "frostapple",
+    "pos": [
+     -16.7,
+     28.9
+    ]
+   }
+  ],
+  "celestial_summit": [
+   {
+    "kind": "sunpeach",
+    "pos": [
+     -33.1,
+     -10.2
+    ]
+   },
+   {
+    "kind": "sunpeach",
+    "pos": [
+     -41.7,
+     11.0
+    ]
+   },
+   {
+    "kind": "sunpeach",
+    "pos": [
+     38.5,
+     -40.8
+    ]
+   }
+  ],
+  "academy": [
+   {
+    "kind": "inkplum",
+    "pos": [
+     8.4,
+     7.6
+    ]
+   },
+   {
+    "kind": "inkplum",
+    "pos": [
+     -46.0,
+     -2.0
+    ]
+   },
+   {
+    "kind": "inkplum",
+    "pos": [
+     37.3,
+     13.0
+    ]
+   }
+  ],
+  "wayside": [
+   {
+    "kind": "wanderberry",
+    "pos": [
+     19.9,
+     36.8
+    ]
+   },
+   {
+    "kind": "wanderberry",
+    "pos": [
+     134.7,
+     0.6
+    ]
+   },
+   {
+    "kind": "wanderberry",
+    "pos": [
+     -134.5,
+     -4.1
+    ]
+   }
   ]
  }
 }
