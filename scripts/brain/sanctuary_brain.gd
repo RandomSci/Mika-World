@@ -1002,8 +1002,24 @@ func _loop() -> void:
 			var lead := main.characters.get("mika") as WorldCharacter
 			if lead and lead.visible and me.visible and me.global_position.distance_to(lead.global_position) > STAY_NEAR_M + 3.0:
 				current = {"kind": "rejoin", "label": "catch up with Mika", "stage": "walking"}
-				await _approach(lead.global_position, 1.8)
+				# a catch-up that did not get her closer is not tried again at once from the same spot (25 Oct live: the
+				# same walk every 3 s, dozens of times): she comes at Mika from another side, and waits a little longer
+				# each time before trying again
+				var from := me.global_position
+				var side: float = 0.0 if _rejoin_fails == 0 else [1.0, -1.0][_rejoin_fails % 2] * minf(0.6 * _rejoin_fails, 1.6)
+				var to_her := (from - lead.global_position)
+				to_her.y = 0.0
+				var stand_dir := (to_her.normalized() if to_her.length() > 0.1 else Vector3.BACK).rotated(Vector3.UP, side)
+				await _approach(lead.global_position + stand_dir * 1.8, 0.0)   # (the spot itself: 1.8 m from her on that side)
 				current = {}
+				var closer := from.distance_to(lead.global_position) - me.global_position.distance_to(lead.global_position)
+				if closer < 1.0 and me.global_position.distance_to(lead.global_position) > STAY_NEAR_M + 3.0:
+					_rejoin_fails += 1
+					var wait_s := minf(2.0 * _rejoin_fails, 8.0)
+					print("[brain] %s: could not catch up with Mika from %s (%d in a row), another way in %.0f s" % [agent_id, str(from.snapped(Vector3.ONE * 0.1)), _rejoin_fails, wait_s])
+					await get_tree().create_timer(wait_s).timeout
+				else:
+					_rejoin_fails = 0
 				continue
 		if main.curiosity and is_lead() and is_foreground():
 			await main.curiosity.consult(self)        # LLM-capable: only for the followed mage
@@ -2015,6 +2031,9 @@ func _gather(o: Dictionary) -> Dictionary:
 	var r := g.harvest(me)
 	r["pickup"] = pk
 	return r
+
+
+var _rejoin_fails := 0        # catch-ups in a row that got her no closer to Mika
 
 
 ## Walk to stand `dist` m in front of a small object (facing it), through normal navigation.

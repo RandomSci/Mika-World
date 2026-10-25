@@ -163,6 +163,15 @@ var _nav_active := false
 var _nav_stuck_time := 0.0
 var _nav_last_pos := Vector3.ZERO
 var _nav_goal := Vector3.ZERO
+## Getting unstuck (25 Oct live: Luna "stuck" 37 times at one spot by Lantern Lake and 45 at the waterfall bridge, Mika
+## 47 in the village square, each walk tried again at once from the same spot and failing the same way): a walk that
+## stops making progress first asks for a fresh path, steps back onto the walking map or sideways, and walks on
+## without the steering around others; only after nav_recoveries of those does it end as "stuck".
+var nav_recoveries := 2   # (tests set 0 to see the old behaviour)
+var _nav_recover := 0
+var _unstick_dir := Vector3.ZERO
+var _unstick_until := 0.0
+var _no_avoid_until := 0.0
 var _action_deadline := 0.0
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _expr := {}            # expression name -> Array[[MeshInstance3D, blend_idx, value]]
@@ -1637,6 +1646,9 @@ func navigate_to(target: Vector3, run := false) -> void:
 	_run = run
 	_nav_stuck_time = 0.0
 	_nav_last_pos = global_position
+	_nav_recover = 0
+	_unstick_until = 0.0
+	_no_avoid_until = 0.0
 	# as long as the walk really takes (a long road up a mountain), never a flat 90 s; being stuck is caught apart
 	var plen := 0.0
 	var pth := NavigationServer3D.map_get_path(map, global_position, reachable, true)
@@ -1870,12 +1882,19 @@ func _physics_process(delta: float) -> void:
 			desired = (next - global_position)
 			desired.y = 0
 			desired = desired.normalized()
-			desired = _steer_around(desired)
+			if now < _unstick_until:
+				desired = _unstick_dir             # the recovery step (back onto the map, or aside)
+			elif now >= _no_avoid_until:
+				desired = _steer_around(desired)
 			# window-based progress check: less than 0.5 m in 3 s while trying to move = stuck
 			_nav_stuck_time += delta
 			if _nav_stuck_time >= 3.0:
 				if global_position.distance_to(_nav_last_pos) < 0.5:
-					_finish_action(false, "stuck: under 0.5 m of progress in 3 s near %s" % str(global_position.snapped(Vector3.ONE * 0.1)))
+					if _nav_recover < nav_recoveries:
+						_nav_recover += 1
+						_unstick(now)
+					else:
+						_finish_action(false, "stuck: under 0.5 m of progress in 3 s near %s (after %d tries to get free)" % [str(global_position.snapped(Vector3.ONE * 0.1)), nav_recoveries])
 				_nav_stuck_time = 0.0
 				_nav_last_pos = global_position
 			elif now > _action_deadline:
@@ -2026,6 +2045,45 @@ func _keep_on_walkable(d: Vector3) -> Vector3:
 ## Step-up for small ledges (rock lips, disc rims, kerbs) that navigation treats as climbable
 ## (agent_max_climb 0.25 m). CharacterBody3D has no built-in step-up.
 const STEP_HEIGHT := 0.34
+
+
+## One recovery from a walk that is not getting anywhere: a fresh path; when she stands off the walking map (the map
+## lies on a seat, a bank or a ledge above her feet) a short step onto it; otherwise a step to whichever side is free,
+## and the rest of the walk without steering around others (a push that holds her against a rail or a bench).
+func _unstick(now: float) -> void:
+	nav_agent.target_position = _nav_goal
+	var map := get_world_3d().navigation_map
+	var on_map := NavigationServer3D.map_get_closest_point(map, global_position)
+	var off := Vector2(on_map.x - global_position.x, on_map.z - global_position.z)
+	var path := NavigationServer3D.map_get_path(map, on_map, NavigationServer3D.map_get_closest_point(map, _nav_goal), true)
+	var how := ""
+	_unstick_dir = Vector3.ZERO
+	if off.length() > 0.2:
+		_unstick_dir = Vector3(off.x, 0, off.y).normalized()
+		how = "onto the walking map %.2f m away" % off.length()
+	else:
+		var ahead := Vector3.ZERO
+		for i in range(1, path.size()):
+			var d := Vector3(path[i].x - global_position.x, 0, path[i].z - global_position.z)
+			if d.length() > 0.3:
+				ahead = d.normalized()
+				break
+		if ahead == Vector3.ZERO:
+			ahead = -global_transform.basis.z
+		for side in [Vector3(-ahead.z, 0, ahead.x), Vector3(ahead.z, 0, -ahead.x), -ahead]:
+			if not test_move(global_transform, side * 0.6):
+				_unstick_dir = side
+				break
+		how = "a step aside" if _unstick_dir != Vector3.ZERO else "no free side"
+	_unstick_until = now + (0.7 if _unstick_dir != Vector3.ZERO else 0.0)
+	_no_avoid_until = now + 6.0
+	var nxt := nav_agent.get_next_path_position()
+	print("[nav] %s not getting anywhere near %s (try %d of %d): %s, path %d points, walking on without steering around others" % [
+		character_id, str(global_position.snapped(Vector3.ONE * 0.1)), _nav_recover, nav_recoveries, how, path.size()])
+	# what held her (the 25 Oct loops did not happen again offline: the next one says why)
+	print("[nav]   state: next corner %.2f m, speed %.2f, floor %s, wall %s, seated %s, ground pose '%s', gesture '%s', pace %.2f, input %.2f, dash %s, physics %s" % [
+		Vector2(nxt.x - global_position.x, nxt.z - global_position.z).length(), Vector2(velocity.x, velocity.z).length(), str(is_on_floor()),
+		str(is_on_wall()), str(seated), ground_pose, current_gesture, pace, _move_input.length(), str(not _dash.is_empty()), str(is_physics_processing())])
 
 
 func _try_step_up(dir: Vector3) -> void:
