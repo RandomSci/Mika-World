@@ -164,3 +164,8 @@ Open items he listed, in the order I work them. Each one proven with 10 fps fram
 4. Characters that think outside the box. Dialogue rule to make bold guesses and unusual ideas and to disagree; each girl's theories about the case saved (knowledge theories) and brought up when the next clue comes.
 5. Persistence library for the body going through objects including hair, smooth animations for everything, the cloth problem. A helper works on branch body-live-20261023 in the Day2 worktree (Mika-Body into the daily life build, spring colliders for hair and skirt, guard always on, bake), proof sheets in Mika-Project › review › Test_Videos › body_live_20261023.
 6. Magical and cinematic effects for almost everything (walking, casting). After 2 to 4 are proven. Subtle, checked by eye first (his rule, never too much on the surroundings).
+
+## 26 Oct, before the next live
+- Stuck loops (25 Oct live): walks now try twice to get free before ending "stuck", Luna's catch-up backs off and comes from another side, and every stuck logs a `[nav] state` line with what held her. The live loops did not reproduce offline (stuckreplay, stuckblock, rebakewalk all pass); read the `[nav]` lines after the next live to find the real cause. Commit e7a9188.
+- Moment saver (Mika-Live-GoLive 1227cda): cap per stream (last 14 h), rare moments always save, dances, boat and stargazing save 45 s after and again a minute later.
+- Both apply at the next start with `~/.cache/mika_qa/apply_20261024/apply_next.sh`.
