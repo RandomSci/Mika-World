@@ -22,7 +22,7 @@ const PERSONA := {
 	"luna": "a young Umbral mage: calm and confident, a little proud and competitive, with a dry deadpan sense of humour; she loves stars, puzzles and quiet facts, teases Mika when she gets dramatic, but clearly cares about her",
 }
 const EMOTIONS := ["happy", "excited", "curious", "thoughtful", "playful", "proud", "concerned", "surprised", "relieved", "frustrated", "determined", "neutral"]
-const CALM := ["", "roam", "explore", "rest", "journal", "gather", "research", "attune", "together", "listen_rain", "investigate", "away"]
+const CALM := ["", "roam", "explore", "rest", "journal", "gather", "research", "attune", "together", "listen_rain", "investigate", "away", "pastime"]
 const AMBIENT_GAP_S := 200.0          # at least this long after their last talk before a chat on the way
 const EVENT_GAP_S := 45.0             # a real event can start one sooner (but never over another talk)
 const MAX_LINES := {"meet": 8, "ambient": 4, "event": 4, "combat": 2, "stargaze": 7}

@@ -501,6 +501,9 @@ func options() -> Array:
 	var unwritten_j := mind.activity_seq - int(mind.knowledge.get("journal_cursor", 0))
 	if unwritten_j >= 6 and Time.get_unix_time_from_system() - last_j >= JOURNAL_GAP_S and not Journal.compose(mind).is_empty():
 		out.append({"kind": "journal", "key": "journal", "label": "write in my journal"})
+	# small things to do right where she is (26 Oct: 156 of 227 choices on the 25 Oct stream were walks)
+	if main.world and is_foreground():
+		out.append_array(Pastimes.options(self))
 	# Starfall Hill at night: its spots to wander to (the old tree, the glowing flowers, the view, the roots)
 	if _night_home():
 		var sp: Dictionary = StarfallPlace.instance.spots()
@@ -792,6 +795,10 @@ func score(o: Dictionary) -> Dictionary:
 		"join_find":
 			u = 1.3
 			why.append("the other found something")
+		"pastime":
+			var pt: Dictionary = Pastimes.score(self, o)
+			u = float(pt.u)
+			why.append_array(pt.why)
 		"spot":
 			var sp: Dictionary = PlaceSpots.score(o, needs)
 			u = float(sp.u)
@@ -919,6 +926,9 @@ func score(o: Dictionary) -> Dictionary:
 	if _failures.get(o.key, 0) > 0:
 		u -= 0.9
 		why.append("failed recently -0.90")
+	if o.kind in Pastimes.WALK_KINDS and Time.get_unix_time_from_system() < walk_trouble_until:
+		u -= 0.25
+		why.append("walks keep going wrong -0.25")
 	if o.kind == "magic" and viewer_request.get(o.spell, {}).get("target", "") == o.target:
 		u += 0.45
 		why.append("a viewer suggested it +0.45")
@@ -1081,6 +1091,9 @@ func _loop() -> void:
 				_failures.erase(k)
 		if not result.get("ok", false):
 			_failures[choice.key] = 3
+			var fd := str(result.get("detail", ""))
+			if choice.kind in Pastimes.WALK_KINDS and (fd.contains("stuck") or fd.contains("could not reach") or fd.contains("short of")):
+				walk_trouble_until = Time.get_unix_time_from_system() + 300.0   # five minutes of things to do on the spot
 		needs.social = clampf(needs.social + 0.05, 0.0, 1.0)
 		needs.curiosity = clampf(needs.curiosity + 0.04, 0.0, 1.0)
 		needs.mastery = clampf(needs.mastery + 0.05, 0.0, 1.0)
@@ -1220,6 +1233,7 @@ func run_activity(o: Dictionary) -> Dictionary:
 		"join_find": return await _join_find(o)
 		"revisit": return await _use(String(o.interactable))
 		"spot": return await PlaceSpots.visit(self, o)
+		"pastime": return await Pastimes.run(self, o)
 		"wander": return await _wander(o)
 	return {"ok": false, "detail": "unknown activity"}
 
@@ -2033,7 +2047,9 @@ func _gather(o: Dictionary) -> Dictionary:
 	return r
 
 
+const Pastimes = preload("res://scripts/brain/pastimes.gd")
 var _rejoin_fails := 0        # catch-ups in a row that got her no closer to Mika
+var walk_trouble_until := 0.0  # a walk ended stuck or short: pastimes on the spot are preferred until then (unix s)
 
 
 ## Walk to stand `dist` m in front of a small object (facing it), through normal navigation.

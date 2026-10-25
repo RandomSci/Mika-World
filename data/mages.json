@@ -43,7 +43,7 @@
     "lesson",
     "drill",
     "expedition",
-    "chat"
+    "chat", "pastime"
    ],
    "temperament": {
     "research": 1.1,
@@ -334,7 +334,7 @@
     "lesson",
     "drill",
     "expedition",
-    "chat"
+    "chat", "pastime"
    ],
    "temperament": {
     "hunt": 1.35,
