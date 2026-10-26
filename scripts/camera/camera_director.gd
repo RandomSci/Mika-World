@@ -522,6 +522,12 @@ func _guard_mika(delta: float) -> void:
 	if mode == "performance" and not _perf.is_empty():
 		print("[camera] Mika hidden in the dance shot %s: next shot" % String((_perf.shot as Dictionary).get("name", "")))
 		performance_cut()
+	elif mode == "stargaze" and not _stargaze.is_empty() and bool(_stargaze.get("failed", false)):
+		# even the high wide shot hides her (27 Oct live: under the old tree on Starfall Hill the stream showed empty grass
+		# for a minute, the girls out of the picture): the follow lens for the rest of the stargaze
+		_stargaze.given_up = true
+		print("[camera] Mika hidden in every stargaze shot: the follow lens until they get up")
+		_switch("chase")
 	elif mode == "stargaze" and not _stargaze.is_empty():
 		# that side of that shot is struck off (next frame the other side, then the high wide shot); no chase lens,
 		# which flipped back and forth with the stargaze shot every 4 s
@@ -550,7 +556,7 @@ func _choose() -> String:
 		return "scene"
 	if not _sig.is_empty():
 		return "signature"
-	if not _stargaze.is_empty() and is_instance_valid(_stargaze.a) and is_instance_valid(_stargaze.b):
+	if not _stargaze.is_empty() and is_instance_valid(_stargaze.a) and is_instance_valid(_stargaze.b) and not bool(_stargaze.get("given_up", false)):
 		return "stargaze"
 	_combat = CombatFraming.subjects(self, main, mika) if main.spawner else {"foes": []}
 	if not (_combat.foes as Array).is_empty():
