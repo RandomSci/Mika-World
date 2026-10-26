@@ -1026,6 +1026,9 @@ func _loop() -> void:
 				var closer := from.distance_to(lead.global_position) - me.global_position.distance_to(lead.global_position)
 				if closer < 1.0 and me.global_position.distance_to(lead.global_position) > STAY_NEAR_M + 3.0:
 					_rejoin_fails += 1
+					if _rejoin_fails >= 4 and await _rejoin_out_of_view(lead):
+						_rejoin_fails = 0
+						continue
 					var wait_s := minf(2.0 * _rejoin_fails, 8.0)
 					print("[brain] %s: could not catch up with Mika from %s (%d in a row), another way in %.0f s" % [agent_id, str(from.snapped(Vector3.ONE * 0.1)), _rejoin_fails, wait_s])
 					await get_tree().create_timer(wait_s).timeout
@@ -2664,3 +2667,34 @@ func perform_action(action_id: String) -> Dictionary:
 		if o.key == action_id or o.get("interactable", "") == action_id or o.label == action_id:
 			return await run_activity(o)
 	return {"ok": false, "error": "no available activity '%s' (see region_context.options)" % action_id}
+
+
+## Wedged and out of the picture (27 Oct live: Luna failed to catch up 24 times from one corner of the sanctuary while
+## Mika went on alone for a quarter of an hour): she walks up to Mika from a spot near her that the camera does not see,
+## placed there while she is out of view herself. Returns false (and nothing moves) when either would show on screen.
+func _rejoin_out_of_view(lead: WorldCharacter) -> bool:
+	var me: WorldCharacter = main.characters[agent_id]
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or cam.is_position_in_frustum(me.global_position + Vector3(0, 1.0, 0)):
+		return false
+	var away := lead.global_position - cam.global_position
+	away.y = 0.0
+	away = away.normalized() if away.length() > 0.1 else Vector3.FORWARD
+	for deg in [180.0, 135.0, -135.0, 90.0, -90.0]:
+		var dir := away.rotated(Vector3.UP, deg_to_rad(deg))
+		for r in [5.0, 7.0]:
+			var want: Vector3 = lead.global_position - dir * r
+			var at: Vector3 = await main.snap_to_nav(want)
+			if Vector2(at.x - want.x, at.z - want.z).length() > 2.0 or absf(at.y - lead.global_position.y) > 2.5:
+				continue
+			if cam.is_position_in_frustum(at + Vector3(0, 1.0, 0)) or cam.is_position_in_frustum(at + Vector3(0, 0.1, 0)):
+				continue
+			if main.teleport_guard:
+				main.teleport_guard.allow(me)
+			var from := me.global_position
+			me.stop_action()
+			me.global_position = at + Vector3(0, 0.05, 0)
+			me.velocity = Vector3.ZERO
+			print("[brain] %s: wedged at %s, out of view; comes in to Mika from %s" % [agent_id, str(from.snapped(Vector3.ONE * 0.1)), str(at.snapped(Vector3.ONE * 0.1))])
+			return true
+	return false
