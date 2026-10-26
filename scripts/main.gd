@@ -923,6 +923,17 @@ func _on_area_for_mages(area_id: String) -> void:
 		if travel == null or not travel.active():
 			travel_companions.erase(who)      # (kept to the journey's end: every hop and the last stretch, 22 Oct)
 		var her_area := String(m.location.get("area", _home_area(who)))
+		if her_area != area_id and world != null and stream_profile == "mika" and focus == "mika" and characters.has(focus):
+			# on stream Luna lives beside Mika (26 Oct live: the save had her in the Arcane Library while Mika woke at the
+			# Mentor's Tower, and she stayed out of view through every area that followed): she joins her here
+			var lead: WorldCharacter = characters[focus]
+			var way := -lead.global_transform.basis.z
+			way.y = 0.0
+			way = way.normalized() if way.length() > 0.1 else Vector3.FORWARD
+			var side := Vector3(-way.z, 0, way.x)
+			m.set_location(area_id, lead.global_position - way * 1.5 + side * 0.7)
+			her_area = area_id
+			print("[mages] %s joins %s in %s (she was away in another area)" % [who, focus, area_id])
 		if her_area != area_id or world == null:
 			c.visible = false
 			c.set_physics_process(false)
