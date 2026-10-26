@@ -51,6 +51,7 @@ var rng := RandomNumberGenerator.new()
 var _recent_kinds: Array[String] = []
 var _recent_targets: Array[String] = []
 var _failures := {}            # option key -> decisions left to avoid
+var _walk_fails := {}          # option key -> walks to it that ended stuck or unreachable (each one keeps it away twice as long)
 var _interrupt := ""
 var _cancel := false
 var _listened_this_rain := ""      # the area where she already sat out this shower
@@ -1092,7 +1093,11 @@ func _loop() -> void:
 		if not result.get("ok", false):
 			_failures[choice.key] = 3
 			var fd := str(result.get("detail", ""))
-			if choice.kind in Pastimes.WALK_KINDS and (fd.contains("stuck") or fd.contains("could not reach") or fd.contains("short of")):
+			if choice.kind in Pastimes.WALK_KINDS and (fd.contains("stuck") or fd.contains("could not reach") or fd.contains("short of") or fd.contains("unreachable")):
+				# the same unreachable rock again and again (26 Oct live: 17 stuck walks in half an hour at the Mentor's
+				# Tower, the same spots retried every few choices): 6, 12, 24 ... up to 48 choices away
+				_walk_fails[choice.key] = int(_walk_fails.get(choice.key, 0)) + 1
+				_failures[choice.key] = mini(3 << int(_walk_fails[choice.key]), 48)
 				walk_trouble_until = Time.get_unix_time_from_system() + 300.0   # five minutes of things to do on the spot
 		needs.social = clampf(needs.social + 0.05, 0.0, 1.0)
 		needs.curiosity = clampf(needs.curiosity + 0.04, 0.0, 1.0)
