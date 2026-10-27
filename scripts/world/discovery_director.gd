@@ -252,6 +252,7 @@ func restore(area: Node) -> int:
 		n += 1
 	if n > 0:
 		print("[discovery] %s: %d past finds to revisit" % [id, n])
+		area.set_meta("props_after_bake", true)
 	return n
 
 

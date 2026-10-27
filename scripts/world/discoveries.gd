@@ -58,7 +58,18 @@ static func populate(area: Node) -> int:
 		n += 1
 	if n > 0:
 		print("[discoveries] %s: %d placed" % [area.get("area_id"), n])
+		area.set_meta("props_after_bake", true)   # (main re-bakes once every find is in: rebake_after_props)
 	return n
+
+
+## The finds' props are solid but are set in after the bake: the walking map must go round them (27 Oct live: two
+## crates on the woods trail, every walk to the wayshrine, the Lamplighter's first clue, stuck against them 14 m
+## short, and the story stood still all day). Once per arrival, still behind the travel card.
+static func rebake_after_props(area: Node) -> void:
+	if area == null or not area.has_meta("props_after_bake") or not area.has_method("bake_navigation"):
+		return
+	area.remove_meta("props_after_bake")
+	await area.bake_navigation()
 
 
 ## Where it stands: the location's point of interest + offset, on walkable ground, clear of anything solid

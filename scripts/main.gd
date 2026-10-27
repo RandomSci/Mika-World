@@ -96,6 +96,7 @@ func _ready() -> void:
 	# Starfall Hill: the great tree and its grass a short walk from where they first wake (sanctuary only)
 	streaming.before_reveal.append(func(): StarfallPlace.populate(self, world))
 	streaming.before_reveal.append(func(): _place_companions())     # behind the travel card (no pop-in)
+	streaming.before_reveal.append(func(): await Discoveries.rebake_after_props(world))
 	if not RenderProfile.options.has("no-grade"):
 		var grade := StreamGrade.new()
 		grade.name = "StreamGrade"
